@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { useHostStore } from '../store/host'
-import { usePersistedStore } from '../store/persisted'
 import type { ScheduledTask } from '../types/schedules'
 import { LOCAL_HOST_ID } from './hosts'
 import { describeSources } from './rclone/kinds'
@@ -112,9 +111,7 @@ export function useSchedulerSupported() {
  * pages (to gate the Schedule section + footer Schedule button) and the footer.
  */
 export function useSchedulingAvailable(): boolean {
-    const currentHostId = usePersistedStore((s) => s.currentHostId) ?? LOCAL_HOST_ID
-    const support = useSchedulerSupported()
-    return currentHostId === LOCAL_HOST_ID && (support.data?.supported ?? false)
+    return useSchedulerSupported().data?.supported ?? false
 }
 
 export interface CronValidation {
@@ -182,16 +179,6 @@ async function registerTask(task: ScheduledTask): Promise<void> {
     await rpc('scheduler_register', { spec, enabled: task.isEnabled })
 }
 
-function isCurrentHostLocal() {
-    return (usePersistedStore.getState().currentHostId ?? LOCAL_HOST_ID) === LOCAL_HOST_ID
-}
-
-function assertLocalHost() {
-    if (!isCurrentHostLocal()) {
-        throw new Error('Scheduling is only available on your local machine')
-    }
-}
-
 async function assertSupported() {
     const support = await schedulerSupported()
     if (!support.supported) {
@@ -216,7 +203,6 @@ export async function createScheduledTask(input: {
     /** Defaults to 'user' (only runs while logged in) when omitted. */
     runMode?: 'system' | 'user'
 }): Promise<string> {
-    assertLocalHost()
     await assertSupported()
 
     const validation = await schedulerValidateCron(input.cron)
@@ -284,11 +270,6 @@ export async function updateScheduledTask(
     id: string,
     patch: Partial<ScheduledTask>
 ): Promise<void> {
-    if (!isCurrentHostLocal()) {
-        useHostStore.getState().updateScheduledTask(id, patch)
-        return
-    }
-
     await assertSupported()
 
     if (patch.cron) {
@@ -320,7 +301,7 @@ export async function updateScheduledTask(
  * removes the trigger, and exits). Remote-host tasks are store-only.
  */
 export async function removeScheduledTask(id: string): Promise<void> {
-    if (isCurrentHostLocal()) {
+    {
         try {
             await rpc('scheduler_unregister', { taskId: id, hostId: LOCAL_HOST_ID })
         } catch (error) {
@@ -337,12 +318,6 @@ export async function setScheduledTaskEnabled(id: string, enabled: boolean): Pro
     const task = useHostStore.getState().scheduledTasks.find((t) => t.id === id)
     if (!task) {
         throw new Error('Task not found')
-    }
-
-    // Remote-host tasks are inert — the toggle is a definition-only edit.
-    if (!isCurrentHostLocal()) {
-        useHostStore.getState().updateScheduledTask(id, { isEnabled: enabled })
-        return
     }
 
     // Enabling a task whose registration previously failed retries the full registration.
@@ -377,9 +352,6 @@ export async function setScheduledTaskEnabled(id: string, enabled: boolean): Pro
 export async function reconcile(): Promise<void> {
     const support = await schedulerSupported()
     if (!support.supported) {
-        return
-    }
-    if (!isCurrentHostLocal()) {
         return
     }
     const failed = useHostStore.getState().scheduledTasks.filter((task) => task.registrationError)

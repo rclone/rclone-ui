@@ -1,7 +1,4 @@
-import pRetry from 'p-retry'
-import { hostProbe } from './api/app'
 import { platform } from './api/os'
-
 export interface Host {
     id: 'local' | string
     name: string
@@ -30,46 +27,4 @@ export function makeLocalHost(): Host {
         os: os === 'windows' || os === 'macos' ? os : 'linux',
         cliVersion: 'unknown',
     }
-}
-
-export const LABEL_FOR_OS = {
-    windows: 'Windows',
-    macos: 'macOS',
-    linux: 'Linux',
-} as const
-
-export async function getHostInfo({
-    hostId,
-    url,
-    authUser,
-    authPassword,
-}: {
-    /** `local` probes the managed daemon regardless of `url`. */
-    hostId?: string
-    url: string
-    authUser?: string
-    authPassword?: string
-}) {
-    if (hostId !== LOCAL_HOST_ID) {
-        try {
-            const parsedUrl = new URL(url)
-            if (!parsedUrl.hostname) {
-                return null
-            }
-        } catch {
-            return null
-        }
-    }
-
-    // The server probes the daemon (CORS never applies to it) and normalizes the reply.
-    const infoResponse = await pRetry(() => hostProbe({ hostId, url, authUser, authPassword }), {
-        retries: 3,
-        factor: 2,
-        minTimeout: 1000,
-        maxTimeout: 10000,
-    })
-
-    console.log('[getHostInfo] infoResponse', infoResponse)
-
-    return infoResponse
 }

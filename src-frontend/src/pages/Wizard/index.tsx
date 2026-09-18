@@ -4,7 +4,6 @@ import { type ReactNode, useEffect, useId, useReducer, useRef } from 'react'
 import { buildReadablePath } from '../../../lib/format'
 import { LOCAL_HOST_ID } from '../../../lib/hosts'
 import { useSchedulerSupported } from '../../../lib/scheduler'
-import { usePersistedStore } from '../../../store/persisted'
 import MetadataMapper from '../../components/MetadataMapper'
 import { OPERATIONS } from '../../components/OperationGrid'
 import { PathField } from '../../components/PathFinder'
@@ -151,7 +150,7 @@ export default function Wizard() {
 
     // Schedules are OS-native and local-host-only; a timer card explains itself when it cannot
     // be taken, so the step is the same everywhere.
-    const hostId = usePersistedStore((state) => state.currentHostId) ?? LOCAL_HOST_ID
+    const hostId = LOCAL_HOST_ID
     const support = useSchedulerSupported()
     const timerReason =
         hostId !== LOCAL_HOST_ID

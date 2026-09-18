@@ -24,7 +24,6 @@ const DESKTOP_TABS: { key: SectionKey; disabledWhenRemote?: boolean; hiddenInPre
         { key: 'remotes' },
         { key: 'notifications' },
         { key: 'smtp' },
-        { key: 'hosts' },
         { key: 'config', disabledWhenRemote: true },
         { key: 'binary', disabledWhenRemote: true },
         { key: 'proxy' },

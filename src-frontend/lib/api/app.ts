@@ -83,14 +83,8 @@ export const stopRclone = () => rpc<null>('rclone_stop')
 export const rclonePassword = (configId: string, pass: string) =>
     rpc<null>('rclone_password', { configId, pass })
 
-// --- hosts / tunnel ----------------------------------------------------------------------
+// --- downloads ----------------------------------------------------------------------
 
-export const hostProbe = (args: {
-    hostId?: string
-    url: string
-    authUser?: string
-    authPassword?: string
-}) => rpc<{ os: 'windows' | 'macos' | 'linux'; cliVersion: string }>('host_probe', args)
 export const downloadLink = (hostId: string, fs: string, remote: string) =>
     rpc<string>('download_link', { hostId, fs, remote })
 

@@ -4,7 +4,6 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { onBusy, setNavigate } from '../../../lib/api/navigation'
 import { getSession } from '../../../lib/api/session'
 import { hydrated } from '../../../lib/api/state'
-import { LOCAL_HOST_ID, makeLocalHost } from '../../../lib/hosts'
 import { useHostStore } from '../../../store/host'
 import { usePersistedStore } from '../../../store/persisted'
 import DialogHost from '../../components/DialogHost'
@@ -12,24 +11,12 @@ import Sidebar from './Sidebar'
 import SiteHeader from './SiteHeader'
 import { useSidebarState } from './useSidebarState'
 
-/** A fresh data dir has no hosts at all; the rclone client needs a current host to build a URL. */
-async function ensureLocalHost() {
-    await hydrated(usePersistedStore.persist)
-    const state = usePersistedStore.getState()
-    const hasLocal = state.hosts.some((host) => host.id === LOCAL_HOST_ID)
-    if (hasLocal && state.currentHostId) return
-    usePersistedStore.setState((prev) => ({
-        hosts: hasLocal ? prev.hosts : [...prev.hosts, makeLocalHost()],
-        currentHostId: prev.currentHostId ?? LOCAL_HOST_ID,
-    }))
-}
-
 /**
  * The host's document loads after the app's (a current host is needed to name it). Pages must
  * not render before it has: their first writes would carry defaults over what is saved.
  */
 async function ensureHostStore() {
-    await ensureLocalHost()
+    await hydrated(usePersistedStore.persist)
     await hydrated(useHostStore.persist)
 }
 

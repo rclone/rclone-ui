@@ -50,7 +50,7 @@ export default function Transfers() {
     const acknowledgements = usePersistedStore((state) => state.acknowledgements)
     const scheduledTasks = useHostStore((state) => state.scheduledTasks)
     // Re-read on a host switch: the list is one host's.
-    const hostId = usePersistedStore((state) => state.currentHostId) ?? currentHostId()
+    const hostId = currentHostId()
 
     const { rows: transfers, query: transfersQuery } = useTransferRows(hostId)
     // The open drawer follows its row: a transfer that ends while it is open stops being live.

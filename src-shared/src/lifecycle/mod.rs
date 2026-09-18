@@ -6,7 +6,6 @@
 //! human decision is needed at boot it asks the host through [`Interaction`].
 
 pub mod config;
-pub mod hosts;
 pub mod interaction;
 pub mod mounts;
 pub mod resolve;
@@ -155,7 +154,6 @@ pub struct Supervisor {
     target: RwLock<Option<RcTarget>>,
     restart_tx: mpsc::UnboundedSender<Option<RestartOverrides>>,
     shutting_down: AtomicBool,
-    host_checked: AtomicBool,
     /// The proxy URL whose connectivity was already probed (and answered) this process.
     proxy_probed: Mutex<Option<String>>,
     /// Told when the daemon goes down: what it was transferring went with it.
@@ -180,7 +178,6 @@ impl Supervisor {
             target: RwLock::new(None),
             restart_tx,
             shutting_down: AtomicBool::new(false),
-            host_checked: AtomicBool::new(false),
             proxy_probed: Mutex::new(None),
             transfers,
         });
@@ -271,11 +268,6 @@ impl Supervisor {
 
     async fn start_once(&self) -> Result<mpsc::UnboundedReceiver<RcloneEvent>, StartError> {
         self.set_phase(Phase::Resolving);
-        // The current host is settled once per process (a remote host that never answers is
-        // replaced by the local one), not on every daemon restart.
-        if !self.host_checked.swap(true, Ordering::SeqCst) {
-            hosts::check_current_host(&self.ctx, &self.store, &self.options.interaction).await;
-        }
         let path = resolve::resolve_binary(
             &self.ctx,
             &self.store,

@@ -4,7 +4,6 @@ import {
     CloudCogIcon,
     CodeIcon,
     CogIcon,
-    GlobeIcon,
     InfoIcon,
     MailIcon,
     PackageIcon,
@@ -17,7 +16,6 @@ import AboutSection from './AboutSection'
 import BinarySection from './BinarySection'
 import ConfigSection from './ConfigSection'
 import GeneralSection from './GeneralSection'
-import HostsSection from './HostsSection'
 import NotificationsSection from './NotificationsSection'
 import ProxySection from './ProxySection'
 import RcloneSection from './RcloneSection'
@@ -31,7 +29,6 @@ export type SectionKey =
     | 'general'
     | 'remotes'
     | 'notifications'
-    | 'hosts'
     | 'team'
     | 'config'
     | 'binary'
@@ -52,7 +49,6 @@ export const SETTINGS_SECTIONS: Record<SectionKey, SettingsSection> = {
     general: { label: 'General', icon: CogIcon, component: GeneralSection },
     remotes: { label: 'Remotes', icon: ServerIcon, component: RemotesSection },
     notifications: { label: 'Notifications', icon: BellIcon, component: NotificationsSection },
-    hosts: { label: 'Hosts', icon: GlobeIcon, component: HostsSection },
     // Browser only: accounts are the server's; the desktop's windows use a launch token.
     team: { label: 'Team', icon: UsersIcon, component: TeamSection },
     config: {

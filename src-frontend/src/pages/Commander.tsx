@@ -443,7 +443,7 @@ function TransfersBar({
     // `commander`). Which of them still run, and when one has ended, is the record's to say:
     // rclone is asked only for the files of the running ones, and an ended one's files are read
     // once from what the server kept.
-    const hostId = usePersistedStore((state) => state.currentHostId) ?? currentHostId()
+    const hostId = currentHostId()
     const { rows } = useTransferRows(hostId, { enabled: trackedIds.size > 0 })
     const mine = useMemo(
         () => [...rows.active, ...rows.inactive].filter((row) => trackedIds.has(row.id)),

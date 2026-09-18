@@ -1,29 +1,15 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { hydrated, stateStorage, watchDoc, whenWritten } from '../lib/api/state'
+import { stateStorage, watchDoc, whenWritten } from '../lib/api/state'
 import type { ConfigFile } from '../types/config'
 import type { ScheduledTask } from '../types/schedules'
 
-// One document per host (`<app_data>/state/hosts/<id>.json`, served as `/api/state/hosts/<id>`);
-// the storage resolves the active one on every operation so switching hosts swaps the file.
-let activeHostId: string | null = null
-const activeDoc = () => (activeHostId ? `hosts/${activeHostId}` : null)
+// The host document (`<app_data>/state/hosts/local.json`, served as `/api/state/hosts/local`).
+// The path still carries a host id: it is what the runner, the ledger and the schedules file
+// themselves under, and this server serves exactly one of them.
+const activeDoc = () => 'hosts/local'
 
 watchDoc(activeDoc, () => useHostStore.persist.rehydrate())
-
-export async function initHostStore(hostId: string) {
-    if (activeHostId === hostId) {
-        await hydrated(useHostStore.persist)
-        console.log('[waitForHostStoreHydration] host store hydrated')
-        return
-    }
-
-    console.log('[HostStore] Initializing for host:', hostId)
-    activeHostId = hostId
-
-    // trigger a rehydration to load the new document's content into the store
-    await useHostStore.persist.rehydrate()
-}
 
 /**
  * Waits for the writes the host store has queued so far to land. The persist middleware writes

@@ -10,7 +10,6 @@ import rclone from '../../lib/rclone/client'
 
 import { type ResolvedToolbarResult, runToolbarEngine } from '../../toolbar/engine'
 import type { ToolbarSnapshot } from '../../toolbar/types'
-import { usePersistedStore } from '../../store/persisted'
 import type { RcloneFeatures } from '../../types/rclone'
 import { on as onAppEvent } from '../../lib/api/events'
 import {
@@ -147,15 +146,14 @@ export default function Toolbar() {
 
     // Everything result generation may look at, in one value: the engine reads this and the
     // query, never a cache or a store, so the effect's inputs are exactly its dependencies.
-    const currentHostId = usePersistedStore((state) => state.currentHostId)
     const snapshot = useMemo<ToolbarSnapshot>(
         () => ({
-            hostIsLocal: currentHostId === 'local',
+            hostIsLocal: true,
             mounts: mountList ?? [],
             serves: serveList ?? [],
             vfses: vfsList ?? [],
         }),
-        [currentHostId, mountList, serveList, vfsList]
+        [mountList, serveList, vfsList]
     )
     const [searchString, setSearchString] = useState('')
     const [searchStringDebounced] = useDebounce(searchString, 40)

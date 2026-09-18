@@ -32,7 +32,6 @@ import {
     useSchedulerSupported,
 } from '../../lib/scheduler'
 import { useHostStore } from '../../store/host'
-import { usePersistedStore } from '../../store/persisted'
 import type { ScheduledTask } from '../../types/schedules'
 import EmptyState from '../components/EmptyState'
 import ScheduleEditDrawer from '../components/ScheduleEditDrawer'
@@ -46,15 +45,10 @@ export default function Schedules() {
     }, [])
 
     const scheduledTasks = useHostStore((state) => state.scheduledTasks)
-    const currentHostId = usePersistedStore((state) => state.currentHostId) ?? LOCAL_HOST_ID
-    const isLocalHost = currentHostId === LOCAL_HOST_ID
-
     const supportQuery = useSchedulerSupported()
-    const schedulingAvailable = isLocalHost && (supportQuery.data?.supported ?? false)
-
-    const unavailableReason = isLocalHost
-        ? (supportQuery.data?.reason ?? 'Scheduling is not available on this system.')
-        : 'Scheduling runs on your local machine only — switch to the local host to manage these tasks.'
+    const schedulingAvailable = supportQuery.data?.supported ?? false
+    const unavailableReason =
+        supportQuery.data?.reason ?? 'Scheduling is not available on this system.'
 
     const [selectedTask, setSelectedTask] = useState<ScheduledTask | null>(null)
     const [highlightedRunId, setHighlightedRunId] = useState<string | null>(null)

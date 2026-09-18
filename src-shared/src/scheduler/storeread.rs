@@ -27,20 +27,8 @@ pub struct RootState {
     pub current_host_id: Option<String>,
     pub hide_startup: bool,
     pub rclone_path: Option<String>,
-    /// Configured hosts (local + remote rclone RC daemons); only the url is modeled.
-    pub hosts: Vec<HostEntry>,
     pub auto_update_rclone: bool,
     pub last_notified_rclone_version: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct HostEntry {
-    pub id: String,
-    pub url: String,
-    pub name: Option<String>,
-    pub auth_user: Option<String>,
-    pub auth_password: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]

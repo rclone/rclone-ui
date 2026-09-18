@@ -455,33 +455,6 @@ server_rpcs! {
             ok(Value::Null)
         },
 
-        // --- hosts -------------------------------------------------------------------------
-        "host_probe" => {
-            // `local` is the managed daemon, whose address only the server knows.
-            let client = if args["hostId"].as_str() == Some("local") {
-                st.local_daemon()
-                    .ok_or("the rclone daemon is not running yet")?
-                    .client()
-            } else {
-                let url = str_arg(&args, "url")?;
-                let user = args["authUser"]
-                    .as_str()
-                    .filter(|u| !u.is_empty())
-                    .map(|s| s.to_string());
-                let pass = args["authPassword"].as_str().map(|s| s.to_string());
-                rclone_ui_shared::rc::RcClient::new(url, user, pass)
-            };
-            let version = client.call("/core/version", &json!({})).await?;
-            let os = match version["os"].as_str().unwrap_or("") {
-                "windows" => "windows",
-                "darwin" => "macos",
-                _ => "linux",
-            };
-            ok(json!({
-                "os": os,
-                "cliVersion": version["version"].as_str().unwrap_or("").trim_start_matches('v'),
-            }))
-        },
         "download_link" => {
             let host = args["hostId"].as_str().unwrap_or("local");
             let fs = str_arg(&args, "fs")?;

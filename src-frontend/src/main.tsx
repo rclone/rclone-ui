@@ -16,8 +16,7 @@ import { connect } from '../lib/api/ws'
 import * as api from '../lib/api'
 import queryClient from '../lib/query'
 import { reconnectRemote } from '../lib/rclone/api'
-import { clearClient, setReconnectHandler } from '../lib/rclone/client'
-import { initHostStore } from '../store/host'
+import { setReconnectHandler } from '../lib/rclone/client'
 import { usePersistedStore } from '../store/persisted'
 import DialogHost from './components/DialogHost'
 import Shell from './layouts/shell/Shell'
@@ -71,21 +70,6 @@ if (
 
 // The client's reconnect flow needs the API layer, which imports the client: wired here.
 setReconnectHandler(reconnectRemote)
-
-// placed here to avoid circular dependency
-usePersistedStore.subscribe(async (state, prevState) => {
-    if (state.currentHostId !== prevState.currentHostId && state.currentHostId) {
-        console.log('[Store] Host changed to', state.currentHostId)
-        await initHostStore(state.currentHostId).catch(console.error)
-        // Hydration sets the first host; nothing was fetched from another host before it.
-        if (!prevState.currentHostId) return
-        clearClient()
-        // Drops the previous host's data and refetches whatever is on screen. A plain clear()
-        // destroyed fetches already in flight for the new host and left their observers (the
-        // sidebar's status card, which fires before this runs) pending for good.
-        await queryClient.resetQueries()
-    }
-})
 
 // Shared by both hosts; the settings differ (a tabbed window on the desktop, one section per
 // route under the Shell).

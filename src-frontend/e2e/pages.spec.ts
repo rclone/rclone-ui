@@ -1752,69 +1752,6 @@ test('an OAuth login is finished from another machine', async ({ page, request }
     }
 })
 
-test('switching hosts does not carry the previous host state along', async ({ page, request }) => {
-    const doc = async (name: string) =>
-        (await (await request.get(`/api/state/${name}`, { headers: SESSION })).json()) as {
-            revision: number
-            state: Record<string, unknown>
-        }
-    // Something only the local host has.
-    const local = await doc('hosts/local')
-    await request.patch('/api/state/hosts/local', {
-        headers: { ...SESSION, 'If-Match': String(local.revision) },
-        data: {
-            set: { favoritePaths: [{ remote: 'e2e-memory', path: 'keep/', added: 1 }] },
-            unset: [],
-        },
-    })
-    let secondId: string | undefined
-    try {
-        await page.goto('/settings/hosts')
-        await page.locator('button:has(svg.lucide-plus)').first().click()
-        const drawer = page.getByRole('dialog')
-        await drawer.getByPlaceholder('Internal name (for your reference)').fill('e2e-second')
-        await drawer.getByPlaceholder('http://15.123.67.512:8080').fill('http://localhost:5572')
-        await drawer.getByRole('button', { name: 'Add Host' }).click()
-        await expect(page.getByText('e2e-second', { exact: true })).toBeVisible()
-        const app = await doc('app')
-        secondId = (app.state.hosts as { id: string; name: string }[]).find(
-            (host) => host.name === 'e2e-second'
-        )?.id
-        expect(secondId).toBeTruthy()
-
-        // Switch to it. The sidebar notes the remotes it lists: the new host's first write.
-        await page.getByText('e2e-second', { exact: true }).click()
-        await page.getByRole('dialog').getByRole('button', { name: 'Yes' }).click()
-        await expect
-            .poll(async () => (await doc(`hosts/${secondId}`)).revision, { timeout: 15_000 })
-            .toBeGreaterThan(0)
-        const second = await doc(`hosts/${secondId}`)
-        // The favourite belongs to the local host; a document that lacks it starts empty.
-        expect(second.state.favoritePaths ?? []).toEqual([])
-        expect(second.state.remoteFirstSeen).toHaveProperty('e2e-memory')
-    } finally {
-        // Back to the local host, without the second one.
-        const app = await doc('app')
-        await request.patch('/api/state/app', {
-            headers: { ...SESSION, 'If-Match': String(app.revision) },
-            data: {
-                set: {
-                    currentHostId: 'local',
-                    hosts: (app.state.hosts as { id: string }[]).filter(
-                        (host) => host.id !== secondId
-                    ),
-                },
-                unset: [],
-            },
-        })
-        const current = await doc('hosts/local')
-        await request.patch('/api/state/hosts/local', {
-            headers: { ...SESSION, 'If-Match': String(current.revision) },
-            data: { set: { favoritePaths: [] }, unset: [] },
-        })
-    }
-})
-
 test('a failed metadata lookup downloads the URL in the field', async ({ page }) => {
     // The metadata service answers for the first URL and fails for the second; the download
     // must carry the URL in the field, never the previous one's resolved address.

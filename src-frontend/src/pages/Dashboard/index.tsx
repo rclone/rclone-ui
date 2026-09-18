@@ -220,7 +220,7 @@ export default function Dashboard() {
     // The transfers panel is the record's newest few, the running ones with their live numbers:
     // there after a restart, there from the moment one starts, and never a download (which is
     // not a transfer, and would show in rclone's daemon-wide files in flight).
-    const hostId = usePersistedStore((state) => state.currentHostId) ?? currentHostId()
+    const hostId = currentHostId()
     const { rows } = useTransferRows(hostId)
     const all = useMemo(() => [...rows.active, ...rows.inactive], [rows])
     const recent = all.slice(0, 6)

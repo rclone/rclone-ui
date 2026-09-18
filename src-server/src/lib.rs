@@ -45,7 +45,6 @@ use std::time::Instant;
 use rclone_ui_shared::lifecycle::interaction::SharedInteraction;
 use rclone_ui_shared::lifecycle::{Options as LifecycleOptions, Supervisor};
 use rclone_ui_shared::rc::RcClient;
-use rclone_ui_shared::scheduler::storeread;
 use rclone_ui_shared::state_files::{StateStore, APP_DOC};
 use rclone_ui_shared::transfers::service::TransferService;
 use rclone_ui_shared::{Ctx, DataDir, Events, Sink};
@@ -284,25 +283,10 @@ impl AppState {
 
     /// The daemon behind a host id: `local` = the managed daemon, anything else a configured
     /// remote host (`hosts[]` in the app state).
+    /// The one daemon. Transfers, schedules and state documents are still filed under a host
+    /// id, and `local` is the only one this server serves.
     pub fn daemon_for(&self, host_id: &str) -> Option<DaemonTarget> {
-        if host_id == "local" {
-            return self.local_daemon();
-        }
-        let state = self.store.state_or_default(APP_DOC);
-        let hosts: Vec<storeread::HostEntry> = state
-            .get("hosts")
-            .cloned()
-            .and_then(|v| serde_json::from_value(v).ok())
-            .unwrap_or_default();
-        hosts
-            .into_iter()
-            .find(|h| h.id == host_id)
-            .filter(|h| !h.url.is_empty())
-            .map(|h| DaemonTarget {
-                base_url: h.url.trim_end_matches('/').to_string(),
-                user: h.auth_user.filter(|u| !u.is_empty()),
-                pass: h.auth_password,
-            })
+        (host_id == "local").then(|| self.local_daemon()).flatten()
     }
 
     pub(crate) fn quitting_flag(&self) -> std::sync::MutexGuard<'_, bool> {

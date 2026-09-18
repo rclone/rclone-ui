@@ -5,7 +5,7 @@ import { ask } from '../lib/api/dialog'
 import { toolbarSetShortcut } from '../lib/api/native'
 import { platform } from '../lib/api/os'
 import { putDoc, stateStorage, watchDoc } from '../lib/api/state'
-import type { Host } from '../lib/hosts'
+import { type Host, makeLocalHost } from '../lib/hosts'
 import { hasTemplatePaths } from '../lib/rclone/templatePaths'
 import type { SERVE_TYPES } from '../lib/rclone/constants'
 import type { ConfigFile } from '../types/config'
@@ -98,10 +98,6 @@ interface PersistedStateV2 {
     // Notification targets are NOT here: they live in a Rust-owned store
     // (notifications/targets.json) so the headless scheduler runner can read AND write them.
 
-    hosts: Host[]
-    currentHostId: string | null
-    setCurrentHost: (id: Host['id']) => void
-
     hideStartup: boolean
 
     acknowledgements: string[]
@@ -164,17 +160,6 @@ export const usePersistedStore = create<PersistedStateV2>()(
                         },
                     ],
                 })),
-
-            hosts: [],
-            currentHostId: null,
-            setCurrentHost: (id: Host['id']) =>
-                set((state) => {
-                    if (!state.hosts.some((h) => h.id === id)) {
-                        return {}
-                    }
-
-                    return { currentHostId: id }
-                }),
 
             hideStartup: false,
 
@@ -385,7 +370,6 @@ export const usePersistedStore = create<PersistedStateV2>()(
                     }
                     return {
                         ...rest,
-                        currentHostId: currentHost?.id ?? null,
                     } as PersistedStateV2
                 }
 
@@ -395,13 +379,15 @@ export const usePersistedStore = create<PersistedStateV2>()(
     )
 )
 
-/** Resolves the current Host object from the stored id, or null if it no longer exists. */
-export function selectCurrentHost(state: PersistedStateV2): Host | null {
-    return state.hosts.find((h) => h.id === state.currentHostId) ?? null
+/** The one host this server serves: its own machine, reached through the managed daemon. */
+const LOCAL_HOST = makeLocalHost()
+
+export function selectCurrentHost(_state: PersistedStateV2): Host {
+    return LOCAL_HOST
 }
 
-export function useCurrentHost(): Host | null {
-    return usePersistedStore(selectCurrentHost)
+export function useCurrentHost(): Host {
+    return LOCAL_HOST
 }
 
 usePersistedStore.persist.onFinishHydration((state) => {

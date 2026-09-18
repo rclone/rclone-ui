@@ -15,12 +15,6 @@ pub enum Question {
     },
     /// The configured proxy failed its connectivity test. `Continue` or `Exit`.
     ProxyUnreachable { url: String, error: String },
-    /// The current (remote) host can't be reached. `Retry`, `UseLocal` or `Exit`.
-    HostUnreachable {
-        name: String,
-        url: String,
-        error: String,
-    },
     /// The synced (external-folder) config file is gone. `Yes` switches to the default config.
     SyncedConfigMissing { label: String, path: String },
     /// rclone kept crashing (`attempts` in a row). `Relaunch` starts over now, `Exit` gives up;
@@ -40,7 +34,6 @@ pub enum Decision {
     No,
     Text(String),
     Retry,
-    UseLocal,
     Continue,
     Relaunch,
     Exit,
@@ -60,7 +53,6 @@ impl Interaction for ServerPolicy {
             Question::AdoptSystemRclone { .. } => Decision::Yes,
             Question::ConfigPassword { .. } => Decision::No,
             Question::ProxyUnreachable { .. } => Decision::Continue,
-            Question::HostUnreachable { .. } => Decision::UseLocal,
             Question::SyncedConfigMissing { .. } => Decision::Yes,
             // A headless server has nobody to click Relaunch: keep trying, backing off.
             Question::RcloneCrashed { .. } => Decision::Continue,
