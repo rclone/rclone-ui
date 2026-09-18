@@ -42,7 +42,6 @@ import { needsMountPlugin } from '../../lib/rclone/mount'
 import { usePersistedStore } from '../../store/persisted'
 import type { FlagValue } from '../../types/rclone'
 import CommandInfoButton from '../components/CommandInfoButton'
-import CommandsDropdown from '../components/CommandsDropdown'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
@@ -656,7 +655,6 @@ Once paths are selected, tap "START MOUNT" to begin. After mounting, you can tap
 
 Note: Bucket-based remotes (S3, GCS, Azure Blob, B2) cannot store empty directories — they will disappear from the mount once they fall out of the directory cache.`}
                     />
-                    <CommandsDropdown currentCommand="mount" />
                 </ButtonGroup>
             </OperationWindowFooter>
         </div>

@@ -13,7 +13,6 @@ import { checkRemoteName } from '../../lib/rclone/rename'
 import RemoteFields from './remote/RemoteFields'
 import { useRemoteForm } from './remote/useRemoteForm'
 import { message } from '../../lib/api/dialog'
-import { isNativeMac } from '../../lib/api/os'
 
 // Backends the create drawer never offers.
 const CREATE_EXCLUDES = ['uptobox', 'tardigrade'] as const
@@ -181,7 +180,6 @@ export default function RemoteCreateDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac && 'pt-5'
                 )}
             >
                 {(close) => (

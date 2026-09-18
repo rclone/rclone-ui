@@ -15,7 +15,6 @@ import { useSchedulingAvailable } from '../../../lib/scheduler'
 
 import type { Template } from '../../../types/template'
 import CommandInfoButton from '../CommandInfoButton'
-import CommandsDropdown from '../CommandsDropdown'
 import TemplatesDropdown from '../TemplatesDropdown'
 import { platform } from '../../../lib/api/os'
 import { openWindow } from '../../../lib/api/windows'
@@ -218,7 +217,6 @@ export default function OperationFooter({
                     </Tooltip>
                 ) : null}
                 <CommandInfoButton content={helpContent} command={operation} />
-                <CommandsDropdown currentCommand={operation} />
             </ButtonGroup>
         </>
     )

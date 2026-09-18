@@ -7,7 +7,6 @@ import { useRemoteConfig } from '../../../lib/hooks'
 import rclone from '../../../lib/rclone/client.ts'
 import type { AllowedKey, RemoteString } from './types'
 import { getDiskIcon, getDiskLabel, shouldShowDisk } from './utils'
-import { isNativeMac } from '../../../lib/api/os'
 import { usePersistedStore } from '../../../store/persisted'
 
 function RemoteButton({
@@ -97,7 +96,6 @@ export default function RemoteSidebar({
             <ScrollShadow
                 className={cn(
                     'flex flex-col items-center w-full h-full gap-5 py-4 overflow-y-auto',
-                    isNativeMac && 'pt-8'
                 )}
                 size={69}
             >

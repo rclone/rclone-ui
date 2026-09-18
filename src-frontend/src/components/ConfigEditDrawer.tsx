@@ -21,7 +21,6 @@ import { daemonConfigPath } from '../../lib/rclone/config-file'
 import { readFile, writeFile } from '../../lib/rclone/daemon-fs'
 import { selectActiveConfigFile, useHostStore } from '../../store/host'
 import { message } from '../../lib/api/dialog'
-import { isNativeMac } from '../../lib/api/os'
 
 export default function ConfigEditDrawer({
     id,
@@ -156,7 +155,6 @@ export default function ConfigEditDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac && 'pt-5'
                 )}
             >
                 {(close) => (

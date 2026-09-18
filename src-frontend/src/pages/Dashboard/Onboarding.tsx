@@ -2,7 +2,6 @@ import { Chip, cn } from '@heroui/react'
 import { ArrowRightIcon, CheckIcon, XIcon } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { authRequired } from '../../../lib/api/host'
 import { useNotificationTargets } from '../../../lib/notifications'
 import { useTeam } from '../../../lib/team'
 import { useHostStore } from '../../../store/host'
@@ -109,7 +108,7 @@ export default function Onboarding({
     const dismissOnboarding = usePersistedStore((state) => state.dismissOnboarding)
 
     // More than one account: someone besides the owner can sign in.
-    const hasTeam = (useTeam(authRequired).data?.length ?? 0) > 1
+    const hasTeam = (useTeam(true).data?.length ?? 0) > 1
 
     useEffect(() => {
         const observed: [OnboardingStep, boolean][] = [

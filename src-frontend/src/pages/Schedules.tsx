@@ -15,8 +15,6 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { windowInfo } from '../../lib/api/boot'
-import { on as onAppEvent } from '../../lib/api/events'
 import { onErrorDialog } from '../../lib/errors'
 import { buildReadablePath } from '../../lib/format'
 import { useNow } from '../../lib/hooks'
@@ -36,7 +34,6 @@ import type { ScheduledTask } from '../../types/schedules'
 import EmptyState from '../components/EmptyState'
 import ScheduleEditDrawer from '../components/ScheduleEditDrawer'
 import { ask } from '../../lib/api/dialog'
-import { isNativeMac } from '../../lib/api/os'
 
 export default function Schedules() {
     // Heal registrations that failed in a page (the orchestrator reconciles the rest at boot).
@@ -79,17 +76,6 @@ export default function Schedules() {
         if (openFromSearch(searchParams)) followedSearch.current = search
     }, [searchParams, openFromSearch])
 
-    // On the desktop this window may already be open: it is focused, never reloaded, and the
-    // shell sends the route it was asked for over the bus instead.
-    useEffect(
-        () =>
-            onAppEvent('window.route', ({ label, route }) => {
-                if (label !== windowInfo?.label) return
-                openFromSearch(new URL(route, window.location.origin).searchParams)
-            }),
-        [openFromSearch]
-    )
-
     const statusQuery = useQuery({
         queryKey: ['scheduler', 'status'],
         queryFn: () => schedulerStatus(LOCAL_HOST_ID),
@@ -130,7 +116,6 @@ export default function Schedules() {
 
     return (
         <div className="flex flex-col h-screen overflow-scroll">
-            {isNativeMac && <div className="w-full h-10 border-b bg-content1 border-divider" />}
             {!schedulingAvailable && !supportQuery.isLoading && (
                 <Alert
                     color="warning"

@@ -1,4 +1,4 @@
-// Facts about the machine the server runs on (which, for the desktop, is this machine).
+// Facts about the machine the server runs on.
 // Synchronous: they come from the boot script.
 
 import { boot } from './boot'
@@ -12,8 +12,6 @@ export const version = boot.os.version
 export const eol = boot.os.eol
 
 export const isMac = platform === 'macos'
-/** A native macOS window: its overlay title bar needs top padding. Never true in a browser tab. */
-export const isNativeMac = boot.capabilities.window && platform === 'macos'
 export const isWindows = platform === 'windows'
 export const isLinux = platform === 'linux'
 

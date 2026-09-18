@@ -13,7 +13,6 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { message } from '../../../lib/api/dialog'
-import { isNativeMac } from '../../../lib/api/os'
 import { type MemberRole, addMember } from '../../../lib/team'
 
 interface Form {
@@ -62,7 +61,6 @@ export default function TeamMemberDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac && 'pt-5'
                 )}
             >
                 {(close) => (

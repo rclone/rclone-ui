@@ -33,9 +33,8 @@ import EmptyState from '../components/EmptyState'
 import TemplateAddDrawer from '../components/TemplateAddDrawer'
 import TemplateEditDrawer from '../components/TemplateEditDrawer'
 import { ask, saveAs } from '../../lib/api/dialog'
-import { type AddTemplatePayload, on as onAppEvent } from '../../lib/api/events'
+import type { AddTemplatePayload } from '../../lib/api/events'
 import { writeFile } from '../../lib/rclone/daemon-fs'
-import { isNativeMac } from '../../lib/api/os'
 import { openUrl, revealItem } from '../../lib/api/shell'
 
 export default function Templates() {
@@ -183,18 +182,8 @@ export default function Templates() {
         }
     }, [searchParams, onOpen])
 
-    // A deep link arriving while this window is already open can't change its URL, so the shell
-    // forwards the payload over the event bus instead.
-    useEffect(() => {
-        return onAppEvent('deep-link.add-template', (payload) => {
-            const { cmd, name } = payload ?? {}
-            setAddPayload(cmd || name ? { cmd, name } : null)
-            onOpen()
-        })
-    }, [onOpen])
-
     return (
-        <div className={cn('flex flex-col h-screen', isNativeMac && 'pt-7')}>
+        <div className={cn('flex flex-col h-screen',)}>
             {/* Nothing to search or select until the first template; the empty state adds it. */}
             {templates.length > 0 && (
                 <div className="flex flex-row items-center justify-between w-full px-6 py-4">

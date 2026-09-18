@@ -11,7 +11,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 
 import { message, pickPath } from '../../../lib/api/dialog'
-import { useCapabilities, mode } from '../../../lib/api/host'
+import { useCapabilities } from '../../../lib/api/host'
 import { formatErrorMessage, reportError } from '../../../lib/errors'
 import { formatBytes } from '../../../lib/format'
 import {
@@ -25,7 +25,7 @@ import {
 import {
     MIN_RCLONE_VERSION,
     RCLONE_RELEASES_STEP,
-    releasesShown,
+    RCLONE_RELEASES_SHOWN,
 } from '../../../lib/rclone/constants'
 import {
     type DownloadProgress,
@@ -70,7 +70,7 @@ export function BinarySettings({ layout }: { layout: SettingsLayout }) {
     const rclonePath = usePersistedStore((state) => state.rclonePath)
     const [progress, setProgress] = useState<Record<string, DownloadProgress>>({})
     // How many releases the list is currently asking for; Load more asks for ten more.
-    const [releaseLimit, setReleaseLimit] = useState(releasesShown(mode))
+    const [releaseLimit, setReleaseLimit] = useState(RCLONE_RELEASES_SHOWN)
 
     const downloadedQuery = useQuery({
         queryKey: ['rclone', 'downloaded'],

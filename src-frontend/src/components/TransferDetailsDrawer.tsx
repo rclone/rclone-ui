@@ -34,8 +34,6 @@ import { rerunEffect, retryPlan } from '../../lib/transfers/retry'
 import { ENDED, type TransferRow } from '../../lib/transfers/rows'
 import TransferRetryDrawer from './TransferRetryDrawer'
 import { message } from '../../lib/api/dialog'
-import { isNativeMac } from '../../lib/api/os'
-import { capabilities } from '../../lib/api/host'
 import { OPERATIONS } from './OperationGrid'
 import { openOperation } from './operation/useOperationPreset'
 
@@ -140,9 +138,6 @@ export default function TransferDetailsDrawer({
     // the note that says "run it again" offers.
     const openItsPage = () => {
         if (!preset) return
-        // A tab leaves this page behind; a native window keeps it, so only there is the drawer
-        // closed (its close handler shows a tip that would otherwise land on the new page).
-        if (capabilities.window) onClose()
         openOperation(preset).catch((error) =>
             console.error('[TransferDetailsDrawer] open failed', error)
         )
@@ -172,7 +167,7 @@ export default function TransferDetailsDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac ? 'pt-6' : undefined
+                    undefined
                 )}
             >
                 <DrawerHeader className="flex flex-row items-center gap-2">

@@ -1,7 +1,6 @@
-// Mirrors the page console into the host's log file (batched `log` RPCs), so a bug report's
+// Mirrors the page console into the server's log file (batched `log` RPCs), so a bug report's
 // log covers what the pages saw. Errors also go to Sentry from the page itself.
 
-import { currentLabel } from './native'
 import { rpc } from './rpc'
 
 type Level = 'trace' | 'debug' | 'info' | 'warn' | 'error'
@@ -12,7 +11,7 @@ let timer: ReturnType<typeof setTimeout> | null = null
 function flush() {
     timer = null
     const batch = queue.splice(0, 200)
-    const label = currentLabel() ?? 'tab'
+    const label = 'tab'
     for (const entry of batch) {
         rpc('log', { level: entry.level, message: entry.message, label }).catch(() => {})
     }

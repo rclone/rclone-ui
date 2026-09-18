@@ -2,8 +2,6 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { quit as exit } from '../lib/api/app'
 import { ask } from '../lib/api/dialog'
-import { toolbarSetShortcut } from '../lib/api/native'
-import { platform } from '../lib/api/os'
 import { putDoc, stateStorage, watchDoc } from '../lib/api/state'
 import { type Host, makeLocalHost } from '../lib/hosts'
 import { hasTemplatePaths } from '../lib/rclone/templatePaths'
@@ -78,14 +76,8 @@ interface PersistedStateV1 {
 export type OnboardingStep = 'remote' | 'commander' | 'transfer' | 'team'
 
 interface PersistedStateV2 {
-    settingsPass: string | undefined
-    setSettingsPass: (pass: string | undefined) => void
-
     startOnBoot: boolean
     setStartOnBoot: (startOnBoot: boolean) => void
-
-    toolbarShortcut: string | undefined
-    setToolbarShortcut: (shortcut: string | undefined) => Promise<void>
 
     templates: Template[]
     addTemplate: (
@@ -98,12 +90,9 @@ interface PersistedStateV2 {
     // Notification targets are NOT here: they live in a Rust-owned store
     // (notifications/targets.json) so the headless scheduler runner can read AND write them.
 
-    hideStartup: boolean
-
     acknowledgements: string[]
 
     appearance: {
-        tray: 'light' | 'dark' | 'system' | 'color'
         app: 'light' | 'dark' | 'system'
     }
 
@@ -132,17 +121,8 @@ interface PersistedStateV2 {
 export const usePersistedStore = create<PersistedStateV2>()(
     persist(
         (set) => ({
-            settingsPass: undefined,
-            setSettingsPass: (pass: string | undefined) => set((_) => ({ settingsPass: pass })),
-
             startOnBoot: false,
             setStartOnBoot: (startOnBoot: boolean) => set((_) => ({ startOnBoot })),
-
-            toolbarShortcut: undefined,
-            setToolbarShortcut: async (shortcut: string | undefined) => {
-                await toolbarSetShortcut(shortcut ?? null)
-                set((_) => ({ toolbarShortcut: shortcut }))
-            },
 
             templates: [],
             addTemplate: (name, operation, options, paths) =>
@@ -161,12 +141,9 @@ export const usePersistedStore = create<PersistedStateV2>()(
                     ],
                 })),
 
-            hideStartup: false,
-
             acknowledgements: [],
 
             appearance: {
-                tray: platform === 'linux' ? 'color' : 'system',
                 app: 'dark',
             },
 
@@ -352,12 +329,9 @@ export const usePersistedStore = create<PersistedStateV2>()(
                     }
 
                     return {
-                        settingsPass: legacyState.settingsPass || undefined,
                         startOnBoot: legacyState.startOnBoot || false,
                         templates: newTemplates,
-                        hideStartup: legacyState.hideStartup || false,
                         appearance: {
-                            tray: 'system',
                             app: 'dark',
                         },
                     } as unknown as PersistedStateV2
@@ -389,12 +363,6 @@ export function selectCurrentHost(_state: PersistedStateV2): Host {
 export function useCurrentHost(): Host {
     return LOCAL_HOST
 }
-
-usePersistedStore.persist.onFinishHydration((state) => {
-    if (state.toolbarShortcut) {
-        toolbarSetShortcut(state.toolbarShortcut).catch(() => {})
-    }
-})
 
 // Another page or the server changed the document: reload it.
 watchDoc(

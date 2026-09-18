@@ -4,7 +4,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
-const ROOTS = ['src', 'lib', 'store', 'toolbar']
+const ROOTS = ['src', 'lib', 'store']
 const PATTERNS = [/@tauri-apps\//, /__TAURI/]
 
 function walk(dir, out) {

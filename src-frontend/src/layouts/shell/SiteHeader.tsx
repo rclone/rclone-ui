@@ -1,7 +1,6 @@
 import { BreadcrumbItem, Breadcrumbs, cn } from '@heroui/react'
 import { LogOutIcon, PanelLeftIcon } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { authRequired } from '../../../lib/api/host'
 import AppearanceMenu from './AppearanceMenu'
 import { breadcrumbFor } from './nav'
 
@@ -69,7 +68,7 @@ export default function SiteHeader({
             </Breadcrumbs>
             <div className="flex items-center min-w-0 gap-1 ml-auto">
                 <AppearanceMenu className={ICON_BUTTON} />
-                {authRequired && (
+                {(
                     <button
                         type="button"
                         onClick={async () => {

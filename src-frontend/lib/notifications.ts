@@ -6,9 +6,6 @@ import type {
     NotificationProvider,
     NotificationTarget,
 } from '../types/notifications'
-import { osNotify } from './api/app'
-import { message } from './api/dialog'
-import { capabilities } from './api/host'
 import { rpc } from './api/rpc'
 
 // The TS face of the notification system. The engine lives in Rust (src-shared/src/
@@ -22,19 +19,9 @@ import { rpc } from './api/rpc'
 // OS toasts
 // ---------------------------------------------------------------------------
 
-// In a browser tab the OS toast would appear on the server's machine, so the tab shows its own.
+// An OS toast would appear on the server's machine, so the page shows its own.
 export async function notify({ title, body }: { title: string; body: string }) {
-    if (!capabilities.window) {
-        addToast({ title, description: body })
-        return
-    }
-    const shown = await osNotify(title, body).catch(() => false)
-    if (!shown) {
-        await message(body, {
-            title,
-            kind: 'info',
-        })
-    }
+    addToast({ title, description: body })
 }
 
 // ---------------------------------------------------------------------------

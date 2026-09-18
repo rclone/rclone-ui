@@ -1,7 +1,6 @@
 import { cn } from '@heroui/react'
 
 import type React from 'react'
-import { isNativeMac } from '../../../lib/api/os'
 
 export default function BaseSection({
     children,
@@ -17,7 +16,7 @@ export default function BaseSection({
             <div
                 className={cn(
                     'sticky top-0 flex flex-col z-50 bg-white/50 dark:bg-[#12121299] backdrop-blur-lg',
-                    isNativeMac ? 'pt-2' : undefined
+                    undefined
                 )}
             >
                 <BaseHeader {...header} />

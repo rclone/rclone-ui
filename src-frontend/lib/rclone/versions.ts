@@ -3,9 +3,8 @@ import { usePersistedStore } from '../../store/persisted'
 import { restartActiveRclone } from './cli'
 import rcloneClient from './client'
 import { appPrivateDefaultConfigPath, resolveActiveConfigPath } from './common'
-import { MIN_RCLONE_VERSION, releasesShown } from './constants'
+import { MIN_RCLONE_VERSION, RCLONE_RELEASES_SHOWN } from './constants'
 import { rcloneReleases } from '../api/app'
-import { boot } from '../api/boot'
 import { on as onAppEvent } from '../api/events'
 import { ask } from '../api/dialog'
 import { rpc } from '../api/rpc'
@@ -58,7 +57,7 @@ export async function listDownloadedVersions(): Promise<DownloadedVersion[]> {
  * default is this product's page size; the settings raise it when the user asks for more.
  */
 export async function fetchAvailableVersions(
-    limit: number = releasesShown(boot.mode)
+    limit: number = RCLONE_RELEASES_SHOWN
 ): Promise<AvailableRelease[]> {
     return await rcloneReleases(MIN_RCLONE_VERSION, limit)
 }

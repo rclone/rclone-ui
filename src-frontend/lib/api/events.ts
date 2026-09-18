@@ -55,16 +55,10 @@ export interface EventPayloads {
     'state.changed': StateChanged
     'rclone.download-progress': DownloadProgress
     'rclone.download-finished': DownloadProgress
+    /** The template a deep link or a shared URL asks to add. */
     'deep-link.add-template': AddTemplatePayload
-    'window.focus': WindowEvent
-    'window.blur': WindowEvent
-    'window.moved': WindowEvent
-    'theme.changed': { theme: 'light' | 'dark' }
-    'toolbar.shown': { label: string }
     /** The server wrote a line about a transfer: it started, or it ended. */
     'transfers.changed': { hostId: string; id: string }
-    /** A window that is already open was asked for again, with this route. */
-    'window.route': { label: string; route: string }
 }
 
 export function on<N extends keyof EventPayloads>(

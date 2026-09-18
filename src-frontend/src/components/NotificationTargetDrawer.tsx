@@ -37,7 +37,6 @@ import type {
 } from '../../types/notifications'
 import ProviderIcon from './icons/ProviderIcon'
 import { message } from '../../lib/api/dialog'
-import { isNativeMac } from '../../lib/api/os'
 import { openUrl } from '../../lib/api/shell'
 import { openWindow } from '../../lib/api/windows'
 
@@ -254,7 +253,6 @@ export default function NotificationTargetDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac && 'pt-5'
                 )}
             >
                 {(close) => (

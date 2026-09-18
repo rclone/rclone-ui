@@ -1,9 +1,7 @@
 // What the server injects into index.html before any module runs (src-server/src/static_files.rs
-// `boot_payload`), read synchronously at import time by os.ts / paths.ts / host.ts. The desktop
-// shell adds `window.__RCLONE_UI_WINDOW__` per window through an initialization script.
+// `boot_payload`), read synchronously at import time by os.ts / paths.ts / host.ts.
 
 export interface Capabilities {
-    mode: 'desktop' | 'server'
     platform: string
     containerized: boolean
     updater: boolean
@@ -11,16 +9,13 @@ export interface Capabilities {
     mount: boolean
     scheduler: boolean
     processExit: boolean
-    deepLink: boolean
     configSync: boolean
     pathIntegration: boolean
-    window: boolean
     osNotifications: boolean
 }
 
 export interface BootPayload {
     version: string
-    mode: 'desktop' | 'server'
     capabilities: Capabilities
     os: {
         platform: string
@@ -59,9 +54,7 @@ declare global {
 
 const FALLBACK: BootPayload = {
     version: '0.0.0',
-    mode: 'server',
     capabilities: {
-        mode: 'server',
         platform: 'linux',
         containerized: false,
         updater: false,
@@ -69,10 +62,8 @@ const FALLBACK: BootPayload = {
         mount: true,
         scheduler: true,
         processExit: false,
-        deepLink: false,
         configSync: false,
         pathIntegration: false,
-        window: false,
         osNotifications: false,
     },
     os: { platform: 'linux', family: 'unix', arch: 'x86_64', version: '', eol: '\n' },
@@ -89,7 +80,7 @@ const FALLBACK: BootPayload = {
         desktop: null,
     },
     theme: 'system',
-    authRequired: false,
+    authRequired: true,
 }
 
 export const boot: BootPayload =

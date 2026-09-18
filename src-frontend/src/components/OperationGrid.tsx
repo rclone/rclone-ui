@@ -11,8 +11,6 @@ import {
     Trash2Icon,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { capabilities } from '../../lib/api/host'
-import { openWindow } from '../../lib/api/windows'
 
 export type OperationId =
     | 'copy'
@@ -60,26 +58,10 @@ export default function OperationGrid({
     return (
         <div className={cn('grid gap-2', grid, className)}>
             {operations.map(({ id, label, icon: Icon }) =>
-                capabilities.window ? (
-                    <button
-                        key={id}
-                        type="button"
-                        className={TILE}
-                        onClick={() =>
-                            openWindow({ name: label, url: `/${id}` }).catch((error) =>
-                                console.error('[OperationGrid] open failed', error)
-                            )
-                        }
-                    >
-                        <Icon className="w-5 h-5" />
-                        {label}
-                    </button>
-                ) : (
                     <Link key={id} to={`/${id}`} className={TILE}>
                         <Icon className="w-5 h-5" />
                         {label}
                     </Link>
-                )
             )}
         </div>
     )

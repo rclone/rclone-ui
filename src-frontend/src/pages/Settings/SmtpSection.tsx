@@ -2,7 +2,6 @@ import { Button, Input, Select, SelectItem } from '@heroui/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { message } from '../../../lib/api/dialog'
-import { useIsDesktop } from '../../../lib/api/host'
 import { useSession } from '../../../lib/api/session'
 import { notify } from '../../../lib/notifications'
 import { SMTP_QUERY_KEY, saveSmtpSettings, sendSmtpTest, useSmtpSettings } from '../../../lib/smtp'
@@ -55,7 +54,7 @@ function draftOf(view: SmtpView): Draft {
 // time by whatever dispatches, the scheduled runner included). The password is write-only: the
 // form never gets it back, only that one is saved.
 export default function SmtpSection() {
-    const layout = useIsDesktop() ? 'native' : 'web'
+    const layout = 'web'
     const queryClient = useQueryClient()
     const settingsQuery = useSmtpSettings()
     const session = useSession()

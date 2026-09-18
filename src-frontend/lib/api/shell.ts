@@ -1,17 +1,10 @@
-// Opening things outside the app. URLs open in the user's own browser. Paths live on the
-// machine the server runs on: a native window opens them there (it is the same machine); a
-// browser tab, which may be anywhere, is shown the location instead and can copy it.
+// Opening things outside the page. URLs open in the browser. Paths live on the machine the
+// server runs on, which may be anywhere, so the page shows the location and offers to copy it.
 
 import { writeText } from './clipboard'
 import { message } from './dialog'
-import { capabilities } from './host'
-import { rpc } from './rpc'
 
 export async function openUrl(url: string): Promise<void> {
-    if (capabilities.window) {
-        await rpc('open_url', { url })
-        return
-    }
     window.open(url, '_blank', 'noopener,noreferrer')
 }
 
@@ -26,20 +19,12 @@ async function showLocation(path: string, what: string): Promise<void> {
     }
 }
 
-/** Opens a file or folder with its default application on the host. */
+/** Shows where a file or folder lives on the server. */
 export async function openPath(path: string): Promise<void> {
-    if (!capabilities.window) {
-        await showLocation(path, 'Location')
-        return
-    }
-    await rpc('open_path', { path })
+    await showLocation(path, 'Location')
 }
 
-/** Reveals a path in the host's file manager. */
+/** Shows where a path lives on the server. */
 export async function revealItem(path: string): Promise<void> {
-    if (!capabilities.window) {
-        await showLocation(path, 'File location')
-        return
-    }
-    await rpc('reveal_item', { path })
+    await showLocation(path, 'File location')
 }

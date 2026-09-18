@@ -35,7 +35,6 @@ import { formatErrorMessage } from '../../lib/errors'
 
 import { message } from '../../lib/api/dialog'
 import type { AddTemplatePayload } from '../../lib/api/events'
-import { isNativeMac } from '../../lib/api/os'
 import { TEMPLATE_TAG_OPTIONS, getJsonKeyCount, getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
 import { metadataOptionsProblem } from '../../lib/rclone/metadataMapper'
@@ -211,7 +210,6 @@ export default function TemplateAddDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac && 'pt-5'
                 )}
             >
                 {(close) => (

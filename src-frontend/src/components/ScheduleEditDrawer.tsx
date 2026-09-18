@@ -36,7 +36,7 @@ import type { ScheduledTask } from '../../types/schedules'
 import BinarySelect from './BinarySelect'
 import ConfigSelect, { configPasswordMissing as isConfigPasswordMissing } from './ConfigSelect'
 import CronEditor from './CronEditor'
-import { isNativeMac, platform } from '../../lib/api/os'
+import { platform } from '../../lib/api/os'
 
 export default function ScheduleEditDrawer({
     isOpen,
@@ -209,7 +209,6 @@ export default function ScheduleEditDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac && 'pt-5'
                 )}
             >
                 {(close) => (

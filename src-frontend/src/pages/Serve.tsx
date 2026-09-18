@@ -41,7 +41,6 @@ import { RCLONE_CONFIG_DEFAULTS, SERVE_TYPES } from '../../lib/rclone/constants'
 import { metadataOptionsProblem } from '../../lib/rclone/metadataMapper'
 import type { FlagValue } from '../../types/rclone'
 import CommandInfoButton from '../components/CommandInfoButton'
-import CommandsDropdown from '../components/CommandsDropdown'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
@@ -675,7 +674,6 @@ Expand the accordion sections to customize your server. The most important optio
 4. START SERVE
 Once configured, tap "START SERVE" to begin. The server will run until you stop it or quit the app.`}
                     />
-                    <CommandsDropdown currentCommand="serve" />
                 </ButtonGroup>
             </OperationWindowFooter>
         </div>

@@ -6,7 +6,6 @@ import { joinLocalSegments, localRootOf } from '../../../lib/format'
 import { useRemoteConfig } from '../../../lib/hooks'
 import type { RemoteString } from './types'
 import { getPathSegments } from './utils'
-import { isNativeMac } from '../../../lib/api/os'
 import { formatRemote } from '../../../lib/paths'
 import { hostSeparator } from '../../../lib/rclone/client'
 
@@ -125,7 +124,6 @@ export default function PathBreadcrumb({
         <div
             className={cn(
                 'group flex items-center w-full h-12 px-3 gap-1 bg-default-100 border-b border-divider',
-                isNativeMac && 'pt-5 h-16'
             )}
         >
             {isInputMode ? (

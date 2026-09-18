@@ -11,7 +11,6 @@ import { INTERACTIVE_CONFIG_TYPES } from '../../lib/rclone/overrides'
 import { checkRemoteName, renameRemote } from '../../lib/rclone/rename'
 import RemoteFields from './remote/RemoteFields'
 import { useRemoteForm } from './remote/useRemoteForm'
-import { isNativeMac } from '../../lib/api/os'
 
 // Backends the edit drawer never lists, and the saved fields it keeps read-only.
 const EDIT_EXCLUDES = ['tardigrade'] as const
@@ -131,7 +130,6 @@ export default function RemoteEditDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac && 'pt-5'
                 )}
             >
                 {(close) => (

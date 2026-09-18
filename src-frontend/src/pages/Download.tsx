@@ -11,7 +11,6 @@ import { notify } from '../../lib/notifications'
 import { pathsProblem } from '../../lib/paths'
 import { startDownload } from '../../lib/rclone/api'
 import CommandInfoButton from '../components/CommandInfoButton'
-import CommandsDropdown from '../components/CommandsDropdown'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import { PathField } from '../components/PathFinder'
@@ -442,7 +441,6 @@ Tap "DOWNLOAD" to start. The file will be streamed directly to your destination 
 
 Note: If a download doesn't work, the site may have restrictions. Try the URL with curl directly to verify it's accessible.`}
                     />
-                    <CommandsDropdown currentCommand="download" />
                 </ButtonGroup>
             </OperationWindowFooter>
         </div>

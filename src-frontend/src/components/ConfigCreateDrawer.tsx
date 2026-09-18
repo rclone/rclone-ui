@@ -20,7 +20,6 @@ import { useHostStore } from '../../store/host'
 import type { ConfigFile } from '../../types/config'
 import { message, pickPath } from '../../lib/api/dialog'
 import { mkdir, readFile, writeFile } from '../../lib/rclone/daemon-fs'
-import { isNativeMac } from '../../lib/api/os'
 import { sep } from '../../lib/api/paths'
 
 export default function ConfigCreateDrawer({
@@ -102,7 +101,6 @@ export default function ConfigCreateDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac && 'pt-5'
                 )}
             >
                 {(close) => (

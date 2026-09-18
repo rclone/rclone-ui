@@ -25,15 +25,8 @@ export const RCLONE_RELEASES_API = 'https://api.github.com/repos/rclone/rclone/r
 export const RCLONE_RELEASES_SHOWN = 20
 // A browser deployment manages one server's rclone, not a library of them, so its Rclone screen
 // offers the newest few rather than the desktop's full list.
-export const RCLONE_RELEASES_SHOWN_SERVER = 3
-
 /** How many more the settings ask for each time Load more is pressed. */
 export const RCLONE_RELEASES_STEP = 10
-
-/** How many downloadable rclone releases this product's settings offer to start with. */
-export function releasesShown(mode: 'desktop' | 'server'): number {
-    return mode === 'desktop' ? RCLONE_RELEASES_SHOWN : RCLONE_RELEASES_SHOWN_SERVER
-}
 
 export const SERVE_TYPES = ['dlna', 'ftp', 'sftp', 'http', 'nfs', 'restic', 's3', 'webdav'] as const
 

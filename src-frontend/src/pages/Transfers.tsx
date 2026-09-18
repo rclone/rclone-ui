@@ -11,7 +11,6 @@ import {
 } from 'lucide-react'
 import { startTransition, useCallback, useMemo, useState } from 'react'
 import { message } from '../../lib/api/dialog'
-import { useIsDesktop } from '../../lib/api/host'
 import { openWindow } from '../../lib/api/windows'
 import { buildReadablePathMultiple, formatBytes } from '../../lib/format'
 import { useIsPreview } from '../../lib/preview'
@@ -24,7 +23,6 @@ import EmptyState from '../components/EmptyState'
 import TransferDetailsDrawer from '../components/TransferDetailsDrawer'
 
 export default function Transfers() {
-    const isDesktop = useIsDesktop()
     const { isOpen, onOpen, onClose } = useDisclosure({
         onClose: () => {
             setTimeout(() => {
@@ -135,10 +133,8 @@ export default function Transfers() {
                     // The desktop window pins the tabs under its title bar. In the browser shell the
                     // page is a scrolling sheet, so the bar sticks inside it instead of covering the
                     // site header.
-                    tabList: isDesktop
-                        ? 'pt-8 fixed top-0 left-0 right-0 z-50 !bg-content2'
-                        : 'sticky top-0 z-40 !bg-content2',
-                    panel: cn('min-h-[calc(100vh-1.5rem)] p-0', isDesktop && 'pt-12'),
+                    tabList: 'sticky top-0 z-40 !bg-content2',
+                    panel: 'min-h-[calc(100vh-1.5rem)] p-0',
                 }}
                 variant="underlined"
             >

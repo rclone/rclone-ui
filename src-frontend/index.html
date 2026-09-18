@@ -9,28 +9,17 @@
     <title>Rclone UI</title>
     <!-- rclone-ui:server-inject -->
 	<script>
-		// The server injected the boot payload above. Without native windows (a browser tab) the
-		// pages render inside the Shell's content column: `html.browser` scopes the CSS that
+		// Pages render inside the Shell's content column: `html.browser` scopes the CSS that
 		// turns their viewport-sized boxes into container-sized ones (src/global.css).
-		var boot = window.__RCLONE_UI__
-		if (!boot || !boot.capabilities || !boot.capabilities.window) {
-			document.documentElement.classList.add('browser')
-		}
+		document.documentElement.classList.add('browser')
 		// The persisted theme rides on the boot payload; first paint matches it.
+		var boot = window.__RCLONE_UI__
 		var theme = boot && boot.theme
 		document.documentElement.classList.toggle(
 			"dark",
 			theme === "dark" ||
 				(theme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches),
 		);
-	</script>
-	<script>
-		if (
-			window.location.pathname.startsWith('/toolbar') ||
-			window.location.pathname.startsWith('/startup')
-		) {
-			document.documentElement.classList.add('!bg-transparent')
-		}
 	</script>
   </head>
 

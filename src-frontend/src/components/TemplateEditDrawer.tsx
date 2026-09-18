@@ -29,7 +29,6 @@ import {
 } from 'lucide-react'
 import { startTransition, useEffect, useMemo, useState } from 'react'
 import { message } from '../../lib/api/dialog'
-import { isNativeMac } from '../../lib/api/os'
 import { formatErrorMessage } from '../../lib/errors'
 import { TEMPLATE_TAG_OPTIONS, getJsonKeyCount, getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
@@ -157,7 +156,6 @@ export default function TemplateEditDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac && 'pt-5'
                 )}
             >
                 {(close) => (

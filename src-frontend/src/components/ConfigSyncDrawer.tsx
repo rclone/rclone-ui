@@ -18,7 +18,6 @@ import { useHostStore } from '../../store/host'
 import type { ConfigFile } from '../../types/config'
 import { message, pickPath } from '../../lib/api/dialog'
 import { exists, readFile } from '../../lib/rclone/daemon-fs'
-import { isNativeMac } from '../../lib/api/os'
 import { sep } from '../../lib/api/paths'
 
 export default function ConfigSyncDrawer({
@@ -89,7 +88,6 @@ export default function ConfigSyncDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac && 'pt-5'
                 )}
             >
                 {(close) => (

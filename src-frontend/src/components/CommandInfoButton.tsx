@@ -2,8 +2,6 @@ import { Button, Drawer, DrawerBody, DrawerContent, DrawerHeader, Tooltip, cn } 
 
 import { BookOpenTextIcon } from 'lucide-react'
 import { startTransition, useState } from 'react'
-import { useIsDesktop } from '../../lib/api/host'
-import { isNativeMac } from '../../lib/api/os'
 import { rcloneDocsUrl } from '../../lib/rclone/constants'
 
 export default function CommandInfoButton({
@@ -14,12 +12,10 @@ export default function CommandInfoButton({
     /** The rclone subcommand this page runs, for the link a browser tab gets. */
     command: string
 }) {
-    const isDesktop = useIsDesktop()
     const [isOpen, setIsOpen] = useState(false)
 
-    // A native window has nowhere to open a page, so it carries its own prose in a sheet. A
-    // browser tab has somewhere: rclone's own documentation, which is fuller and stays current.
-    if (!isDesktop) {
+    // rclone's own documentation is fuller than any prose here and stays current.
+    {
         return (
             <Tooltip content="Rclone docs" placement="top" size="lg" color="foreground">
                 <Button
@@ -70,7 +66,7 @@ export default function CommandInfoButton({
                 <DrawerContent
                     className={cn(
                         'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                        isNativeMac ? 'pt-4' : undefined
+                        undefined
                     )}
                 >
                     <DrawerHeader>Documentation</DrawerHeader>

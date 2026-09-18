@@ -12,7 +12,6 @@ import { metadataOptionsProblem } from '../../lib/rclone/metadataMapper'
 import { AutomountSourceError, probeMountSource } from '../../lib/rclone/mount'
 
 import { message, pickPath } from '../../lib/api/dialog'
-import { isNativeMac } from '../../lib/api/os'
 import { home } from '../../lib/api/paths'
 import { lockWindows, unlockWindows } from '../../lib/api/windows'
 import { type RemoteConfig, useHostStore } from '../../store/host'
@@ -215,7 +214,6 @@ export default function RemoteAutoMountDrawer({
             <DrawerContent
                 className={cn(
                     'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    isNativeMac && 'pt-5'
                 )}
             >
                 {(close) => (
