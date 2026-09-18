@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="#3f79ad">
+    <!--
+        The rclone mark: one lobe turned twice about the trefoil's centre. White reads on a dark
+        tab strip and disappears on a light one, so the fill follows the browser's colour scheme.
+    -->
+    <style>
+        @media (prefers-color-scheme: dark) {
+            svg { fill: #ffffff }
+        }
+    </style>
+    <path id="lobe" d="M156.56 185.3H219.73L245.24 229.48L219.73 273.67H156.56A68.19 68.19 0 1 0 193.87 398.93A171.32 171.32 0 0 0 243.79 471.86A156.56 156.56 0 1 1 156.56 185.3Z"/>
+    <use href="#lobe" transform="rotate(120 256 284.47)"/>
+    <use href="#lobe" transform="rotate(240 256 284.47)"/>
+</svg>

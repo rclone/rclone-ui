@@ -1,0 +1,62 @@
+name: check-server
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # src-shared and src-server must build with no GTK or WebKit anywhere: the browser build
+  # runs on headless boxes and in containers.
+  gtk-free-build:
+    runs-on: ubuntu-latest
+    container: rust:1-bookworm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Neither job renders videos; this skips src-video's Remotion toolchain.
+      - run: npm ci --workspace src-frontend --include-workspace-root
+      - run: npm run check:no-tauri
+      - run: npm run build
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+      - name: No Tauri / GTK in the shared and server dependency trees
+        run: |
+          for crate in rclone-ui-shared rclone-ui-server; do
+            if cargo tree -p $crate -e normal --prefix none | grep -E '^(tauri|gtk|webkit2gtk|wry|tao|glib|gdk) '; then
+              echo "$crate depends on a GUI crate"; exit 1
+            fi
+          done
+      - run: cargo build --release -p rclone-ui-server
+      - run: cargo test -p rclone-ui-shared -p rclone-ui-server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rclone-ui-server-linux-x86_64-ci
+          path: target/release/rclone-ui-server
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Neither job renders videos; this skips src-video's Remotion toolchain.
+      - run: npm ci --workspace src-frontend --include-workspace-root
+      - run: npm run build
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+      - run: cargo build -p rclone-ui-server
+      - name: Install rclone
+        run: curl -fsSL https://rclone.org/install.sh | sudo bash
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: src-frontend/test-results

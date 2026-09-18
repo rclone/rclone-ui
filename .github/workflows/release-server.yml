@@ -1,0 +1,133 @@
+name: release-server
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  binaries:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-x86_64
+          - os: ubuntu-24.04-arm
+            target: linux-aarch64
+          - os: macos-14
+            target: macos-aarch64
+          - os: macos-13
+            target: macos-x86_64
+          - os: windows-latest
+            target: windows-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+      - run: cargo build --release -p rclone-ui-server
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p out/server
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp target/release/rclone-ui-server.exe out/server/rclone-ui-server-${{ matrix.target }}.exe
+          else
+            cp target/release/rclone-ui-server out/server/rclone-ui-server-${{ matrix.target }}
+          fi
+      # The server updates itself from these binaries: sign them with the desktop's updater key
+      # (minisign, `tauri signer`) so src-server/src/updater.rs can verify what it downloads.
+      - name: Sign
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          for f in out/server/rclone-ui-server-*; do
+            npx tauri signer sign "$f"
+          done
+          ls -la out/server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rclone-ui-server-${{ matrix.target }}
+          path: out/server/*
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/server/*
+
+  # `server-latest.json`: what `rclone-ui-server` polls to update itself. Same shape as Tauri's
+  # `latest.json`, with `server-<os>-<arch>` platform keys pointing at the signed binaries above.
+  manifest:
+    needs: binaries
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rclone-ui-server-*
+          path: artifacts
+          merge-multiple: true
+      - name: Write server-latest.json
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}"
+          platforms="{}"
+          for sig in artifacts/*.sig; do
+            bin="${sig%.sig}"
+            name="$(basename "$bin")"
+            key="${name#rclone-ui-server-}"
+            key="server-${key%.exe}"
+            platforms="$(jq --arg k "$key" --arg u "${base}/${name}" --arg s "$(cat "$sig")" \
+              '.[$k] = {url: $u, signature: $s}' <<<"$platforms")"
+          done
+          jq -n --arg v "$version" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson p "$platforms" \
+            '{version: $v, notes: "See the release notes on GitHub.", pub_date: $d, platforms: $p}' \
+            > server-latest.json
+          cat server-latest.json
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: server-latest.json
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}-server
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=sha
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

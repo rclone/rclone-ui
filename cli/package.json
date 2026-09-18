@@ -6,6 +6,9 @@
         "rclone-ui": "bin/rclone-ui.js"
     },
     "type": "module",
+    "scripts": {
+        "test": "node --test"
+    },
     "engines": {
         "node": ">=18"
     },

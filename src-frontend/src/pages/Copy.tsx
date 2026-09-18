@@ -1,0 +1,312 @@
+import { useEffect, useMemo, useState } from 'react'
+import { getOptionsSubtitle } from '../../lib/flags'
+import { pathsWithRemote } from '../../lib/format'
+import { useFlags } from '../../lib/hooks'
+import { applyTemplatePaths } from '../../lib/rclone/templatePaths'
+import { startCopy } from '../../lib/rclone/api'
+import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
+import { metadataOptionsProblem } from '../../lib/rclone/metadataMapper'
+import { useSchedulingAvailable } from '../../lib/scheduler'
+import { usePersistedStore } from '../../store/persisted'
+import OperationWindowContent from '../components/OperationWindowContent'
+import OperationWindowFooter from '../components/OperationWindowFooter'
+import OptionsSection from '../components/OptionsSection'
+import { MultiPathFinder } from '../components/PathFinder'
+import RemoteOptionsSection from '../components/RemoteOptionsSection'
+import CronSection from '../components/operation/CronSection'
+import OperationFooter from '../components/operation/OperationFooter'
+import OptionsAccordion, {
+    type OptionsAccordionItemDef,
+} from '../components/operation/OptionsAccordion'
+import { useOperationPreset } from '../components/operation/useOperationPreset'
+import { useOperationSubmission } from '../components/operation/useOperationSubmission'
+import { useOptionGroups } from '../components/operation/useOptionGroups'
+
+const HELP_CONTENT = `Copies the source(s) to the destination.
+
+Does not transfer files that are identical on source and destination (testing by size and modification time or MD5SUM). Does not delete files from the destination. If the destination path doesn't exist, it will be created automatically.
+
+If you want to also delete files from the destination to make it match the source exactly, use the SYNC command instead.
+
+Here's a quick guide to using the Copy command:
+
+1. SELECT PATHS
+Use the path selectors at the top to choose your source(s) and destination. You can select from local filesystem, configured remotes, or favorites. Tap the folder icon to browse, or type a path directly. Use the swap button to quickly switch source and destination.
+
+2. CONFIGURE OPTIONS (Optional)
+Expand the accordion sections to customize your copy operation. Tap any chip on the right to add it to the JSON editor. Hover over chips to see what each option does.
+
+• Copy — Multi-threading settings (multi_thread_cutoff, streams, chunk_size), checksum verification, and how to handle existing files (ignore_existing).
+
+• Filters — Include or exclude files by pattern, limit by size (max_size, min_size) or age (max_age, min_age).
+
+• Schedule — Run this copy automatically at set intervals, even when the app is closed.
+
+• Config — Performance tuning: parallel transfers, checkers, buffer_size, bandwidth limits (bwlimit), and fast_list for faster directory listings on supported remotes.
+• Metadata — Whether to preserve object metadata (metadata), a program that rewrites it (metadata_mapper), and metadata include/exclude/filter rules.
+
+• Remotes — Override backend-specific settings for remotes involved in this operation.
+
+3. USE TEMPLATES (Optional)
+Tap the folder icon in the bottom bar to load or save option presets. Templates let you quickly apply common configurations without manually setting each option.
+
+4. START THE COPY
+Once paths are selected, tap "START COPY" to begin. You can monitor progress on the Transfers page.`
+
+export default function Copy() {
+    const { preset, onStarted } = useOperationPreset('copy')
+    const { globalFlags, filterFlags, configFlags, copyFlags, metadataFlags } = useFlags()
+
+    const [sources, setSources] = useState<string[] | undefined>(preset?.args.sources)
+    const [dest, setDest] = useState<string | undefined>(preset?.args.destination)
+
+    const {
+        jsonError,
+        setJsonError,
+        groups: optionGroups,
+        remotes: remotesGroup,
+        applyTemplate,
+        getMergedOptions,
+        resetJson,
+        resetLocks,
+    } = useOptionGroups({
+        groups: [
+            { key: 'copy', defaults: RCLONE_CONFIG_DEFAULTS.copy },
+            { key: 'filter' },
+            { key: 'config', defaults: RCLONE_CONFIG_DEFAULTS.config },
+            { key: 'metadata' },
+        ],
+        withRemotes: true,
+        initial: preset?.args.options,
+        initialRemotes: preset?.args.options?.remotes,
+    })
+    const copyGroup = optionGroups.copy
+    const filterGroup = optionGroups.filter
+    const configGroup = optionGroups.config
+    const metadataGroup = optionGroups.metadata
+
+    const [cronExpression, setCronExpression] = useState<string | null>(preset?.cron ?? null)
+    const schedulingAvailable = useSchedulingAvailable()
+
+    // Only the ends that name a remote: a copy between two local paths has no backend options
+    // to set, and the section would open on an empty tab strip.
+    const selectedRemotes = useMemo(
+        () => pathsWithRemote([...(sources || []), dest]),
+        [sources, dest]
+    )
+
+    const buildArgs = () => ({
+        sources: sources!,
+        destination: dest!,
+        options: {
+            config: configGroup.options,
+            copy: copyGroup.options,
+            filter: filterGroup.options,
+            metadata: metadataGroup.options,
+            remotes: remotesGroup.options,
+        },
+    })
+
+    const submission = useOperationSubmission({
+        operation: 'copy',
+        problem: () =>
+            !sources || sources.length === 0
+                ? 'Please select a source path'
+                : !dest
+                  ? 'Please select a destination path'
+                  : sources.some((s) => s === dest)
+                    ? 'Source and destination cannot be the same'
+                    : metadataOptionsProblem(metadataGroup.options),
+        jsonError,
+        cron: cronExpression,
+        setCron: setCronExpression,
+        buildArgs: buildArgs,
+        scheduleGate: () => {
+            if ((sources?.length ?? 0) > 1 && !usePersistedStore.getState().licenseValid) {
+                throw new Error('You need a valid license to schedule multiple tasks at once')
+            }
+        },
+        start: (args) => startCopy(args, false, { cron: cronExpression }),
+        dryRun: (args, isDryRun) => startCopy(args, isDryRun),
+        onStarted,
+        getMergedOptions,
+        error: {
+            title: 'Copy',
+            message: 'Failed to start copy',
+            capture: false,
+            log: ['Error starting copy:'],
+        },
+        reset: {
+            paths: () => {
+                setSources(undefined)
+                setDest(undefined)
+            },
+        },
+        groups: { setJsonError, resetJson, resetLocks },
+    })
+
+    const accordionItems = useMemo<OptionsAccordionItemDef[]>(
+        () => [
+            {
+                key: 'copy',
+                category: 'copy',
+                subtitle: getOptionsSubtitle(Object.keys(copyGroup.options).length),
+                children: (
+                    <OptionsSection
+                        globalOptions={globalFlags?.main || {}}
+                        optionsJson={copyGroup.jsonString}
+                        setOptionsJson={copyGroup.setJsonString}
+                        availableOptions={copyFlags || []}
+                        isLocked={copyGroup.locked}
+                        setIsLocked={copyGroup.setLocked}
+                    />
+                ),
+            },
+            {
+                key: 'filters',
+                category: 'filters',
+                subtitle: getOptionsSubtitle(Object.keys(filterGroup.options).length),
+                children: (
+                    <OptionsSection
+                        globalOptions={globalFlags?.filter || {}}
+                        optionsJson={filterGroup.jsonString}
+                        setOptionsJson={filterGroup.setJsonString}
+                        availableOptions={filterFlags || []}
+                        isLocked={filterGroup.locked}
+                        setIsLocked={filterGroup.setLocked}
+                    />
+                ),
+            },
+            ...(schedulingAvailable
+                ? [
+                      {
+                          key: 'cron',
+                          category: 'cron' as const,
+                          children: (
+                              <CronSection
+                                  expression={cronExpression}
+                                  onChange={setCronExpression}
+                              />
+                          ),
+                      },
+                  ]
+                : []),
+            {
+                key: 'config',
+                category: 'config',
+                subtitle: getOptionsSubtitle(Object.keys(configGroup.options).length),
+                children: (
+                    <OptionsSection
+                        globalOptions={globalFlags?.main || {}}
+                        optionsJson={configGroup.jsonString}
+                        setOptionsJson={configGroup.setJsonString}
+                        availableOptions={configFlags || []}
+                        isLocked={configGroup.locked}
+                        setIsLocked={configGroup.setLocked}
+                    />
+                ),
+            },
+            {
+                key: 'metadata',
+                category: 'metadata',
+                subtitle: getOptionsSubtitle(Object.keys(metadataGroup.options).length),
+                children: (
+                    <OptionsSection
+                        globalOptions={{ ...globalFlags?.main, ...globalFlags?.filter }}
+                        optionsJson={metadataGroup.jsonString}
+                        setOptionsJson={metadataGroup.setJsonString}
+                        mapperPaths={{ source: sources?.[0], destination: dest }}
+                        mapperRemoteOverrides={remotesGroup.options}
+                        availableOptions={metadataFlags || []}
+                        isLocked={metadataGroup.locked}
+                        setIsLocked={metadataGroup.setLocked}
+                    />
+                ),
+            },
+            ...(selectedRemotes.length > 0
+                ? [
+                      {
+                          key: 'remotes',
+                          category: 'remotes' as const,
+                          subtitle: getOptionsSubtitle(
+                              Object.values(remotesGroup.options).reduce(
+                                  (acc, opts) => acc + Object.keys(opts).length,
+                                  0
+                              )
+                          ),
+                          children: (
+                              <RemoteOptionsSection
+                                  selectedRemotes={selectedRemotes}
+                                  remoteOptionsJson={remotesGroup.json}
+                                  setRemoteOptionsJson={remotesGroup.setJson}
+                                  reconcileRemotes={remotesGroup.reconcile}
+                                  setRemoteOptionsLocked={remotesGroup.setLocked}
+                                  remoteOptionsLocked={remotesGroup.locked}
+                              />
+                          ),
+                      },
+                  ]
+                : []),
+        ],
+        [
+            copyGroup,
+            filterGroup,
+            configGroup,
+            remotesGroup,
+            globalFlags,
+            copyFlags,
+            filterFlags,
+            configFlags,
+            metadataGroup,
+            sources,
+            dest,
+            metadataFlags,
+            selectedRemotes,
+            cronExpression,
+            schedulingAvailable,
+        ]
+    )
+
+    useEffect(() => {
+        console.log('[Copy] remoteOptions', remotesGroup.options)
+        console.log('[Copy] remoteOptionsJson', remotesGroup.json)
+    }, [remotesGroup.json, remotesGroup.options])
+
+    return (
+        <div className="flex flex-col h-screen gap-10">
+            {/* Main Content */}
+            <OperationWindowContent>
+                {/* Paths Display */}
+                <MultiPathFinder
+                    sourcePaths={sources}
+                    setSourcePaths={setSources}
+                    destPath={dest}
+                    setDestPath={setDest}
+                />
+
+                <OptionsAccordion banner={true} items={accordionItems} />
+            </OperationWindowContent>
+
+            <OperationWindowFooter>
+                <OperationFooter
+                    operation="copy"
+                    {...submission.footer}
+                    onTemplateSelect={(groupedOptions, shouldMerge, paths) => {
+                        applyTemplate(groupedOptions, shouldMerge)
+                        const next = applyTemplatePaths(
+                            { sources, destination: dest },
+                            paths,
+                            shouldMerge
+                        )
+                        setSources(next.sources?.length ? next.sources : undefined)
+                        setDest(next.destination)
+                    }}
+                    getTemplateOptions={getMergedOptions}
+                    getTemplatePaths={() => ({ sources, destination: dest })}
+                    newLabel="NEW COPY"
+                    helpContent={HELP_CONTENT}
+                />
+            </OperationWindowFooter>
+        </div>
+    )
+}

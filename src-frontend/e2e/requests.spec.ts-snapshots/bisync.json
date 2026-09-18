@@ -1,0 +1,14 @@
+[
+  {
+    "endpoint": "/sync/bisync",
+    "body": {
+      "path1": ":local:/tmp/photos/",
+      "path2": "gdrive,chunk_size=\"64M\":backup/",
+      "_config": "{\"ConflictResolve\":\"newer\",\"Checkers\":2}",
+      "_filter": "{\"MaxSize\":\"1G\"}",
+      "resync": true,
+      "force": false,
+      "_async": true
+    }
+  }
+]

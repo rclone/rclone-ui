@@ -1,0 +1,34 @@
+[
+  {
+    "endpoint": "/job/batch",
+    "body": {
+      "inputs": [
+        {
+          "_path": "sync/copy",
+          "srcFs": "sftp:/var/www/",
+          "dstFs": "gdrive,chunk_size=\"64M\":in/www",
+          "createEmptySrcDirs": true
+        },
+        {
+          "_path": "sync/copy",
+          "srcFs": "sftp:var/www/",
+          "dstFs": "gdrive,chunk_size=\"64M\":in/www",
+          "createEmptySrcDirs": true
+        },
+        {
+          "_path": "sync/copy",
+          "srcFs": "sftp:",
+          "dstFs": "gdrive,chunk_size=\"64M\":in/",
+          "createEmptySrcDirs": true
+        },
+        {
+          "_path": "sync/copy",
+          "srcFs": "sftp:/",
+          "dstFs": "gdrive,chunk_size=\"64M\":in/",
+          "createEmptySrcDirs": true
+        }
+      ],
+      "_async": true
+    }
+  }
+]

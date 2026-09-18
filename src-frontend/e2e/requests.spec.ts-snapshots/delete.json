@@ -1,0 +1,23 @@
+[
+  {
+    "endpoint": "/job/batch",
+    "body": {
+      "inputs": [
+        {
+          "_path": "operations/delete",
+          "fs": ":local:/tmp/old/",
+          "_config": "{\"DryRun\":true}",
+          "_filter": "{\"MinAge\":\"7d\"}"
+        },
+        {
+          "_path": "operations/delete",
+          "fs": "gdrive,chunk_size=\"64M\":trash/",
+          "_config": "{\"DryRun\":true}",
+          "_filter": "{\"MinAge\":\"7d\"}"
+        }
+      ],
+      "_config": "{\"DryRun\":true}",
+      "_async": true
+    }
+  }
+]

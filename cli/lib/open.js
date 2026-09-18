@@ -30,11 +30,28 @@ export function openApp() {
             return;
         }
 
-        child.unref();
-        child.on("error", reject);
-
-        // Give it a moment to spawn, then resolve
-        setTimeout(() => resolve(), 500);
+        settleLaunch(child, resolve, reject);
     });
+}
+
+/**
+ * A launcher that fails does so at once: an `error` (nothing to run) or an early non-zero exit
+ * rejects. One that is still running after the grace period is the app itself, and resolves.
+ */
+export function settleLaunch(child, resolve, reject, graceMs = 500) {
+    let settled = false;
+    const done = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        fn(value);
+    };
+    child.unref();
+    child.on("error", (error) => done(reject, error));
+    child.on("exit", (code) => {
+        if (code !== 0 && code !== null) {
+            done(reject, new Error(`The launcher exited with code ${code}`));
+        }
+    });
+    setTimeout(() => done(resolve), graceMs).unref?.();
 }
 

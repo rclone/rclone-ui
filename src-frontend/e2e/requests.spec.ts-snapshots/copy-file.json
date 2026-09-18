@@ -1,0 +1,23 @@
+[
+  {
+    "endpoint": "/job/batch",
+    "body": {
+      "inputs": [
+        {
+          "_path": "operations/copyfile",
+          "srcFs": ":local:/",
+          "srcRemote": "tmp/one.txt",
+          "dstFs": "gdrive,chunk_size=\"64M\":",
+          "dstRemote": "in/one.txt"
+        },
+        {
+          "_path": "sync/copy",
+          "srcFs": ":local:/tmp/photos/",
+          "dstFs": "gdrive,chunk_size=\"64M\":in/photos",
+          "createEmptySrcDirs": true
+        }
+      ],
+      "_async": true
+    }
+  }
+]

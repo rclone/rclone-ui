@@ -103,8 +103,8 @@ fn setup<R: Runtime>(app: &tauri::AppHandle<R>) {
 /// before the event loop draws a frame; Tauri's own window hooks are queued on
 /// the event loop and would land after the first frame.
 fn watch_application_windows() -> Result<(), String> {
-    let application =
-        gio::Application::default().ok_or_else(|| "no GtkApplication in this process".to_string())?;
+    let application = gio::Application::default()
+        .ok_or_else(|| "no GtkApplication in this process".to_string())?;
     let application = application
         .downcast::<gtk::Application>()
         .map_err(|_| "the default GApplication is not a GtkApplication".to_string())?;

@@ -1,0 +1,27 @@
+[
+  {
+    "endpoint": "/job/batch",
+    "body": {
+      "inputs": [
+        {
+          "_path": "sync/copy",
+          "srcFs": ":local:/tmp/photos/",
+          "dstFs": "e2e-memory:backup/photos",
+          "createEmptySrcDirs": true,
+          "_config": "{\"IgnoreExisting\":true,\"Transfers\":4,\"Metadata\":true}",
+          "_filter": "{\"ExcludeRule\":[\"*.tmp\"]}"
+        },
+        {
+          "_path": "sync/copy",
+          "srcFs": "gdrive,chunk_size=\"64M\":albums/",
+          "dstFs": "e2e-memory:backup/albums",
+          "createEmptySrcDirs": true,
+          "_config": "{\"IgnoreExisting\":true,\"Transfers\":4,\"Metadata\":true}",
+          "_filter": "{\"ExcludeRule\":[\"*.tmp\"]}"
+        }
+      ],
+      "_config": "{\"IgnoreExisting\":true,\"Transfers\":4,\"Metadata\":true}",
+      "_async": true
+    }
+  }
+]

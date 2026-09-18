@@ -1,0 +1,15 @@
+[
+  {
+    "endpoint": "/job/batch",
+    "body": {
+      "inputs": [
+        {
+          "_path": "operations/deletefile",
+          "fs": ":local:/",
+          "remote": "tmp/one.txt"
+        }
+      ],
+      "_async": true
+    }
+  }
+]

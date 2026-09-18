@@ -1,0 +1,48 @@
+[workspace]
+resolver = "2"
+members = ["src-shared", "src-tauri", "src-server"]
+default-members = ["src-tauri"]
+
+[workspace.package]
+version = "3.7.4"
+edition = "2021"
+rust-version = "1.77.2"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+log = "0.4"
+reqwest = { version = "0.13", features = ["json", "stream"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "signal"] }
+# Local wall-clock for the macOS launchd catch-up suppression (the runner skips a fire whose
+# local minute doesn't match the cron — a wake-catch-up rather than an on-time fire).
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+dirs = "6"
+sysinfo = "0.37"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
+zip = "0.6.6"
+flate2 = "1.1.9"
+tar = "0.4.45"
+machine-uid = "0.6.0"
+# The headless runner's OS toast (notifications/os.rs) — this is tauri-plugin-notification's own
+# desktop backend (same locked version), used directly because the plugin's API needs an
+# AppHandle and scheduled-run mode never builds a Tauri app.
+notify-rust = "4"
+# Email notifications (notifications/smtp.rs): the blocking SMTP transport on the TLS stack
+# reqwest already brought in (rustls, aws-lc-rs, the platform's certificate verifier), so a
+# mail costs no second TLS library. No default features: no native-tls, no pool, no hostname.
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "rustls", "aws-lc-rs", "rustls-platform-verifier"] }
+libc = "0.2"
+winreg = "0.52"
+# open_url / open_path / reveal_item on the server (the desktop shell has the same three).
+opener = { version = "0.7", features = ["reveal"] }
+# Job-object features: the scheduler runner ties the transient rclone daemon's lifetime to a
+# KILL_ON_JOB_CLOSE job (scheduler/winjob.rs) so a hard-killed runner can't orphan it.
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }

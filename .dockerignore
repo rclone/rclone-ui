@@ -1,0 +1,9 @@
+**/node_modules
+target
+src-tauri/target
+src-video
+src-frontend/dist
+src-frontend/e2e/.tmp
+src-frontend/test-results
+src-frontend/playwright-report
+.git

@@ -1,6 +1,6 @@
 <h1 align="center">
   <a href="https://rcloneui.com">
-    <img src="./public/banner.png" alt="Rclone UI" width="100%">
+    <img src="./src-frontend/public/banner.png" alt="Rclone UI" width="100%">
   </a>
   <br>
   <a href="https://rcloneui.com">
@@ -113,6 +113,42 @@ npx rclone-ui
 Control your server, homelab, or mom's PC with **the easiest solution to manage remote **`rclone`** instances.**
 
 [**Check out the guide for controlling remote instances.**](https://rcloneui.com/docs/ui/docker)
+
+### Run Rclone UI itself in a browser
+`rclone-ui-server` serves the same app from a headless machine or a container — no desktop
+session, no GTK/WebKit. It manages its own `rclone` daemon, keeps the same data layout as the
+desktop app, runs schedules from an in-process ticker, and delivers webhook notifications.
+
+```sh
+# Docker
+docker run -d --name rclone-ui -p 5573:5573 \
+  -e RCLONE_UI_PASSWORD=change-me -v rclone-ui:/data \
+  ghcr.io/rclone-ui/rclone-ui-server:latest
+# open http://<host>:5573 and sign in as admin@localhost with that password
+
+# Bare machine (Linux / macOS / Windows), from a release binary or `npm run build:server`
+rclone-ui-server serve --password change-me                    # http://127.0.0.1:5573
+rclone-ui-server serve --bind 0.0.0.0:5573 --password change-me --email you@example.com
+```
+
+A password is always required. On the first start it seeds the **owner** account (email from
+`--email` / `RCLONE_UI_EMAIL`, `admin@localhost` by default); after that the flag is ignored and
+accounts live in **Settings › Team**, where admins add members with their own email and password.
+Locked out? Delete `state/team.json` in the data directory and restart to seed the owner again,
+or start once with `--clear` to wipe everything (accounts, hosts, settings, schedules, rclone
+configs, downloaded binaries) and begin from scratch.
+
+Mounting from a container needs FUSE: add `--device /dev/fuse --cap-add SYS_ADMIN
+--security-opt apparmor:unconfined`, and bind-mount the mount point with `:rshared` so it
+shows up on the host. Put a reverse proxy with TLS in front of it before exposing it beyond
+your network. Options: `--email`, `--data-dir`, `--rclone-path`, `--rclone-url <existing rcd>`,
+`--no-automount`, `--clear`; every flag has an `RCLONE_UI_*` environment variable.
+
+Cross-compiling a debug server from a Mac (after `npm run build`, with cargo-zigbuild and
+cargo-xwin installed): `cargo zigbuild -p rclone-ui-server --features embed --target
+x86_64-unknown-linux-gnu` and `cargo xwin build -p rclone-ui-server --features embed --target
+x86_64-pc-windows-msvc`. The `embed` feature puts `src-frontend/dist/` inside a debug binary;
+without it a debug build reads the folder from the checkout at runtime.
 
 ## Roadmap
 > Finalized items have been moved to the "Features" section.

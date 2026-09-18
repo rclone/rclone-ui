@@ -21,18 +21,22 @@ fn main() {
         // Set by Run Now (a manual, off-schedule run) — bypasses the macOS launchd catch-up
         // suppression so a manual trigger always executes.
         let forced = args.iter().any(|a| a == "--forced");
-        // The GUI's resolved data roots, baked into the trigger at registration — a bare cron
-        // environment can re-derive different ones (session XDG_DATA_HOME). Absent on triggers
-        // registered by older versions; the runner then derives them itself.
+        // The GUI's resolved data directory, baked into the trigger at registration — a bare
+        // cron environment can re-derive a different one (session XDG_DATA_HOME). Absent on
+        // triggers registered by older versions; the runner then derives it itself.
         let data_dir = flag_value("--data-dir");
-        let local_data_dir = flag_value("--local-data-dir");
         std::process::exit(app_lib::run_scheduled_task(
             &task_id,
             &host_id,
             forced,
             data_dir.as_deref(),
-            local_data_dir.as_deref(),
         ));
+    }
+
+    // The metadata mapper (`--metadata-mapper`), which rclone spawns once per file and
+    // directory copied: one JSON object in, one out, nothing started, nothing logged.
+    if args.len() >= 2 && args[1] == "metadata-map" {
+        std::process::exit(app_lib::run_metadata_map(&args[2..]));
     }
 
     #[cfg(target_os = "linux")]
@@ -46,10 +50,13 @@ fn main() {
             }
         }
     }
-	#[cfg(target_os = "windows")]
-	{
-		std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--ignore-gpu-blocklist --force-device-scale-factor=1 --disable-features=msWebOOUI");
-	}
+    #[cfg(target_os = "windows")]
+    {
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--ignore-gpu-blocklist --force-device-scale-factor=1 --disable-features=msWebOOUI",
+        );
+    }
     let _ = fix_path_env::fix();
     app_lib::run();
 }

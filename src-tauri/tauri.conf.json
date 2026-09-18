@@ -5,38 +5,28 @@
     "version": "3.7.4",
     "identifier": "com.rclone.ui",
     "build": {
-        "frontendDist": "../dist",
+        "frontendDist": "../src-tauri/empty-dist",
         "devUrl": "http://localhost:1420",
         "beforeDevCommand": "npm run dev",
         "beforeBuildCommand": "npm run build"
     },
     "app": {
-        "windows": [
-            {
-                "title": "Rclone UI",
-                "width": 1,
-                "height": 1,
-                "center": true,
-                "hiddenTitle": false,
-                "resizable": false,
-                "fullscreen": false,
-                "visible": false,
-                "decorations": false,
-                "focus": false,
-                "url": "tray.html",
-                "alwaysOnTop": true,
-                "backgroundThrottling": "disabled",
-                "zoomHotkeysEnabled": false
-            }
-        ],
+        "windows": [],
         "security": {
             "csp": null
         },
-        "withGlobalTauri": true
+        "withGlobalTauri": false
     },
     "bundle": {
         "active": true,
-        "targets": ["nsis", "dmg", "app", "appimage", "deb", "rpm"],
+        "targets": [
+            "nsis",
+            "dmg",
+            "app",
+            "appimage",
+            "deb",
+            "rpm"
+        ],
         "icon": [
             "icons/32x32.png",
             "icons/128x128.png",
@@ -44,14 +34,16 @@
             "icons/icon.icns",
             "icons/icon.ico"
         ],
-        "resources": ["icons/favicon/*"],
+        "resources": [
+            "icons/favicon/*"
+        ],
         "shortDescription": "Cross-platform GUI for rclone & S3",
         "longDescription": "Cross-platform GUI for rclone & S3",
         "license": "Apache-2.0",
         "homepage": "https://github.com/rclone-ui/rclone-ui",
         "publisher": "Rclone UI",
         "category": "Utility",
-        "copyright": "Copyright © 2026 Rclone UI.",
+        "copyright": "Copyright \u00a9 2026 Rclone UI.",
         "macOS": {
             "dmg": {
                 "appPosition": {
@@ -106,7 +98,9 @@
         },
         "deep-link": {
             "desktop": {
-                "schemes": ["rclone"]
+                "schemes": [
+                    "rclone"
+                ]
             }
         },
         "fs": {

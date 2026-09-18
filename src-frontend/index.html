@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <!-- Last supported wins: the SVG follows the tab strip, the PNG is the fallback. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rclone UI</title>
+    <!-- rclone-ui:server-inject -->
+	<script>
+		// The server injected the boot payload above. Without native windows (a browser tab) the
+		// pages render inside the Shell's content column: `html.browser` scopes the CSS that
+		// turns their viewport-sized boxes into container-sized ones (src/global.css).
+		var boot = window.__RCLONE_UI__
+		if (!boot || !boot.capabilities || !boot.capabilities.window) {
+			document.documentElement.classList.add('browser')
+		}
+		// The persisted theme rides on the boot payload; first paint matches it.
+		var theme = boot && boot.theme
+		document.documentElement.classList.toggle(
+			"dark",
+			theme === "dark" ||
+				(theme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches),
+		);
+	</script>
+	<script>
+		if (
+			window.location.pathname.startsWith('/toolbar') ||
+			window.location.pathname.startsWith('/startup')
+		) {
+			document.documentElement.classList.add('!bg-transparent')
+		}
+	</script>
+  </head>
+
+  <body class="select-none">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

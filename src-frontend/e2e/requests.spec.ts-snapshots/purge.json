@@ -1,0 +1,17 @@
+[
+  {
+    "endpoint": "/job/batch",
+    "body": {
+      "inputs": [
+        {
+          "_path": "operations/purge",
+          "fs": ":local:/",
+          "_config": "{\"Transfers\":1}",
+          "remote": "tmp/old"
+        }
+      ],
+      "_config": "{\"Transfers\":1}",
+      "_async": true
+    }
+  }
+]

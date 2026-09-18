@@ -1,9 +1,11 @@
 use tauri::{AppHandle, Manager, WebviewWindow, WebviewWindowBuilder};
+
+use crate::shell::{publish_window_events, window_script, SharedShell};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-use super::window::make_transparent;
 #[cfg(target_os = "linux")]
 use super::window::focus_window_linux;
+use super::window::make_transparent;
 
 pub const DEFAULT_TOOLBAR_SHORTCUT: &str = "CmdOrCtrl+Shift+/";
 const TOOLBAR_WINDOW_LABEL: &str = "Toolbar";
@@ -23,7 +25,16 @@ const TOOLBAR_HEIGHT: f64 = 460.0;
 //     Ok(())
 // }
 
+fn toolbar_url(app_handle: &AppHandle) -> Result<tauri::WebviewUrl, tauri::Error> {
+    let shell = app_handle.state::<SharedShell>();
+    let url = shell.boot_url("/toolbar");
+    url.parse()
+        .map(tauri::WebviewUrl::External)
+        .map_err(|_| tauri::Error::InvalidUrl(url::ParseError::EmptyHost))
+}
+
 fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri::Error> {
+    let toolbar_url = toolbar_url(app_handle)?;
     let monitor = match app_handle.primary_monitor()? {
         Some(monitor) => monitor,
         None => app_handle
@@ -49,29 +60,22 @@ fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri:
         let toolbar_height = TOOLBAR_HEIGHT / scale_factor;
 
         // Calculate position in logical pixels, centered on the primary monitor
-        let pos_x =
-            logical_position.x
-            + (logical_size.width - toolbar_width) / 2.0;
+        let pos_x = logical_position.x + (logical_size.width - toolbar_width) / 2.0;
 
-        let pos_y =
-            logical_position.y
-            + logical_size.height / 4.0;
+        let pos_y = logical_position.y + logical_size.height / 4.0;
 
-        WebviewWindowBuilder::new(
-            app_handle,
-            TOOLBAR_WINDOW_LABEL,
-            tauri::WebviewUrl::App("/toolbar".into()),
-        )
-        .title(TOOLBAR_WINDOW_LABEL)
-        .inner_size(toolbar_width, toolbar_height)
-        .position(pos_x, pos_y)
-        .resizable(false)
-        .decorations(false)
-        .shadow(false)
-        .focused(false)
-        .visible(false)
-        .visible_on_all_workspaces(true)
-        .zoom_hotkeys_enabled(false)
+        WebviewWindowBuilder::new(app_handle, TOOLBAR_WINDOW_LABEL, toolbar_url.clone())
+            .initialization_script(window_script(TOOLBAR_WINDOW_LABEL))
+            .title(TOOLBAR_WINDOW_LABEL)
+            .inner_size(toolbar_width, toolbar_height)
+            .position(pos_x, pos_y)
+            .resizable(false)
+            .decorations(false)
+            .shadow(false)
+            .focused(false)
+            .visible(false)
+            .visible_on_all_workspaces(true)
+            .zoom_hotkeys_enabled(false)
     };
 
     // On macOS and Linux, use logical coordinates (full screen size for click-through)
@@ -84,21 +88,19 @@ fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri:
         let pos_x = logical_position.x;
         let pos_y = logical_position.y;
 
-        let mut b = WebviewWindowBuilder::new(
-            app_handle,
-            TOOLBAR_WINDOW_LABEL,
-            tauri::WebviewUrl::App("/toolbar".into()),
-        )
-        .title(TOOLBAR_WINDOW_LABEL)
-        .inner_size(logical_size.width, logical_size.height)
-        .position(pos_x, pos_y)
-        .resizable(false)
-        .decorations(false)
-        .shadow(false)
-        .focused(false)
-        .visible(false)
-        .visible_on_all_workspaces(true)
-        .zoom_hotkeys_enabled(false);
+        let mut b =
+            WebviewWindowBuilder::new(app_handle, TOOLBAR_WINDOW_LABEL, toolbar_url.clone())
+                .initialization_script(window_script(TOOLBAR_WINDOW_LABEL))
+                .title(TOOLBAR_WINDOW_LABEL)
+                .inner_size(logical_size.width, logical_size.height)
+                .position(pos_x, pos_y)
+                .resizable(false)
+                .decorations(false)
+                .shadow(false)
+                .focused(false)
+                .visible(false)
+                .visible_on_all_workspaces(true)
+                .zoom_hotkeys_enabled(false);
 
         #[cfg(target_os = "linux")]
         {
@@ -109,6 +111,7 @@ fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri:
     };
 
     let window = builder.build()?;
+    publish_window_events(&app_handle.state::<SharedShell>(), &window);
 
     window.set_zoom(1.0)?;
     window.hide()?;
