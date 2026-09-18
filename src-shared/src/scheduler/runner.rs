@@ -37,7 +37,7 @@ fn install_sigterm_handler() {
     }
 }
 
-pub fn run(task_id: &str, host_id: &str, forced: bool, data_dir: Option<&str>) -> i32 {
+pub fn run(task_id: &str, host_id: &str, data_dir: Option<&str>) -> i32 {
     // forced: a manual Run Now — bypass the macOS launchd catch-up suppression (a manual run is
     // intentionally off-schedule). Unused on non-macOS builds.
     #[cfg(not(target_os = "macos"))]
@@ -116,47 +116,6 @@ pub fn run(task_id: &str, host_id: &str, forced: bool, data_dir: Option<&str>) -
         return 2;
     }
 
-    // User-mode context handling differs by platform. macOS: launchd fires the task inside the
-    // login session already (Keychain, /Volumes, TCC-as-the-app) and only while logged in, so
-    // there is nothing to gate — we only suppress launchd's wake-catch-up to honor no-replay.
-    // Linux: cron fires regardless of login state, so we gate on an active session and borrow its
-    // context. Windows: the interactive logon type is the gate (nothing here).
-    if spec.is_user_mode() && super::mode::get() == super::mode::Mode::Native {
-        #[cfg(target_os = "macos")]
-        {
-            if !forced && is_launchd_catchup(&spec) {
-                log.line("skipped: missed while asleep (launchd catch-up suppressed)");
-                history::append(
-                    &dirs,
-                    &task_id,
-                    &HistoryLine::Skipped {
-                        ts: history::now_iso(),
-                        reason: "missed while asleep".to_string(),
-                    },
-                );
-                return 3;
-            }
-        }
-        #[cfg(target_os = "linux")]
-        {
-            if !user_has_login_session() {
-                log.line("skipped: no active login session");
-                history::append(
-                    &dirs,
-                    &task_id,
-                    &HistoryLine::Skipped {
-                        ts: history::now_iso(),
-                        reason: "no active login session".to_string(),
-                    },
-                );
-                return 3;
-            }
-            if let Some(runtime_dir) = session_runtime_dir() {
-                borrow_session_env(&runtime_dir, &mut log);
-            }
-        }
-    }
-
     // Held (not dropped) for the entire run: on Unix the flock inside is the mutual exclusion.
     let run_lock = match history::acquire_lock(&dirs, &task_id, spec.max_run_seconds) {
         Ok(history::LockResult::Acquired(lock)) => lock,
@@ -227,7 +186,7 @@ pub fn run(task_id: &str, host_id: &str, forced: bool, data_dir: Option<&str>) -
         &dirs, &spec, &task_id, &run_id, &root, &client, deadline, &mut log,
     );
     if let Some(error) = outcome.error.take() {
-        outcome.error = Some(annotate_session_failure(error, &spec));
+        outcome.error = Some(annotate_session_failure(error));
     }
 
     let duration_ms = started_at.elapsed().as_millis() as u64;
@@ -296,144 +255,11 @@ pub fn run(task_id: &str, host_id: &str, forced: bool, data_dir: Option<&str>) -
     }
 }
 
-/// Whether this launchd fire is a wake-catch-up (a run for a time missed while asleep/off) rather
-/// than an on-time fire. launchd fires an on-time job at the scheduled minute — which the cron
-/// matches — whereas a catch-up fires at wake time, on some arbitrary non-matching minute. We
-/// check the current AND previous minute so launchd's sub-second jitter across a minute boundary
-/// still counts as on-time. Unparseable cron fails open (does not suppress).
-#[cfg(target_os = "macos")]
-fn is_launchd_catchup(spec: &JobSpec) -> bool {
-    use chrono::{Datelike, Timelike};
-    let Ok(cron) = super::cronconv::parse(&spec.cron) else {
-        return false;
-    };
-    let now = chrono::Local::now();
-    for minutes_ago in [0i64, 1] {
-        let t = now - chrono::Duration::minutes(minutes_ago);
-        if super::cronconv::matches(
-            &cron,
-            t.minute() as u16,
-            t.hour() as u16,
-            t.day() as u16,
-            t.month() as u16,
-            t.weekday().num_days_from_sunday() as u16,
-        ) {
-            return false;
-        }
-    }
-    true
-}
-
-/// Whether the user currently has a real login session — the ONLY thing that authorizes a
-/// user-mode run. `/run/user/<uid>` alone is NOT that check: `loginctl enable-linger` keeps the
-/// user manager (and the runtime dir) alive after logout. And raw `SESSIONS=` entries are not
-/// enough either: on distros whose cron PAM stack includes pam_systemd, the cron job that fired
-/// us registers its OWN logind session (SERVICE=cron, CLASS=background on current systemd) — a
-/// gate counting raw sessions would authorize itself. So each session id is checked against its
-/// `/run/systemd/sessions/<id>` state file and background/cron/at sessions are excluded.
-///
-/// Flatpak: the sandbox never sees `/run/systemd` (a reserved path — even `--filesystem=host`
-/// mounts the host at /run/host, never over /run), so the strict check is unreachable there.
-/// Gate on the proxied session D-Bus socket instead: flatpak wires it into the sandbox only
-/// when the host session bus exists, and it is exactly the context a user-mode run needs
-/// (keyring via secret-service, portals). Accepted caveat: lingering keeps the host bus alive,
-/// so under Flatpak lingering counts as logged in.
-///
-/// No other leniency: without logind state we cannot PROVE a session, and a user-mode task must
-/// never run outside one just because borrowable context happens to exist — that is what System
-/// mode is for. (systemd-logind and elogind both write these files.)
-#[cfg(target_os = "linux")]
-pub(super) fn user_has_login_session() -> bool {
-    if crate::is_flatpak() {
-        return session_runtime_dir()
-            .map(|dir| dir.join("bus").exists())
-            .unwrap_or(false);
-    }
-
-    let uid = unsafe { libc::getuid() };
-    let Ok(state) = std::fs::read_to_string(format!("/run/systemd/users/{}", uid)) else {
-        return false;
-    };
-    let Some(sessions) = state
-        .lines()
-        .find_map(|line| line.strip_prefix("SESSIONS="))
-    else {
-        return false;
-    };
-    sessions.split_whitespace().any(is_real_login_session)
-}
-
-/// Whether a logind session id is a live user login rather than a background job session
-/// (cron/at via pam_systemd) or one already tearing down.
-#[cfg(target_os = "linux")]
-fn is_real_login_session(session_id: &str) -> bool {
-    let Ok(info) = std::fs::read_to_string(format!("/run/systemd/sessions/{}", session_id)) else {
-        return false;
-    };
-    let field = |key: &str| {
-        info.lines()
-            .find_map(|line| line.strip_prefix(key))
-            .unwrap_or("")
-            .trim()
-    };
-    // background / background-light are the non-login classes (systemd ≥ 252 puts cron and at
-    // jobs there); on older systemd those jobs still carry the scheduler's SERVICE name with
-    // CLASS=user, hence the explicit service exclusions. A "closing" session has already lost
-    // its user context.
-    if field("CLASS=").starts_with("background") || field("STATE=") == "closing" {
-        return false;
-    }
-    !matches!(
-        field("SERVICE="),
-        "cron" | "crond" | "cronie" | "atd" | "anacron"
-    )
-}
-
-/// The user manager's runtime dir, when present — the session context worth borrowing.
-#[cfg(target_os = "linux")]
-fn session_runtime_dir() -> Option<std::path::PathBuf> {
-    let dir = std::path::PathBuf::from(format!("/run/user/{}", unsafe { libc::getuid() }));
-    dir.is_dir().then_some(dir)
-}
-
-/// Borrow the login session's context: XDG_RUNTIME_DIR and the session D-Bus address are what
-/// keyring password commands (secret-tool) and gvfs mounts need. Inherited by the transient
-/// rclone daemon and everything it spawns.
-#[cfg(target_os = "linux")]
-fn borrow_session_env(runtime_dir: &std::path::Path, log: &mut RunLog) {
-    if std::env::var_os("XDG_RUNTIME_DIR").is_none() {
-        std::env::set_var("XDG_RUNTIME_DIR", runtime_dir);
-    }
-    let bus = runtime_dir.join("bus");
-    if std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_none() && bus.exists() {
-        std::env::set_var(
-            "DBUS_SESSION_BUS_ADDRESS",
-            format!("unix:path={}", bus.display()),
-        );
-    }
-    log.line("user mode: borrowed login session environment (XDG_RUNTIME_DIR, session D-Bus)");
-}
-
 /// Failure hints for session-context errors, so the history/webhook error names the actual fix
-/// instead of leaving the user to guess. macOS user-mode runs execute as the app via a
-/// LaunchAgent — a protected-folder denial means the app itself lacks the grant (and a background
-/// run can't prompt), so the fix is to grant the APP. System-mode runs that trip session-shaped
-/// errors are pointed at the 'User' run mode (or, on macOS, cron's FDA grant).
-fn annotate_session_failure(error: String, spec: &JobSpec) -> String {
+/// instead of leaving the user to guess: a scheduled run has no desktop session, so a keyring
+/// password command or a protected folder fails in ways rclone's own wording does not explain.
+fn annotate_session_failure(error: String) -> String {
     let lower = error.to_lowercase();
-
-    if spec.is_user_mode() && super::mode::get() == super::mode::Mode::Native {
-        #[cfg(target_os = "macos")]
-        {
-            if lower.contains("operation not permitted") || lower.contains("permission denied") {
-                return format!(
-                    "{} — this task runs as Rclone UI, but a scheduled run cannot show a permission prompt, so the app must be granted access first: grant Rclone UI access to the folder (open it once in the app), or add Rclone UI to Full Disk Access in System Settings → Privacy & Security.",
-                    error
-                );
-            }
-        }
-        return error;
-    }
 
     let session_shaped = lower.contains("operation not permitted")
         || lower.contains("permission denied")
@@ -581,20 +407,6 @@ fn execute(
     };
     history::record_daemon_pid(dirs, task_id, child.id());
 
-    // Tie the daemon's lifetime to this process: Task Scheduler's hard kill (TerminateProcess)
-    // runs no destructors, so without the job object a hung, hard-killed runner orphans it.
-    #[cfg(windows)]
-    let job = match super::winjob::KillOnCloseJob::assign(&child) {
-        Ok(job) => Some(job),
-        Err(e) => {
-            log.line(&format!(
-                "job object unavailable ({}) — a hard-killed runner would orphan the daemon until the next run's cleanup",
-                e
-            ));
-            None
-        }
-    };
-
     let mut daemon = DaemonGuard {
         child,
         client: client.clone(),
@@ -602,8 +414,6 @@ fn execute(
         user: user.clone(),
         pass: pass.clone(),
         cleaned: false,
-        #[cfg(windows)]
-        _job: job,
     };
 
     // Readiness.
@@ -990,10 +800,6 @@ struct DaemonGuard {
     user: String,
     pass: String,
     cleaned: bool,
-    /// Kill-on-close job object holding the daemon (see winjob.rs). Dropped after the graceful
-    /// shutdown; the kernel drops it on ANY runner death, including TerminateProcess.
-    #[cfg(windows)]
-    _job: Option<super::winjob::KillOnCloseJob>,
 }
 
 impl DaemonGuard {

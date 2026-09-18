@@ -60,13 +60,9 @@ fn write_artifact(dirs: &DataDir, task_id: &str, artifact: &Artifact) -> Result<
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
-fn spawn_child(program: &str, args: &[String], forced: bool) -> Result<(), String> {
+fn spawn_child(program: &str, args: &[String]) -> Result<(), String> {
     let mut cmd = Command::new(program);
     cmd.args(args);
-    if forced {
-        cmd.arg("--forced");
-    }
-    cmd.env(super::mode::ENV, "ticker");
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::null());
     cmd.stderr(Stdio::null());
@@ -131,7 +127,7 @@ impl SchedulerBackend for TickerBackend {
     fn run_now(&self, task_id: &str) -> Result<(), String> {
         let artifact =
             read_artifact(&self.dirs, task_id)?.ok_or_else(|| NOT_REGISTERED.to_string())?;
-        spawn_child(&artifact.program, &artifact.args, true)
+        spawn_child(&artifact.program, &artifact.args)
     }
 
     fn is_installed(&self, task_id: &str) -> Result<InstallState, String> {
@@ -200,7 +196,7 @@ pub async fn run_ticker(dirs: DataDir) {
                 continue;
             }
             log::info!("[ticker] firing {} ({})", spec.name, spec.task_id);
-            if let Err(e) = spawn_child(&artifact.program, &artifact.args, false) {
+            if let Err(e) = spawn_child(&artifact.program, &artifact.args) {
                 log::error!("[ticker] {}", e);
             }
         }

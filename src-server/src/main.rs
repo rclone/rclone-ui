@@ -69,7 +69,7 @@ struct CliServe {
 
 fn main() {
     // Headless scheduled-task mode, identical to the desktop binary's: `run-task <taskId>
-    // [--host <hostId>] [--forced] [--data-dir X]`. Handled before any runtime or server state
+    // [--host <hostId>] [--data-dir X]`. Handled before any runtime or server state
     // exists so the child behaves exactly like the desktop's runner.
     let args: Vec<String> = std::env::args().collect();
     if args.len() >= 3 && args[1] == "run-task" {
@@ -82,12 +82,10 @@ fn main() {
         };
         let task_id = args[2].clone();
         let host_id = flag_value("--host").unwrap_or_else(|| "local".to_string());
-        let forced = args.iter().any(|a| a == "--forced");
         let data_dir = flag_value("--data-dir");
         std::process::exit(rclone_ui_shared::scheduler::runner::run(
             &task_id,
             &host_id,
-            forced,
             data_dir.as_deref(),
         ));
     }
@@ -173,8 +171,7 @@ async fn run(cli: CliServe) -> Result<(), String> {
     }
 
     // The server is a long-running daemon (possibly in a container with no cron): tasks fire from
-    // the in-process ticker, and its `run-task` children inherit the mode through the env.
-    rclone_ui_shared::scheduler::mode::set(rclone_ui_shared::scheduler::mode::Mode::Ticker);
+    // its own minute loop.
     tokio::spawn(rclone_ui_shared::scheduler::ticker::run_ticker(
         dirs.clone(),
     ));

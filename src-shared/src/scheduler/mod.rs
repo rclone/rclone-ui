@@ -13,19 +13,10 @@
 pub mod cronconv;
 pub mod history;
 pub mod jobfile;
-pub mod mode;
 pub mod runner;
 pub mod storeread;
 pub mod ticker;
 
-#[cfg(unix)]
-mod crontab;
-#[cfg(target_os = "macos")]
-mod launchd;
-#[cfg(target_os = "windows")]
-mod schtasks;
-#[cfg(target_os = "windows")]
-mod winjob;
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -108,81 +99,10 @@ pub trait SchedulerBackend: Send + Sync {
     }
 }
 
-/// The mode-agnostic / default backend (crontab on Unix, schtasks on Windows). Used where the run
-/// mode is irrelevant — `scheduler_supported`, and the runner's orphan self-heal. On macOS this is
-/// the SYSTEM-mode backend; user-mode tasks go through launchd via `backend_for`.
+/// The one backend: the in-process ticker. This server is a long-running daemon (a container
+/// may have no cron at all), so tasks fire from its own minute loop.
 pub fn backend(dirs: &DataDir) -> Result<Box<dyn SchedulerBackend>, String> {
-    if mode::get() == mode::Mode::Ticker {
-        return Ok(Box::new(ticker::TickerBackend::new(dirs)));
-    }
-    // No Flatpak permission check here: the startup gate (has_flatpak_permissions) quits the app
-    // unless both host filesystem and host-spawn access are granted, so any running instance can
-    // schedule. Only the "is cron installed on the host" capability is checked below.
-    #[cfg(unix)]
-    {
-        crontab::check_available()?;
-        Ok(Box::new(crontab::CrontabBackend::new(dirs)))
-    }
-    #[cfg(target_os = "windows")]
-    {
-        Ok(Box::new(schtasks::SchtasksBackend::new(dirs)))
-    }
-    #[cfg(not(any(unix, target_os = "windows")))]
-    {
-        let _ = dirs;
-        Err("Scheduling is not supported on this platform".to_string())
-    }
-}
-
-/// The backend for a task given its run mode. Only macOS splits by mode: user-mode → launchd
-/// LaunchAgent (login-session context), system-mode → crontab. Linux uses crontab for both modes
-/// (the runner gates/borrows the session at fire time); Windows uses schtasks for both (the logon
-/// type differs inside the task XML).
-pub fn backend_for(dirs: &DataDir, user_mode: bool) -> Result<Box<dyn SchedulerBackend>, String> {
-    if mode::get() == mode::Mode::Ticker {
-        return Ok(Box::new(ticker::TickerBackend::new(dirs)));
-    }
-    #[cfg(target_os = "macos")]
-    {
-        if user_mode {
-            return Ok(Box::new(launchd::LaunchdBackend::new(dirs)));
-        }
-        crontab::check_available()?;
-        Ok(Box::new(crontab::CrontabBackend::new(dirs)))
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = user_mode;
-        backend(dirs)
-    }
-}
-
-/// Backends OTHER than the one selected for `user_mode` — the artifacts a mode flip must clean up
-/// so a task never fires from two backends. Only macOS has a second backend; empty elsewhere.
-/// Errors (crontab unavailable) PROPAGATE: silently skipping the cleanup would let a flip
-/// install the new backend while the old one keeps firing.
-fn other_backends(
-    dirs: &DataDir,
-    user_mode: bool,
-) -> Result<Vec<Box<dyn SchedulerBackend>>, String> {
-    if mode::get() == mode::Mode::Ticker {
-        return Ok(Vec::new());
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let other: Box<dyn SchedulerBackend> = if user_mode {
-            crontab::check_available()?;
-            Box::new(crontab::CrontabBackend::new(dirs))
-        } else {
-            Box::new(launchd::LaunchdBackend::new(dirs))
-        };
-        Ok(vec![other])
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (dirs, user_mode);
-        Ok(Vec::new())
-    }
+    Ok(Box::new(ticker::TickerBackend::new(dirs)))
 }
 
 /// Serializes every scheduler mutation across the process. The hidden main window's startup
@@ -197,33 +117,12 @@ fn mutation_guard() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Every backend a task could be registered in — used for mode-agnostic teardown (unregister,
-/// orphan sweep) that must cover both macOS backends.
+/// Every backend a task could be registered in — used for teardown (unregister, orphan sweep).
 fn all_backends(dirs: &DataDir) -> Vec<Box<dyn SchedulerBackend>> {
-    let mut backends: Vec<Box<dyn SchedulerBackend>> = Vec::new();
-    if mode::get() == mode::Mode::Ticker {
-        backends.push(Box::new(ticker::TickerBackend::new(dirs)));
-        return backends;
+    match backend(dirs) {
+        Ok(b) => vec![b],
+        Err(_) => Vec::new(),
     }
-    #[cfg(target_os = "macos")]
-    {
-        if crontab::check_available().is_ok() {
-            backends.push(Box::new(crontab::CrontabBackend::new(dirs)));
-        }
-        backends.push(Box::new(launchd::LaunchdBackend::new(dirs)));
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        if let Ok(b) = backend(dirs) {
-            backends.push(b);
-        }
-    }
-    backends
-}
-
-/// The Flatpak application id (from FLATPAK_ID inside the sandbox; the manifest id otherwise).
-fn flatpak_app_id() -> String {
-    std::env::var("FLATPAK_ID").unwrap_or_else(|_| "com.rcloneui.RcloneUI".to_string())
 }
 
 /// Task ids become crontab markers, schtasks task names, and file names — never trust them,
@@ -244,39 +143,7 @@ pub fn sanitize_id(task_id: &str) -> Result<String, String> {
 
 /// The path the OS scheduler should invoke — stable across app restarts and updates.
 pub fn registered_invocation() -> Result<PathBuf, String> {
-    #[cfg(target_os = "linux")]
-    {
-        // AppImage: current_exe() is the transient /tmp/.mount_* path; $APPIMAGE is the real file.
-        if let Some(appimage) = std::env::var_os("APPIMAGE") {
-            return Ok(PathBuf::from(appimage));
-        }
-    }
-
-    let exe = std::env::current_exe().map_err(|e| format!("cannot resolve app path: {}", e))?;
-
-    #[cfg(target_os = "macos")]
-    {
-        if exe.to_string_lossy().contains("/AppTranslocation/") {
-            return Err(
-                "Move Rclone UI to the Applications folder before scheduling tasks".to_string(),
-            );
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        // Snap (classic): pin to the 'current' symlink so registrations survive refreshes.
-        let text = exe.to_string_lossy().to_string();
-        if let Some(rest) = text.strip_prefix("/snap/") {
-            let mut parts = rest.splitn(3, '/');
-            if let (Some(name), Some(_rev), Some(tail)) = (parts.next(), parts.next(), parts.next())
-            {
-                return Ok(PathBuf::from(format!("/snap/{}/current/{}", name, tail)));
-            }
-        }
-    }
-
-    Ok(exe)
+    std::env::current_exe().map_err(|e| format!("cannot resolve app path: {}", e))
 }
 
 /// The GUI's resolved data directory, baked into every runner invocation (scheduled and "Run
@@ -294,16 +161,8 @@ pub(crate) fn data_dir_args(dirs: &DataDir) -> [String; 2] {
 fn render(dirs: &DataDir, spec: &JobSpec, enabled: bool) -> Result<RenderedSchedule, String> {
     let cron = cronconv::parse(&spec.cron)?;
 
-    // Under Flatpak the host scheduler can't invoke the sandbox binary directly — it re-launches
-    // the app via `flatpak run <id> …`, which forwards the trailing args to our headless mode.
     let mut args = Vec::new();
-    let program = if crate::is_flatpak() {
-        args.push("run".to_string());
-        args.push(flatpak_app_id());
-        PathBuf::from("flatpak")
-    } else {
-        registered_invocation()?
-    };
+    let program = registered_invocation()?;
     args.extend([
         "run-task".to_string(),
         spec.task_id.clone(),
@@ -399,37 +258,9 @@ pub fn scheduler_register(ctx: &Ctx, spec: JobSpec, enabled: bool) -> Result<(),
         return Err("The task produced no rclone requests".to_string());
     }
 
-    // Linux 'User' mode is gated at fire time on logind session state — a system without
-    // systemd-logind/elogind can never pass that gate, so every fire would silently skip.
-    // Registration happens from the GUI, i.e. while the user IS logged in: failing the gate
-    // right now proves it can never pass, and the error can name the fix.
-    #[cfg(target_os = "linux")]
-    {
-        if mode::get() == mode::Mode::Native
-            && spec.is_user_mode()
-            && !runner::user_has_login_session()
-        {
-            return Err(
-                "This system does not report login sessions (systemd-logind or elogind is required for the 'User' run mode to know when you are logged in). Switch this schedule's run mode to 'System', which runs regardless of login state."
-                    .to_string(),
-            );
-        }
-    }
-
     let _guard = mutation_guard();
-    let user_mode = spec.is_user_mode();
-    let backend = backend_for(&dirs, user_mode)?;
+    let backend = backend(&dirs)?;
     let rendered = render(&dirs, &spec, enabled)?;
-    // Remove any artifact left in the other backend (a user↔system flip on macOS) BEFORE the
-    // job file changes. Order matters: if this cleanup fails after the job file already says
-    // the NEW mode, the old backend's still-firing trigger would run under the new mode's
-    // contract — on macOS a cron fire would be trusted as launchd-in-session and skip every
-    // gate. Failing here leaves old trigger + old job file: consistent old behavior.
-    for other in other_backends(&dirs, user_mode)? {
-        other
-            .uninstall(&spec.task_id)
-            .map_err(|e| format!("failed to remove the task's previous registration: {}", e))?;
-    }
     jobfile::save(&dirs, &spec)?;
     if let Err(e) = backend.install(&spec.task_id, &rendered) {
         // Keep the reported state truthful: "not registered" must mean nothing fires. The
@@ -465,36 +296,15 @@ pub fn scheduler_set_enabled(ctx: &Ctx, task_id: String, enabled: bool) -> Resul
     let dirs = ctx.dirs.clone();
     let task_id = sanitize_id(&task_id)?;
     let _guard = mutation_guard();
-    // Load the spec to pick the backend the task is actually registered in (macOS user vs
-    // system live in different backends).
-    let user_mode = jobfile::load(&dirs, "local", &task_id)
-        .map(|spec| spec.is_user_mode())
-        .unwrap_or(true);
-    let result = backend_for(&dirs, user_mode)?.set_enabled(&task_id, enabled);
+    let result = backend(&dirs)?.set_enabled(&task_id, enabled);
 
-    // Disabling must reach whatever artifact actually exists. After a failed registration
-    // or mode flip the artifact can live in the OTHER backend (or nowhere): try every
-    // backend, treat "no artifact anywhere" as success (nothing armed IS disabled), but
-    // never swallow a real failure — that would leave the task firing while the UI says
-    // paused. Enabling keeps the strict single-backend error: it must not guess.
+    // Disabling treats "no artifact" as success — nothing armed IS disabled — but never swallows
+    // a real failure, which would leave the task firing while the UI says paused. Enabling keeps
+    // the strict error: it must not guess.
     if !enabled {
-        let mut real_error = match result {
-            Ok(()) => return Ok(()),
-            Err(e) if e == NOT_REGISTERED => None,
-            Err(e) => Some(e),
-        };
-        for backend in all_backends(&dirs) {
-            match backend.set_enabled(&task_id, false) {
-                Ok(()) => return Ok(()),
-                Err(e) if e == NOT_REGISTERED => {}
-                Err(e) => {
-                    real_error.get_or_insert(e);
-                }
-            }
-        }
-        return match real_error {
-            Some(e) => Err(e),
-            None => Ok(()),
+        return match result {
+            Err(e) if e == NOT_REGISTERED => Ok(()),
+            other => other,
         };
     }
     result
@@ -503,10 +313,7 @@ pub fn scheduler_set_enabled(ctx: &Ctx, task_id: String, enabled: bool) -> Resul
 pub fn scheduler_run_now(ctx: &Ctx, task_id: String) -> Result<(), String> {
     let dirs = ctx.dirs.clone();
     let task_id = sanitize_id(&task_id)?;
-    let user_mode = jobfile::load(&dirs, "local", &task_id)
-        .map(|spec| spec.is_user_mode())
-        .unwrap_or(true);
-    backend_for(&dirs, user_mode)?.run_now(&task_id)
+    backend(&dirs)?.run_now(&task_id)
 }
 
 #[derive(Serialize)]
@@ -525,8 +332,8 @@ pub struct TaskStatus {
 /// A backend and what it holds (task id → enabled), or why it could not be inspected.
 type Inventory = Result<(Box<dyn SchedulerBackend>, HashMap<String, bool>), String>;
 
-fn take_inventory(dirs: &DataDir, user_mode: bool) -> Inventory {
-    let backend = backend_for(dirs, user_mode)?;
+fn take_inventory(dirs: &DataDir) -> Inventory {
+    let backend = backend(dirs)?;
     let held = backend
         .inventory()?
         .into_iter()
@@ -559,15 +366,11 @@ pub fn scheduler_status(ctx: &Ctx, host_id: String) -> Result<Vec<TaskStatus>, S
     let dirs = ctx.dirs.clone();
     let host_id = sanitize_id(&host_id)?;
 
-    // One inventory per backend (macOS: launchd for user-mode tasks, crontab for system-mode
-    // ones), taken the first time a task needs it.
-    let mut inventories: HashMap<bool, Inventory> = HashMap::new();
+    // The backend's inventory, taken the first time a task needs it.
+    let mut taken: Option<Inventory> = None;
     let mut statuses = Vec::new();
     for spec in jobfile::list(&dirs, &host_id) {
-        let user_mode = spec.is_user_mode();
-        let inventory = inventories
-            .entry(user_mode)
-            .or_insert_with(|| take_inventory(&dirs, user_mode));
+        let inventory = taken.get_or_insert_with(|| take_inventory(&dirs));
         let (installed, enabled, inspection) = install_state_of(inventory, &spec.task_id);
         let warning = inspection.or_else(|| {
             inventory
