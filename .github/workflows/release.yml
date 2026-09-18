@@ -1,8 +1,10 @@
-name: release-server
+name: release
 
 on:
   push:
-    tags: ['v*']
+    # The two products release from two branches into one tag namespace: server-v3.8.0
+    # here, v3.8.0 on the native branch.
+    tags: ['server-v*']
   workflow_dispatch:
 
 permissions:
@@ -31,12 +33,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm ci
-      - run: npm run build
+      - run: npm --prefix frontend ci
+      - run: npm --prefix frontend run build
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: '. -> target'
-      - run: cargo build --release -p rclone-ui-server
+      - run: cargo build --release
       - name: Package
         shell: bash
         run: |
@@ -47,7 +49,7 @@ jobs:
             cp target/release/rclone-ui-server out/server/rclone-ui-server-${{ matrix.target }}
           fi
       # The server updates itself from these binaries: sign them with the desktop's updater key
-      # (minisign, `tauri signer`) so src-server/src/updater.rs can verify what it downloads.
+      # (minisign, `tauri signer`) so src/updater.rs can verify what it downloads.
       - name: Sign
         shell: bash
         env:
@@ -84,7 +86,7 @@ jobs:
         shell: bash
         run: |
           tag="${GITHUB_REF_NAME}"
-          version="${tag#v}"
+          version="${tag#server-v}"
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}"
           platforms="{}"
           for sig in artifacts/*.sig; do
