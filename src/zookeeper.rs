@@ -1716,19 +1716,38 @@ fn windows_broadcast_env_change() {
 mod download_event_tests {
     use super::*;
 
+    /// Where the pages keep their event catalog, whichever way round the tree is: the desktop
+    /// keeps the frontend at the repo root (this crate is `src-server/`), the server keeps it in
+    /// `frontend/` (this crate is the root). Tried in order, and a miss is a failure rather than
+    /// a skip — quietly finding nothing to check is how an undeclared event would get through.
+    fn events_ts() -> String {
+        const CANDIDATES: [&str; 3] = [
+            "/frontend/lib/api/events.ts",
+            "/../lib/api/events.ts",
+            "/lib/api/events.ts",
+        ];
+        let root = env!("CARGO_MANIFEST_DIR");
+        for relative in CANDIDATES {
+            if let Ok(text) = std::fs::read_to_string(format!("{}{}", root, relative)) {
+                return text;
+            }
+        }
+        panic!(
+            "lib/api/events.ts not found from {} — tried {:?}. The frontend has moved; teach this \
+             test where it went rather than deleting it.",
+            root, CANDIDATES
+        );
+    }
+
     /// The Binary settings page renders the download bar from these events: an emitted name the
     /// page never subscribed to leaves the bar indeterminate for the whole download.
     #[test]
     fn download_events_are_declared_in_events_ts() {
-        let events_ts = std::fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/frontend/lib/api/events.ts"
-        ))
-        .expect("frontend/lib/api/events.ts");
+        let events_ts = events_ts();
         for name in [DOWNLOAD_PROGRESS_EVENT, DOWNLOAD_FINISHED_EVENT] {
             assert!(
                 events_ts.contains(&format!("'{}':", name)),
-                "{} is emitted but not declared in frontend/lib/api/events.ts",
+                "{} is emitted but not declared in lib/api/events.ts",
                 name
             );
         }
