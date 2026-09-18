@@ -29,8 +29,6 @@ pub struct RootState {
     pub rclone_path: Option<String>,
     /// Configured hosts (local + remote rclone RC daemons); only the url is modeled.
     pub hosts: Vec<HostEntry>,
-    pub license_key: Option<String>,
-    pub license_valid: bool,
     pub auto_update_rclone: bool,
     pub last_notified_rclone_version: Option<String>,
 }

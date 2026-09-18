@@ -23,7 +23,6 @@ uuid = { version = "1", features = ["v4"] }
 zip = "0.6.6"
 flate2 = "1.1.9"
 tar = "0.4.45"
-machine-uid = "0.6.0"
 # The headless runner's OS toast (notifications/os.rs) — this is tauri-plugin-notification's own
 # desktop backend (same locked version), used directly because the plugin's API needs an
 # AppHandle and scheduled-run mode never builds a Tauri app.

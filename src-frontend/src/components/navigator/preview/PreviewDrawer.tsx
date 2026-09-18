@@ -19,12 +19,10 @@ import { formatBytes, getFsInfo } from '../../../../lib/format.ts'
 import { downloadLink } from '../../../../lib/api/app'
 import { rcUrl } from '../../../../lib/api/rc'
 import { openUrl } from '../../../../lib/api/shell'
-import { openWindow } from '../../../../lib/api/windows'
-import { useCurrentHost, usePersistedStore } from '../../../../store/persisted.ts'
+import { useCurrentHost } from '../../../../store/persisted.ts'
 import FileIcon, { getFileType, isPreviewable } from '../FileIcon'
 import type { Entry } from '../types'
 import { getFileExtension } from '../utils'
-import PreviewProLock from './PreviewProLock'
 import { PreviewLoading, type PreviewViewerProps } from './previewStates'
 
 // Lazy-loaded so each viewer's heavy WASM/WebGL bundle only loads when a matching
@@ -108,7 +106,6 @@ export default function PreviewDrawer({
 
     // File previews are a PRO feature — without a valid license we tease the preview
     // behind an upsell overlay instead of unlocking it.
-    const licenseValid = usePersistedStore((state) => state.licenseValid)
 
     // When expanded, the drawer widens to ~90% of the window (the Commander).
     const [expanded, setExpanded] = useState(false)
@@ -141,14 +138,6 @@ export default function PreviewDrawer({
         setExpanded(false)
         onClose()
     }, [onClose])
-
-    const handleUnlock = useCallback(() => {
-        openWindow({ name: 'Settings', url: '/settings?tab=license' })
-    }, [])
-
-    // Only tease the paywall over an actual rendered preview — not the "select a file",
-    // "too large", or unsupported/download-fallback states.
-    const showProLock = !licenseValid && !!previewUrl && !isTooLarge && canPreview
 
     const renderPreview = () => {
         if (!item || !previewUrl) {
@@ -320,7 +309,6 @@ export default function PreviewDrawer({
                     <div className="flex flex-col h-full">
                         <div className="relative flex-1 overflow-hidden">
                             <Suspense fallback={<PreviewLoading />}>{renderPreview()}</Suspense>
-                            {showProLock && <PreviewProLock onUnlock={handleUnlock} />}
                         </div>
 
                         {item && (

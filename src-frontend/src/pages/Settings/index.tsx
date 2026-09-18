@@ -29,7 +29,6 @@ const DESKTOP_TABS: { key: SectionKey; disabledWhenRemote?: boolean; hiddenInPre
         { key: 'config', disabledWhenRemote: true },
         { key: 'binary', disabledWhenRemote: true },
         { key: 'proxy' },
-        { key: 'license', hiddenInPreview: true },
         { key: 'about' },
     ]
 

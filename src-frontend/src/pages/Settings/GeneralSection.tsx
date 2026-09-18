@@ -329,14 +329,6 @@ export default function GeneralSection() {
                         <Checkbox
                             isSelected={startOnBoot}
                             onValueChange={async (value) => {
-                                // if (!licenseValid) {
-                                //     await message('Community version does not support start on boot.', {
-                                //         title: 'Missing license',
-                                //         kind: 'error',
-                                //     })
-                                //     return
-                                // }
-
                                 try {
                                     setStartOnBoot(value)
 

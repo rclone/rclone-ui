@@ -7,7 +7,6 @@ import {
     GlobeIcon,
     InfoIcon,
     MailIcon,
-    MedalIcon,
     PackageIcon,
     SatelliteDishIcon,
     ServerIcon,
@@ -20,7 +19,6 @@ import BinarySection from './BinarySection'
 import ConfigSection from './ConfigSection'
 import GeneralSection from './GeneralSection'
 import HostsSection from './HostsSection'
-import LicenseSection from './LicenseSection'
 import MobileSection from './MobileSection'
 import NotificationsSection from './NotificationsSection'
 import ProxySection from './ProxySection'
@@ -43,7 +41,6 @@ export type SectionKey =
     | 'rclone'
     | 'smtp'
     | 'proxy'
-    | 'license'
     | 'about'
 
 export interface SettingsSection {
@@ -91,7 +88,6 @@ export const SETTINGS_SECTIONS: Record<SectionKey, SettingsSection> = {
     rclone: { label: 'Rclone', icon: CloudCogIcon, component: RcloneSection },
     // The mail server the Email notification targets go through; both products.
     smtp: { label: 'SMTP', icon: MailIcon, component: SmtpSection },
-    license: { label: 'License', icon: MedalIcon, component: LicenseSection },
     about: { label: 'About', icon: InfoIcon, component: AboutSection },
 }
 

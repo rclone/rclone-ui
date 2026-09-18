@@ -16,10 +16,6 @@ pub fn get_arch(_ctx: &Ctx) -> Result<String, String> {
     .to_string())
 }
 
-pub fn get_uid(_ctx: &Ctx) -> Result<String, String> {
-    machine_uid::get().map_err(|e| format!("Failed to read the machine id: {}", e))
-}
-
 pub fn is_flatpak(_ctx: &Ctx) -> Result<bool, String> {
     Ok(platform::is_flatpak())
 }

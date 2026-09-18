@@ -29,7 +29,6 @@ import rclone from '../../../lib/rclone/client'
 import { getConfigPath, resolveConfigFilePath } from '../../../lib/rclone/common'
 import { reconcileConfigSync } from '../../../lib/rclone/versions'
 import { selectActiveConfigFile, useHostStore } from '../../../store/host'
-import { usePersistedStore } from '../../../store/persisted'
 import type { ConfigFile } from '../../../types/config'
 import ConfigCreateDrawer from '../../components/ConfigCreateDrawer'
 import ConfigEditDrawer from '../../components/ConfigEditDrawer'
@@ -43,8 +42,6 @@ import { rpc } from '../../../lib/api/rpc'
 import { revealItem } from '../../../lib/api/shell'
 
 export default function ConfigSection() {
-    const licenseValid = usePersistedStore((state) => state.licenseValid)
-
     const configFiles = useHostStore((state) => state.configFiles)
     const activeConfigFile = useHostStore(selectActiveConfigFile)
 
@@ -377,16 +374,6 @@ export default function ConfigSection() {
                                     if (key === 'import') {
                                         setIsCreateDrawerOpen(true)
                                     } else {
-                                        if (!licenseValid) {
-                                            await message(
-                                                'Community version does not support syncing configs.\n\nIf you do not wish to update it outside of Rclone UI, you can simply import.',
-                                                {
-                                                    title: 'Missing license',
-                                                    kind: 'error',
-                                                }
-                                            )
-                                            return
-                                        }
                                         setIsSyncDrawerOpen(true)
                                     }
                                 }, 100)

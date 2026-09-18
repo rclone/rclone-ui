@@ -55,9 +55,6 @@ interface PersistedStateV1 {
 
     settingsPass: string | undefined
 
-    licenseKey: string | undefined
-    licenseValid: boolean
-
     startOnBoot: boolean
 
     // Legacy v1 field; the v1→v2 migration never reads it (host stores own scheduling data).
@@ -83,11 +80,6 @@ export type OnboardingStep = 'remote' | 'commander' | 'transfer' | 'team'
 interface PersistedStateV2 {
     settingsPass: string | undefined
     setSettingsPass: (pass: string | undefined) => void
-
-    licenseKey: string | undefined
-    setLicenseKey: (key: string | undefined) => void
-    licenseValid: boolean
-    setLicenseValid: (valid: boolean) => void
 
     startOnBoot: boolean
     setStartOnBoot: (startOnBoot: boolean) => void
@@ -146,11 +138,6 @@ export const usePersistedStore = create<PersistedStateV2>()(
         (set) => ({
             settingsPass: undefined,
             setSettingsPass: (pass: string | undefined) => set((_) => ({ settingsPass: pass })),
-
-            licenseKey: undefined,
-            setLicenseKey: (key: string | undefined) => set((_) => ({ licenseKey: key })),
-            licenseValid: false,
-            setLicenseValid: (valid: boolean) => set((_) => ({ licenseValid: valid })),
 
             startOnBoot: false,
             setStartOnBoot: (startOnBoot: boolean) => set((_) => ({ startOnBoot })),
@@ -381,8 +368,6 @@ export const usePersistedStore = create<PersistedStateV2>()(
 
                     return {
                         settingsPass: legacyState.settingsPass || undefined,
-                        licenseKey: legacyState.licenseKey || undefined,
-                        licenseValid: legacyState.licenseValid || false,
                         startOnBoot: legacyState.startOnBoot || false,
                         templates: newTemplates,
                         hideStartup: legacyState.hideStartup || false,

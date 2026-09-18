@@ -23,7 +23,6 @@ uuid.workspace = true
 zip.workspace = true
 flate2.workspace = true
 tar.workspace = true
-machine-uid.workspace = true
 notify-rust.workspace = true
 lettre.workspace = true
 

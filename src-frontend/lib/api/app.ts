@@ -108,9 +108,6 @@ export const cloudflaredProvision = () => rpc<boolean>('cloudflared_provision')
 
 // --- third-party fetches the server makes on the page's behalf ---------------------------
 
-export const licenseValidate = (licenseKey: string) =>
-    rpc<boolean>('license_validate', { licenseKey })
-export const licenseRevoke = (licenseKey: string) => rpc<boolean>('license_revoke', { licenseKey })
 export const rcloneLatestVersion = () => rpc<string>('rclone_latest_version')
 export const rcloneReleases = (minVersion: string, limit: number) =>
     rpc<{ version: string; publishedAt: string }[]>('rclone_releases', { minVersion, limit })

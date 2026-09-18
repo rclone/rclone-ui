@@ -6,7 +6,7 @@ use axum::extract::State;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use rclone_ui_shared::lifecycle::interaction::{ask, Decision, Question};
-use rclone_ui_shared::lifecycle::{license, resolve, RestartOverrides};
+use rclone_ui_shared::lifecycle::{resolve, RestartOverrides};
 use rclone_ui_shared::rt;
 use rclone_ui_shared::state_files::host_doc;
 use rclone_ui_shared::transfers::service::StartRequest;
@@ -523,30 +523,6 @@ server_rpcs! {
             crate::fs::read_tail(&args).await.map(Reply::Json)
         },
 
-        // --- third-party fetches -----------------------------------------------------------
-        "license_validate" => {
-            let key = str_arg(&args, "licenseKey")?;
-            let valid = license::validate(&st.ctx, &key).await?;
-            if !valid {
-                license::persist(&st.store, Some(&key), false);
-                return Err(
-                    "Invalid license key. Please check your license key and try again.".into(),
-                );
-            }
-            license::persist(&st.store, Some(&key), true);
-            ok(true)
-        },
-        "license_revoke" => {
-            let key = str_arg(&args, "licenseKey")?;
-            let revoked = license::revoke(&st.ctx, &key).await?;
-            if !revoked {
-                return Err(
-                    "Failed to revoke license. Please check your license key and try again.".into(),
-                );
-            }
-            license::persist(&st.store, None, false);
-            ok(true)
-        },
         // --- finishing a sign-in on another machine ----------------------------------------
         "oauth_auth_link" => {
             // rclone's own link only redirects to the provider; the provider's page is the part

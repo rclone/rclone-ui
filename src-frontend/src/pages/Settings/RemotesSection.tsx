@@ -38,14 +38,13 @@ import { formatBytes } from '../../../lib/format'
 import { hasFeature, remoteConfigQueryOptions, useFsInfo } from '../../../lib/hooks'
 import rclone from '../../../lib/rclone/client'
 import { useHostStore } from '../../../store/host'
-import { usePersistedStore } from '../../../store/persisted'
 import ConfigEditDrawer from '../../components/ConfigEditDrawer'
 import RemoteAutoMountDrawer from '../../components/RemoteAutoMountDrawer'
 import { capabilities } from '../../../lib/api/host'
 import RemoteCreateDrawer from '../../components/RemoteCreateDrawer'
 import RemoteEditDrawer from '../../components/RemoteEditDrawer'
 import BaseSection from './BaseSection'
-import { ask, message } from '../../../lib/api/dialog'
+import { ask } from '../../../lib/api/dialog'
 import { platform } from '../../../lib/api/os'
 
 const REMOTE_ROW_SIZE = 90
@@ -97,8 +96,6 @@ function buildRemoteRows(remotes: string[]): RemoteRow[] {
 export default function RemotesSection() {
     const queryClient = useQueryClient()
     const [searchParams] = useSearchParams()
-    const licenseValid = usePersistedStore((state) => state.licenseValid)
-
     const [editingDrawerOpen, setEditingDrawerOpen] = useState(false)
     const [creatingDrawerOpen, setCreatingDrawerOpen] = useState(false)
     // The Config section's editor on the active config, which it reads and writes through the
@@ -324,17 +321,6 @@ export default function RemotesSection() {
                         <Button
                             onPress={() => {
                                 setTimeout(async () => {
-                                    if (!licenseValid && remotes.length >= 4) {
-                                        await message(
-                                            'Community version does not support adding more than 4 remotes.',
-                                            {
-                                                title: 'Missing license',
-                                                kind: 'error',
-                                            }
-                                        )
-                                        return
-                                    }
-
                                     setCreatingDrawerOpen(true)
                                 }, 100)
                             }}

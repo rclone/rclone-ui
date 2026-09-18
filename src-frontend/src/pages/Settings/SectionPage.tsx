@@ -1,7 +1,6 @@
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useCapabilities } from '../../../lib/api/host'
 import { LOCAL_HOST_ID } from '../../../lib/hosts'
-import { useIsPreview } from '../../../lib/preview'
 import { useCurrentHost } from '../../../store/persisted'
 import SettingsGate from './SettingsGate'
 import { SETTINGS_SECTIONS, type SectionKey, isSectionKey } from './sections'
@@ -14,7 +13,6 @@ export default function SectionPage({ section: fixed }: { section?: SectionKey }
     const [searchParams] = useSearchParams()
     const caps = useCapabilities()
     const host = useCurrentHost()
-    const isPreview = useIsPreview()
 
     const tab = searchParams.get('tab')
     if (tab) {
@@ -30,8 +28,7 @@ export default function SectionPage({ section: fixed }: { section?: SectionKey }
     const section = SETTINGS_SECTIONS[key]
     const unavailable =
         (section.needsTunnel && !caps.tunnel ? section.needsTunnel : undefined) ??
-        (section.localOnly && host?.id !== LOCAL_HOST_ID ? section.localOnly : undefined) ??
-        (key === 'license' && isPreview ? 'The license is not part of the preview' : undefined)
+        (section.localOnly && host?.id !== LOCAL_HOST_ID ? section.localOnly : undefined)
     const Section = section.component
 
     return (

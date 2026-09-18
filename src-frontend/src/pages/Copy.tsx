@@ -7,7 +7,6 @@ import { startCopy } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { metadataOptionsProblem } from '../../lib/rclone/metadataMapper'
 import { useSchedulingAvailable } from '../../lib/scheduler'
-import { usePersistedStore } from '../../store/persisted'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
@@ -121,11 +120,6 @@ export default function Copy() {
         cron: cronExpression,
         setCron: setCronExpression,
         buildArgs: buildArgs,
-        scheduleGate: () => {
-            if ((sources?.length ?? 0) > 1 && !usePersistedStore.getState().licenseValid) {
-                throw new Error('You need a valid license to schedule multiple tasks at once')
-            }
-        },
         start: (args) => startCopy(args, false, { cron: cronExpression }),
         dryRun: (args, isDryRun) => startCopy(args, isDryRun),
         onStarted,

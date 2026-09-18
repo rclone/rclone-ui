@@ -8,7 +8,6 @@
 pub mod config;
 pub mod hosts;
 pub mod interaction;
-pub mod license;
 pub mod mounts;
 pub mod resolve;
 pub mod scheduler_reconcile;
@@ -419,13 +418,12 @@ impl Supervisor {
             updated,
         });
 
-        // Off the critical path: config-sync self-heal, license + target cap, startup mounts.
+        // Off the critical path: config-sync self-heal and startup mounts.
         {
             let ctx = self.ctx.clone();
             let store = Arc::clone(&self.store);
             tokio::spawn(async move {
                 reconcile_config_sync(&ctx, &store).await;
-                license::validate_and_reconcile(&ctx, &store).await;
                 scheduler_reconcile::reconcile(&ctx).await;
             });
         }

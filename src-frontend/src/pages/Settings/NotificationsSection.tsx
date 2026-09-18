@@ -16,7 +16,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { PencilIcon, SendIcon, SettingsIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react'
 import { type ReactNode, useMemo, useState } from 'react'
 import {
-    FREE_MAX_TARGETS,
     NOTIFICATION_PROVIDERS,
     removeNotificationTarget,
     sendTestNotification,
@@ -25,7 +24,6 @@ import {
     useNotificationTargets,
     useNotificationsCatalog,
 } from '../../../lib/notifications'
-import { usePersistedStore } from '../../../store/persisted'
 import type {
     NotificationCatalog,
     NotificationProvider,
@@ -44,8 +42,6 @@ export default function NotificationsSection() {
     // runner — polled so runner-recorded lastSentAt/lastError show up here.
     const targetsQuery = useNotificationTargets()
     const catalogQuery = useNotificationsCatalog()
-    const licenseValid = usePersistedStore((state) => state.licenseValid)
-
     const [addingProvider, setAddingProvider] = useState<NotificationProvider | null>(null)
     const [editingTarget, setEditingTarget] = useState<NotificationTarget | null>(null)
 
@@ -61,16 +57,6 @@ export default function NotificationsSection() {
     const handleAddPress = async (provider: NotificationProvider) => {
         // Creation-time gate only — the launch reconcile (lib/notifications.ts) is what
         // disables over-limit targets when a license lapses.
-        if (!licenseValid && notificationTargets.length >= FREE_MAX_TARGETS) {
-            await message(
-                `Community version does not support more than ${FREE_MAX_TARGETS} notification webhooks. Activate a license for unlimited webhooks.`,
-                {
-                    title: 'Missing license',
-                    kind: 'error',
-                }
-            )
-            return
-        }
         setAddingProvider(provider)
     }
 

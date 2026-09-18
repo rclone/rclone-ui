@@ -37,7 +37,6 @@ export function useOperationSubmission<O extends Operation, A extends Args>({
     setCron,
     buildArgs,
     buildScheduleArgs,
-    scheduleGate,
     start,
     dryRun,
     onStarted,
@@ -57,7 +56,6 @@ export function useOperationSubmission<O extends Operation, A extends Args>({
     /** The schedule's arguments where they differ from the live ones (Bisync's outer switches). */
     buildScheduleArgs?: () => Args
     /** A rule the schedule alone has (the multi-source licence gate). */
-    scheduleGate?: () => void
     start: (args: A) => Promise<unknown>
     /** Present on the pages that offer a preview; called with the dry-run arguments and flag. */
     dryRun?: (args: A, isDryRun: true) => Promise<unknown>
@@ -94,7 +92,6 @@ export function useOperationSubmission<O extends Operation, A extends Args>({
         cronExpression: cron,
         validate: () => {
             guard()
-            scheduleGate?.()
         },
         buildArgs: buildScheduleArgs ?? buildArgs,
     })

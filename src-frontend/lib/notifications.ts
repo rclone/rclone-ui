@@ -131,14 +131,6 @@ export function useNotificationsCatalog() {
 }
 
 // ---------------------------------------------------------------------------
-// Free-tier limit
-// ---------------------------------------------------------------------------
-
-/** Free (community) limit — a license removes the cap. Enforced at creation in the UI, and by
- *  the server's launch reconcile (src-shared/src/lifecycle/license.rs) when a license lapses. */
-export const FREE_MAX_TARGETS = 5
-
-// ---------------------------------------------------------------------------
 // Provider form helpers
 // ---------------------------------------------------------------------------
 
