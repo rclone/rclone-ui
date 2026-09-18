@@ -14,17 +14,10 @@
     "homepage": "https://rcloneui.com",
     "keywords": ["rclone", "gui", "drive", "s3", "cloud", "storage", "sync", "backup"],
     "license": "Apache-2.0",
-    "workspaces": ["src-frontend", "src-video"],
+    "workspaces": ["src-frontend"],
     "scripts": {
         "dev": "npm run dev -w src-frontend",
         "build": "npm run build -w src-frontend",
-        "tauri": "tauri",
-        "info": "tauri info",
-        "build:mac": "tauri build --target aarch64-apple-darwin --debug",
-        "build:mac:universal": "tauri build --target universal-apple-darwin",
-        "build:mac:intel": "tauri build --target x86_64-apple-darwin",
-        "build:windows": "tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc",
-        "pub": "npm publish ./cli",
         "test:e2e": "npm run test:e2e -w src-frontend",
         "build:server": "npm run build && cargo build --release -p rclone-ui-server",
         "dev:server": "cargo run -p rclone-ui-server -- serve --dev-proxy http://localhost:1420 --password rclone",
@@ -32,7 +25,6 @@
         "check:no-tauri": "npm run check:no-tauri -w src-frontend"
     },
     "devDependencies": {
-        "@biomejs/biome": "^1.9.4",
-        "@tauri-apps/cli": "^2.11.2"
+        "@biomejs/biome": "^1.9.4"
     }
 }

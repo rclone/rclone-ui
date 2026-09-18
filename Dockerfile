@@ -20,14 +20,10 @@ RUN npm run build
 
 FROM rust:1-bookworm AS build
 WORKDIR /app
-# The whole workspace must be loadable (Cargo reads every member's manifest), but only
-# src-shared and src-server are compiled: nothing here needs GTK or WebKit.
+# Nothing here needs GTK or WebKit: the server links neither.
 COPY Cargo.toml Cargo.lock ./
 COPY src-shared ./src-shared
 COPY src-server ./src-server
-COPY src-tauri/Cargo.toml src-tauri/build.rs ./src-tauri/
-COPY src-tauri/src ./src-tauri/src
-COPY src-tauri/common ./src-tauri/common
 COPY --from=web /app/src-frontend/dist ./src-frontend/dist
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \

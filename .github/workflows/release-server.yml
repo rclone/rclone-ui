@@ -55,7 +55,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           for f in out/server/rclone-ui-server-*; do
-            npx tauri signer sign "$f"
+            npx --yes @tauri-apps/cli@2 signer sign "$f"
           done
           ls -la out/server
       - uses: actions/upload-artifact@v4

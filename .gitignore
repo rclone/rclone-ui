@@ -24,18 +24,9 @@ dist-ssr
 *.sw?
 
 .env*
-!.env.example
 .cursorignore
 .work
 .work/*
-scripts/release.md
-src-tauri/binaries/*
-!src-tauri/binaries/.gitkeep
-# The video project carries 30 MB of media (a 22 MB capture among it); its manifest is
-# tracked so `npm ci` can resolve the workspace without the rest of the directory.
-src-video/*
-!src-video/package.json
-
 # Cargo workspace build output
 /target
 
@@ -43,8 +34,3 @@ src-video/*
 /src-frontend/e2e/.tmp
 /src-frontend/test-results
 /src-frontend/playwright-report
-
-# dummy-storage/ is an example of the app's data directory; its logs are part of the example.
-!/dummy-storage/logs/
-!/dummy-storage/scheduler/logs/
-!/dummy-storage/**/*.log

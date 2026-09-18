@@ -1,7 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["src-shared", "src-tauri", "src-server"]
-default-members = ["src-tauri"]
+members = ["src-shared", "src-server"]
 
 [workspace.package]
 version = "3.7.4"
