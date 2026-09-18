@@ -175,9 +175,14 @@ mod flatpak_tests {
     }
 }
 
+/// Ends a process and everything under it.
+///
+/// `timeout_ms` is the grace period between the polite signal and the hard one, and it is a Unix
+/// notion: there the process gets SIGTERM, up to this long to wind down, then SIGKILL. Windows
+/// has no equivalent to deliver to a console process, so `taskkill /F /T` ends the tree at once
+/// and the grace period does not apply — a caller that needs the daemon to finish what it is
+/// doing must ask it to quit (`/core/quit`) before reaching for this.
 pub fn kill_pid(pid: u32, timeout_ms: Option<u64>) -> Result<(), String> {
-    let timeout = timeout_ms.unwrap_or(5000);
-
     #[cfg(any(
         target_os = "macos",
         target_os = "linux",
@@ -188,6 +193,7 @@ pub fn kill_pid(pid: u32, timeout_ms: Option<u64>) -> Result<(), String> {
     {
         use std::time::{Duration, Instant};
 
+        let timeout = timeout_ms.unwrap_or(5000);
         let pid_str = pid.to_string();
 
         // Try graceful termination first
@@ -229,8 +235,7 @@ pub fn kill_pid(pid: u32, timeout_ms: Option<u64>) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        use std::time::{Duration, Instant};
-
+        let _ = timeout_ms;
         let pid_str = pid.to_string();
 
         let _ = std::process::Command::new("taskkill")
@@ -261,6 +266,7 @@ pub fn kill_pid(pid: u32, timeout_ms: Option<u64>) -> Result<(), String> {
         target_os = "windows"
     )))]
     {
+        let _ = (pid, timeout_ms);
         Err("Unsupported platform".to_string())
     }
 }

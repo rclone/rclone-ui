@@ -915,10 +915,10 @@ const MACOS_LINK: &str = "/usr/local/bin/rclone";
 
 pub fn get_rclone_path_integration(ctx: &Ctx) -> Result<PathStatus, String> {
     let pointer = path_pointer(&ctx.dirs)?;
-    let pointer_canon = canonical(&pointer);
 
     #[cfg(target_os = "macos")]
     {
+        let pointer_canon = canonical(&pointer);
         let link = Path::new(MACOS_LINK);
         let enabled = std::fs::read_link(link)
             .map(|t| canonical(&t) == pointer_canon)
@@ -936,6 +936,7 @@ pub fn get_rclone_path_integration(ctx: &Ctx) -> Result<PathStatus, String> {
 
     #[cfg(target_os = "linux")]
     {
+        let pointer_canon = canonical(&pointer);
         let link = linux_link()?;
         let enabled = std::fs::read_link(&link)
             .map(|t| canonical(&t) == pointer_canon)
@@ -994,11 +995,10 @@ pub fn set_rclone_path_integration(
     // Keep the pointer fresh before wiring anything to it.
     update_path_pointer(ctx, target_path)?;
     let pointer = path_pointer(&ctx.dirs)?;
-    let pointer_str = pointer.to_string_lossy().to_string();
 
     #[cfg(target_os = "macos")]
     {
-        macos_set_link(enable, &pointer_str)?;
+        macos_set_link(enable, &pointer.to_string_lossy())?;
     }
 
     #[cfg(target_os = "linux")]
@@ -1017,7 +1017,7 @@ pub fn set_rclone_path_integration(
 
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
-        let _ = (enable, pointer_str);
+        let _ = (enable, &pointer);
         return Err("PATH integration not supported on this platform".to_string());
     }
 
@@ -1516,7 +1516,7 @@ fn macos_set_link(enable: bool, pointer: &str) -> Result<(), String> {
 }
 
 /// POSIX single-quote a value for embedding in a shell command.
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(target_os = "macos")]
 fn sh_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
