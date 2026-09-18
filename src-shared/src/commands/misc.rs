@@ -20,14 +20,6 @@ pub fn is_flatpak(_ctx: &Ctx) -> Result<bool, String> {
     Ok(platform::is_flatpak())
 }
 
-pub fn is_linux_mint(_ctx: &Ctx) -> Result<bool, String> {
-    Ok(platform::is_linux_mint())
-}
-
-pub fn has_flatpak_permissions(_ctx: &Ctx) -> Result<bool, String> {
-    Ok(platform::has_flatpak_permissions())
-}
-
 /// With a port: is anything listening on it (v4 or v6 loopback)? Without: is any process named
 /// rclone running?
 pub fn is_rclone_running(_ctx: &Ctx, port: Option<u16>) -> Result<bool, String> {

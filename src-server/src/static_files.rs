@@ -43,14 +43,9 @@ pub fn log_dir(st: &Shared) -> Option<std::path::PathBuf> {
     Some(st.log_dir.clone())
 }
 
-/// The log file the pages read (About's last lines, bug reports): the desktop's plugin names it
-/// after the app, the server after itself.
+/// The log file the pages read (About's last lines, bug reports).
 pub fn log_file(st: &Shared) -> Option<std::path::PathBuf> {
-    let name = match st.mode {
-        crate::Mode::Desktop => "Rclone UI.log",
-        crate::Mode::Server => crate::logging::FILE_NAME,
-    };
-    log_dir(st).map(|dir| dir.join(name))
+    log_dir(st).map(|dir| dir.join(crate::logging::FILE_NAME))
 }
 
 pub fn boot_payload(st: &Shared) -> Value {
@@ -62,7 +57,6 @@ pub fn boot_payload(st: &Shared) -> Value {
         .unwrap_or("system");
     json!({
         "version": env!("CARGO_PKG_VERSION"),
-        "mode": st.mode.as_str(),
         "capabilities": st.capabilities,
         "os": {
             "platform": std::env::consts::OS,
@@ -88,7 +82,7 @@ pub fn boot_payload(st: &Shared) -> Value {
             "desktop": path_string(dirs::desktop_dir()),
         },
         "theme": theme,
-        "authRequired": st.auth.required(),
+        "authRequired": true,
     })
 }
 

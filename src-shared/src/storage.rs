@@ -19,13 +19,6 @@ pub const VERSION: u32 = 4;
 
 const MARKER: &str = "storage.json";
 
-/// Which product owns the directory. Steps may differ by it; the current ones do not.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Environment {
-    Desktop,
-    Server,
-}
-
 /// What a migration did: the versions it went between and anything it could not finish (a
 /// file it left where it was, a binary it could not probe), for the host to log.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -70,8 +63,8 @@ pub fn require_current(root: &Path) -> Result<(), String> {
 /// Brings `root` to [`VERSION`]. A marker above it is an error: the directory was written by a
 /// newer build and is not touched. Idempotent: at the current version nothing is read or
 /// written and the report says `from == to`.
-pub fn migrate(root: &Path, env: Environment) -> Result<Report, String> {
-    migrate_with(root, env, &legacy_for(root), probe_rclone)
+pub fn migrate(root: &Path) -> Result<Report, String> {
+    migrate_with(root, &legacy_for(root), probe_rclone)
 }
 
 /// The old layouts' locations, for this root. Only the platform's default directory has an
@@ -128,7 +121,7 @@ pub type Probe = fn(&Path) -> Result<String, String>;
 /// A step brings the layout from `number - 1` to `number`.
 struct Step {
     number: u32,
-    run: fn(&Path, Environment, &Legacy, Probe, &mut Report) -> Result<(), String>,
+    run: fn(&Path, &Legacy, Probe, &mut Report) -> Result<(), String>,
 }
 
 const STEPS: &[Step] = &[
@@ -152,7 +145,6 @@ const STEPS: &[Step] = &[
 
 fn migrate_with(
     root: &Path,
-    env: Environment,
     legacy: &Legacy,
     probe: Probe,
 ) -> Result<Report, String> {
@@ -176,7 +168,7 @@ fn migrate_with(
     std::fs::create_dir_all(root)
         .map_err(|e| format!("failed to create {}: {}", root.display(), e))?;
     for step in STEPS.iter().filter(|s| s.number > from) {
-        (step.run)(root, env, legacy, probe, &mut report)
+        (step.run)(root, legacy, probe, &mut report)
             .map_err(|e| format!("storage migration {} failed: {}", step.number, e))?;
         write_marker(root, step.number)?;
         report.to = step.number;
@@ -198,7 +190,6 @@ fn write_marker(root: &Path, version: u32) -> Result<(), String> {
 
 fn fold_old_data_root(
     root: &Path,
-    _env: Environment,
     legacy: &Legacy,
     _probe: Probe,
     report: &mut Report,
@@ -258,7 +249,6 @@ fn is_empty_dir(dir: &Path) -> bool {
 
 fn plugin_store_files_to_documents(
     root: &Path,
-    _env: Environment,
     _legacy: &Legacy,
     _probe: Probe,
     report: &mut Report,
@@ -341,7 +331,6 @@ fn decode_plugin_store(path: &Path, key: &str) -> Option<(u64, Map<String, Value
 
 fn slot_binary_to_library(
     root: &Path,
-    _env: Environment,
     _legacy: &Legacy,
     probe: Probe,
     report: &mut Report,
@@ -392,7 +381,6 @@ fn slot_binary_to_library(
 
 fn drop_recent_jobs(
     root: &Path,
-    _env: Environment,
     _legacy: &Legacy,
     _probe: Probe,
     report: &mut Report,
@@ -465,7 +453,7 @@ mod tests {
     }
 
     fn run(root: &Path, legacy: &Legacy, probe: Probe) -> Report {
-        migrate_with(root, Environment::Desktop, legacy, probe).unwrap()
+        migrate_with(root, legacy, probe).unwrap()
     }
 
     #[test]

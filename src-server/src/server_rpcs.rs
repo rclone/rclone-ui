@@ -253,7 +253,6 @@ server_rpcs! {
         // --- app ---------------------------------------------------------------------------
         "app_info" => ok(json!({
             "version": env!("CARGO_PKG_VERSION"),
-            "mode": st.mode.as_str(),
             "os": std::env::consts::OS,
             "arch": std::env::consts::ARCH,
             "logDir": crate::static_files::log_dir(st),
@@ -358,33 +357,6 @@ server_rpcs! {
                 }
                 _ => ok(false),
             }
-        },
-        "open_url" => {
-            let url = str_arg(&args, "url")?;
-            if !(url.starts_with("https://")
-                || url.starts_with("http://")
-                || url.starts_with("mailto:"))
-            {
-                return Err("only http(s) and mailto links can be opened".into());
-            }
-            rt::spawn_blocking(move || opener::open(&url).map_err(|e| e.to_string()))
-                .await
-                .map_err(|e| e.to_string())??;
-            ok(Value::Null)
-        },
-        "open_path" => {
-            let path = str_arg(&args, "path")?;
-            rt::spawn_blocking(move || opener::open(&path).map_err(|e| e.to_string()))
-                .await
-                .map_err(|e| e.to_string())??;
-            ok(Value::Null)
-        },
-        "reveal_item" => {
-            let path = str_arg(&args, "path")?;
-            rt::spawn_blocking(move || opener::reveal(&path).map_err(|e| e.to_string()))
-                .await
-                .map_err(|e| e.to_string())??;
-            ok(Value::Null)
         },
         "claim_reconnect_dialog" => {
             let key = reconnect_key(&args)?;

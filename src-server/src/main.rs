@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
-use rclone_ui_server::{serve, AuthMode, Hooks, ServeOpts};
+use rclone_ui_server::{serve, Hooks, Owner, ServeOpts};
 use rclone_ui_shared::lifecycle::Options as LifecycleOptions;
 
 #[derive(Parser, Debug)]
@@ -139,10 +139,7 @@ async fn run(cli: CliServe) -> Result<(), String> {
     // Before anything is opened or written (the log file included): a clean slate, then the
     // layout this build reads.
     let cleared = if cli.clear { Some(dirs.clear()?) } else { None };
-    let migration = rclone_ui_shared::storage::migrate(
-        &dirs.root,
-        rclone_ui_shared::storage::Environment::Server,
-    )?;
+    let migration = rclone_ui_shared::storage::migrate(&dirs.root)?;
     // An overridden data directory (development, tests, containers) keeps its logs with its
     // data; otherwise the platform's app-log directory, where the desktop's log plugin writes.
     let log_dir = if cli.data_dir.is_some() {
@@ -186,7 +183,7 @@ async fn run(cli: CliServe) -> Result<(), String> {
     let handle = serve(
         listener,
         ServeOpts {
-            auth: AuthMode::Users {
+            owner: Owner {
                 email: cli.email.clone(),
                 password,
             },

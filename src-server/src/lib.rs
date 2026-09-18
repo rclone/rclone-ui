@@ -1,5 +1,5 @@
 //! rclone-ui-server as a library: one HTTP + WebSocket server that serves the frontend bundle and
-//! answers its API, embedded by the desktop app (whose windows load `http://127.0.0.1:<port>/…`)
+//! answers its API, serving the pages to a browser
 //! and run standalone by `main.rs` for browser deployments. The host describes what it can do on
 //! top of the shared core through [`Hooks`] (native windows, an updater, autostart, OS toasts,
 //! boot-time questions, quitting) and gets a [`Handle`] back to start the rclone lifecycle and
@@ -9,10 +9,8 @@
 //!
 //! | Route | What |
 //! |---|---|
-//! | `GET /__boot?t=&next=` | token mode: turn the launch token into the session cookie |
-//! | `GET /api/status` | mode, version, lifecycle phase, daemon |
+//! | `GET /api/status` | version, lifecycle phase, daemon |
 //! | `POST /api/rpc/{name}` | shared command table + the server's own RPCs |
-//! | `POST /api/native/{name}` | the host's [`NativeBridge`] (desktop windows), else 404 |
 //! | `GET/PATCH/PUT /api/state/{doc}` | revisioned state documents |
 //! | `ANY /api/rc/{host}/{*path}` | streaming reverse proxy to an rclone daemon |
 //! | `GET /api/dl/{token}` | short-lived signed download link |
@@ -25,7 +23,6 @@ pub mod autostart;
 pub mod download;
 pub mod fs;
 pub mod logging;
-pub mod native;
 pub mod port;
 pub mod proxy;
 pub mod rc_proxy;
@@ -54,33 +51,16 @@ use tokio::sync::watch;
 
 pub use rclone_ui_shared::lifecycle::{Interaction, ServerPolicy};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Mode {
-    /// Embedded in the desktop app: windows are native, the token guards the origin.
-    Desktop,
-    /// Standalone: browser tabs, optional password.
-    Server,
-}
-
-impl Mode {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Mode::Desktop => "desktop",
-            Mode::Server => "server",
-        }
-    }
-}
-
-pub enum AuthMode {
-    /// Accounts (`team.rs`): `POST /api/login {email, password}` → session cookie. The pair
-    /// seeds the owner account on the first start and is ignored once accounts exist.
-    Users { email: String, password: String },
-    /// A per-launch token handed to windows through `/__boot` (the embedded server).
-    Token,
+/// The owner account seeded on the first start.
+pub struct Owner {
+    pub email: String,
+    pub password: String,
 }
 
 pub struct ServeOpts {
-    pub auth: AuthMode,
+    /// Accounts (`team.rs`): `POST /api/login {email, password}` → session cookie. The pair
+    /// seeds the owner account on the first start and is ignored once accounts exist.
+    pub owner: Owner,
     pub dirs: DataDir,
     /// Where the host writes its log file; reported to the pages (About, bug reports).
     /// `None` = the platform's app-log directory for the app identifier.
@@ -89,12 +69,6 @@ pub struct ServeOpts {
     pub rclone_url: Option<String>,
     /// Forward non-API requests to a Vite dev server.
     pub dev_proxy: Option<String>,
-}
-
-/// What the desktop shell exposes to its windows over `POST /api/native/{name}`.
-pub trait NativeBridge: Send + Sync {
-    /// Runs on the blocking pool; may take a while (opening a window sleeps for its animation).
-    fn call(&self, name: &str, args: Value) -> Result<Value, String>;
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -131,12 +105,10 @@ pub type OnQuit = Arc<dyn Fn(QuitKind) + Send + Sync>;
 pub type OpenExternal = Arc<dyn Fn(&str, &str) -> Result<(), String> + Send + Sync>;
 
 pub struct Hooks {
-    pub mode: Mode,
     /// Overrides on top of the computed capabilities.
     pub capabilities: Map<String, Value>,
     /// Who answers the orchestrator's boot-time questions.
     pub interaction: SharedInteraction,
-    pub native: Option<Arc<dyn NativeBridge>>,
     pub updater: Option<Arc<dyn Updater>>,
     pub autostart: Option<Arc<dyn Autostart>>,
     /// `(title, body)` → an OS toast.
@@ -150,10 +122,8 @@ impl Hooks {
     /// manifest, registers a login item, toasts through notify-rust, exits/relaunches the process.
     pub fn standalone() -> Hooks {
         Hooks {
-            mode: Mode::Server,
             capabilities: Map::new(),
             interaction: Arc::new(ServerPolicy),
-            native: None,
             updater: Some(Arc::new(updater::SelfUpdater)),
             autostart: Some(Arc::new(autostart::LoginItem)),
             os_notify: Some(Arc::new(|title, body| {
@@ -232,7 +202,6 @@ impl DaemonTarget {
 }
 
 pub struct AppState {
-    pub mode: Mode,
     pub ctx: Ctx,
     pub log_dir: std::path::PathBuf,
     pub store: Arc<StateStore>,
@@ -308,13 +277,12 @@ impl AppState {
         let phase = supervisor.as_ref().map(|s| s.phase());
         let app_state = self.store.state_or_default(APP_DOC);
         json!({
-            "mode": self.mode.as_str(),
             "version": env!("CARGO_PKG_VERSION"),
             "uptimeSeconds": self.started_at.elapsed().as_secs(),
             "dirs": {
                 "data": self.ctx.dirs.root,
             },
-            "authRequired": self.auth.required(),
+            "authRequired": true,
             "managedDaemon": self.external_rclone_url.is_none(),
             "lifecycle": phase.as_ref().map(|p| serde_json::to_value(p).unwrap_or(Value::Null)),
             "startup": phase.as_ref().map(|p| p.startup_status()),
@@ -355,13 +323,11 @@ pub fn mount_supported() -> bool {
     }
 }
 
-/// What this host can do; pages hide UI the host can't back. Same shape on both products.
-pub fn capabilities(mode: Mode, overlay: &Map<String, Value>) -> Value {
+/// What this host can do; pages hide UI the host can't back.
+pub fn capabilities(overlay: &Map<String, Value>) -> Value {
     let containerized = containerized();
     let mount = mount_supported();
-    let desktop = mode == Mode::Desktop;
     let mut caps = json!({
-        "mode": mode.as_str(),
         "platform": std::env::consts::OS,
         "containerized": containerized,
         "updater": !containerized,
@@ -369,10 +335,8 @@ pub fn capabilities(mode: Mode, overlay: &Map<String, Value>) -> Value {
         "mount": mount,
         "scheduler": true,
         "processExit": !containerized,
-        "deepLink": desktop,
         "configSync": true,
         "pathIntegration": true,
-        "window": desktop,
         "osNotifications": !containerized,
     });
     if let Some(map) = caps.as_object_mut() {
@@ -385,8 +349,6 @@ pub fn capabilities(mode: Mode, overlay: &Map<String, Value>) -> Value {
 
 pub struct Handle {
     pub addr: SocketAddr,
-    /// The launch token in token mode (`/__boot?t=<token>&next=…`).
-    pub token: Option<String>,
     pub state: Shared,
     shutdown: watch::Sender<bool>,
     task: Mutex<Option<tokio::task::JoinHandle<Result<(), String>>>>,
@@ -395,20 +357,6 @@ pub struct Handle {
 impl Handle {
     pub fn origin(&self) -> String {
         format!("http://{}", self.addr)
-    }
-
-    /// The URL a window loads: in token mode the boot handshake that sets the cookie and then
-    /// redirects to `next`; otherwise `next` itself.
-    pub fn boot_url(&self, next: &str) -> String {
-        match &self.token {
-            Some(token) => format!(
-                "{}/__boot?t={}&next={}",
-                self.origin(),
-                token,
-                percent_encoding::utf8_percent_encode(next, percent_encoding::NON_ALPHANUMERIC)
-            ),
-            None => format!("{}{}", self.origin(), next),
-        }
     }
 
     /// Starts the rclone orchestrator (once). In external-daemon mode this is a no-op.
@@ -466,19 +414,17 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
     let ctx = Ctx::new(opts.dirs.clone(), events.clone());
     let store = Arc::new(StateStore::new(opts.dirs.clone(), events));
     let team = Arc::new(team::Team::open(&opts.dirs.root.join("state"))?);
-    if let AuthMode::Users { email, password } = &opts.auth {
-        if team.seed(email, password)? {
-            log::info!("created the owner account {}", email);
-        } else {
-            log::info!(
-                "team: {} account(s), owner {}; --password only seeds the first one",
-                team.count(),
-                team.owner_email().unwrap_or_default()
-            );
-        }
+    if team.seed(&opts.owner.email, &opts.owner.password)? {
+        log::info!("created the owner account {}", opts.owner.email);
+    } else {
+        log::info!(
+            "team: {} account(s), owner {}; --password only seeds the first one",
+            team.count(),
+            team.owner_email().unwrap_or_default()
+        );
     }
-    let (auth, token) = auth::Auth::new(opts.auth, team.clone());
-    let capabilities = capabilities(hooks.mode, &hooks.capabilities);
+    let auth = auth::Auth::new(team.clone());
+    let capabilities = capabilities(&hooks.capabilities);
     let http = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(15))
         .build()
@@ -491,7 +437,6 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
     // that outlives us, like any remote host.
     let transfers = TransferService::new(ctx.clone(), opts.rclone_url.is_none());
     let state: Shared = Arc::new(AppState {
-        mode: hooks.mode,
         ctx,
         log_dir,
         store,
@@ -523,7 +468,6 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
     }
 
     let app = Router::new()
-        .route("/__boot", get(auth::boot))
         .route("/api/login", post(auth::login))
         .route("/api/logout", post(auth::logout))
         .route("/api/session", get(auth::session))
@@ -533,7 +477,6 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
             "/api/rpc/{name}",
             post(rpc::handle).layer(axum::extract::DefaultBodyLimit::max(1024 * 1024 * 1024)),
         )
-        .route("/api/native/{name}", post(native::handle))
         .route(
             "/api/state/{*doc}",
             get(state_api::get)
@@ -591,19 +534,10 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
             .await
             .map_err(|e| e.to_string())
     });
-    log::info!(
-        "listening on http://{}{}",
-        addr,
-        match state.auth.mode() {
-            "users" => " (sign-in required)",
-            "token" => " (launch token required)",
-            _ => "",
-        }
-    );
+    log::info!("listening on http://{} (sign-in required)", addr);
 
     Ok(Handle {
         addr,
-        token,
         state,
         shutdown: shutdown_tx,
         task: Mutex::new(Some(task)),

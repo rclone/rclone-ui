@@ -76,8 +76,6 @@ macro_rules! for_each_command {
             // --- machine / process helpers ---
             sync get_arch() -> String = $crate::commands::misc::get_arch;
             sync is_flatpak() -> bool = $crate::commands::misc::is_flatpak;
-            sync is_linux_mint() -> bool = $crate::commands::misc::is_linux_mint;
-            sync has_flatpak_permissions() -> bool = $crate::commands::misc::has_flatpak_permissions;
             sync extract_tgz(tgz_path: String, output_folder: String) -> () = $crate::commands::misc::extract_tgz;
             // The one caller that sends a snake_case key (lib/rclone/init.ts, ProxySection.tsx).
             async test_proxy_connection(#[serde(alias = "proxy_url")] proxy_url: String) -> String = $crate::commands::misc::test_proxy_connection;
