@@ -443,7 +443,7 @@ test('what cannot be sent is said, next to the field', () => {
 
 /** How the daemon read an fs string: its backend name and root, or the error it gave. */
 async function rcloneReads(request: APIRequestContext, fs: string) {
-    const response = await request.post('/api/rc/local/operations/fsinfo', {
+    const response = await request.post('/api/rc/operations/fsinfo', {
         headers: SESSION,
         data: { fs },
     })
@@ -493,7 +493,7 @@ test('the slash after the colon: kept by the local backend, trimmed by memory', 
         // A slash inside `remote` does not escape the fs root: Go's path.Join treats it as a
         // segment. So the slash the user meant has to be in the fs string, which is what S1's
         // `root` carries.
-        const inside = await request.post('/api/rc/local/operations/stat', {
+        const inside = await request.post('/api/rc/operations/stat', {
             headers: SESSION,
             data: { fs: `:local:${dir}/a`, remote: '/b/f.txt' },
         })

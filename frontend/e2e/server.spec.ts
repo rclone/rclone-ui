@@ -215,14 +215,15 @@ test('the shell: zones, settings routes, the remotes zone and the icon rail', as
     }
     // General is not listed but keeps its route, without the desktop-only rows.
     await page.goto('/settings')
-    await expect(page.getByText('Options')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Theme' })).toBeVisible()
     const caps = (await (await page.request.get('/api/capabilities')).json()) as {
-        autostart: boolean
         updater: boolean
     }
     await expect(page.getByText('Show Startup screen')).toHaveCount(0)
     await expect(page.getByText('Toolbar Shortcut')).toHaveCount(0)
-    await expect(page.getByText('Start on boot')).toHaveCount(caps.autostart ? 1 : 0)
+    // Starting at boot is the operator's supervisor's job, so the server offers no such row.
+    await expect(page.getByText('Start on boot')).toHaveCount(0)
+    await expect(page.getByText('Options')).toHaveCount(0)
     await expect(page.getByText('Check for updates')).toHaveCount(caps.updater ? 1 : 0)
     // The old ?tab= deep links still land on their section.
     await page.goto('/settings?tab=config')
@@ -287,27 +288,27 @@ test('rpc round trip: the shared table, the server RPCs and errors', async ({ re
     expect(noSession.status()).toBe(400)
 })
 
-test('the reconnect prompt is claimed one at a time, and per host', async ({ request }) => {
-    const call = async (name: string, host: string, remote: string) =>
+test('the reconnect prompt is claimed one at a time, and per remote', async ({ request }) => {
+    const call = async (name: string, remote: string) =>
         (await (
-            await request.post(`/api/rpc/${name}`, { headers: SESSION, data: { host, remote } })
+            await request.post(`/api/rpc/${name}`, { headers: SESSION, data: { remote } })
         ).json()) as { ok: boolean; value?: boolean; error?: string }
 
     // An expired token fails every call that touches the remote, and each page would ask. The
-    // first to ask gets the dialog; the windows behind it stay quiet.
-    expect((await call('claim_reconnect_dialog', 'local', 'e2e-recon')).value).toBe(true)
-    expect((await call('claim_reconnect_dialog', 'local', 'e2e-recon')).value).toBe(false)
+    // first to ask gets the dialog; the pages behind it stay quiet.
+    expect((await call('claim_reconnect_dialog', 'e2e-recon')).value).toBe(true)
+    expect((await call('claim_reconnect_dialog', 'e2e-recon')).value).toBe(false)
 
-    // The same name on another host is a different remote, with its own token to renew.
-    expect((await call('claim_reconnect_dialog', 'other', 'e2e-recon')).value).toBe(true)
+    // Another remote is its own dialog: its token expires on its own schedule.
+    expect((await call('claim_reconnect_dialog', 'e2e-recon-two')).value).toBe(true)
 
     // Once that dialog is done with, the next expiry can ask again — a remote reconnected today
     // expires again later, and a prompt that never came back would leave it failing silently.
-    expect((await call('release_reconnect_dialog', 'local', 'e2e-recon')).ok).toBe(true)
-    expect((await call('claim_reconnect_dialog', 'local', 'e2e-recon')).value).toBe(true)
+    expect((await call('release_reconnect_dialog', 'e2e-recon')).ok).toBe(true)
+    expect((await call('claim_reconnect_dialog', 'e2e-recon')).value).toBe(true)
 
-    await call('release_reconnect_dialog', 'local', 'e2e-recon')
-    await call('release_reconnect_dialog', 'other', 'e2e-recon')
+    await call('release_reconnect_dialog', 'e2e-recon')
+    await call('release_reconnect_dialog', 'e2e-recon-two')
 })
 
 test('state documents: PUT, PATCH with If-Match, 409 on a stale revision', async ({ request }) => {
@@ -635,7 +636,7 @@ test('a malformed transfer is refused, not started as an empty one', async () =>
 
 test('a state change by another writer rehydrates an open page', async ({ page, request }) => {
     await page.goto('/settings')
-    await expect(page.getByText('Options')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Theme' })).toBeVisible()
     await expect
         .poll(() => page.evaluate(() => document.documentElement.classList.contains('dark')))
         .toBe(true)
@@ -825,13 +826,13 @@ test('a streaming command delivers its events over the WebSocket', async ({ page
 })
 
 test('the rc proxy reaches the daemon and streams file bytes', async ({ request }) => {
-    const version = await request.post('/api/rc/local/core/version', { headers: SESSION, data: {} })
+    const version = await request.post('/api/rc/core/version', { headers: SESSION, data: {} })
     expect(version.ok()).toBe(true)
     expect(((await version.json()) as { version: string }).version).toMatch(/^v\d/)
 
     // Upload through the proxy (multipart), then read it back with a Range through --rc-serve.
     const upload = await request.post(
-        '/api/rc/local/operations/uploadfile?fs=e2e-memory:&remote=dir',
+        '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=dir',
         {
             headers: { 'X-RcloneUI-Session': 'e2e' },
             multipart: {
@@ -844,7 +845,7 @@ test('the rc proxy reaches the daemon and streams file bytes', async ({ request 
         }
     )
     expect(upload.ok()).toBe(true)
-    const partial = await request.get('/api/rc/local/[e2e-memory:]/dir/hello.txt', {
+    const partial = await request.get('/api/rc/[e2e-memory:]/dir/hello.txt', {
         headers: { 'X-RcloneUI-Session': 'e2e', Range: 'bytes=0-4' },
     })
     expect(partial.status()).toBe(206)
@@ -853,7 +854,7 @@ test('the rc proxy reaches the daemon and streams file bytes', async ({ request 
     const link = await (
         await request.post('/api/rpc/download_link', {
             headers: SESSION,
-            data: { hostId: 'local', fs: 'e2e-memory:', remote: 'dir/hello.txt' },
+            data: { fs: 'e2e-memory:', remote: 'dir/hello.txt' },
         })
     ).json()
     expect(link.ok).toBe(true)
@@ -863,9 +864,11 @@ test('the rc proxy reaches the daemon and streams file bytes', async ({ request 
     expect(download.headers()['content-disposition']).toContain('attachment')
     expect(await download.text()).toBe('hello world')
 
+    // There is one daemon and no host to name, so the whole path is rclone's: an endpoint it
+    // does not have is rclone's own 404, not the proxy refusing to route.
     expect(
         (await request.post('/api/rc/nope/core/version', { headers: SESSION, data: {} })).status()
-    ).toBe(503)
+    ).toBe(404)
 })
 
 test('signing in takes the owner account seeded from --password', async ({ browser }) => {
@@ -1000,7 +1003,7 @@ test('asset-like file names never bypass the API guard', async ({ request }) => 
     // ask the password-protected one for the file without a session. The proxy injects the
     // daemon's credentials, so it must refuse whatever the file is called.
     const upload = await request.post(
-        '/api/rc/local/operations/uploadfile?fs=e2e-memory:&remote=guard',
+        '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=guard',
         {
             headers: { 'X-RcloneUI-Session': 'e2e' },
             multipart: {
@@ -1016,8 +1019,8 @@ test('asset-like file names never bypass the API guard', async ({ request }) => 
 
     const base = 'http://127.0.0.1:5611'
     for (const path of [
-        '/api/rc/local/[e2e-memory:]/guard/secret.png',
-        '/api/rc/local/[e2e-memory:]/guard/secret.txt',
+        '/api/rc/[e2e-memory:]/guard/secret.png',
+        '/api/rc/[e2e-memory:]/guard/secret.txt',
     ]) {
         const response = await request.get(`${base}${path}`)
         expect(response.status(), path).toBe(401)
@@ -1121,7 +1124,7 @@ test('the sidebar lists the five newest remotes, then all of them with a count',
     request,
 }) => {
     const rc = (path: string, data: Record<string, unknown>) =>
-        request.post(`/api/rc/local/${path}`, { headers: SESSION, data })
+        request.post(`/api/rc/${path}`, { headers: SESSION, data })
     const created: string[] = []
     const create = async (name: string) => {
         expect((await rc('config/create', { name, type: 'memory', parameters: {} })).ok()).toBe(
@@ -1333,7 +1336,7 @@ test('on the managed daemon a rename edits the config file in place', async ({ b
     const request = context.request
     await signIn(request, base)
     const rc = (path: string, data: Record<string, unknown>) =>
-        request.post(`${base}/api/rc/local/${path}`, { headers: SESSION, data })
+        request.post(`${base}/api/rc/${path}`, { headers: SESSION, data })
     await expect
         .poll(
             async () =>
@@ -1407,7 +1410,7 @@ test('rclone runs the app itself as its metadata mapper', async ({ request }) =>
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'a.txt'), 'hello')
 
-    const response = await request.post('/api/rc/local/operations/copyfile', {
+    const response = await request.post('/api/rc/operations/copyfile', {
         headers: SESSION,
         data: {
             srcFs: dir,
@@ -1455,7 +1458,6 @@ test('a transfer is listed the moment it starts, before rclone has a file in fli
     try {
         const started = await rpc('transfers_start', {
             transfer: {
-                hostId: 'local',
                 operation: 'copy',
                 sources: [join(root, 'src')],
                 destination: join(root, 'dst'),
@@ -1478,7 +1480,7 @@ test('a transfer is listed the moment it starts, before rclone has a file in fli
         expect(typeof started.value.jobid).toBe('number')
 
         // No polling, no waiting for rclone's `transferring[]`: starting it is what listed it.
-        const list = await rpc('transfers_list', { hostId: 'local' })
+        const list = await rpc('transfers_list', {})
         const entry = (list.value as TransferEntry[]).find((e) => e.id === started.value.id)
         expect(entry).toMatchObject({
             operation: 'copy',
@@ -1491,7 +1493,7 @@ test('a transfer is listed the moment it starts, before rclone has a file in fli
             .poll(
                 async () =>
                     (
-                        (await rpc('transfers_list', { hostId: 'local' })).value as TransferEntry[]
+                        (await rpc('transfers_list', {})).value as TransferEntry[]
                     ).find((e) => e.id === started.value.id)?.state,
                 { timeout: 20_000 }
             )
@@ -1523,7 +1525,7 @@ test('a transfer is listed the moment it starts, before rclone has a file in fli
         expect(doomed.ok).toBe(false)
         expect(doomed.error).toMatch(/not found|no such file/i)
         const failed = (
-            (await rpc('transfers_list', { hostId: 'local' })).value as TransferEntry[]
+            (await rpc('transfers_list', {})).value as TransferEntry[]
         ).find((e) => e.operation === 'sync' && e.sources[0] === join(root, 'missing'))
         expect(failed?.state).toBe('failed')
     } finally {
@@ -1607,7 +1609,7 @@ test('finished transfers survive a server restart, with their totals and their f
         expect(started.error).toBeUndefined()
         const id = started.value.id as string
         const entry = async () =>
-            ((await rpc('transfers_list', { hostId: 'local' })).value as TransferEntry[]).find(
+            ((await rpc('transfers_list', {})).value as TransferEntry[]).find(
                 (e) => e.id === id
             )
         await expect.poll(async () => (await entry())?.state, { timeout: 20_000 }).toBe('completed')
@@ -1747,7 +1749,7 @@ test('a transfer whose daemon was replaced ends as interrupted, never as the new
         expect(started.error).toBeUndefined()
         const { id, jobid } = started.value as { id: string; jobid: number }
         const entry = async () =>
-            ((await rpc('transfers_list', { hostId: 'local' })).value as TransferEntry[]).find(
+            ((await rpc('transfers_list', {})).value as TransferEntry[]).find(
                 (e) => e.id === id
             )
         expect((await entry())?.state).toBe('running')
@@ -1821,7 +1823,7 @@ test('saving a config file is not moving files, as far as getting started goes',
         await signIn(context.request, base)
         // What saving a config file does: a write through the daemon.
         const written = await context.request.post(
-            `/api/rc/local/operations/uploadfile?fs=${encodeURIComponent(root)}&remote=`,
+            `/api/rc/operations/uploadfile?fs=${encodeURIComponent(root)}&remote=`,
             {
                 headers: { 'X-RcloneUI-Session': 'e2e' },
                 multipart: {
@@ -1877,7 +1879,6 @@ test('a download from a URL is a transfer like any other', async ({ request }) =
     const download = (url: string, remote: string) =>
         rpc('transfers_start', {
             transfer: {
-                hostId: 'local',
                 operation: 'download',
                 sources: [url],
                 destination: join(root, remote),
@@ -1901,7 +1902,7 @@ test('a download from a URL is a transfer like any other', async ({ request }) =
         const started = await download(`http://127.0.0.1:${port}/files/notes.txt`, 'saved.txt')
         expect(started.error).toBeUndefined()
         const entry = async (id: string) =>
-            ((await rpc('transfers_list', { hostId: 'local' })).value as TransferEntry[]).find(
+            ((await rpc('transfers_list', {})).value as TransferEntry[]).find(
                 (e) => e.id === id
             )
         await expect
@@ -1954,7 +1955,6 @@ test('a launch that dies says it failed, and never that it started', async ({ re
     const copy = (from: string, to: string) =>
         rpc('transfers_start', {
             transfer: {
-                hostId: 'local',
                 operation: 'copy',
                 sources: [from],
                 destination: to,
@@ -2128,7 +2128,6 @@ test('a scheduled run keeps the files that failed early, as the server does', as
             spec: {
                 schemaVersion: 1,
                 taskId,
-                hostId: 'local',
                 name: 'E2E collect',
                 operation: 'copy',
                 cron: '0 3 1 1 *',
@@ -2159,7 +2158,7 @@ test('a scheduled run keeps the files that failed early, as the server does', as
         expect((await rpc('scheduler_run_now', { taskId })).error).toBeUndefined()
 
         const run = async () =>
-            ((await rpc('transfers_list', { hostId: 'local' })).value as TransferEntry[]).find(
+            ((await rpc('transfers_list', {})).value as TransferEntry[]).find(
                 (entry) => entry.taskId === taskId && entry.destination === destination
             )
         await expect.poll(async () => (await run())?.state, { timeout: 60_000 }).toBe('failed')
@@ -2171,7 +2170,7 @@ test('a scheduled run keeps the files that failed early, as the server does', as
         expect(detail.failed?.map((file) => file.name)).toEqual(['000-locked.txt'])
     } finally {
         chmodSync(locked, 0o644)
-        await rpc('scheduler_unregister', { taskId, hostId: 'local' })
+        await rpc('scheduler_unregister', { taskId })
         await context.close()
         rmSync(root, { recursive: true, force: true })
     }
@@ -2196,7 +2195,7 @@ test('a file that failed inside a folder copy is retried as a transfer of its ow
         }
     const entryOf = async (id: string) =>
         (
-            (await rpc('transfers_list', { hostId: 'local' })).value as (TransferEntry & {
+            (await rpc('transfers_list', {})).value as (TransferEntry & {
                 retryOf: string | null
             })[]
         ).find((entry) => entry.id === id)
@@ -2224,7 +2223,7 @@ test('a file that failed inside a folder copy is retried as a transfer of its ow
         // The folder's one failed file fails the launch, and the transfer is on record as failed.
         expect(started.ok).toBe(false)
         const failedEntry = (
-            (await rpc('transfers_list', { hostId: 'local' })).value as TransferEntry[]
+            (await rpc('transfers_list', {})).value as TransferEntry[]
         ).find((entry) => entry.sources[0] === `${join(root, 'src')}/`)
         expect(failedEntry?.state).toBe('failed')
         expect(readFileSync(join(root, 'dst', 'fine.txt'), 'utf8')).toBe('fine')

@@ -5,8 +5,6 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { exe } from '../../lib/api/paths'
 import { getFsInfo } from '../../lib/format'
 import { backendsQueryOptions, fsInfoQueryOptions, remoteConfigQueryOptions } from '../../lib/hooks'
-import { LOCAL_HOST_ID } from '../../lib/hosts'
-import { currentHostId } from '../../lib/rclone/client'
 import {
     type MapperRule,
     type MapperValue,
@@ -272,7 +270,6 @@ export default function MetadataMapper({
         config,
         overrides: destinationRemote ? remoteOverrides?.[destinationRemote] : undefined,
     })
-    const onOtherHost = currentHostId() !== LOCAL_HOST_ID
     // Only where there are paths to pick: a template has none.
     const noPaths = !!paths && !paths.source && !paths.destination
 
@@ -458,16 +455,6 @@ export default function MetadataMapper({
                             <span>
                                 This server cannot tell where its own program lives, so there is
                                 nothing to point the flag at.
-                            </span>
-                        </p>
-                    )}
-
-                    {onOtherHost && (
-                        <p className="flex gap-2 text-tiny text-warning-600 dark:text-warning-400">
-                            <TriangleAlertIcon className="size-4 shrink-0" />
-                            <span>
-                                This host runs rclone on another machine, where this program may not
-                                exist. The path below has to be one that machine can run.
                             </span>
                         </p>
                     )}

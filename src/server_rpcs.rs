@@ -8,7 +8,7 @@ use axum::Json;
 use crate::lifecycle::interaction::{ask, Decision, Question};
 use crate::lifecycle::{resolve, RestartOverrides};
 use crate::rt;
-use crate::state_files::host_doc;
+use crate::state_files::HOST_DOC;
 use crate::transfers::service::StartRequest;
 use crate::Sink;
 use serde_json::{json, Value};
@@ -66,14 +66,9 @@ async fn oauth_callback(st: &Shared) -> Result<(String, String, String), String>
 /// prompt until the process restarts.
 const RECONNECT_CLAIM_TTL: std::time::Duration = std::time::Duration::from_secs(15 * 60);
 
-/// One dialog per remote, and a remote is a host plus a name: two hosts can each have a `drive`,
-/// with tokens that expire on their own schedules.
+/// One dialog per remote: each has its own token, expiring on its own schedule.
 fn reconnect_key(args: &Value) -> Result<String, String> {
-    Ok(format!(
-        "{}:{}",
-        str_arg(args, "host")?,
-        str_arg(args, "remote")?
-    ))
+    str_arg(args, "remote")
 }
 
 fn str_arg(args: &Value, key: &str) -> Result<String, String> {
@@ -320,44 +315,6 @@ server_rpcs! {
                 .map_err(|e| e.to_string())??;
             ok(Value::Null)
         },
-        "autostart_get" => match st.hooks.autostart.clone() {
-            Some(autostart) if cap(st, "autostart") => {
-                let enabled = rt::spawn_blocking(move || autostart.is_enabled())
-                    .await
-                    .map_err(|e| e.to_string())??;
-                ok(enabled)
-            }
-            _ => ok(false),
-        },
-        "autostart_set" => {
-            if !cap(st, "autostart") {
-                return Err("Start on boot is not available in this deployment.".into());
-            }
-            let autostart = st
-                .hooks
-                .autostart
-                .clone()
-                .ok_or("no autostart in this deployment")?;
-            let enabled = args["enabled"].as_bool().unwrap_or(false);
-            rt::spawn_blocking(move || autostart.set_enabled(enabled))
-                .await
-                .map_err(|e| e.to_string())??;
-            ok(Value::Null)
-        },
-        "os_notify" => {
-            let title = args["title"].as_str().unwrap_or("Rclone UI").to_string();
-            let body = args["body"].as_str().unwrap_or("").to_string();
-            match st.hooks.os_notify.clone() {
-                Some(notify) if cap(st, "osNotifications") => {
-                    let shown = rt::spawn_blocking(move || notify(&title, &body))
-                        .await
-                        .map_err(|e| e.to_string())?
-                        .is_ok();
-                    ok(shown)
-                }
-                _ => ok(false),
-            }
-        },
         "claim_reconnect_dialog" => {
             let key = reconnect_key(&args)?;
             let mut claims = st.reconnect_claims.lock().unwrap();
@@ -400,7 +357,7 @@ server_rpcs! {
             let supervisor = st.supervisor().ok_or("the rclone daemon is external")?;
             let config_id = str_arg(&args, "configId")?;
             let pass = str_arg(&args, "pass")?;
-            st.store.update(&host_doc("local"), |s| {
+            st.store.update(HOST_DOC, |s| {
                 if let Some(list) = s.get_mut("configFiles").and_then(Value::as_array_mut) {
                     for item in list.iter_mut() {
                         if item.get("id").and_then(Value::as_str) == Some(&config_id) {
@@ -428,10 +385,9 @@ server_rpcs! {
         },
 
         "download_link" => {
-            let host = args["hostId"].as_str().unwrap_or("local");
             let fs = str_arg(&args, "fs")?;
             let remote = str_arg(&args, "remote")?;
-            let token = st.downloads.mint(host, &fs, &remote);
+            let token = st.downloads.mint(&fs, &remote);
             ok(format!("/api/dl/{}", token))
         },
 

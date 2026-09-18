@@ -203,7 +203,7 @@ pub async fn resolve_binary(
         .map_err(|e| format!("could not determine the latest rclone version: {}", e))?;
     on_download(version.clone());
     log::info!("[lifecycle] downloading rclone v{}", version);
-    let proxy = storeread::read_host(&ctx.dirs, "local")
+    let proxy = storeread::read_host(&ctx.dirs)
         .ok()
         .and_then(|h| h.proxy)
         .map(|p| p.url)
@@ -268,7 +268,7 @@ pub async fn maybe_auto_update(
         latest
     );
     on_updating(current_version.clone(), latest.clone());
-    let proxy = storeread::read_host(&ctx.dirs, "local")
+    let proxy = storeread::read_host(&ctx.dirs)
         .ok()
         .and_then(|h| h.proxy)
         .map(|p| p.url)

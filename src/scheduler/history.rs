@@ -82,8 +82,6 @@ pub enum HistoryLine {
         run_id: String,
         ts: String,
         pid: u32,
-        #[serde(rename = "hostId")]
-        host_id: String,
     },
     Finished {
         #[serde(rename = "runId")]

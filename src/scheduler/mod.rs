@@ -1,14 +1,13 @@
-//! OS-native scheduling for Rclone UI's scheduled tasks.
+//! Scheduled tasks, fired by the server itself.
 //!
-//! The GUI registers each task with the platform scheduler (the user's crontab on macOS/Linux,
-//! Task Scheduler on Windows); the OS invokes this same binary headlessly (`run-task <id>`),
-//! which executes the pre-serialized rclone requests stored in the task's job file. Whether a
-//! task runs while logged out depends on its run mode: "user" (the default) only fires while the
-//! user is logged in; "system" fires whether or not the user is logged in (cron daemon / S4U).
+//! Registering a task writes a job file and an artifact for `ticker.rs`, the server's own minute
+//! ticker; when one is due the ticker spawns this same binary headlessly (`run-task <id>`), which
+//! executes the pre-serialized rclone requests stored in the job file. Nothing is registered with
+//! the operating system, so there is no cron entry or Task Scheduler job to keep in step, and a
+//! task fires whenever the server is running — which is what a server is for.
 //!
-//! Under Flatpak, scheduling works only when the user has granted host-spawn access
-//! (`--talk-name=org.freedesktop.Flatpak`): the crontab commands run on the host via
-//! `flatpak-spawn --host`, and the cron entry re-launches the app with `flatpak run … run-task`.
+//! `JobSpec.run_mode` survives as an ignored field: job files written by the desktop app carry
+//! it, and refusing to read them would lose the task.
 
 pub mod cronconv;
 pub mod history;
@@ -28,10 +27,9 @@ use crate::ctx::Ctx;
 use jobfile::JobSpec;
 use storeread::DataDir;
 
-/// The one cross-backend error sentinel: `set_enabled` on a task with no OS artifact. The
-/// disable path in `scheduler_set_enabled` treats it as benign (nothing armed IS disabled), so
-/// every backend must return exactly this — schtasks in particular can't rely on its localized
-/// /Change stderr and prechecks with its locale-invariant query instead.
+/// `set_enabled` on a task that has no registration. The disable path in
+/// `scheduler_set_enabled` treats it as benign — nothing armed IS disabled — and matches on this
+/// exact string, so it must not be reworded in passing.
 pub(crate) const NOT_REGISTERED: &str = "Task is not registered";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,7 +38,7 @@ pub enum InstallState {
     Installed { enabled: bool },
 }
 
-/// Everything the backend needs to (re)create a task's artifact: the schedule to match, the
+/// Everything the ticker needs to (re)create a task's registration: the schedule to match, the
 /// child to spawn, and whether it is armed. The run's own limits live in the job file, which the
 /// runner reads when it starts — nothing here has to carry them.
 pub struct RenderedSchedule {
@@ -53,45 +51,39 @@ pub struct RenderedSchedule {
     pub enabled: bool,
 }
 
-/// A task the backend holds: whether it will fire, and whether this profile made it (Windows
-/// checks its definition; the other backends' namespaces are per user).
+/// A task the ticker holds, and whether it will fire.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Registration {
     pub task_id: String,
     pub enabled: bool,
-    pub owned: bool,
 }
 
+/// What the scheduler needs of its backend. One type implements it — [`ticker::TickerBackend`] —
+/// and the seam is what keeps the registration store behind a contract rather than spread through
+/// the functions below.
 pub trait SchedulerBackend: Send + Sync {
-    /// Create or overwrite the OS artifact in `rendered.enabled`'s state. Idempotent.
+    /// Create or overwrite the task's registration in `rendered.enabled`'s state. Idempotent.
     fn install(&self, task_id: &str, rendered: &RenderedSchedule) -> Result<(), String>;
-    /// Remove the OS artifact. Idempotent (missing artifacts are not an error).
+    /// Remove the registration. Idempotent (a missing one is not an error).
     fn uninstall(&self, task_id: &str) -> Result<(), String>;
     fn set_enabled(&self, task_id: &str, enabled: bool) -> Result<(), String>;
     fn run_now(&self, task_id: &str) -> Result<(), String>;
     fn is_installed(&self, task_id: &str) -> Result<InstallState, String>;
-    /// Everything of ours the backend holds, in one go (cron: one crontab read; launchd: its
-    /// two folders; Windows: one listing and each task's definition). An error means the
-    /// backend could not be inspected, and nothing may be concluded from it.
+    /// Everything of ours it holds, in one read. An error means it could not be inspected, and
+    /// nothing may be concluded from it.
     fn inventory(&self) -> Result<Vec<Registration>, String>;
-    /// A user-visible reason the task won't fire even though it is installed and enabled —
-    /// state the backend's own enabled model cannot see (macOS: the background item toggled off
-    /// in System Settings unloads the agent while the plist stays in LaunchAgents). None = healthy.
-    fn health_warning(&self, _task_id: &str) -> Option<String> {
-        None
-    }
 }
 
-/// The one backend: the in-process ticker. This server is a long-running daemon (a container
-/// may have no cron at all), so tasks fire from its own minute loop.
+/// The backend: the in-process ticker. This server is a long-running daemon, so tasks fire from
+/// its own minute loop and nothing is registered with the operating system.
 pub fn backend(dirs: &DataDir) -> Result<Box<dyn SchedulerBackend>, String> {
     Ok(Box::new(ticker::TickerBackend::new(dirs)))
 }
 
-/// Serializes every scheduler mutation across the process. The hidden main window's startup
-/// reconcile and an edit from the Settings webview otherwise interleave their whole-crontab
-/// read-modify-write and silently drop each other's entry (healed only at the next reconcile).
-/// The runner process is covered separately by the crontab file lock (crontab.rs).
+/// Serializes every scheduler mutation across the process. A registration is two writes — the
+/// job file and the ticker's artifact — and the startup reconcile, a settings page and the
+/// ticker's own sweep would otherwise interleave them, leaving a task with one and not the
+/// other. Each run is covered separately by its own file lock (history::acquire_lock).
 static MUTATION_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn mutation_guard() -> std::sync::MutexGuard<'static, ()> {
@@ -100,15 +92,7 @@ fn mutation_guard() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Every backend a task could be registered in — used for teardown (unregister, orphan sweep).
-fn all_backends(dirs: &DataDir) -> Vec<Box<dyn SchedulerBackend>> {
-    match backend(dirs) {
-        Ok(b) => vec![b],
-        Err(_) => Vec::new(),
-    }
-}
-
-/// Task ids become crontab markers, schtasks task names, and file names — never trust them,
+/// Task ids become file names — never trust them,
 /// even though the app generates UUIDs.
 pub fn sanitize_id(task_id: &str) -> Result<String, String> {
     if task_id.is_empty() || task_id.len() > 64 {
@@ -124,7 +108,7 @@ pub fn sanitize_id(task_id: &str) -> Result<String, String> {
     Ok(task_id.to_string())
 }
 
-/// The path the OS scheduler should invoke — stable across app restarts and updates.
+/// The path a registration invokes — stable across restarts and updates.
 pub fn registered_invocation() -> Result<PathBuf, String> {
     std::env::current_exe().map_err(|e| format!("cannot resolve app path: {}", e))
 }
@@ -146,12 +130,7 @@ fn render(dirs: &DataDir, spec: &JobSpec, enabled: bool) -> Result<RenderedSched
 
     let mut args = Vec::new();
     let program = registered_invocation()?;
-    args.extend([
-        "run-task".to_string(),
-        spec.task_id.clone(),
-        "--host".to_string(),
-        spec.host_id.clone(),
-    ]);
+    args.extend(["run-task".to_string(), spec.task_id.clone()]);
     args.extend(data_dir_args(dirs));
 
     Ok(RenderedSchedule {
@@ -216,23 +195,18 @@ pub fn scheduler_validate_cron(_ctx: &Ctx, cron: String) -> Result<CronValidatio
     })
 }
 
-/// UPSERT: write the job file and (re)install the OS artifact in the given enabled state (one
-/// operation — no separate set_enabled step to half-fail). The backend depends on the run mode
-/// (macOS user → launchd, else crontab/schtasks); a mode flip first uninstalls the old artifact
-/// from the other backend so the task never fires twice.
+/// UPSERT: write the job file and (re)install the registration in the given enabled state (one
+/// operation — no separate set_enabled step to half-fail). There is one backend, the server's own
+/// minute ticker, so nothing has to be uninstalled from another one first.
 pub fn scheduler_register(ctx: &Ctx, spec: JobSpec, enabled: bool) -> Result<(), String> {
     let dirs = ctx.dirs.clone();
 
     sanitize_id(&spec.task_id)?;
-    sanitize_id(&spec.host_id)?;
     if spec.schema_version != jobfile::JOB_SCHEMA_VERSION {
         return Err(format!(
             "unsupported job schema version {}",
             spec.schema_version
         ));
-    }
-    if spec.host_id != "local" {
-        return Err("Scheduling is only supported for the local host".to_string());
     }
     if spec.requests.is_empty() {
         return Err("The task produced no rclone requests".to_string());
@@ -252,22 +226,17 @@ pub fn scheduler_register(ctx: &Ctx, spec: JobSpec, enabled: bool) -> Result<(),
     Ok(())
 }
 
-pub fn scheduler_unregister(ctx: &Ctx, task_id: String, host_id: String) -> Result<(), String> {
+pub fn scheduler_unregister(ctx: &Ctx, task_id: String) -> Result<(), String> {
     let dirs = ctx.dirs.clone();
     let task_id = sanitize_id(&task_id)?;
-    let host_id = sanitize_id(&host_id)?;
     let _guard = mutation_guard();
-    // Uninstall from every backend (macOS covers both launchd and crontab) so the task is
-    // removed regardless of the mode it was registered under. The job file is removed even
-    // when an OS-level uninstall fails: a surviving trigger self-heals on its next fire (the
-    // runner finds no job file, removes the trigger, and exits).
-    let mut uninstall_result = Ok(());
-    for backend in all_backends(&dirs) {
-        if let Err(e) = backend.uninstall(&task_id) {
-            uninstall_result = Err(e);
-        }
-    }
-    jobfile::remove(&dirs, &host_id, &task_id);
+    // The job file is removed even when the uninstall fails: a surviving registration self-heals
+    // on its next fire (the runner finds no job file, removes it, and exits).
+    let uninstall_result = match backend(&dirs) {
+        Ok(backend) => backend.uninstall(&task_id),
+        Err(e) => Err(e),
+    };
+    jobfile::remove(&dirs, &task_id);
     history::remove_all(&dirs, &task_id);
     uninstall_result
 }
@@ -304,60 +273,47 @@ pub struct TaskStatus {
     pub enabled: bool,
     pub running: bool,
     pub last_finished: Option<serde_json::Value>,
-    /// Backend health warning (see `SchedulerBackend::health_warning`).
+    /// Why the task's state could not be established, when it could not be.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub warning: Option<String>,
 }
 
-/// A backend and what it holds (task id → enabled), or why it could not be inspected.
-type Inventory = Result<(Box<dyn SchedulerBackend>, HashMap<String, bool>), String>;
+/// What the ticker holds (task id → enabled), or why it could not be read.
+type Inventory = Result<HashMap<String, bool>, String>;
 
 fn take_inventory(dirs: &DataDir) -> Inventory {
-    let backend = backend(dirs)?;
-    let held = backend
+    Ok(backend(dirs)?
         .inventory()?
         .into_iter()
         .map(|r| (r.task_id, r.enabled))
-        .collect();
-    Ok((backend, held))
+        .collect())
 }
 
-/// (installed, enabled, warning) for one task from its backend's inventory. An inspection
-/// failure is reported as such, never as "not installed".
+/// (installed, enabled, warning) for one task. A read failure is reported as such, never as
+/// "not installed".
 fn install_state_of(inventory: &Inventory, task_id: &str) -> (bool, bool, Option<String>) {
     match inventory {
-        Ok((_, held)) => match held.get(task_id) {
+        Ok(held) => match held.get(task_id) {
             Some(enabled) => (true, *enabled, None),
             None => (false, false, None),
         },
         Err(e) => (
             false,
             false,
-            Some(format!(
-                "The system scheduler could not be inspected: {}",
-                e
-            )),
+            Some(format!("The schedules could not be read: {}", e)),
         ),
     }
 }
 
-pub fn scheduler_status(ctx: &Ctx, host_id: String) -> Result<Vec<TaskStatus>, String> {
-    // Blocking by design: shells out to crontab/schtasks, once per backend.
+pub fn scheduler_status(ctx: &Ctx) -> Result<Vec<TaskStatus>, String> {
     let dirs = ctx.dirs.clone();
-    let host_id = sanitize_id(&host_id)?;
 
-    // The backend's inventory, taken the first time a task needs it.
+    // What the ticker holds, read the first time a task needs it.
     let mut taken: Option<Inventory> = None;
     let mut statuses = Vec::new();
-    for spec in jobfile::list(&dirs, &host_id) {
+    for spec in jobfile::list(&dirs) {
         let inventory = taken.get_or_insert_with(|| take_inventory(&dirs));
-        let (installed, enabled, inspection) = install_state_of(inventory, &spec.task_id);
-        let warning = inspection.or_else(|| {
-            inventory
-                .as_ref()
-                .ok()
-                .and_then(|(backend, _)| backend.health_warning(&spec.task_id))
-        });
+        let (installed, enabled, warning) = install_state_of(inventory, &spec.task_id);
 
         let running = history::is_running(&dirs, &spec.task_id);
         let lines = history::read(&dirs, &spec.task_id, 20);
@@ -368,7 +324,7 @@ pub fn scheduler_status(ctx: &Ctx, host_id: String) -> Result<Vec<TaskStatus>, S
         };
         // Newest-first: the latest started/finished event is the latest ATTEMPT. A started
         // with no finished and no live lock is a run that died without writing its terminal
-        // record (crash, SIGKILL, power loss, Task Scheduler hard timeout) — surfacing the
+        // record (crash, SIGKILL, power loss, the run's own time limit) — surfacing the
         // older success (or "Never") instead would hide the interruption.
         let newest_attempt = lines.iter().find(|line| {
             matches!(
@@ -461,24 +417,26 @@ pub fn scheduler_read_history(
     Ok(history::read(&dirs, &task_id, limit.unwrap_or(50)))
 }
 
-/// Remove every registration this app ever made (Settings escape hatch / pre-uninstall cleanup).
-/// Sweeps both job files and orphaned OS artifacts by prefix.
+/// Remove every registration this server ever made (Settings escape hatch / pre-uninstall
+/// cleanup). Sweeps job files and orphaned registrations alike.
 pub fn scheduler_unregister_all(ctx: &Ctx) -> Result<u32, String> {
     let dirs = ctx.dirs.clone();
     let _guard = mutation_guard();
-    let backends = all_backends(&dirs);
+    let backend = backend(&dirs).ok();
     let mut removed: u32 = 0;
 
     let jobs_root = dirs.root.join("scheduler").join("jobs");
     if let Ok(host_dirs) = std::fs::read_dir(&jobs_root) {
         for host_dir in host_dirs.flatten() {
-            let host_id = host_dir.file_name().to_string_lossy().to_string();
-            for spec in jobfile::list(&dirs, &host_id) {
-                // Uninstall from every backend (macOS: launchd + crontab).
-                if backends.iter().any(|b| b.uninstall(&spec.task_id).is_ok()) {
+            let host_dir = host_dir.file_name().to_string_lossy().to_string();
+            for spec in jobfile::list_in(&dirs, &host_dir) {
+                if backend
+                    .as_ref()
+                    .is_some_and(|b| b.uninstall(&spec.task_id).is_ok())
+                {
                     removed += 1;
                 }
-                jobfile::remove(&dirs, &host_id, &spec.task_id);
+                jobfile::remove_in(&dirs, &host_dir, &spec.task_id);
                 history::remove_all(&dirs, &spec.task_id);
             }
         }
@@ -512,34 +470,30 @@ fn registered_task_ids(dirs: &DataDir) -> std::collections::HashSet<String> {
     ids
 }
 
-/// Sweep OS artifacts that have NO job file, across every backend on this platform (macOS:
-/// crontab + launchd). These leftovers appear when an OS-level uninstall fails after the job
-/// file was removed; a DISABLED leftover never fires, so the runner's fire-time self-heal can
-/// never reach it — this sweep is the only thing that does.
+/// Sweep registrations that have NO job file. These leftovers appear when an uninstall fails
+/// after the job file was removed; a DISABLED leftover never fires, so the runner's fire-time
+/// self-heal can never reach it — this sweep is the only thing that does.
 fn sweep_orphans(dirs: &DataDir) -> u32 {
-    sweep_backends(&all_backends(dirs), &registered_task_ids(dirs))
+    match backend(dirs) {
+        Ok(backend) => sweep_backend(backend.as_ref(), &registered_task_ids(dirs)),
+        Err(_) => 0,
+    }
 }
 
-/// Uninstalls, on each backend, what it holds beyond `keep`. A backend that cannot be inspected
-/// is left alone (an inspection failure never authorises a deletion), and only what this
-/// profile made is touched.
-pub(crate) fn sweep_backends(
-    backends: &[Box<dyn SchedulerBackend>],
-    keep: &HashSet<String>,
-) -> u32 {
+/// Uninstalls what the backend holds beyond `keep`. A backend that cannot be inspected is left
+/// alone: a read failure never authorises a deletion.
+pub(crate) fn sweep_backend(backend: &dyn SchedulerBackend, keep: &HashSet<String>) -> u32 {
+    let Ok(registrations) = backend.inventory() else {
+        return 0;
+    };
     let mut removed = 0;
-    for backend in backends {
-        let Ok(registrations) = backend.inventory() else {
+    for registration in registrations {
+        let id = registration.task_id;
+        if keep.contains(&id) || sanitize_id(&id).is_err() {
             continue;
-        };
-        for registration in registrations {
-            let id = registration.task_id;
-            if keep.contains(&id) || !registration.owned || sanitize_id(&id).is_err() {
-                continue;
-            }
-            if backend.uninstall(&id).is_ok() {
-                removed += 1;
-            }
+        }
+        if backend.uninstall(&id).is_ok() {
+            removed += 1;
         }
     }
     removed
@@ -549,16 +503,18 @@ pub(crate) fn sweep_backends(
 mod inventory_tests {
     use super::*;
 
-    /// An uninspectable backend reports itself, rather than every task as "not installed".
+    /// A backend that cannot be read reports itself, rather than every task as "not installed".
     #[test]
     fn an_inspection_failure_is_a_warning_not_an_absence() {
-        let failed: Inventory = Err("crontab -l failed: not allowed".into());
+        let failed: Inventory = Err("the ticker directory could not be read".into());
         let (installed, enabled, warning) = install_state_of(&failed, "t1");
         assert!(!installed && !enabled);
-        assert!(warning.unwrap().contains("not allowed"));
+        assert!(warning
+            .unwrap()
+            .contains("the ticker directory could not be read"));
     }
 
-    /// A backend that cannot be inspected keeps its artifacts; nothing is swept on a guess.
+    /// A backend that cannot be read keeps its registrations; nothing is swept on a guess.
     #[test]
     fn a_failed_inventory_sweeps_nothing() {
         struct Broken(std::sync::Mutex<u32>);
@@ -583,14 +539,15 @@ mod inventory_tests {
                 Err("service unavailable".into())
             }
         }
-        let backends: Vec<Box<dyn SchedulerBackend>> =
-            vec![Box::new(Broken(std::sync::Mutex::new(0)))];
-        assert_eq!(sweep_backends(&backends, &HashSet::new()), 0);
+        assert_eq!(
+            sweep_backend(&Broken(std::sync::Mutex::new(0)), &HashSet::new()),
+            0
+        );
     }
 }
 
 /// Startup-reconcile hook for the sweep above. Runs AFTER the reconcile has re-registered every
-/// stored task (their job files then exist and protect their artifacts).
+/// stored task (their job files then exist and protect their registrations).
 pub fn scheduler_sweep_orphans(ctx: &Ctx) -> Result<u32, String> {
     let dirs = ctx.dirs.clone();
     let _guard = mutation_guard();

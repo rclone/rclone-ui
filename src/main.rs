@@ -68,9 +68,12 @@ struct CliServe {
 }
 
 fn main() {
-    // Headless scheduled-task mode, identical to the desktop binary's: `run-task <taskId>
-    // [--host <hostId>] [--data-dir X]`. Handled before any runtime or server state
-    // exists so the child behaves exactly like the desktop's runner.
+    // Headless scheduled-task mode: `run-task <taskId> [--data-dir X]`. Handled before any
+    // runtime or server state exists so the child stays as small as it looks.
+    //
+    // A schedule registered by an older build still carries `--host local` in its stored
+    // invocation until the startup reconcile re-renders it, so unknown flags are stepped over
+    // rather than rejected: refusing them would break every existing schedule on its next fire.
     let args: Vec<String> = std::env::args().collect();
     if args.len() >= 3 && args[1] == "run-task" {
         let _ = fix_path_env::fix();
@@ -81,11 +84,9 @@ fn main() {
                 .cloned()
         };
         let task_id = args[2].clone();
-        let host_id = flag_value("--host").unwrap_or_else(|| "local".to_string());
         let data_dir = flag_value("--data-dir");
         std::process::exit(rclone_ui_server::scheduler::runner::run(
             &task_id,
-            &host_id,
             data_dir.as_deref(),
         ));
     }
@@ -149,6 +150,21 @@ async fn run(cli: CliServe) -> Result<(), String> {
     };
     let log_file = rclone_ui_server::logging::init(&log_dir);
     log::info!("logging to {}", log_file.display());
+    // An upgrade from a build that shared the desktop app's directory: say where the accounts
+    // went rather than starting empty and looking like data loss.
+    if cli.data_dir.is_none() {
+        if let Some(former) = rclone_ui_server::datadir::former_data_dir(&dirs.root) {
+            log::warn!(
+                "this server previously stored its data in {} and is now using {}. Nothing was \
+                 moved: that directory may belong to the desktop app. To keep the old accounts \
+                 and settings, stop the server and either move it across or start with \
+                 --data-dir {}",
+                former.display(),
+                dirs.root.display(),
+                former.display()
+            );
+        }
+    }
     if let Some(cleared) = cleared {
         log::warn!(
             "--clear: removed {} entries under {}; starting from scratch",

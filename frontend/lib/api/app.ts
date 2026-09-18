@@ -1,5 +1,6 @@
-// The app's process and platform integration: version, quit/relaunch, self-update, start on
-// boot, OS toasts, and the lifecycle (the rclone daemon the server manages).
+// The app's process and platform integration: version, quit/relaunch, self-update, and the
+// lifecycle (the rclone daemon the server manages). Starting at boot is the operator's job,
+// through whatever supervisor runs the server.
 
 import { rpc, stream } from './rpc'
 
@@ -36,14 +37,11 @@ export async function updateInstall(
     )
     handle.unsubscribe()
 }
-export const autostartGet = () => rpc<boolean>('autostart_get')
-export const autostartSet = (enabled: boolean) => rpc<null>('autostart_set', { enabled })
-export const osNotify = (title: string, body: string) => rpc<boolean>('os_notify', { title, body })
-/** The dialog is one at a time across windows; a remote is its host plus its name. */
-export const claimReconnectDialog = (host: string, remote: string) =>
-    rpc<boolean>('claim_reconnect_dialog', { host, remote })
-export const releaseReconnectDialog = (host: string, remote: string) =>
-    rpc<null>('release_reconnect_dialog', { host, remote })
+/** The dialog is one at a time across pages, per remote. */
+export const claimReconnectDialog = (remote: string) =>
+    rpc<boolean>('claim_reconnect_dialog', { remote })
+export const releaseReconnectDialog = (remote: string) =>
+    rpc<null>('release_reconnect_dialog', { remote })
 
 // --- lifecycle ---------------------------------------------------------------------------
 
@@ -68,7 +66,6 @@ export interface Status {
     startup: 'initializing' | 'updating' | 'updated' | 'initialized' | 'error' | 'fatal' | null
     daemon: { url: string } | null
     tunnel: { url: string; user?: string; pass?: string } | null
-    currentHostId: string | null
 }
 
 export async function status(): Promise<Status> {
@@ -85,8 +82,8 @@ export const rclonePassword = (configId: string, pass: string) =>
 
 // --- downloads ----------------------------------------------------------------------
 
-export const downloadLink = (hostId: string, fs: string, remote: string) =>
-    rpc<string>('download_link', { hostId, fs, remote })
+export const downloadLink = (fs: string, remote: string) =>
+    rpc<string>('download_link', { fs, remote })
 
 // --- third-party fetches the server makes on the page's behalf ---------------------------
 

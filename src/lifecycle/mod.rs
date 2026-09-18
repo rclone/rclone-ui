@@ -26,7 +26,7 @@ use crate::notifications::webhooks;
 use crate::rc::{self, RcClient};
 use crate::rt;
 use crate::scheduler::storeread;
-use crate::state_files::{host_doc, StateStore, APP_DOC};
+use crate::state_files::{StateStore, APP_DOC, HOST_DOC};
 use crate::transfers::service::TransferService;
 use crate::zookeeper::{self, RcloneEvent};
 use interaction::{ask, Decision, Question, SharedInteraction};
@@ -253,7 +253,7 @@ impl Supervisor {
             ("syncConfigLinkTarget", overrides.sync_config_link_target),
         ];
         if host_updates.iter().any(|(_, v)| v.is_some()) {
-            let result = self.store.update(&host_doc("local"), |s| {
+            let result = self.store.update(HOST_DOC, |s| {
                 for (key, value) in host_updates {
                     if let Some(value) = value {
                         s.insert(key.to_string(), value);
@@ -402,7 +402,6 @@ impl Supervisor {
             .unwrap_or_default();
 
         *self.target.write().unwrap() = Some(target);
-        self.write_back_local_host(&version);
         self.set_phase(Phase::Ready {
             pid,
             port,
@@ -424,44 +423,6 @@ impl Supervisor {
             tokio::spawn(async move { mounts::startup_mounts(&ctx, &client).await });
         }
         Ok(close_rx)
-    }
-
-    /// `hosts[local].cliVersion/os`, which the pages show (main.ts's checkRclone did this).
-    fn write_back_local_host(&self, version: &str) {
-        let version = version.to_string();
-        let os = match std::env::consts::OS {
-            "macos" => "macos",
-            "windows" => "windows",
-            _ => "linux",
-        };
-        let result = self.store.update(APP_DOC, |s| {
-            let hosts = s.entry("hosts").or_insert_with(|| Value::Array(Vec::new()));
-            let Some(list) = hosts.as_array_mut() else {
-                return;
-            };
-            match list
-                .iter_mut()
-                .find(|h| h.get("id").and_then(Value::as_str) == Some("local"))
-            {
-                Some(local) => {
-                    local["cliVersion"] = Value::String(version.clone());
-                    local["os"] = Value::String(os.into());
-                }
-                None => list.push(json!({
-                    "id": "local",
-                    "name": "Local Machine",
-                    "url": "http://localhost:5572",
-                    "os": os,
-                    "cliVersion": version,
-                })),
-            }
-            if s.get("currentHostId").map(Value::is_null).unwrap_or(true) {
-                s.insert("currentHostId".into(), Value::String("local".into()));
-            }
-        });
-        if let Err(e) = result {
-            log::warn!("[lifecycle] could not update the local host entry: {}", e);
-        }
     }
 
     async fn crashed(&self, event: &RcloneEvent, attempts: u32) {
@@ -502,7 +463,7 @@ impl Supervisor {
 /// marker still recorded, remove the link we own. A no-op when both are clear.
 async fn reconcile_config_sync(ctx: &Ctx, store: &StateStore) {
     // An unreadable host document is not "sync off": leave the link alone and say so.
-    let host_state = match store.state_or_error(&host_doc("local")) {
+    let host_state = match store.state_or_error(HOST_DOC) {
         Ok(state) => state,
         Err(e) => {
             log::warn!(
@@ -524,7 +485,7 @@ async fn reconcile_config_sync(ctx: &Ctx, store: &StateStore) {
     if !intent && marker.is_none() {
         return;
     }
-    let Ok(host) = storeread::read_host(&ctx.dirs, "local") else {
+    let Ok(host) = storeread::read_host(&ctx.dirs) else {
         return;
     };
     let active_id = host
@@ -559,7 +520,7 @@ async fn reconcile_config_sync(ctx: &Ctx, store: &StateStore) {
                 .backup_path
                 .clone()
                 .filter(|_| status.default_backed_up);
-            let _ = store.update(&host_doc("local"), |s| {
+            let _ = store.update(HOST_DOC, |s| {
                 s.insert("syncConfigToSystem".into(), Value::Bool(intent));
                 s.insert(
                     "syncConfigLinkTarget".into(),

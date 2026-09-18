@@ -1,7 +1,7 @@
-//! The in-process scheduler backend: instead of an OS artifact, each registered task gets a
-//! small state file, and a tick loop in the server process fires due tasks at the top of each
-//! minute by spawning `<this binary> run-task …` — the very same child the OS schedulers spawn,
-//! so `runner.rs` (locking, history, webhooks, SIGTERM handling) is reused unchanged.
+//! The scheduler backend: each registered task gets a small state file, and a tick loop in the
+//! server process fires the due ones at the top of every minute by spawning
+//! `<this binary> run-task …`. The server is already running when a task comes due, so nothing
+//! has to be registered with the operating system for it to fire.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -155,7 +155,6 @@ impl SchedulerBackend for TickerBackend {
                 out.push(Registration {
                     task_id: id.to_string(),
                     enabled: artifact.enabled,
-                    owned: true,
                 });
             }
         }
@@ -180,7 +179,7 @@ pub async fn run_ticker(dirs: DataDir) {
             now.month() as u16,
             now.weekday().num_days_from_sunday() as u16,
         );
-        for spec in jobfile::list(&dirs, "local") {
+        for spec in jobfile::list(&dirs) {
             let artifact = match read_artifact(&dirs, &spec.task_id) {
                 Ok(Some(artifact)) if artifact.enabled => artifact,
                 Ok(_) => continue,
@@ -242,13 +241,11 @@ mod tests {
             vec![Registration {
                 task_id: "t1".into(),
                 enabled: false,
-                owned: true,
             }]
         );
         let mut keep = HashSet::new();
         keep.insert("other".to_string());
-        let backends: Vec<Box<dyn SchedulerBackend>> = vec![Box::new(TickerBackend::new(&dirs))];
-        assert_eq!(crate::scheduler::sweep_backends(&backends, &keep), 1);
+        assert_eq!(crate::scheduler::sweep_backend(&backend, &keep), 1);
         assert_eq!(
             backend.is_installed("t1").unwrap(),
             InstallState::NotInstalled

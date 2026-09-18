@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import rclone from '../../../lib/rclone/client.ts'
 import { useHostStore } from '../../../store/host.ts'
-import { useCurrentHost } from '../../../store/persisted.ts'
 import type {
     AllowedKey,
     Entry,
@@ -55,7 +54,6 @@ export default function useFileNavigation({
     isActive?: boolean
 }) {
     const favoritePaths = useHostStore((state) => state.favoritePaths)
-    const currentHost = useCurrentHost()
 
     const remotesQuery = useQuery({
         queryKey: ['remotes', 'list', 'all'],
@@ -530,7 +528,7 @@ export default function useFileNavigation({
             clearTimeout(timeoutId)
             controller.abort()
         }
-    }, [currentHost?.id, cwd, isActive, searchInSubfolders, searchTerm, refreshKey, selectedRemote])
+    }, [cwd, isActive, searchInSubfolders, searchTerm, refreshKey, selectedRemote])
 
     // Initialize once per activation. The guard is set inside the branches (the remotes branch
     // only once the list has loaded, so late data can still finish the job) — after that, dep

@@ -14,7 +14,6 @@ import { message } from '../../lib/api/dialog'
 import { openWindow } from '../../lib/api/windows'
 import { buildReadablePathMultiple, formatBytes } from '../../lib/format'
 import { useIsPreview } from '../../lib/preview'
-import { currentHostId } from '../../lib/rclone/client'
 import { ENDED, type TransferRow } from '../../lib/transfers/rows'
 import { useTransferRows } from '../../lib/transfers/useTransferRows'
 import { useHostStore } from '../../store/host'
@@ -47,10 +46,7 @@ export default function Transfers() {
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const acknowledgements = usePersistedStore((state) => state.acknowledgements)
     const scheduledTasks = useHostStore((state) => state.scheduledTasks)
-    // Re-read on a host switch: the list is one host's.
-    const hostId = currentHostId()
-
-    const { rows: transfers, query: transfersQuery } = useTransferRows(hostId)
+    const { rows: transfers, query: transfersQuery } = useTransferRows()
     // The open drawer follows its row: a transfer that ends while it is open stops being live.
     const selected = useMemo(
         () =>

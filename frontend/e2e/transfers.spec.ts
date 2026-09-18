@@ -11,7 +11,6 @@ import { ENDED, type LiveStats, isScheduled, toRows, totalsOf } from '../lib/tra
 const entry = (patch: Partial<TransferEntry>): TransferEntry => ({
     id: 't1',
     ts: '2026-01-01T00:00:00.000Z',
-    hostId: 'local',
     executeId: 'daemon-1',
     jobid: 4,
     operation: 'copy',

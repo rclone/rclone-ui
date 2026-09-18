@@ -5,13 +5,11 @@ export interface Capabilities {
     platform: string
     containerized: boolean
     updater: boolean
-    autostart: boolean
     mount: boolean
     scheduler: boolean
     processExit: boolean
     configSync: boolean
     pathIntegration: boolean
-    osNotifications: boolean
 }
 
 export interface BootPayload {
@@ -58,13 +56,11 @@ const FALLBACK: BootPayload = {
         platform: 'linux',
         containerized: false,
         updater: false,
-        autostart: false,
         mount: true,
         scheduler: true,
         processExit: false,
         configSync: false,
         pathIntegration: false,
-        osNotifications: false,
     },
     os: { platform: 'linux', family: 'unix', arch: 'x86_64', version: '', eol: '\n' },
     paths: {

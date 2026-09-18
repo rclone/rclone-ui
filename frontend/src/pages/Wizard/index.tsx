@@ -2,7 +2,6 @@ import { Button, Input, cn } from '@heroui/react'
 import { ArrowLeftIcon, RotateCcwIcon } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useReducer, useRef } from 'react'
 import { buildReadablePath } from '../../../lib/format'
-import { LOCAL_HOST_ID } from '../../../lib/hosts'
 import { useSchedulerSupported } from '../../../lib/scheduler'
 import MetadataMapper from '../../components/MetadataMapper'
 import { OPERATIONS } from '../../components/OperationGrid'
@@ -148,18 +147,14 @@ export default function Wizard() {
         heading.current?.focus({ preventScroll: true })
     }, [step])
 
-    // Schedules are OS-native and local-host-only; a timer card explains itself when it cannot
-    // be taken, so the step is the same everywhere.
-    const hostId = LOCAL_HOST_ID
+    // A timer card explains itself when it cannot be taken, so the step is the same everywhere.
     const support = useSchedulerSupported()
     const timerReason =
-        hostId !== LOCAL_HOST_ID
-            ? 'Schedules run on the local machine only.'
-            : support.data === undefined
-              ? 'Checking whether this machine can run schedules…'
-              : support.data.supported
-                ? undefined
-                : (support.data.reason ?? 'This machine cannot run schedules.')
+        support.data === undefined
+            ? 'Checking whether this machine can run schedules…'
+            : support.data.supported
+              ? undefined
+              : (support.data.reason ?? 'This machine cannot run schedules.')
 
     const info = infoFor(step, answers, { timerReason })
 

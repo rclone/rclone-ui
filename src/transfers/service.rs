@@ -45,18 +45,14 @@ const SAID_FIRST: Duration = Duration::from_secs(3);
 /// What a page may start through here. The builders emit nothing else (`lib/rclone/requests.ts`).
 const START_ENDPOINTS: &[&str] = &["/job/batch", "/sync/sync", "/sync/bisync"];
 
-pub const LOCAL: &str = "local";
-
-/// Builds an `RcClient` for a host id, `local` included (the server provides it).
-pub type HostResolver = Arc<dyn Fn(&str) -> Option<RcClient> + Send + Sync>;
+/// Builds an `RcClient` for the rclone daemon, once there is one to talk to.
+pub type DaemonResolver = Arc<dyn Fn() -> Option<RcClient> + Send + Sync>;
 
 /// What a page sends to start a transfer: the request its builders made, and what to remember
 /// about it.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StartRequest {
-    #[serde(default)]
-    pub host_id: Option<String>,
     pub operation: String,
     #[serde(default)]
     pub sources: Vec<String>,
@@ -101,7 +97,7 @@ pub struct TransferService {
     /// (`--rclone-url`) it outlives us like any remote host.
     managed_local: bool,
     watched: Mutex<HashMap<String, Watched>>,
-    resolver: RwLock<Option<HostResolver>>,
+    resolver: RwLock<Option<DaemonResolver>>,
 }
 
 /// The tags a page may give its transfer: short lowercase words, each once, and never
@@ -182,13 +178,13 @@ impl TransferService {
         })
     }
 
-    pub fn set_host_resolver(&self, resolver: HostResolver) {
+    pub fn set_daemon_resolver(&self, resolver: DaemonResolver) {
         *self.resolver.write().unwrap() = Some(resolver);
     }
 
-    fn client_for(&self, host: &str) -> Option<RcClient> {
+    fn client(&self) -> Option<RcClient> {
         let resolver = self.resolver.read().unwrap().clone()?;
-        resolver(host)
+        resolver()
     }
 
     /// What a previous process left open. A managed daemon died with that process, so its
@@ -197,7 +193,7 @@ impl TransferService {
     pub fn recover(&self) {
         for path in ledger::host_files(&self.ctx.dirs) {
             for started in ledger::open(&path) {
-                if started.host_id == LOCAL && self.managed_local {
+                if self.managed_local {
                     self.write_end(&started, State::Interrupted, None, None);
                 } else {
                     self.hold(started, false);
@@ -210,8 +206,7 @@ impl TransferService {
     pub fn daemon_stopped(&self) {
         let local: Vec<String> = {
             let watched = self.watched.lock().unwrap();
-            let on_local = watched.values().filter(|w| w.started.host_id == LOCAL);
-            on_local.map(|w| w.started.id.clone()).collect()
+            watched.values().map(|w| w.started.id.clone()).collect()
         };
         for watched in local.iter().filter_map(|id| self.claim(id)) {
             self.write_end(&watched.started, State::Interrupted, None, None);
@@ -219,32 +214,21 @@ impl TransferService {
     }
 
     /// How many running transfers a quit would stop: those of the daemon this process spawned.
-    /// A daemon it did not spawn (`--rclone-url`) and a remote host's carry on without it.
+    /// A daemon it did not spawn (`--rclone-url`) carries on without it.
     pub fn stopped_by_quit(&self) -> usize {
         if !self.managed_local {
             return 0;
         }
-        let watched = self.watched.lock().unwrap();
-        watched
-            .values()
-            .filter(|w| w.started.host_id == LOCAL)
-            .count()
+        self.watched.lock().unwrap().len()
     }
 
     pub async fn start(&self, request: StartRequest) -> Result<StartReply, String> {
-        let host_id = request
-            .host_id
-            .clone()
-            .filter(|host| !host.is_empty())
-            .unwrap_or_else(|| LOCAL.to_string());
-        // It names a file.
-        let host_id = crate::scheduler::sanitize_id(&host_id).map_err(|_| "invalid host id")?;
         let endpoint = request.request.endpoint.as_str();
         if !START_ENDPOINTS.contains(&endpoint) {
             return Err(format!("'{}' does not start a transfer", endpoint));
         }
         let client = self
-            .client_for(&host_id)
+            .client()
             .ok_or("the rclone daemon is not running yet")?;
 
         // One attempt: a start that is retried because its reply got lost runs twice.
@@ -260,14 +244,8 @@ impl TransferService {
             .unwrap_or_default()
             .as_millis();
         let started = Started {
-            id: format!(
-                "{}-{}-{}",
-                millis,
-                jobid,
-                &crate::rc::random_token(&host_id)[..6]
-            ),
+            id: format!("{}-{}-{}", millis, jobid, &crate::rc::random_token("id")[..6]),
             ts: now_iso(),
-            host_id,
             // Which daemon took it, in the same reply as the job's id.
             execute_id: submitted["executeId"]
                 .as_str()
@@ -339,7 +317,7 @@ impl TransferService {
     /// a tick that read that must find the transfer already spoken for, not record a failure.
     pub async fn stop(&self, id: &str) -> Result<(), String> {
         let mut watched = self.claim(id).ok_or("This transfer is not running.")?;
-        let stopped = match self.client_for(&watched.started.host_id) {
+        let stopped = match self.client() {
             Some(client) => client
                 .call("/job/stopgroup", &group_of(&watched.started))
                 .await
@@ -377,30 +355,24 @@ impl TransferService {
     /// host that is slow to answer holds up nobody but itself.
     async fn tick(self: &Arc<Self>) {
         let mut hosts = tokio::task::JoinSet::new();
-        for transfers in self.due().into_values() {
+        for started in self.due() {
             let service = Arc::clone(self);
-            hosts.spawn(async move {
-                for started in transfers {
-                    service.check(&started).await;
-                }
-            });
+            hosts.spawn(async move { service.check(&started).await });
         }
         while hosts.join_next().await.is_some() {}
     }
 
-    /// What a tick looks at, by host: everything watched but what is still being launched.
-    fn due(&self) -> HashMap<String, Vec<Started>> {
-        let mut by_host: HashMap<String, Vec<Started>> = HashMap::new();
+    /// What a tick looks at: everything watched but what is still being launched.
+    fn due(&self) -> Vec<Started> {
         let all = self.watched.lock().unwrap();
-        for watched in all.values().filter(|watched| !watched.launching) {
-            let host = by_host.entry(watched.started.host_id.clone());
-            host.or_default().push(watched.started.clone());
-        }
-        by_host
+        all.values()
+            .filter(|watched| !watched.launching)
+            .map(|watched| watched.started.clone())
+            .collect()
     }
 
     async fn check(&self, started: &Started) {
-        let Some(client) = self.client_for(&started.host_id) else {
+        let Some(client) = self.client() else {
             return self.unreachable(started, "its rclone daemon is not available");
         };
         let reply = probe(&client, "/job/status", &json!({ "jobid": started.jobid })).await;
@@ -538,7 +510,7 @@ impl TransferService {
     /// Records a transfer that just started and watches it. `launching`: its first look is
     /// `start`'s own ([`TransferService::launched`] hands it to the ticker).
     fn watch(&self, started: Started, launching: bool) {
-        let path = ledger::host_path(&self.ctx.dirs, &started.host_id);
+        let path = ledger::host_path(&self.ctx.dirs);
         if let Err(error) = ledger::append(&path, &Line::Started(started.clone())) {
             log::error!("[transfers] {} not recorded: {}", started.id, error);
         }
@@ -573,7 +545,7 @@ impl TransferService {
     fn changed(&self, started: &Started) {
         self.ctx.events.emit(
             "transfers.changed",
-            json!({ "hostId": started.host_id, "id": started.id }),
+            json!({ "id": started.id }),
         );
     }
 
@@ -585,7 +557,7 @@ impl TransferService {
         error: Option<String>,
         stats: Option<Stats>,
     ) {
-        let path = ledger::host_path(&self.ctx.dirs, &started.host_id);
+        let path = ledger::host_path(&self.ctx.dirs);
         let finished = Finished {
             id: started.id.clone(),
             ts: now_iso(),
@@ -647,11 +619,10 @@ mod tests {
         (TransferService::new(ctx, managed_local), dirs)
     }
 
-    fn started(id: &str, host: &str) -> Started {
+    fn started(id: &str) -> Started {
         Started {
             id: id.into(),
             ts: now_iso(),
-            host_id: host.into(),
             execute_id: "daemon-1".into(),
             jobid: 7,
             operation: "copy".into(),
@@ -679,8 +650,8 @@ mod tests {
         assert_eq!(tags(&["commander", "commander"]), ["commander"]);
     }
 
-    fn state_of(dirs: &DataDir, host: &str, id: &str) -> State {
-        ledger::list(dirs, host, 50)
+    fn state_of(dirs: &DataDir, id: &str) -> State {
+        ledger::list(dirs, 50)
             .into_iter()
             .find(|entry| entry.id == id)
             .map(|entry| entry.state)
@@ -694,62 +665,63 @@ mod tests {
     fn a_quit_would_stop_what_the_managed_daemon_is_running() {
         let (managed, dirs) = service("quit-managed", true);
         assert_eq!(managed.stopped_by_quit(), 0);
-        managed.watch(started("here", LOCAL), false);
-        managed.watch(started("there", "nas"), false);
-        assert_eq!(managed.stopped_by_quit(), 1, "a remote host's carry on");
+        managed.watch(started("here"), false);
+        managed.watch(started("there"), false);
+        assert_eq!(managed.stopped_by_quit(), 2);
         managed.give_up("here", State::Completed, None);
+        assert_eq!(managed.stopped_by_quit(), 1);
+        managed.give_up("there", State::Completed, None);
         assert_eq!(managed.stopped_by_quit(), 0);
         let _ = std::fs::remove_dir_all(&dirs.root);
 
         // A daemon this process did not spawn outlives it, and so do its transfers.
         let (external, dirs) = service("quit-external", false);
-        external.watch(started("here", LOCAL), false);
+        external.watch(started("here"), false);
         assert_eq!(external.stopped_by_quit(), 0);
         let _ = std::fs::remove_dir_all(&dirs.root);
     }
 
-    /// The managed daemon restarts (a setting changed, it crashed): its transfers went down with
-    /// it and say so, and a remote host's, which it never ran, are left alone.
+    /// The managed daemon restarts (a setting changed, it crashed): everything it was running
+    /// went down with it and says so.
     #[test]
     fn a_daemon_that_stops_interrupts_its_own_transfers() {
         let (service, dirs) = service("stopped", true);
-        service.watch(started("here", LOCAL), false);
-        service.watch(started("there", "nas"), false);
+        service.watch(started("here"), false);
+        service.watch(started("there"), false);
 
         service.daemon_stopped();
 
-        assert_eq!(state_of(&dirs, LOCAL, "here"), State::Interrupted);
-        assert_eq!(state_of(&dirs, "nas", "there"), State::Running);
-        assert!(is_watched(&service, "there"));
+        assert_eq!(state_of(&dirs, "here"), State::Interrupted);
+        assert_eq!(state_of(&dirs, "there"), State::Interrupted);
         assert!(!is_watched(&service, "here"));
+        assert!(!is_watched(&service, "there"));
         let _ = std::fs::remove_dir_all(&dirs.root);
     }
 
-    /// The server comes back after a crash. What its own daemon was running is over; what a
-    /// daemon it does not own was running may well not be, so that is watched again (and
-    /// whether that daemon is still the same one shows at the first look).
+    /// The server comes back after a crash. What its own daemon was running is over; a daemon it
+    /// does not own may well have carried on, so that is watched again (and whether it is still
+    /// the same daemon shows at the first look).
     #[test]
     fn a_restart_closes_what_the_managed_daemon_left_open_and_watches_the_rest() {
         let (first, dirs) = service("recover", true);
-        first.watch(started("here", LOCAL), false);
-        first.watch(started("there", "nas"), false);
+        first.watch(started("here"), false);
+        first.watch(started("there"), false);
         drop(first);
 
         let ctx = Ctx::new(dirs.clone(), Events::noop());
         let second = TransferService::new(ctx, true);
         second.recover();
 
-        assert_eq!(state_of(&dirs, LOCAL, "here"), State::Interrupted);
-        assert_eq!(state_of(&dirs, "nas", "there"), State::Running);
-        assert!(is_watched(&second, "there"));
+        assert_eq!(state_of(&dirs, "here"), State::Interrupted);
+        assert_eq!(state_of(&dirs, "there"), State::Interrupted);
 
         // With `--rclone-url` the local daemon is not ours either: it may have carried on.
         let (first, dirs_external) = service("recover-external", false);
-        first.watch(started("here", LOCAL), false);
+        first.watch(started("here"), false);
         drop(first);
         let external = TransferService::new(Ctx::new(dirs_external.clone(), Events::noop()), false);
         external.recover();
-        assert_eq!(state_of(&dirs_external, LOCAL, "here"), State::Running);
+        assert_eq!(state_of(&dirs_external, "here"), State::Running);
         let _ = std::fs::remove_dir_all(&dirs.root);
         let _ = std::fs::remove_dir_all(&dirs_external.root);
     }
@@ -760,7 +732,7 @@ mod tests {
     #[test]
     fn a_transfer_ends_once_and_a_stop_is_never_recorded_as_a_failure() {
         let (service, dirs) = service("stop", true);
-        service.watch(started("t", LOCAL), false);
+        service.watch(started("t"), false);
 
         // The stop, up to where it asks rclone.
         let claimed = service.claim("t").expect("it is being watched");
@@ -770,8 +742,8 @@ mod tests {
         // The stop, done.
         service.write_end(&claimed.started, State::Stopped, None, None);
 
-        assert_eq!(state_of(&dirs, LOCAL, "t"), State::Stopped);
-        assert_eq!(ledger::read(&ledger::host_path(&dirs, LOCAL)).len(), 2);
+        assert_eq!(state_of(&dirs, "t"), State::Stopped);
+        assert_eq!(ledger::read(&ledger::host_path(&dirs)).len(), 2);
         let _ = std::fs::remove_dir_all(&dirs.root);
     }
 
@@ -785,14 +757,14 @@ mod tests {
         assert!(is_lost(since, since + LOST_AFTER));
 
         let (service, dirs) = service("lost", false);
-        let transfer = started("t", "nas");
+        let transfer = started("t");
         service.watch(transfer.clone(), false);
         service.unreachable(&transfer, "connection refused");
         assert!(
             is_watched(&service, "t"),
             "the first silence is not the last"
         );
-        assert_eq!(state_of(&dirs, "nas", "t"), State::Running);
+        assert_eq!(state_of(&dirs, "t"), State::Running);
         let noticed =
             |service: &TransferService| service.watched.lock().unwrap()["t"].unreachable_since;
         assert!(noticed(&service).is_some());
@@ -810,15 +782,11 @@ mod tests {
     #[test]
     fn the_ticker_leaves_a_transfer_alone_while_it_is_being_launched() {
         let (service, dirs) = service("launching", true);
-        service.hold(started("fresh", LOCAL), true);
-        service.hold(started("going", LOCAL), false);
+        service.hold(started("fresh"), true);
+        service.hold(started("going"), false);
         let due = |service: &TransferService| -> Vec<String> {
-            let mut ids: Vec<String> = service
-                .due()
-                .into_values()
-                .flatten()
-                .map(|started| started.id)
-                .collect();
+            let mut ids: Vec<String> =
+                service.due().into_iter().map(|started| started.id).collect();
             ids.sort();
             ids
         };
@@ -833,7 +801,7 @@ mod tests {
     /// A stop has no duration from rclone; the id says when the transfer began.
     #[test]
     fn a_transfers_id_says_when_it_began() {
-        let mut old = started("1000-7-abcdef", LOCAL);
+        let mut old = started("1000-7-abcdef");
         assert!(elapsed_ms(&old) > 1_000_000);
         old.id = "not-ours".into();
         assert_eq!(elapsed_ms(&old), 0);
@@ -844,7 +812,7 @@ mod tests {
     #[test]
     fn the_request_is_kept_from_the_start_and_the_outcome_joins_it() {
         let (service, dirs) = service("details", true);
-        service.watch(started("t", LOCAL), false);
+        service.watch(started("t"), false);
         let request = RcRequest {
             endpoint: "/job/batch".into(),
             body: json!({ "inputs": [{ "_path": "sync/copy", "srcFs": "/a", "dstFs": "/b" }] }),

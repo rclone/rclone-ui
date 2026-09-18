@@ -13,17 +13,15 @@ import { toRows } from './rows'
  * line; the slow refetch is for the lines another process writes (a scheduled run). rclone is
  * asked for one thing, the live numbers of what is running here, and only while something is.
  */
-export function useTransferRows(
-    hostId: string,
-    { limit, enabled = true }: { limit?: number; enabled?: boolean } = {}
-) {
+export function useTransferRows({
+    limit,
+    enabled = true,
+}: { limit?: number; enabled?: boolean } = {}) {
     const queryClient = useQueryClient()
     const query = useQuery({
         queryKey:
-            limit === undefined
-                ? ['transfers', 'list', hostId]
-                : ['transfers', 'list', hostId, limit],
-        queryFn: () => transfersList(hostId, limit),
+            limit === undefined ? ['transfers', 'list'] : ['transfers', 'list', limit],
+        queryFn: () => transfersList(limit),
         refetchInterval: 5000,
         enabled,
     })

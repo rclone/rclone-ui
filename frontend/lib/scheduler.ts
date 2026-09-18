@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 
 import { useHostStore } from '../store/host'
 import type { ScheduledTask } from '../types/schedules'
-import { LOCAL_HOST_ID } from './hosts'
 import { describeSources } from './rclone/kinds'
 import {
     type RcRequest,
@@ -14,10 +13,8 @@ import { pathsFromArgs } from './rclone/templatePaths'
 import { rpc } from './api/rpc'
 
 // Orchestration between the zustand host store (task definitions — the source of truth) and the
-// Rust OS scheduler (registration reality). Registration is always an upsert, so the startup
-// reconcile() self-heals deleted OS artifacts, moved app bundles, and restored backups.
-//
-// Scheduling is LOCAL-HOST-ONLY: tasks stored under remote hosts stay inert.
+// server's scheduler (registration reality). Registration is always an upsert, so the startup
+// reconcile() self-heals a registration that was lost or never written.
 
 export interface SchedulerSupport {
     supported: boolean
@@ -27,7 +24,6 @@ export interface SchedulerSupport {
 export interface SchedulerJobSpec {
     schemaVersion: 1
     taskId: string
-    hostId: string
     name: string
     operation: ScheduledTask['operation']
     cron: string
@@ -64,7 +60,7 @@ export interface SchedulerTaskStatus {
 }
 
 export type SchedulerHistoryLine =
-    | { event: 'started'; runId: string; ts: string; pid: number; hostId: string }
+    | { event: 'started'; runId: string; ts: string; pid: number }
     | {
           event: 'finished'
           runId: string
@@ -126,8 +122,8 @@ export async function schedulerValidateCron(cron: string) {
     return rpc<CronValidation>('scheduler_validate_cron', { cron })
 }
 
-export async function schedulerStatus(hostId: string) {
-    return rpc<SchedulerTaskStatus[]>('scheduler_status', { hostId })
+export async function schedulerStatus() {
+    return rpc<SchedulerTaskStatus[]>('scheduler_status', {})
 }
 
 export async function schedulerReadHistory(taskId: string, limit?: number) {
@@ -151,7 +147,6 @@ function buildJobSpec(task: ScheduledTask): SchedulerJobSpec {
     return {
         schemaVersion: 1,
         taskId: task.id,
-        hostId: LOCAL_HOST_ID,
         name: task.name ?? task.operation,
         operation: task.operation,
         cron: task.cron,
@@ -187,9 +182,9 @@ async function assertSupported() {
 }
 
 /**
- * Creates a task, registers it with the OS scheduler, and returns its id. On registration
- * failure the task is kept (with the error stored on it) — never silently lost; the startup
- * reconcile retries. isEnabled always reflects user intent, never system state.
+ * Creates a task, registers it with the scheduler, and returns its id. On registration failure
+ * the task is kept (with the error stored on it) — never silently lost; the startup reconcile
+ * retries. isEnabled always reflects user intent, never the registration's state.
  */
 export async function createScheduledTask(input: {
     name: string
@@ -262,10 +257,7 @@ export async function createScheduledTask(input: {
     return id
 }
 
-/**
- * Updates a task and re-registers it (upsert). On a remote host this is a store-only edit —
- * remote tasks are inert in v1 and must never touch the local OS scheduler.
- */
+/** Updates a task and re-registers it (upsert). */
 export async function updateScheduledTask(
     id: string,
     patch: Partial<ScheduledTask>
@@ -296,17 +288,17 @@ export async function updateScheduledTask(
 }
 
 /**
- * Removes the task. The OS unregister removes the job file even when the OS-level uninstall
- * fails, so a surviving trigger self-heals on its next fire (the runner finds no job file,
- * removes the trigger, and exits). Remote-host tasks are store-only.
+ * Removes the task. Unregistering removes the job file even when the uninstall itself fails, so
+ * a surviving registration self-heals on its next fire (the runner finds no job file, removes
+ * the registration, and exits).
  */
 export async function removeScheduledTask(id: string): Promise<void> {
     {
         try {
-            await rpc('scheduler_unregister', { taskId: id, hostId: LOCAL_HOST_ID })
+            await rpc('scheduler_unregister', { taskId: id })
         } catch (error) {
             console.error(
-                '[scheduler] unregister failed; the trigger self-heals on next fire',
+                '[scheduler] unregister failed; the registration self-heals on next fire',
                 error
             )
         }
@@ -326,9 +318,8 @@ export async function setScheduledTaskEnabled(id: string, enabled: boolean): Pro
         return
     }
 
-    // Disabling a task whose registration failed: an OS artifact may STILL exist (a failed
-    // edit leaves the previous artifact active; a failed mode flip can leave one in the other
-    // backend). The Rust side sweeps every backend and treats "no artifact anywhere" as
+    // Disabling a task whose registration failed: a registration may STILL exist, because a
+    // failed edit leaves the previous one armed. The Rust side treats "nothing registered" as
     // success, so always ask it — a real disable failure must surface rather than leave the
     // task firing while the UI says paused.
     if (!enabled && task.registrationError) {

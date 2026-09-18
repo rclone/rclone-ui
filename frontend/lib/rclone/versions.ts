@@ -96,13 +96,13 @@ export async function deleteVersion(version: string): Promise<void> {
  */
 async function isRcloneBusy(): Promise<boolean> {
     try {
-        const entries = await transfersList('local')
+        const entries = await transfersList()
         // A scheduled run has a daemon of its own, which the switch does not restart.
         if (entries.some((entry) => entry.state === 'running' && !isScheduled(entry))) return true
     } catch (error) {
         console.warn('[isRcloneBusy] transfers_list failed', error)
     }
-    if (await isMoving('local')) return true
+    if (await isMoving()) return true
     try {
         const mounts = (await rcloneClient('/mount/listmounts')) as { mountPoints?: unknown[] }
         if ((mounts?.mountPoints?.length ?? 0) > 0) {

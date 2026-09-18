@@ -3,7 +3,6 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import { quit as exit } from '../lib/api/app'
 import { ask } from '../lib/api/dialog'
 import { putDoc, stateStorage, watchDoc } from '../lib/api/state'
-import { type Host, makeLocalHost } from '../lib/hosts'
 import { hasTemplatePaths } from '../lib/rclone/templatePaths'
 import type { SERVE_TYPES } from '../lib/rclone/constants'
 import type { ConfigFile } from '../types/config'
@@ -53,8 +52,6 @@ interface PersistedStateV1 {
 
     settingsPass: string | undefined
 
-    startOnBoot: boolean
-
     // Legacy v1 field; the v1→v2 migration never reads it (host stores own scheduling data).
     scheduledTasks: unknown[]
 
@@ -76,9 +73,6 @@ interface PersistedStateV1 {
 export type OnboardingStep = 'remote' | 'commander' | 'transfer' | 'team'
 
 interface PersistedStateV2 {
-    startOnBoot: boolean
-    setStartOnBoot: (startOnBoot: boolean) => void
-
     templates: Template[]
     addTemplate: (
         name: string,
@@ -121,9 +115,6 @@ interface PersistedStateV2 {
 export const usePersistedStore = create<PersistedStateV2>()(
     persist(
         (set) => ({
-            startOnBoot: false,
-            setStartOnBoot: (startOnBoot: boolean) => set((_) => ({ startOnBoot })),
-
             templates: [],
             addTemplate: (name, operation, options, paths) =>
                 set((state) => ({
@@ -329,7 +320,6 @@ export const usePersistedStore = create<PersistedStateV2>()(
                     }
 
                     return {
-                        startOnBoot: legacyState.startOnBoot || false,
                         templates: newTemplates,
                         appearance: {
                             app: 'dark',
@@ -338,9 +328,9 @@ export const usePersistedStore = create<PersistedStateV2>()(
                 }
 
                 if (version < 3) {
-                    // v2 stored the full current Host object; v3 stores just its id.
+                    // v2 stored a whole host object; there is one machine here, so it goes.
                     const { currentHost, ...rest } = persistedState as PersistedStateV2 & {
-                        currentHost?: Host | null
+                        currentHost?: unknown
                     }
                     return {
                         ...rest,
@@ -354,16 +344,6 @@ export const usePersistedStore = create<PersistedStateV2>()(
 )
 
 /** The one host this server serves: its own machine, reached through the managed daemon. */
-const LOCAL_HOST = makeLocalHost()
-
-export function selectCurrentHost(_state: PersistedStateV2): Host {
-    return LOCAL_HOST
-}
-
-export function useCurrentHost(): Host {
-    return LOCAL_HOST
-}
-
 // Another page or the server changed the document: reload it.
 watchDoc(
     () => APP_DOC,

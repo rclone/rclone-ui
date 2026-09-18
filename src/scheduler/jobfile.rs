@@ -28,7 +28,6 @@ pub struct RcRequest {
 pub struct JobSpec {
     pub schema_version: u32,
     pub task_id: String,
-    pub host_id: String,
     pub name: String,
     pub operation: String,
     pub cron: String,
@@ -40,12 +39,10 @@ pub struct JobSpec {
     /// Raise the transient daemon to INFO logging (per-transfer lines in the daemon log).
     #[serde(default)]
     pub verbose_logging: bool,
-    /// "user" (the default): only runs while the user is logged in — on Unix the runner gates on
-    /// an active session and borrows its context; on Windows the task uses the interactive logon
-    /// type. "system": runs even while logged out, but outside the login session (no OS keychain,
-    /// session-mounted drives, and on macOS cron's TCC attribution for protected folders).
-    /// Absent field = "user": the legacy in-app scheduler only ever ran inside the app session,
-    /// so migrated tasks keep their effective semantics.
+    /// Read, never acted on. It told the desktop app whether to register a task that fires while
+    /// logged out; a server is already running when the task is due, so there is no such choice
+    /// to make. Kept because job files written by the desktop app carry it, and refusing to read
+    /// them would lose the task.
     #[serde(default = "default_run_mode")]
     pub run_mode: String,
     /// What the task runs on, as the page shows it, for the transfer each run records. Absent
@@ -58,14 +55,6 @@ pub struct JobSpec {
     pub requests: Vec<RcRequest>,
 }
 
-impl JobSpec {
-    /// Anything that isn't explicitly "system" runs in user mode (the default, and the safer
-    /// interpretation for unknown values — it skips logged-out fires instead of failing them).
-    pub fn is_user_mode(&self) -> bool {
-        self.run_mode != "system"
-    }
-}
-
 fn default_max_run_seconds() -> u64 {
     DEFAULT_MAX_RUN_SECONDS
 }
@@ -74,16 +63,29 @@ fn default_run_mode() -> String {
     "user".to_string()
 }
 
-pub fn jobs_dir(dirs: &DataDir, host_id: &str) -> PathBuf {
-    dirs.root.join("scheduler").join("jobs").join(host_id)
+/// The directory job files have always been filed under. The server runs rclone on its own
+/// machine and nowhere else, so this is a fixed path segment, not a choice — but the layout is
+/// shared with the desktop app, which does have more than one, so the segment stays.
+pub const JOBS_DIR: &str = "local";
+
+/// Job files under one directory of the jobs root. Only [`scheduler_unregister_all`] passes
+/// anything but [`JOBS_DIR`], sweeping what an older multi-host install left behind.
+///
+/// [`scheduler_unregister_all`]: super::scheduler_unregister_all
+pub fn jobs_dir_of(dirs: &DataDir, dir: &str) -> PathBuf {
+    dirs.root.join("scheduler").join("jobs").join(dir)
 }
 
-pub fn job_path(dirs: &DataDir, host_id: &str, task_id: &str) -> PathBuf {
-    jobs_dir(dirs, host_id).join(format!("{}.json", task_id))
+pub fn jobs_dir(dirs: &DataDir) -> PathBuf {
+    jobs_dir_of(dirs, JOBS_DIR)
 }
 
-pub fn load(dirs: &DataDir, host_id: &str, task_id: &str) -> Result<JobSpec, String> {
-    let path = job_path(dirs, host_id, task_id);
+pub fn job_path(dirs: &DataDir, task_id: &str) -> PathBuf {
+    jobs_dir(dirs).join(format!("{}.json", task_id))
+}
+
+pub fn load(dirs: &DataDir, task_id: &str) -> Result<JobSpec, String> {
+    let path = job_path(dirs, task_id);
     let raw = std::fs::read_to_string(&path)
         .map_err(|e| format!("failed to read job file {}: {}", path.display(), e))?;
     let spec: JobSpec =
@@ -99,19 +101,27 @@ pub fn load(dirs: &DataDir, host_id: &str, task_id: &str) -> Result<JobSpec, Str
 
 /// Atomic write: temp file in the same directory, then rename over the target.
 pub fn save(dirs: &DataDir, spec: &JobSpec) -> Result<(), String> {
-    let target = jobs_dir(dirs, &spec.host_id).join(format!("{}.json", spec.task_id));
+    let target = jobs_dir(dirs).join(format!("{}.json", spec.task_id));
     let json = serde_json::to_string_pretty(spec).map_err(|e| e.to_string())?;
     crate::fsutil::write_atomic(&target, json.as_bytes())
         .map_err(|e| format!("failed to save job file: {}", e))
 }
 
-pub fn remove(dirs: &DataDir, host_id: &str, task_id: &str) {
-    let _ = std::fs::remove_file(job_path(dirs, host_id, task_id));
+pub fn remove(dirs: &DataDir, task_id: &str) {
+    remove_in(dirs, JOBS_DIR, task_id);
 }
 
-/// All job specs registered for a host (unreadable files skipped with a log line).
-pub fn list(dirs: &DataDir, host_id: &str) -> Vec<JobSpec> {
-    let dir = jobs_dir(dirs, host_id);
+pub fn remove_in(dirs: &DataDir, host_dir: &str, task_id: &str) {
+    let _ = std::fs::remove_file(jobs_dir_of(dirs, host_dir).join(format!("{}.json", task_id)));
+}
+
+/// Every registered job spec (unreadable files skipped with a log line).
+pub fn list(dirs: &DataDir) -> Vec<JobSpec> {
+    list_in(dirs, JOBS_DIR)
+}
+
+pub fn list_in(dirs: &DataDir, host_dir: &str) -> Vec<JobSpec> {
+    let dir = jobs_dir_of(dirs, host_dir);
     let Ok(entries) = std::fs::read_dir(&dir) else {
         return Vec::new();
     };

@@ -1,7 +1,37 @@
 use std::path::{Path, PathBuf};
 
-/// Must match tauri.conf.json `identifier`.
-pub const APP_IDENTIFIER: &str = "com.rclone.ui";
+/// This product's own directory name. The desktop app keeps [`FORMER_APP_IDENTIFIER`]; the two
+/// run on the same machine often enough (a workstation with both installed) that sharing one
+/// directory meant two products writing one another's state.
+pub const APP_IDENTIFIER: &str = "com.rclone.cloud";
+
+/// Where the server wrote before it had a name of its own — which is where the desktop app still
+/// writes. Only ever read to warn, never to adopt: see [`former_data_dir`].
+pub const FORMER_APP_IDENTIFIER: &str = "com.rclone.ui";
+
+/// A former data directory of *this* server, if there is one to point an upgrader at.
+///
+/// Recognised by `state/team.json`: accounts exist only in the server product, so a machine that
+/// merely has the desktop app installed never matches, and neither does a server that already has
+/// accounts of its own under the new name.
+///
+/// Deliberately not adopted or moved automatically. On a machine running both products that would
+/// silently take the desktop app's data — the precise collision the rename exists to end. An
+/// upgrader moves the directory or passes `--data-dir`.
+pub fn former_data_dir(root: &Path) -> Option<PathBuf> {
+    former_data_dir_in(dirs::data_local_dir().as_deref(), root)
+}
+
+/// [`former_data_dir`] against a given local data directory, so the rule can be tested without
+/// reading the machine's real one.
+fn former_data_dir_in(local: Option<&Path>, root: &Path) -> Option<PathBuf> {
+    let has_accounts = |dir: &Path| dir.join("state").join("team.json").is_file();
+    if has_accounts(root) {
+        return None;
+    }
+    let former = local?.join(FORMER_APP_IDENTIFIER);
+    (former != root && has_accounts(&former)).then_some(former)
+}
 
 /// The one directory every persistent thing lives under: state documents, accounts, schedules
 /// and their history, notification targets, rclone configs and binaries, the tunnel binary, the
@@ -124,6 +154,47 @@ mod tests {
         };
         assert_eq!(data.clear().unwrap(), 0);
         assert!(!data.root.exists());
+        std::fs::remove_dir_all(scratch).unwrap();
+    }
+
+    /// `<local>/com.rclone.ui` holding accounts, as an upgraded server's old directory would.
+    fn seed_former(local: &Path) -> PathBuf {
+        let former = local.join(FORMER_APP_IDENTIFIER);
+        std::fs::create_dir_all(former.join("state")).unwrap();
+        std::fs::write(former.join("state/team.json"), "{}").unwrap();
+        former
+    }
+
+    #[test]
+    fn a_former_directory_with_accounts_is_pointed_at() {
+        let scratch = scratch("former-found");
+        let former = seed_former(&scratch);
+        let root = scratch.join(APP_IDENTIFIER);
+        std::fs::create_dir_all(&root).unwrap();
+        assert_eq!(former_data_dir_in(Some(&scratch), &root), Some(former));
+        std::fs::remove_dir_all(scratch).unwrap();
+    }
+
+    #[test]
+    fn a_root_with_accounts_of_its_own_is_never_pointed_elsewhere() {
+        let scratch = scratch("former-settled");
+        seed_former(&scratch);
+        let root = scratch.join(APP_IDENTIFIER);
+        std::fs::create_dir_all(root.join("state")).unwrap();
+        std::fs::write(root.join("state/team.json"), "{}").unwrap();
+        assert_eq!(former_data_dir_in(Some(&scratch), &root), None);
+        std::fs::remove_dir_all(scratch).unwrap();
+    }
+
+    #[test]
+    fn the_desktop_apps_directory_is_not_a_former_server() {
+        // Only the server product has accounts, so a plain desktop install never matches and the
+        // server never invites anyone to point at the desktop app's data.
+        let scratch = scratch("former-desktop");
+        std::fs::create_dir_all(scratch.join(FORMER_APP_IDENTIFIER).join("state")).unwrap();
+        let root = scratch.join(APP_IDENTIFIER);
+        std::fs::create_dir_all(&root).unwrap();
+        assert_eq!(former_data_dir_in(Some(&scratch), &root), None);
         std::fs::remove_dir_all(scratch).unwrap();
     }
 

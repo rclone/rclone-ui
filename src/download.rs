@@ -16,7 +16,6 @@ const TTL: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Clone)]
 struct Target {
-    host: String,
     /// `[fs]/remote` as rclone's `--rc-serve` expects it, already percent-encoded.
     path: String,
     filename: String,
@@ -43,7 +42,7 @@ pub fn serve_path(fs: &str, remote: &str) -> String {
 }
 
 impl Downloads {
-    pub fn mint(&self, host: &str, fs: &str, remote: &str) -> String {
+    pub fn mint(&self, fs: &str, remote: &str) -> String {
         let mut tokens = self.tokens.lock().unwrap();
         let now = Instant::now();
         tokens.retain(|_, t| now.duration_since(t.minted) < TTL);
@@ -61,7 +60,6 @@ impl Downloads {
         tokens.insert(
             token.clone(),
             Target {
-                host: host.to_string(),
                 path: serve_path(fs, remote),
                 filename,
                 minted: now,
@@ -83,8 +81,8 @@ pub async fn handle(State(st): State<Shared>, Path(token): Path<String>, req: Re
     let Some(target) = st.downloads.get(&token) else {
         return (StatusCode::NOT_FOUND, "this download link has expired").into_response();
     };
-    let Some(daemon) = st.daemon_for(&target.host) else {
-        return crate::rc_proxy::unavailable(&target.host);
+    let Some(daemon) = st.local_daemon() else {
+        return crate::rc_proxy::unavailable();
     };
     let mut resp = crate::rc_proxy::forward(&daemon, req, &target.path).await;
     if resp.status().is_success() {

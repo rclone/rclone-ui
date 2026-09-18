@@ -14,12 +14,6 @@ use crate::scheduler::storeread::{self, MountOnStart};
 
 use super::notify;
 
-/// An OS toast, shown by the host (the server's `os_notify` hook) if it can.
-fn toast(ctx: &Ctx, title: &str, body: &str) {
-    ctx.events
-        .emit("os.toast", json!({ "title": title, "body": body }));
-}
-
 // ---------------------------------------------------------------------------
 // lib/paths.ts + lib/format.ts getFsInfo + lib/rclone/requests.ts serializeOptions
 // ---------------------------------------------------------------------------
@@ -644,7 +638,7 @@ pub async fn start_mount(
 
 /// main.ts `startupMounts`: probe each auto-mount source (with the same backoff), then mount it.
 pub async fn startup_mounts(ctx: &Ctx, client: &RcClient) {
-    let host = match storeread::read_host(&ctx.dirs, "local") {
+    let host = match storeread::read_host(&ctx.dirs) {
         Ok(host) => host,
         Err(_) => return,
     };
@@ -701,7 +695,6 @@ pub async fn startup_mounts(ctx: &Ctx, client: &RcClient) {
                 &body,
                 json!({ "source": source, "destination": mount_point, "error": error.trim_start_matches(AUTOMOUNT_SOURCE_ERROR) }),
             );
-            toast(ctx, "Automount skipped", &body);
             continue;
         }
 
@@ -716,14 +709,14 @@ pub async fn startup_mounts(ctx: &Ctx, client: &RcClient) {
                     )
                     .await
                 {
-                    log::warn!("[mounts] {} mounted but listing failed: {}", source, e);
-                    toast(
-                        ctx,
-                        "Automount warning",
-                        &format!(
-                            "{} mounted at {}, but listing it failed — the folder may appear empty until the connection recovers",
-                            source, mount_point
-                        ),
+                    // Log-only: the mount itself succeeded, so there is no mount.failed to
+                    // report, and a server has no desktop to toast at.
+                    log::warn!(
+                        "[mounts] {} mounted at {} but listing it failed ({}) — the folder may \
+                         appear empty until the connection recovers",
+                        source,
+                        mount_point,
+                        e
                     );
                 }
             }
@@ -736,7 +729,6 @@ pub async fn startup_mounts(ctx: &Ctx, client: &RcClient) {
                     &format!("Failed to mount {}: {}", source, error),
                     json!({ "source": source, "destination": mount_point, "error": error }),
                 );
-                toast(ctx, "Automount Error", &error);
             }
         }
     }

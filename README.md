@@ -39,7 +39,7 @@ Every flag has an environment variable.
 | `--bind` | `RCLONE_UI_BIND` | `127.0.0.1:5573` |
 | `--password` | `RCLONE_UI_PASSWORD` | required |
 | `--email` | `RCLONE_UI_EMAIL` | `admin@localhost` |
-| `--data-dir` | `RCLONE_UI_DATA_DIR` | the platform's local data dir + `com.rclone.ui` |
+| `--data-dir` | `RCLONE_UI_DATA_DIR` | the platform's local data dir + `com.rclone.cloud` |
 | `--rclone-path` | `RCLONE_UI_RCLONE_PATH` | the stored, system or downloaded binary |
 | `--rclone-url` | `RCLONE_UI_RCLONE_URL` | unset; manage the daemon instead |
 | `--no-automount` | `RCLONE_UI_NO_AUTOMOUNT` | off |
@@ -50,9 +50,9 @@ Anything but loopback needs a password, and `--clear` empties the data directory
 
 ## Data
 
-Everything persistent lives in the data directory: accounts (`state/team.json`), settings and
-hosts (`state/`), rclone configs and binaries, schedules and their run history, the transfer
-ledger, notification targets and SMTP settings, and the log file. Back up that directory.
+Everything persistent lives in the data directory: accounts (`state/team.json`), settings
+(`state/`), rclone configs and binaries, schedules and their run history, the transfer ledger,
+notification targets and SMTP settings, and the log file. Back up that directory.
 
 Scheduled tasks fire from the server's own minute ticker, so no cron or Task Scheduler entry is
 needed; a task runs as a short-lived `rclone-ui-server run-task` child with its own rclone daemon.

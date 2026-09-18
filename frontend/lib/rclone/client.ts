@@ -13,7 +13,7 @@ import { claimReconnectDialog, releaseReconnectDialog } from '../api/app'
 import { reconnectTarget } from './reconnect'
 import { ask, message } from '../api/dialog'
 import { rcClient } from '../api/rc'
-import { selectCurrentHost, usePersistedStore } from '../../store/persisted'
+import { platform } from '../api/os'
 import { UserCancelledError } from '../errors'
 
 type ReconnectHandler = (remoteName: string) => Promise<void>
@@ -35,14 +35,13 @@ export function setReconnectHandler(handler: ReconnectHandler) {
 export async function handleReconnectIfNeeded(errorMessage: string) {
     const remoteName = reconnectTarget(errorMessage)
     if (!remoteName) return false
-    const host = currentHostId()
     // One dialog app-wide: the server hands the claim to the first page that asks. It is given
     // back below, so the next time this remote's token expires it can ask again.
-    if (!(await claimReconnectDialog(host, remoteName).catch(() => true))) return true
+    if (!(await claimReconnectDialog(remoteName).catch(() => true))) return true
     try {
         return await runReconnect(remoteName)
     } finally {
-        await releaseReconnectDialog(host, remoteName).catch((error) =>
+        await releaseReconnectDialog(remoteName).catch((error) =>
             console.warn('[reconnect] releasing the dialog claim failed', error)
         )
     }
@@ -81,16 +80,11 @@ async function runReconnect(remoteName: string) {
 
 let client: RCDClient | null = null
 
-// Every request goes through the server's `/api/rc/<hostId>` proxy, which knows the daemon's
-// address and credentials; the page only picks the host.
+// Every request goes through the server's `/api/rc` proxy, which knows the daemon's address
+// and credentials.
 function getClient() {
     if (!client) {
-        const currentHost = selectCurrentHost(usePersistedStore.getState())
-        if (!currentHost) {
-            console.error('[rclone] No current host')
-            throw new Error('No current host')
-        }
-        client = rcClient(currentHost.id)
+        client = rcClient()
     }
     return client
 }
@@ -99,17 +93,16 @@ export function clearClient() {
     client = null
 }
 
-/** The host id the client currently targets. */
-export function currentHostId(): string {
-    return selectCurrentHost(usePersistedStore.getState())?.id ?? 'local'
-}
-
-/** The selected host's OS (the machine the daemon runs on), not the one serving the page. */
+/**
+ * The OS of the machine the daemon runs on, which is what paths are built for. It is the machine
+ * serving the page — the server runs rclone beside itself — but `platform` is wider than these
+ * three (ios/android/freebsd/…), so anything else reads as linux.
+ */
 export function currentHostOs(): 'windows' | 'macos' | 'linux' {
-    return selectCurrentHost(usePersistedStore.getState())?.os ?? 'linux'
+    return platform === 'windows' || platform === 'macos' ? platform : 'linux'
 }
 
-/** The selected host's path separator: its OS decides, not the machine serving the page. */
+/** The daemon's path separator: its OS decides, not the browser's. */
 export function hostSeparator(): '/' | '\\' {
     return separatorForOs(currentHostOs())
 }

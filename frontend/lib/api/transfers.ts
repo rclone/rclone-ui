@@ -36,7 +36,6 @@ export interface TransferEntry {
     id: string
     /** When it started. */
     ts: string
-    hostId: string
     /** rclone's name for the daemon process that took it. */
     executeId: string
     /** rclone's own id for the job. It starts over with every daemon; `id` is what names a transfer. */
@@ -95,7 +94,6 @@ export interface TransferDetail {
 
 /** A request the page's builders made (`lib/rclone/requests.ts`), and what to remember of it. */
 export interface TransferStart {
-    hostId: string
     operation: string
     sources?: string[]
     destination?: string
@@ -107,8 +105,8 @@ export interface TransferStart {
     request: { endpoint: string; body: Record<string, unknown> }
 }
 
-export const transfersList = (hostId: string, limit?: number) =>
-    rpc<TransferEntry[]>('transfers_list', { hostId, limit: limit ?? null })
+export const transfersList = (limit?: number) =>
+    rpc<TransferEntry[]>('transfers_list', { limit: limit ?? null })
 
 export const transfersDetail = (id: string) =>
     rpc<TransferDetail | null>('transfers_detail', { id })

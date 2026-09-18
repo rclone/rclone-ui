@@ -19,7 +19,6 @@ import { formatBytes, getFsInfo } from '../../../../lib/format.ts'
 import { downloadLink } from '../../../../lib/api/app'
 import { rcUrl } from '../../../../lib/api/rc'
 import { openUrl } from '../../../../lib/api/shell'
-import { useCurrentHost } from '../../../../store/persisted.ts'
 import FileIcon, { getFileType, isPreviewable } from '../FileIcon'
 import type { Entry } from '../types'
 import { getFileExtension } from '../utils'
@@ -84,14 +83,14 @@ function servePath(entry: Entry): { fs: string; path: string } {
 
 // The server's rc proxy injects the host's credentials, so the page fetches previews with its
 // own session and never sees a daemon password.
-function buildPreviewUrl(entry: Entry, hostId: string): string {
+function buildPreviewUrl(entry: Entry): string {
     const { fs, path } = servePath(entry)
     const encoded = path
         .split('/')
         .filter(Boolean)
         .map((segment) => encodeURIComponent(segment))
         .join('/')
-    return rcUrl(hostId, `[${encodeURIComponent(fs)}]/${encoded}`)
+    return rcUrl(`[${encodeURIComponent(fs)}]/${encoded}`)
 }
 
 export default function PreviewDrawer({
@@ -101,8 +100,6 @@ export default function PreviewDrawer({
     item: Entry | null
     onClose: () => void
 }) {
-    const currentHost = useCurrentHost()
-    const hostId = currentHost?.id
 
     // File previews are a PRO feature — without a valid license we tease the preview
     // behind an upsell overlay instead of unlocking it.
@@ -117,22 +114,22 @@ export default function PreviewDrawer({
         item?.size !== undefined && MAX_PREVIEW_SIZE > 0 && item.size > MAX_PREVIEW_SIZE
 
     const previewUrl = useMemo(() => {
-        if (!item || !hostId) return null
-        return buildPreviewUrl(item, hostId)
-    }, [item, hostId])
+        if (!item) return null
+        return buildPreviewUrl(item)
+    }, [item])
 
     // A signed, short-lived link: a desktop window's `open` lands in the system browser, which
     // has no session cookie, so the token is the credential.
     const handleDownload = useCallback(async () => {
-        if (!item || !hostId) return
+        if (!item) return
         const { fs, path } = servePath(item)
         try {
-            const link = await downloadLink(hostId, fs, path)
+            const link = await downloadLink(fs, path)
             await openUrl(`${location.origin}${link}`)
         } catch (error) {
             console.error('[PreviewDrawer] download failed', error)
         }
-    }, [item, hostId])
+    }, [item])
 
     const handleClose = useCallback(() => {
         setExpanded(false)

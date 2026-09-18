@@ -4,11 +4,9 @@ import { type ReactElement, useEffect, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import rclone from '../../../lib/rclone/client'
 import { useHostStore } from '../../../store/host'
-import { useCurrentHost } from '../../../store/persisted'
 import {
     REMOTES_SHOWN,
     allRemotesLeaf,
-    type NavContext,
     type NavLeaf,
     type NavZone,
     SETTINGS_ZONE,
@@ -24,7 +22,6 @@ const ROW =
     'flex items-center shrink-0 h-[30px] gap-2.5 px-2.5 rounded-lg text-[13px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-black'
 const ROW_IDLE = 'text-neutral-400 hover:bg-white/[0.06] hover:text-white'
 const ROW_ACTIVE = 'bg-primary/20 text-white'
-const ROW_DISABLED = 'text-neutral-600 cursor-not-allowed'
 const ROW_COLLAPSED = 'justify-center w-[30px] px-0 mx-auto'
 
 function LeafIcon({ leaf, active }: { leaf: NavLeaf; active: boolean }) {
@@ -65,25 +62,18 @@ function RailTooltip({ content, children }: { content: string; children: ReactEl
     )
 }
 
-function NavRow({ leaf, collapsed, ctx }: { leaf: NavLeaf; collapsed: boolean; ctx: NavContext }) {
+function NavRow({ leaf, collapsed }: { leaf: NavLeaf; collapsed: boolean }) {
     const location = useLocation()
     const active = !leaf.plain && isCurrent(leaf.to, location)
-    const reason = leaf.disabled?.(ctx)
     const title = leaf.count !== undefined ? `${leaf.label} · ${leaf.count}` : leaf.label
     const row = (
         <Link
             to={leaf.to}
             aria-label={collapsed ? title : undefined}
             aria-current={active ? 'page' : undefined}
-            aria-disabled={reason ? true : undefined}
-            onClick={reason ? (event) => event.preventDefault() : undefined}
-            className={cn(
-                ROW,
-                reason ? ROW_DISABLED : active ? ROW_ACTIVE : ROW_IDLE,
-                collapsed && ROW_COLLAPSED
-            )}
+            className={cn(ROW, active ? ROW_ACTIVE : ROW_IDLE, collapsed && ROW_COLLAPSED)}
         >
-            <LeafIcon leaf={leaf} active={active && !reason} />
+            <LeafIcon leaf={leaf} active={active} />
             {!collapsed && <span className="truncate">{leaf.label}</span>}
             {!collapsed && leaf.count !== undefined && (
                 <span className="ml-auto text-[11px] tabular-nums text-neutral-500">
@@ -92,8 +82,7 @@ function NavRow({ leaf, collapsed, ctx }: { leaf: NavLeaf; collapsed: boolean; c
             )}
         </Link>
     )
-    const tip = collapsed ? (reason ? `${title}: ${reason}` : title) : reason
-    return tip ? <RailTooltip content={tip}>{row}</RailTooltip> : row
+    return collapsed ? <RailTooltip content={title}>{row}</RailTooltip> : row
 }
 
 function ZoneLabel({
@@ -125,27 +114,23 @@ function ZoneLabel({
 function Zone({
     zone,
     collapsed,
-    ctx,
     first = false,
 }: {
     zone: NavZone
     collapsed: boolean
-    ctx: NavContext
     first?: boolean
 }) {
     return (
         <>
             <ZoneLabel label={zone.label} collapsed={collapsed} first={first} />
             {zone.items.map((leaf) => (
-                <NavRow key={leaf.to} leaf={leaf} collapsed={collapsed} ctx={ctx} />
+                <NavRow key={leaf.to} leaf={leaf} collapsed={collapsed} />
             ))}
         </>
     )
 }
 
 export default function Sidebar({ collapsed }: { collapsed: boolean }) {
-    const host = useCurrentHost()
-    const ctx: NavContext = { hostId: host?.id ?? null }
     const remotes = useQuery({
         queryKey: ['remotes', 'list', 'all'],
         queryFn: async () => await rclone('/config/listremotes').then((r) => r?.remotes),
@@ -186,7 +171,6 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
                         key={zone.label}
                         zone={zone}
                         collapsed={collapsed}
-                        ctx={ctx}
                         first={index === 0}
                     />
                 ))}
@@ -196,9 +180,8 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
                         items: [...shown.map(remoteLeaf), allRemotesLeaf(remoteNames.length)],
                     }}
                     collapsed={collapsed}
-                    ctx={ctx}
                 />
-                <Zone zone={SETTINGS_ZONE} collapsed={collapsed} ctx={ctx} />
+                <Zone zone={SETTINGS_ZONE} collapsed={collapsed} />
             </div>
         </nav>
     )

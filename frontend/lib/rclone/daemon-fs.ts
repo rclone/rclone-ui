@@ -1,6 +1,6 @@
 import { rcFetch } from '../api/rc'
 import { getFsInfo } from '../format'
-import rclone, { currentHostId } from './client'
+import rclone from './client'
 
 // Files on the machine the daemon runs on, through the daemon. rclone's rc stats, makes,
 // removes and sizes a local path like any remote, `--rc-serve` hands out a file's bytes and
@@ -41,9 +41,7 @@ function split(path: string): { dir: string; name: string } {
 
 export async function readFile(path: string): Promise<string> {
     const { dir, name } = split(path)
-    const response = await rcFetch(
-        currentHostId(),
-        `[${encodeURIComponent(dir)}]/${encodeURIComponent(name)}`
+    const response = await rcFetch(`[${encodeURIComponent(dir)}]/${encodeURIComponent(name)}`
     )
     if (!response.ok) {
         throw new Error(
@@ -58,7 +56,7 @@ export async function writeFile(path: string, text: string): Promise<void> {
     const body = new FormData()
     body.append('file0', new File([text], name))
     const params = new URLSearchParams({ fs: dir, remote: '' })
-    const response = await rcFetch(currentHostId(), `operations/uploadfile?${params}`, {
+    const response = await rcFetch(`operations/uploadfile?${params}`, {
         method: 'POST',
         body,
     })
@@ -68,12 +66,11 @@ export async function writeFile(path: string, text: string): Promise<void> {
 }
 
 async function rcJson<T>(
-    hostId: string,
     path: string,
     body: Record<string, unknown>,
     init: RequestInit = {}
 ): Promise<T> {
-    const response = await rcFetch(hostId, path, {
+    const response = await rcFetch(path, {
         ...init,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
@@ -87,11 +84,11 @@ async function rcJson<T>(
 // polled and stopped on that host, whichever host the page has switched to since. A listing
 // that is left stops its own; a page that is unloaded cannot, so the last thing it does is fire
 // keep-alive stops for whatever is left.
-const runningSizeJobs = new Map<string, { hostId: string; jobid: number }>()
+const runningSizeJobs = new Set<number>()
 if (typeof window !== 'undefined') {
     window.addEventListener('pagehide', () => {
-        for (const { hostId, jobid } of runningSizeJobs.values()) {
-            void rcJson(hostId, 'job/stop', { jobid }, { keepalive: true }).catch(() => null)
+        for (const jobid of runningSizeJobs) {
+            void rcJson('job/stop', { jobid }, { keepalive: true }).catch(() => null)
         }
     })
 }
@@ -103,29 +100,27 @@ if (typeof window !== 'undefined') {
  * caller's signal stops the job. The polling goes through the raw proxy, not the logged client.
  */
 export async function folderSize(path: string, signal?: AbortSignal): Promise<number | undefined> {
-    const hostId = currentHostId()
-    const { jobid } = await rcJson<{ jobid?: number }>(hostId, 'operations/size', {
+    const { jobid } = await rcJson<{ jobid?: number }>('operations/size', {
         fs: `:local:${path}`,
         _async: true,
     })
     if (jobid === undefined) return undefined
-    const key = `${hostId}\n${jobid}`
-    runningSizeJobs.set(key, { hostId, jobid })
+    runningSizeJobs.add(jobid)
     try {
         while (!signal?.aborted) {
             const status = await rcJson<{
                 finished?: boolean
                 error?: string
                 output?: { bytes?: number }
-            }>(hostId, 'job/status', { jobid })
+            }>('job/status', { jobid })
             if (status.finished) return status.error ? undefined : status.output?.bytes
             await new Promise((resolve) => setTimeout(resolve, 250))
         }
     } catch {
         // Fall through to the stop: the job must not outlive a wait that failed.
     } finally {
-        runningSizeJobs.delete(key)
+        runningSizeJobs.delete(jobid)
     }
-    await rcJson(hostId, 'job/stop', { jobid }).catch(() => null)
+    await rcJson('job/stop', { jobid }).catch(() => null)
     return undefined
 }

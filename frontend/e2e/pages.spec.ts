@@ -139,7 +139,7 @@ test('a folder dropped in the commander is copied as a folder, without overwriti
 }) => {
     const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-drop-'))
     const upload = await request.post(
-        '/api/rc/local/operations/uploadfile?fs=e2e-memory:&remote=dropdir',
+        '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=dropdir',
         {
             headers: { 'X-RcloneUI-Session': 'e2e' },
             multipart: {
@@ -208,7 +208,7 @@ test('a download from the Commander is a transfer like any other, tagged with wh
     // watched once the page closed, and could not be retried.
     const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-download-'))
     const upload = await request.post(
-        '/api/rc/local/operations/uploadfile?fs=e2e-memory:&remote=downloads',
+        '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=downloads',
         {
             headers: { 'X-RcloneUI-Session': 'e2e' },
             multipart: {
@@ -298,7 +298,7 @@ test('a wrapper remote picks the remote it wraps from the file panel', async ({
     await page.getByRole('button', { name: 'Create Remote' }).click()
     await expect
         .poll(async () => {
-            const response = await request.post('/api/rc/local/config/get', {
+            const response = await request.post('/api/rc/config/get', {
                 headers: SESSION,
                 data: { name: 'e2e-crypt' },
             })
@@ -323,7 +323,7 @@ test('a combine remote is created from its upstreams field', async ({ page, requ
     await page.getByRole('button', { name: 'Create Remote' }).click()
     await expect
         .poll(async () => {
-            const response = await request.post('/api/rc/local/config/get', {
+            const response = await request.post('/api/rc/config/get', {
                 headers: SESSION,
                 data: { name: 'e2e-combine' },
             })
@@ -357,7 +357,7 @@ test('a combine remote is created from its upstreams field', async ({ page, requ
     await page.getByRole('button', { name: 'Create Remote' }).click()
     await expect
         .poll(async () => {
-            const response = await request.post('/api/rc/local/config/get', {
+            const response = await request.post('/api/rc/config/get', {
                 headers: SESSION,
                 data: { name: 'e2e-chunker' },
             })
@@ -367,7 +367,7 @@ test('a combine remote is created from its upstreams field', async ({ page, requ
 
     // The community build allows four remotes; leave room for the tests after this one.
     for (const name of ['e2e-combine', 'e2e-chunker']) {
-        await request.post('/api/rc/local/config/delete', { headers: SESSION, data: { name } })
+        await request.post('/api/rc/config/delete', { headers: SESSION, data: { name } })
     }
 })
 
@@ -392,14 +392,14 @@ test('a closed option list is a select that stores its choice', async ({ page, r
     await page.getByRole('button', { name: 'Create Remote' }).click()
     await expect
         .poll(async () => {
-            const response = await request.post('/api/rc/local/config/get', {
+            const response = await request.post('/api/rc/config/get', {
                 headers: SESSION,
                 data: { name: 'e2e-local' },
             })
             return response.ok() ? await response.json() : null
         })
         .toMatchObject({ type: 'local', time_type: 'btime' })
-    await request.post('/api/rc/local/config/delete', {
+    await request.post('/api/rc/config/delete', {
         headers: SESSION,
         data: { name: 'e2e-local' },
     })
@@ -675,14 +675,13 @@ test("the transfers list shows each running transfer's speed", async ({ page, re
     const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-speed-'))
     writeFileSync(join(dir, 'blob.bin'), Buffer.alloc(4 * 1024 * 1024))
     const bwlimit = (rate: string) =>
-        request.post('/api/rc/local/core/bwlimit', { headers: SESSION, data: { rate } })
+        request.post('/api/rc/core/bwlimit', { headers: SESSION, data: { rate } })
     await bwlimit('256k')
     const started = (await (
         await request.post('/api/rpc/transfers_start', {
             headers: SESSION,
             data: {
                 transfer: {
-                    hostId: 'local',
                     operation: 'copy',
                     sources: [dir],
                     destination: 'e2e-memory:speed',
@@ -711,7 +710,7 @@ test("the transfers list shows each running transfer's speed", async ({ page, re
         const list = (await (
             await request.post('/api/rpc/transfers_list', {
                 headers: SESSION,
-                data: { hostId: 'local' },
+                data: {},
             })
         ).json()) as { value: { id: string; state: string }[] }
         expect(list.value.find((entry) => entry.id === started.value.id)?.state).toBe('stopped')
@@ -721,7 +720,7 @@ test("the transfers list shows each running transfer's speed", async ({ page, re
             data: { id: started.value.id },
         })
         // The daemon's lifetime counters would otherwise keep a speed and a failed job around.
-        await request.post('/api/rc/local/core/stats-reset', { headers: SESSION, data: {} })
+        await request.post('/api/rc/core/stats-reset', { headers: SESSION, data: {} })
         await bwlimit('off')
         rmSync(dir, { recursive: true, force: true })
     }
@@ -893,7 +892,7 @@ test('a finished job reopens its page with the same settings', async ({ page, re
             const list = (await (
                 await request.post('/api/rpc/transfers_list', {
                     headers: SESSION,
-                    data: { hostId: 'local' },
+                    data: {},
                 })
             ).json()) as {
                 value: {
@@ -935,7 +934,7 @@ test('a finished job reopens its page with the same settings', async ({ page, re
             })
         ).toHaveValue(/"max_size": "10M"/)
     } finally {
-        await request.post('/api/rc/local/core/stats-reset', { headers: SESSION, data: {} })
+        await request.post('/api/rc/core/stats-reset', { headers: SESSION, data: {} })
         rmSync(dir, { recursive: true, force: true })
     }
 })
@@ -979,7 +978,7 @@ test('a backend whose type is not its prefix still gets its icon', async ({ page
     // Icons are named after the rclone type, which is what every configured remote carries.
     // Three types are not their prefix and two of those hold spaces, so the request for one
     // arrives percent-encoded and the server has to decode it back to the file name.
-    await request.post('/api/rc/local/config/create', {
+    await request.post('/api/rc/config/create', {
         headers: SESSION,
         data: {
             name: 'e2e-gcs',
@@ -1013,7 +1012,7 @@ test('a backend whose type is not its prefix still gets its icon', async ({ page
             .poll(() => listed.evaluate((img: HTMLImageElement) => img.naturalWidth))
             .toBeGreaterThan(0)
     } finally {
-        await request.post('/api/rc/local/config/delete', {
+        await request.post('/api/rc/config/delete', {
             headers: SESSION,
             data: { name: 'e2e-gcs' },
         })
@@ -1179,7 +1178,7 @@ test('a path reads the way rclone reads it, in the path bar and in a field', asy
     // handed out; `remote:folder`, rclone's own spelling, was a local folder to the path bar.
     // Now the one grammar is rclone's, and what it would refuse is said instead of sent.
     const upload = await request.post(
-        '/api/rc/local/operations/uploadfile?fs=e2e-memory:&remote=grammar',
+        '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=grammar',
         {
             headers: { 'X-RcloneUI-Session': 'e2e' },
             multipart: {
@@ -1238,7 +1237,7 @@ test('a folder typed without a slash is a folder: rclone says so, not the spelli
     const name = basename(dir)
     const list = async (remote: string) =>
         (await (
-            await request.post('/api/rc/local/operations/list', {
+            await request.post('/api/rc/operations/list', {
                 headers: SESSION,
                 data: { fs: 'e2e-memory:', remote },
             })
@@ -1276,7 +1275,7 @@ test('a folder typed without a slash is a folder: rclone says so, not the spelli
         )
     } finally {
         rmSync(dir, { recursive: true, force: true })
-        await request.post('/api/rc/local/operations/purge', {
+        await request.post('/api/rc/operations/purge', {
             headers: SESSION,
             data: { fs: 'e2e-memory:', remote: 'kinds' },
         })
@@ -1375,7 +1374,7 @@ test('a scheduled task keeps what its sources are, and its job file is built fro
         if (taskId) {
             await request.post('/api/rpc/scheduler_unregister', {
                 headers: SESSION,
-                data: { taskId, hostId: 'local' },
+                data: { taskId },
             })
         }
         await patch({
@@ -1386,7 +1385,7 @@ test('a scheduled task keeps what its sources are, and its job file is built fro
             activeConfigId: before.activeConfigId ?? null,
         })
         rmSync(dir, { recursive: true, force: true })
-        await request.post('/api/rc/local/operations/purge', {
+        await request.post('/api/rc/operations/purge', {
             headers: SESSION,
             data: { fs: 'e2e-memory:', remote: 'sched' },
         })
@@ -1400,7 +1399,7 @@ test('a new OAuth login stops a stuck one, and cancelling stops its own', async 
     // The sign-in dialog's Copy link writes to the clipboard, and the assertion reads it back.
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
     const rc = (path: string, data: Record<string, unknown>, timeout?: number) =>
-        request.post(`/api/rc/local/${path}`, { headers: SESSION, data, timeout })
+        request.post(`/api/rc/${path}`, { headers: SESSION, data, timeout })
     const status = async () =>
         (await (await rc('config/oauthstatus', {})).json()) as {
             status: string
@@ -1482,7 +1481,7 @@ test('the Dashboard counts the remotes that need reconnecting and offers each on
     request,
 }) => {
     const rc = (path: string, data: Record<string, unknown>) =>
-        request.post(`/api/rc/local/${path}`, { headers: SESSION, data })
+        request.post(`/api/rc/${path}`, { headers: SESSION, data })
     try {
         await rc('config/create', {
             name: 'e2e-stale',
@@ -1523,7 +1522,7 @@ test('a transfer that fails to start on an expired sign-in offers to reconnect',
     // a call rather than through the rclone client, which is where the reconnect offer lives.
     // The source is local and passes its check; the destination's token is what has lapsed.
     const rc = (path: string, data: Record<string, unknown>) =>
-        request.post(`/api/rc/local/${path}`, { headers: SESSION, data })
+        request.post(`/api/rc/${path}`, { headers: SESSION, data })
     const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-stale-start-'))
     writeFileSync(join(dir, 'note.txt'), 'hello')
     try {
@@ -1556,7 +1555,7 @@ test('selecting a remote that needs reconnecting offers it every time', async ({
     request,
 }) => {
     const rc = (path: string, data: Record<string, unknown>) =>
-        request.post(`/api/rc/local/${path}`, { headers: SESSION, data })
+        request.post(`/api/rc/${path}`, { headers: SESSION, data })
     try {
         await rc('config/create', {
             name: 'e2e-stale',
@@ -1625,7 +1624,7 @@ test('the create drawer refuses a name another remote already has', async ({ pag
 
 test('an OAuth login is finished from another machine', async ({ page, request }) => {
     const rc = (path: string, data: Record<string, unknown>, timeout?: number) =>
-        request.post(`/api/rc/local/${path}`, { headers: SESSION, data, timeout })
+        request.post(`/api/rc/${path}`, { headers: SESSION, data, timeout })
     const status = async () =>
         (await (await rc('config/oauthstatus', {})).json()) as { status: string; authUrl?: string }
     const remotes = async () =>
@@ -1752,7 +1751,7 @@ test('a breadcrumb segment opens that folder', async ({ page }) => {
 
 test('renaming a remote carries its settings along', async ({ page, request }) => {
     const rc = (path: string, data: Record<string, unknown>) =>
-        request.post(`/api/rc/local/${path}`, { headers: SESSION, data })
+        request.post(`/api/rc/${path}`, { headers: SESSION, data })
     const remotes = async () =>
         ((await (await rc('config/listremotes', {})).json()) as { remotes: string[] }).remotes
     type HostDoc = { version: number; state: Record<string, unknown> }
@@ -2109,7 +2108,7 @@ test('delete takes several paths and removes every one of them', async ({ page, 
     // Delete's arguments were always a list — one `job/batch` input per path — but its page only
     // ever offered one field, so the rest of a list was dropped on the way in.
     const upload = await request.post(
-        '/api/rc/local/operations/uploadfile?fs=e2e-memory:&remote=multi-delete',
+        '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=multi-delete',
         {
             headers: { 'X-RcloneUI-Session': 'e2e' },
             multipart: {
@@ -2120,7 +2119,7 @@ test('delete takes several paths and removes every one of them', async ({ page, 
     )
     expect(upload.ok()).toBe(true)
     const listing = async () => {
-        const response = await request.post('/api/rc/local/operations/list', {
+        const response = await request.post('/api/rc/operations/list', {
             headers: SESSION,
             data: { fs: 'e2e-memory:', remote: 'multi-delete' },
         })
@@ -2162,7 +2161,6 @@ test('a scheduled run is listed in Transfers, and its row opens its schedule in 
                 event: 'started',
                 id,
                 ts: '2030-01-01T02:00:00.000Z',
-                hostId: 'local',
                 executeId: 'e2e-run-daemon',
                 jobid: 1,
                 operation: 'copy',
@@ -2261,7 +2259,7 @@ test('a scheduled run is listed in Transfers, and its row opens its schedule in 
         await setTasks(before)
         await request.post('/api/rpc/scheduler_unregister', {
             headers: SESSION,
-            data: { taskId, hostId: 'local' },
+            data: { taskId },
         })
         rmSync(file, { force: true })
     }
@@ -2285,7 +2283,6 @@ test('failed files are retried from a list of their own: one, then the rest', as
             headers: SESSION,
             data: {
                 transfer: {
-                    hostId: 'local',
                     operation: 'copy',
                     sources: [`${join(root, 'src')}/`],
                     destination: join(root, 'dst'),
@@ -2374,7 +2371,6 @@ test('a transfer’s drawer sorts what happened into sections and keeps file err
             headers: SESSION,
             data: {
                 transfer: {
-                    hostId: 'local',
                     operation: 'copy',
                     sources: [`${join(root, 'src')}/`, join(root, 'missing.txt')],
                     destination: join(root, 'dst'),
@@ -2405,7 +2401,7 @@ test('a transfer’s drawer sorts what happened into sections and keeps file err
         const list = await (
             await request.post('/api/rpc/transfers_list', {
                 headers: SESSION,
-                data: { hostId: 'local', limit: 50 },
+                data: { limit: 50 },
             })
         ).json()
         const id = list.value.find((entry: any) => entry.destination === join(root, 'dst')).id
@@ -2483,7 +2479,7 @@ test('the Dashboard’s transfers are the record’s: there after rclone forgets
     writeFileSync(join(done, 'note.txt'), 'hello')
     writeFileSync(join(slow, 'blob.bin'), Buffer.alloc(4 * 1024 * 1024))
     const rc = (path: string, data: Record<string, unknown> = {}) =>
-        request.post(`/api/rc/local/${path}`, { headers: SESSION, data })
+        request.post(`/api/rc/${path}`, { headers: SESSION, data })
     const start = async (dir: string, destination: string) =>
         (
             await (
@@ -2491,7 +2487,6 @@ test('the Dashboard’s transfers are the record’s: there after rclone forgets
                     headers: SESSION,
                     data: {
                         transfer: {
-                            hostId: 'local',
                             operation: 'copy',
                             sources: [`${dir}/`],
                             destination,
@@ -2587,7 +2582,7 @@ test('the Dashboard counts transfers, not every file the daemon touches', async 
 
         // What saving a config file does: a write through the daemon, which is no transfer.
         const written = await request.post(
-            `/api/rc/local/operations/uploadfile?fs=${encodeURIComponent(root)}&remote=`,
+            `/api/rc/operations/uploadfile?fs=${encodeURIComponent(root)}&remote=`,
             {
                 headers: { 'X-RcloneUI-Session': 'e2e' },
                 multipart: {
@@ -2609,7 +2604,6 @@ test('the Dashboard counts transfers, not every file the daemon touches', async 
             headers: SESSION,
             data: {
                 transfer: {
-                    hostId: 'local',
                     operation: 'copy',
                     sources: [`${join(root, 'src')}/`],
                     destination: 'e2e-memory:totals',

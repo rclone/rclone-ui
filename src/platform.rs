@@ -1,10 +1,5 @@
-//! Process- and platform-level helpers with no Tauri or app-state dependency: Flatpak sandbox
-//! detection and permission checks, OS process termination, dev/prod identity.
-
-/// Whether this is a development build (Tauri's `is_dev()` equivalent for this crate).
-pub fn is_dev() -> bool {
-    cfg!(debug_assertions)
-}
+//! Process- and platform-level helpers with no app-state dependency: Flatpak sandbox
+//! detection and permission checks, OS process termination.
 
 pub fn is_flatpak() -> bool {
     std::path::Path::new("/.flatpak-info").exists() || std::env::var_os("FLATPAK_ID").is_some()

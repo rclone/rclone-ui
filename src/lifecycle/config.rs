@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use crate::ctx::Ctx;
 use crate::scheduler::storeread::{self, ConfigFileEntry, HostState};
-use crate::state_files::{host_doc, StateStore};
+use crate::state_files::{StateStore, HOST_DOC};
 use crate::zookeeper;
 
 use super::interaction::{Decision, Interaction, Question};
@@ -35,17 +35,17 @@ pub struct ResolvedConfig {
 }
 
 fn read_host(ctx: &Ctx) -> Result<HostState, String> {
-    if !storeread::host_state_exists(&ctx.dirs, "local") {
+    if !storeread::host_state_exists(&ctx.dirs) {
         return Ok(HostState::default());
     }
-    storeread::read_host(&ctx.dirs, "local")
+    storeread::read_host(&ctx.dirs)
 }
 
 fn update_host(
     store: &StateStore,
     f: impl FnOnce(&mut serde_json::Map<String, Value>),
 ) -> Result<(), String> {
-    store.update(&host_doc("local"), f).map(|_| ())
+    store.update(HOST_DOC, f).map(|_| ())
 }
 
 fn app_private_default(ctx: &Ctx) -> PathBuf {

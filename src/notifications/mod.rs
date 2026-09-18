@@ -1,10 +1,9 @@
-//! The notification engine: event catalog, webhook targets + dispatch, and the headless
-//! runner's OS toast. The GUI drives it through the commands below (lib/notifications.ts);
-//! the scheduler runner calls webhooks::dispatch / os::notify_headless directly. GUI OS toasts
-//! are NOT here — JS uses @tauri-apps/plugin-notification for those.
+//! The notification engine: event catalog, webhook targets + dispatch, and SMTP. Pages drive it
+//! through the commands below (lib/notifications.ts); the scheduler runner calls
+//! webhooks::dispatch directly. There are no OS toasts: a server has no desktop to show one on,
+//! so everything a person needs to see leaves over a webhook or email.
 
 pub mod catalog;
-pub mod os;
 pub mod smtp;
 pub mod targets;
 pub mod webhooks;

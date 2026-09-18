@@ -57,10 +57,9 @@ fn day_fields_use_or(spec: &CronSpec) -> bool {
     spec.dom.restricted() && spec.dow.restricted()
 }
 
-/// The day relationship a spec encodes, read once for the matcher, the preview and both
-/// platform renderers. Cron ORs the two day fields when both are restricted; a star-origin
-/// step on one of them with the other restricted is an AND, which launchd and Task Scheduler
-/// cannot express in one task.
+/// The day relationship a spec encodes, read once for the matcher and the preview. Cron ORs the
+/// two day fields when both are restricted; a star-origin step on one of them with the other
+/// restricted is an AND.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DayConstraint {
     Any,
@@ -288,8 +287,8 @@ pub fn validate(expr: &str) -> Result<(), String> {
 /// matches if EITHER matches; otherwise both must match (a `*/n` day step therefore ANDs with
 /// the other day field, as Vixie/cronie execute it). `dow` is 0-6, 0 = Sunday.
 ///
-/// Used only by the macOS runner to suppress launchd's wake-catch-up: an on-time launchd fire
-/// lands on a minute the schedule matches, a missed-while-asleep catch-up does not.
+/// This is what the ticker asks every minute: it holds the parsed spec and fires the task when
+/// the current wall-clock minute matches.
 pub fn matches(spec: &CronSpec, minute: u16, hour: u16, dom: u16, month: u16, dow: u16) -> bool {
     fn hit(field: &Field, value: u16) -> bool {
         field.wildcard || field.values.contains(&value)
@@ -356,10 +355,6 @@ pub fn next_fires(
     }
     out
 }
-
-// ---------------------------------------------------------------------------
-// crontab (macOS + Linux)
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

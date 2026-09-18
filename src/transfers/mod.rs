@@ -15,11 +15,9 @@ use crate::ctx::Ctx;
 /// A host's transfers, running and past, newest first.
 pub fn transfers_list(
     ctx: &Ctx,
-    host_id: String,
     limit: Option<usize>,
 ) -> Result<Vec<ledger::Entry>, String> {
-    let host_id = crate::scheduler::sanitize_id(&host_id).map_err(|_| "invalid host id")?;
-    let mut entries = ledger::list(&ctx.dirs, &host_id, limit.unwrap_or(ledger::KEEP_ENTRIES));
+    let mut entries = ledger::list(&ctx.dirs, limit.unwrap_or(ledger::KEEP_ENTRIES));
     // A scheduled run that was killed outright left its transfer open, and its file has no
     // writer until the task runs again. The run lock is the truth about that: nobody holds it,
     // nothing is running. Read that way here; the runner writes it down on its next run.
@@ -56,7 +54,6 @@ mod tests {
         Line::Started(Started {
             id: id.into(),
             ts: "2026-01-01T00:00:00.000Z".into(),
-            host_id: "local".into(),
             jobid: 1,
             operation: "copy".into(),
             task_id: Some(task.into()),
@@ -86,7 +83,7 @@ mod tests {
         )
         .unwrap();
 
-        let entries = transfers_list(&ctx, "local".into(), None).unwrap();
+        let entries = transfers_list(&ctx, None).unwrap();
         let state = |id: &str| entries.iter().find(|entry| entry.id == id).unwrap().state;
         assert_eq!(state("scheduled"), State::Interrupted);
         assert_eq!(state("untagged"), State::Running);

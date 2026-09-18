@@ -76,8 +76,8 @@ export default function OperationFooter({
 }) {
     const dropdownShadow = useMemo(() => (platform === 'windows' ? 'none' : undefined), [])
 
-    // Scheduling is OS-native and local-host-only; hide the affordance where it can't work
-    // (sandboxed installs, remote hosts) — mirrors the Schedule options section on the operation pages.
+    // Hide the affordance where scheduling can't work — mirrors the Schedule options section on
+    // the operation pages.
     const schedulingAvailable = useSchedulingAvailable()
 
     const handleStartPress = useCallback(() => {

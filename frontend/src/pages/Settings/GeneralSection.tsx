@@ -1,4 +1,4 @@
-import { Button, Checkbox, Chip, Select, SelectItem } from '@heroui/react'
+import { Button, Select, SelectItem } from '@heroui/react'
 import * as Sentry from '@sentry/browser'
 import { useMutation, useQuery } from '@tanstack/react-query'
 
@@ -6,22 +6,13 @@ import { useMemo, useState } from 'react'
 
 import { usePersistedStore } from '../../../store/persisted'
 import BaseSection from './BaseSection'
-import {
-    type UpdateInfo,
-    autostartSet,
-    relaunch,
-    updateCheck,
-    updateInstall,
-} from '../../../lib/api/app'
-import { ask, message } from '../../../lib/api/dialog'
+import { type UpdateInfo, relaunch, updateCheck, updateInstall } from '../../../lib/api/app'
+import { ask } from '../../../lib/api/dialog'
 import { useCapabilities } from '../../../lib/api/host'
 import { rpc } from '../../../lib/api/rpc'
 import { openUrl } from '../../../lib/api/shell'
 
 export default function GeneralSection() {
-    const startOnBoot = usePersistedStore((state) => state.startOnBoot)
-    const setStartOnBoot = usePersistedStore((state) => state.setStartOnBoot)
-
     const appearance = usePersistedStore((state) => state.appearance)
     const caps = useCapabilities()
 
@@ -154,43 +145,6 @@ export default function GeneralSection() {
                         <SelectItem key="light">Light</SelectItem>
                         <SelectItem key="dark">Dark</SelectItem>
                     </Select>
-                </div>
-            </div>
-
-            <div className="flex flex-row justify-center w-full gap-8 px-8">
-                <div className="flex flex-col items-end flex-grow gap-2">
-                    <h3 className="font-medium">Options</h3>
-                </div>
-
-                <div className="flex flex-col w-3/5 gap-3">
-                    {caps.autostart && (
-                        <Checkbox
-                            isSelected={startOnBoot}
-                            onValueChange={async (value) => {
-                                try {
-                                    setStartOnBoot(value)
-
-                                    await autostartSet(value)
-                                } catch (error) {
-                                    setStartOnBoot(!value)
-                                    await message(
-                                        `An error occurred while toggling start on boot. ${error}`,
-                                        {
-                                            title: 'Error',
-                                            kind: 'error',
-                                        }
-                                    )
-                                }
-                            }}
-                        >
-                            <div className="flex flex-row gap-2">
-                                <p>Start on boot</p>
-                                <Chip size="sm" color="primary">
-                                    New
-                                </Chip>
-                            </div>
-                        </Checkbox>
-                    )}
                 </div>
             </div>
 

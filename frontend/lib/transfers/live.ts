@@ -1,6 +1,6 @@
 import { rcFetch } from '../api/rc'
 import type { TransferDetail, TransferEntry, TransferredFile } from '../api/transfers'
-import rclone, { currentHostId } from '../rclone/client'
+import rclone from '../rclone/client'
 import { type LiveStats, isScheduled } from './rows'
 
 // The one place the app asks rclone about its jobs: the live numbers of what is running.
@@ -31,7 +31,7 @@ export interface LiveJob {
 export async function liveJob(jobid: number): Promise<LiveJob> {
     const group = `job/${jobid}`
     const [status, stats, done] = await Promise.all([
-        rcFetch(currentHostId(), 'job/status', {
+        rcFetch('job/status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ jobid }),
@@ -54,9 +54,9 @@ export async function liveJob(jobid: number): Promise<LiveJob> {
  * that ask "would this interrupt something?", after the record has answered for the transfers:
  * a job put on the daemon by something other than this app is in no record, and shows here.
  */
-export async function isMoving(hostId: string): Promise<boolean> {
+export async function isMoving(): Promise<boolean> {
     try {
-        const response = await rcFetch(hostId, 'core/stats', {
+        const response = await rcFetch('core/stats', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: '{}',
@@ -71,8 +71,8 @@ export async function isMoving(hostId: string): Promise<boolean> {
 
 /** Whether rclone can be asked about this transfer from here. */
 export function isLive(entry: TransferEntry) {
-    // A scheduled run has a private daemon of its own, and another host's is not this client's.
-    return entry.state === 'running' && !isScheduled(entry) && entry.hostId === currentHostId()
+    // A scheduled run has a private daemon of its own, which this client cannot ask about.
+    return entry.state === 'running' && !isScheduled(entry)
 }
 
 /** Live numbers by transfer id. A transfer rclone can't answer for is simply not in the result. */

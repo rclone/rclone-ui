@@ -8,9 +8,9 @@ import { prompt } from '../../../lib/api/dialog'
 
 /**
  * The schedule mutation shared by the operation pages: page-specific validation (path checks,
- * the Copy/Move multi-source license gate) → per-platform cron validation → native name prompt →
- * createScheduledTask, which persists the task and registers it with the OS scheduler. The
- * headless runner replays the pre-serialized requests built from `buildArgs()` output.
+ * the Copy/Move multi-source license gate) → cron validation → name prompt → createScheduledTask,
+ * which persists the task and registers it with the server's scheduler. The headless runner
+ * replays the pre-serialized requests built from `buildArgs()` output.
  */
 export function useScheduleTask({
     operation,

@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use super::history::{self, HistoryLine, RunLog};
 use super::jobfile::{self, JobSpec, RcRequest};
 use super::storeread::{self, DataDir};
-use crate::notifications::{os, webhooks};
+use crate::notifications::webhooks;
 use crate::transfers::ledger::{self, Finished, Line, Started, State, Stats};
 use crate::transfers::status::{keep_outcome, merge_failed, run_error, stats_of, Failed};
 
@@ -37,17 +37,9 @@ fn install_sigterm_handler() {
     }
 }
 
-pub fn run(task_id: &str, host_id: &str, data_dir: Option<&str>) -> i32 {
-    // forced: a manual Run Now — bypass the macOS launchd catch-up suppression (a manual run is
-    // intentionally off-schedule). Unused on non-macOS builds.
-    #[cfg(not(target_os = "macos"))]
-    let _ = forced;
+pub fn run(task_id: &str, data_dir: Option<&str>) -> i32 {
     let Ok(task_id) = super::sanitize_id(task_id) else {
         eprintln!("run-task: invalid task id");
-        return 2;
-    };
-    let Ok(host_id) = super::sanitize_id(host_id) else {
-        eprintln!("run-task: invalid host id");
         return 2;
     };
     // Prefer the data directory baked into the trigger at registration (the GUI's resolved
@@ -75,47 +67,37 @@ pub fn run(task_id: &str, host_id: &str, data_dir: Option<&str>) -> i32 {
     }
 
     let mut log = RunLog::open(&dirs, &task_id);
-    log.line(&format!("run-task {} (host {})", task_id, host_id));
+    log.line(&format!("run-task {}", task_id));
 
-    // No Flatpak guard here: when running under Flatpak the runner is a fresh sandboxed instance
-    // launched by host cron via `flatpak run … run-task`; it drives rclone in-sandbox and never
-    // needs host access itself. Registration (mod.rs::backend) is where the permission is gated.
-
-    // Missing job file: the task was deleted but its OS trigger survived (e.g. unregister
-    // failed). Self-heal by removing the orphan trigger — from EVERY backend, since on macOS a
-    // user-mode trigger lives in launchd, not the default cron backend.
+    // Missing job file: the task was deleted but its registration survived (e.g. unregister
+    // failed). Self-heal by removing the orphan.
     //
     // Self-heal ONLY on a clean not-found with the jobs directory present. A missing/unreadable
     // data root (unmounted systemd-homed home, wrong XDG-derived path from an old trigger) or a
     // malformed/newer-schema job file is an ENVIRONMENT problem — uninstalling there would
     // destroy a valid registration.
-    let spec = match jobfile::load(&dirs, &host_id, &task_id) {
+    let spec = match jobfile::load(&dirs, &task_id) {
         Ok(spec) => spec,
         Err(e) => {
-            let job_path = jobfile::job_path(&dirs, &host_id, &task_id);
+            let job_path = jobfile::job_path(&dirs, &task_id);
             let jobs_dir_present = job_path.parent().map(|p| p.is_dir()).unwrap_or(false);
             if jobs_dir_present && !job_path.exists() {
                 log.line(&format!(
-                    "job file missing: {} — removing orphan trigger",
+                    "job file missing: {} — removing the orphan registration",
                     e
                 ));
-                for backend in super::all_backends(&dirs) {
+                if let Ok(backend) = super::backend(&dirs) {
                     let _ = backend.uninstall(&task_id);
                 }
             } else {
                 log.line(&format!(
-                    "job file unusable: {} — leaving the trigger in place (environment problem, not an orphan)",
+                    "job file unusable: {} — leaving the registration in place (environment problem, not an orphan)",
                     e
                 ));
             }
             return 2;
         }
     };
-    if spec.host_id != "local" {
-        log.line("remote-host tasks are not supported by the scheduler");
-        return 2;
-    }
-
     // Held (not dropped) for the entire run: on Unix the flock inside is the mutual exclusion.
     let run_lock = match history::acquire_lock(&dirs, &task_id, spec.max_run_seconds) {
         Ok(history::LockResult::Acquired(lock)) => lock,
@@ -158,7 +140,6 @@ pub fn run(task_id: &str, host_id: &str, data_dir: Option<&str>) -> i32 {
             run_id: run_id.clone(),
             ts: history::now_iso(),
             pid: std::process::id(),
-            host_id: host_id.clone(),
         },
     );
 
@@ -234,12 +215,6 @@ pub fn run(task_id: &str, host_id: &str, data_dir: Option<&str>) -> i32 {
         log.line(&line);
     }
 
-    // OS toast for the terminal state — hardcoded to completed/failed (started would be noise).
-    // Scheduled runs happen with the GUI possibly closed, so the runner must post it itself.
-    if let Err(e) = os::notify_headless(title, &body) {
-        log.line(&format!("os notification failed: {}", e));
-    }
-
     log.line(&format!(
         "finished: {} ({} ms)",
         outcome.error.as_deref().unwrap_or("success"),
@@ -255,9 +230,10 @@ pub fn run(task_id: &str, host_id: &str, data_dir: Option<&str>) -> i32 {
     }
 }
 
-/// Failure hints for session-context errors, so the history/webhook error names the actual fix
-/// instead of leaving the user to guess: a scheduled run has no desktop session, so a keyring
-/// password command or a protected folder fails in ways rclone's own wording does not explain.
+/// Failure hints for environment errors, so the history/webhook error names the actual fix
+/// instead of leaving the user to guess: the run inherits the server's own environment, so a
+/// keyring password command or a directory the server cannot reach fails in ways rclone's own
+/// wording does not explain.
 fn annotate_session_failure(error: String) -> String {
     let lower = error.to_lowercase();
 
@@ -269,14 +245,11 @@ fn annotate_session_failure(error: String) -> String {
     if !session_shaped {
         return error;
     }
-    #[cfg(target_os = "macos")]
-    let fda_hint =
-        ", or grant Full Disk Access to /usr/sbin/cron in System Settings → Privacy & Security";
-    #[cfg(not(target_os = "macos"))]
-    let fda_hint = "";
     format!(
-        "{} — this schedule runs in System mode, outside your login session: no OS keychain, session-mounted drives, or (on macOS) protected folders. If it works when run manually, switch its run mode to 'User' in the schedule's settings{}.",
-        error, fda_hint
+        "{} — a scheduled run inherits the server's environment, not a desktop session: no OS \
+         keyring, and none of the drives or folders that only a logged-in user can reach. If it \
+         works when you run it yourself, that difference is why.",
+        error
     )
 }
 
@@ -330,7 +303,7 @@ fn execute(
     }
 
     // Config + env.
-    let host = match storeread::read_host(dirs, &spec.host_id) {
+    let host = match storeread::read_host(dirs) {
         Ok(h) => h,
         Err(e) => return RunOutcome::setup(e),
     };
@@ -676,7 +649,6 @@ fn record_transfer_started(
     let started = Started {
         id: id.clone(),
         ts: history::now_iso(),
-        host_id: spec.host_id.clone(),
         execute_id: execute_id.to_string(),
         jobid,
         operation: spec.operation.clone(),
@@ -790,9 +762,9 @@ pub fn random_token(salt: &str) -> String {
 }
 
 /// Guarantees the transient daemon dies with the run — graceful /core/quit, then kill. The Drop
-/// impl covers panics and every early-return path; the next run's stale-lock daemonPid cleanup
-/// (and Task Scheduler's ExecutionTimeLimit on Windows) are the nets behind this net — cron
-/// itself does not supervise or kill job process trees.
+/// impl covers panics and every early-return path; the next run's stale-lock daemonPid cleanup is
+/// the net behind this net. Nothing else supervises the run's process tree: the ticker spawns it
+/// and does not wait on it.
 struct DaemonGuard {
     child: Child,
     client: reqwest::Client,
@@ -878,7 +850,7 @@ mod tests {
             7,
             "daemon-1",
         );
-        let entries = ledger::list(&dirs, &job.host_id, 10);
+        let entries = ledger::list(&dirs, 10);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].tags, [ledger::TAG_SCHEDULE]);
         assert_eq!(entries[0].task_id.as_deref(), Some(job.task_id.as_str()));

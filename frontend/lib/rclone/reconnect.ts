@@ -1,5 +1,4 @@
 import { rcFetch } from '../api/rc'
-import { currentHostId } from './client'
 
 // rclone's own advice when a token cannot be refreshed: "token expired and there's no refresh
 // token - manually refresh with \"rclone config reconnect work:\"". It is the only signal there
@@ -26,7 +25,7 @@ export type ReconnectState = 'ok' | 'needs-reconnect' | 'unreachable'
  */
 export async function probeRemote(remote: string): Promise<ReconnectState> {
     try {
-        const response = await rcFetch(currentHostId(), 'operations/fsinfo', {
+        const response = await rcFetch('operations/fsinfo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fs: `${remote}:` }),

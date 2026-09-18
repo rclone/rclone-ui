@@ -41,8 +41,6 @@ export interface SettingsSection {
     label: string
     icon: LucideIcon
     component: ComponentType
-    /** Why the section is unavailable when the current host is not the local machine. */
-    localOnly?: string
 }
 
 export const SETTINGS_SECTIONS: Record<SectionKey, SettingsSection> = {
@@ -51,20 +49,8 @@ export const SETTINGS_SECTIONS: Record<SectionKey, SettingsSection> = {
     notifications: { label: 'Notifications', icon: BellIcon, component: NotificationsSection },
     // Browser only: accounts are the server's; the desktop's windows use a launch token.
     team: { label: 'Team', icon: UsersIcon, component: TeamSection },
-    config: {
-        label: 'Config',
-        icon: CodeIcon,
-        component: ConfigSection,
-        localOnly:
-            'Config settings are only available when using your local machine, not a remote host',
-    },
-    binary: {
-        label: 'Binary',
-        icon: PackageIcon,
-        component: BinarySection,
-        localOnly:
-            'Rclone settings are only available when using your local machine, not a remote host',
-    },
+    config: { label: 'Config', icon: CodeIcon, component: ConfigSection },
+    binary: { label: 'Binary', icon: PackageIcon, component: BinarySection },
     proxy: { label: 'Proxy', icon: SatelliteDishIcon, component: ProxySection },
     // Browser only: the same settings as Binary and Proxy on one screen, in a layout for a wide
     // tab. The desktop's tabbed window keeps those two sections instead.

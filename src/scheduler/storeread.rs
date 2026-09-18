@@ -24,7 +24,6 @@ pub fn app_dirs() -> Result<DataDir, String> {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RootState {
-    pub current_host_id: Option<String>,
     pub hide_startup: bool,
     pub rclone_path: Option<String>,
     pub auto_update_rclone: bool,
@@ -113,11 +112,13 @@ pub fn app_doc_path(dirs: &DataDir) -> PathBuf {
     dirs.root.join("state").join("app.json")
 }
 
-pub fn host_doc_path(dirs: &DataDir, host_id: &str) -> PathBuf {
+/// The host document's fixed path. The `hosts/` segment and the `local` name are the shared
+/// storage layout, not a choice this product makes.
+pub fn host_doc_path(dirs: &DataDir) -> PathBuf {
     dirs.root
         .join("state")
         .join("hosts")
-        .join(format!("{}.json", host_id))
+        .join(format!("{}.json", crate::scheduler::jobfile::JOBS_DIR))
 }
 
 /// Reads the app document; a missing one is the default (a fresh install).
@@ -125,13 +126,13 @@ pub fn read_root(dirs: &DataDir) -> Result<RootState, String> {
     Ok(read_state_doc(&app_doc_path(dirs))?.unwrap_or_default())
 }
 
-/// Whether a host document exists (a fresh install has none).
-pub fn host_state_exists(dirs: &DataDir, host_id: &str) -> bool {
-    host_doc_path(dirs, host_id).is_file()
+/// Whether the host document exists (a fresh install has none).
+pub fn host_state_exists(dirs: &DataDir) -> bool {
+    host_doc_path(dirs).is_file()
 }
 
-pub fn read_host(dirs: &DataDir, host_id: &str) -> Result<HostState, String> {
-    let path = host_doc_path(dirs, host_id);
+pub fn read_host(dirs: &DataDir) -> Result<HostState, String> {
+    let path = host_doc_path(dirs);
     read_state_doc(&path)?.ok_or_else(|| format!("no host document at {}", path.display()))
 }
 
@@ -243,7 +244,7 @@ mod tests {
         .unwrap();
         let state = read_root(&dirs).unwrap();
         assert_eq!(state.rclone_path.as_deref(), Some("/usr/local/bin/rclone"));
-        assert!(!host_state_exists(&dirs, "local"));
+        assert!(!host_state_exists(&dirs));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

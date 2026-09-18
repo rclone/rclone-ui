@@ -18,7 +18,6 @@ import { useSearchParams } from 'react-router-dom'
 import { onErrorDialog } from '../../lib/errors'
 import { buildReadablePath } from '../../lib/format'
 import { useNow } from '../../lib/hooks'
-import { LOCAL_HOST_ID } from '../../lib/hosts'
 import {
     type SchedulerTaskStatus,
     reconcile as reconcileSchedules,
@@ -78,7 +77,7 @@ export default function Schedules() {
 
     const statusQuery = useQuery({
         queryKey: ['scheduler', 'status'],
-        queryFn: () => schedulerStatus(LOCAL_HOST_ID),
+        queryFn: () => schedulerStatus(),
         enabled: schedulingAvailable,
         refetchInterval: 5_000,
         refetchOnWindowFocus: true,

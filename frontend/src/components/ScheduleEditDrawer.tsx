@@ -11,8 +11,6 @@ import {
     Input,
     ScrollShadow,
     Switch,
-    Tab,
-    Tabs,
     Tooltip,
     cn,
 } from '@heroui/react'
@@ -36,7 +34,6 @@ import type { ScheduledTask } from '../../types/schedules'
 import BinarySelect from './BinarySelect'
 import ConfigSelect, { configPasswordMissing as isConfigPasswordMissing } from './ConfigSelect'
 import CronEditor from './CronEditor'
-import { platform } from '../../lib/api/os'
 
 export default function ScheduleEditDrawer({
     isOpen,
@@ -59,7 +56,6 @@ export default function ScheduleEditDrawer({
     const [binaryPath, setBinaryPath] = useState(selectedTask.binaryPath)
     const [isEnabled, setIsEnabled] = useState(selectedTask.isEnabled)
     const [verboseLogging, setVerboseLogging] = useState(selectedTask.verboseLogging ?? false)
-    const [runMode, setRunMode] = useState<'system' | 'user'>(selectedTask.runMode ?? 'user')
     const [maxRunHours, setMaxRunHours] = useState(
         String(selectedTask.maxRunHours ?? DEFAULT_MAX_RUN_HOURS)
     )
@@ -74,7 +70,6 @@ export default function ScheduleEditDrawer({
             setBinaryPath(selectedTask.binaryPath)
             setIsEnabled(selectedTask.isEnabled)
             setVerboseLogging(selectedTask.verboseLogging ?? false)
-            setRunMode(selectedTask.runMode ?? 'user')
             setMaxRunHours(String(selectedTask.maxRunHours ?? DEFAULT_MAX_RUN_HOURS))
             setSaveError(null)
         }
@@ -153,7 +148,6 @@ export default function ScheduleEditDrawer({
             binaryPath !== selectedTask.binaryPath ||
             isEnabled !== selectedTask.isEnabled ||
             verboseLogging !== (selectedTask.verboseLogging ?? false) ||
-            runMode !== (selectedTask.runMode ?? 'user') ||
             maxRunHoursNumber !== (selectedTask.maxRunHours ?? DEFAULT_MAX_RUN_HOURS),
         [
             name,
@@ -162,7 +156,6 @@ export default function ScheduleEditDrawer({
             binaryPath,
             isEnabled,
             verboseLogging,
-            runMode,
             maxRunHoursNumber,
             selectedTask,
         ]
@@ -185,7 +178,6 @@ export default function ScheduleEditDrawer({
                 binaryPath,
                 isEnabled,
                 verboseLogging,
-                runMode,
                 maxRunHours: maxRunHoursNumber,
             })
         },
@@ -241,7 +233,7 @@ export default function ScheduleEditDrawer({
                                         <Alert
                                             color="danger"
                                             variant="faded"
-                                            title="Not registered with the system scheduler"
+                                            title="Not registered with the scheduler"
                                         >
                                             <pre className="text-sm break-all whitespace-pre-wrap">
                                                 {selectedTask.registrationError}
@@ -390,30 +382,6 @@ export default function ScheduleEditDrawer({
                                                     onError={setSaveError}
                                                     label=""
                                                 />
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-row justify-center w-full gap-8">
-                                            <div className="flex flex-col items-end flex-1 gap-2">
-                                                <h4 className="font-medium">Run mode</h4>
-                                            </div>
-                                            <div className="flex flex-col w-3/5 gap-1">
-                                                <Tabs
-                                                    size="sm"
-                                                    selectedKey={runMode}
-                                                    onSelectionChange={(key) =>
-                                                        setRunMode(key as 'system' | 'user')
-                                                    }
-                                                    data-focus-visible="false"
-                                                >
-                                                    <Tab key="user" title="User" />
-                                                    <Tab key="system" title="System" />
-                                                </Tabs>
-                                                <span className="text-tiny text-default-400">
-                                                    {runMode === 'user'
-                                                        ? `Runs only while you are logged in, inside your session. OS keychain passwords and session-mounted drives work; fires while logged out are skipped.${platform === 'macos' ? ' On macOS it runs as Rclone UI, so protected folders work once you grant the app access.' : ''}`
-                                                        : `Runs even while logged out, but outside your login session. No OS keychain or session-mounted drives.${platform === 'macos' ? ' To read protected folders (Desktop, Documents, Downloads) or external volumes, grant Full Disk Access to /usr/sbin/cron in System Settings → Privacy & Security.' : ''}`}
-                                                </span>
                                             </div>
                                         </div>
 

@@ -30,9 +30,9 @@ pub const APP_DOC: &str = "app";
 pub const APP_VERSION: u64 = 3;
 pub const HOST_VERSION: u64 = 2;
 
-pub fn host_doc(host_id: &str) -> String {
-    format!("hosts/{}", host_id)
-}
+/// The per-machine settings document. The `hosts/` segment and the `local` name are the shared
+/// storage layout, kept as written; this server has one machine and never another.
+pub const HOST_DOC: &str = "hosts/local";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StateDoc {

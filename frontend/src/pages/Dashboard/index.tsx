@@ -11,11 +11,11 @@ import { useLifecyclePhase } from '../../../lib/api/lifecycle'
 import { buildReadablePathMultiple, formatBytes } from '../../../lib/format'
 import { daemonVersionQueryOptions } from '../../../lib/hooks'
 import { fetchMountList, fetchServeList } from '../../../lib/rclone/api'
-import rclone, { currentHostId } from '../../../lib/rclone/client'
+import rclone from '../../../lib/rclone/client'
 import { ENDED, type TransferRow, totalsOf } from '../../../lib/transfers/rows'
 import { useTransferRows } from '../../../lib/transfers/useTransferRows'
 import { useHostStore } from '../../../store/host'
-import { useCurrentHost, usePersistedStore } from '../../../store/persisted'
+import { usePersistedStore } from '../../../store/persisted'
 import OperationGrid from '../../components/OperationGrid'
 import Onboarding from './Onboarding'
 import { Eyebrow, Figure, MoreLink, Panel } from './primitives'
@@ -171,7 +171,6 @@ const PHASE_CHIP: Record<
 }
 
 export default function Dashboard() {
-    const host = useCurrentHost()
     const phase = useLifecyclePhase()
     const server = useQuery({
         queryKey: ['server', 'status'],
@@ -220,8 +219,7 @@ export default function Dashboard() {
     // The transfers panel is the record's newest few, the running ones with their live numbers:
     // there after a restart, there from the moment one starts, and never a download (which is
     // not a transfer, and would show in rclone's daemon-wide files in flight).
-    const hostId = currentHostId()
-    const { rows } = useTransferRows(hostId)
+    const { rows } = useTransferRows()
     const all = useMemo(() => [...rows.active, ...rows.inactive], [rows])
     const recent = all.slice(0, 6)
     // Moved, files and errors are the record's too, over a window that says what it is. They
@@ -248,7 +246,7 @@ export default function Dashboard() {
     const unreachable = stats.isError
     const chip = phase ? PHASE_CHIP[phase.phase] : undefined
     const rcloneVersion =
-        (phase?.phase === 'ready' && phase.version) || daemonVersion.data || host?.cliVersion
+        (phase?.phase === 'ready' && phase.version) || daemonVersion.data
 
     const mountRows = useMemo(
         () => ((mounts.data ?? []) as { Fs: string; MountPoint: string }[]).slice(0, 4),
@@ -271,9 +269,7 @@ export default function Dashboard() {
         <div className="flex flex-col gap-5 p-6 pb-10 lg:p-8">
             <header className="flex flex-wrap items-end justify-between gap-3">
                 <div className="flex flex-col gap-1">
-                    <h1 className="text-2xl font-semibold tracking-tight">
-                        {host?.name ?? 'Local Machine'}
-                    </h1>
+                    <h1 className="text-2xl font-semibold tracking-tight">Local Machine</h1>
                     <p className="text-sm text-default-500">
                         {rcloneVersion && rcloneVersion !== 'unknown'
                             ? `rclone ${rcloneVersion}`

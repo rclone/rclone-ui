@@ -17,15 +17,10 @@ import {
     Trash2Icon,
     WandSparklesIcon,
 } from 'lucide-react'
-import { LOCAL_HOST_ID } from '../../../lib/hosts'
 import { SETTINGS_SECTIONS, type SectionKey, isSectionKey } from '../../pages/Settings/sections'
 
 // The browser sidebar's model: labelled zones of links. Remotes is a zone built at runtime from
 // the daemon's remote list; Settings lists its sections directly.
-export interface NavContext {
-    hostId: string | null
-}
-
 export interface NavLeaf {
     to: string
     label: string
@@ -33,7 +28,6 @@ export interface NavLeaf {
     /** A one-letter tile instead of an icon (remotes have no icon of their own). */
     tile?: string
     /** Why the entry is unavailable on the current host, when it is. */
-    disabled?: (ctx: NavContext) => string | undefined
     /** A figure after the label (how many remotes the full list holds). */
     count?: number
     /** Only a link: never drawn as the current page (a remote opens the Commander, whose own row lights up). */
@@ -75,20 +69,15 @@ export const ZONES: NavZone[] = [
 
 function settingsLeaf(key: SectionKey): NavLeaf {
     const section = SETTINGS_SECTIONS[key]
-    const localOnly = section.localOnly
     return {
         to: key === 'general' ? '/settings' : `/settings/${key}`,
         label: section.label,
         icon: section.icon,
-        disabled: localOnly
-            ? (ctx) => (ctx.hostId !== LOCAL_HOST_ID ? localOnly : undefined)
-            : undefined,
     }
 }
 
 // Only these sections are listed. General, Config, License, About and Mobile keep their routes
-// for deep links, and so do Binary, Proxy and Hosts: the first two are the Rclone screen here,
-// and hosts are a desktop concern.
+// for deep links, and so do Binary and Proxy: those two are the Rclone screen here.
 const SETTINGS_KEYS: SectionKey[] = ['notifications', 'smtp', 'rclone', 'team']
 
 export const SETTINGS_ZONE: NavZone = { label: 'Settings', items: SETTINGS_KEYS.map(settingsLeaf) }

@@ -4,7 +4,6 @@ import { rcFetch } from '../api/rc'
 import { rpc } from '../api/rpc'
 import { openUrl } from '../api/shell'
 import { UserCancelledError, formatErrorMessage } from '../errors'
-import { currentHostId } from './client'
 
 // An OAuth login runs inside a blocking rc call (`config/create`, `config/update`): the daemon
 // starts its auth server and waits for the code. It is told to open no browser, so the link
@@ -19,7 +18,7 @@ export interface OAuthStatus {
 
 // Neither call is among the SDK's typed paths.
 async function call<T>(path: string): Promise<T> {
-    const response = await rcFetch(currentHostId(), path, {
+    const response = await rcFetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',

@@ -18,7 +18,6 @@ import { getFsInfo } from '../format'
 import { dispatchNotification } from '../notifications'
 import { restartActiveRclone, runRcloneCli } from './cli'
 import rclone, {
-    currentHostId,
     currentHostOs,
     handleReconnectIfNeeded,
     isHostWindows,
@@ -449,7 +448,6 @@ async function submit(
 ) {
     try {
         return await transfersStart({
-            hostId: currentHostId(),
             ...meta,
             isDryRun,
             // A dry run's record must not reopen as a dry run.
@@ -772,7 +770,7 @@ export async function uploadEmptyFile(fs: string, remote: string) {
     body.append('file0', new File([], '.empty'))
 
     const params = new URLSearchParams({ fs, remote })
-    const response = await rcFetch(currentHostId(), `operations/uploadfile?${params}`, {
+    const response = await rcFetch(`operations/uploadfile?${params}`, {
         method: 'POST',
         body,
     })

@@ -56,15 +56,10 @@ fn client() -> reqwest::Client {
         .clone()
 }
 
-pub fn unavailable(host: &str) -> Response {
-    let message = if host == "local" {
-        "the rclone daemon is not running yet".to_string()
-    } else {
-        format!("unknown host '{}'", host)
-    };
+pub fn unavailable() -> Response {
     (
         StatusCode::SERVICE_UNAVAILABLE,
-        Json(json!({ "error": message, "status": 503 })),
+        Json(json!({ "error": "the rclone daemon is not running yet", "status": 503 })),
     )
         .into_response()
 }
@@ -143,11 +138,11 @@ pub async fn forward(daemon: &DaemonTarget, req: Request, path: &str) -> Respons
 
 pub async fn handle(
     State(st): State<Shared>,
-    Path((host, path)): Path<(String, String)>,
+    Path(path): Path<String>,
     req: Request,
 ) -> Response {
-    let Some(daemon) = st.daemon_for(&host) else {
-        return unavailable(&host);
+    let Some(daemon) = st.local_daemon() else {
+        return unavailable();
     };
     forward(&daemon, req, &path).await
 }

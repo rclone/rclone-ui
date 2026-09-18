@@ -1,8 +1,8 @@
 //! rclone-ui-server as a library: one HTTP + WebSocket server that serves the frontend bundle and
 //! answers its API, serving the pages to a browser
 //! and run standalone by `main.rs` for browser deployments. The host describes what it can do on
-//! top of the shared core through [`Hooks`] (native windows, an updater, autostart, OS toasts,
-//! boot-time questions, quitting) and gets a [`Handle`] back to start the rclone lifecycle and
+//! top of the shared core through [`Hooks`] (native windows, an updater, boot-time questions,
+//! quitting) and gets a [`Handle`] back to start the rclone lifecycle and
 //! shut the server down.
 //!
 //! Routes:
@@ -19,7 +19,6 @@
 //! | everything else | `frontend/dist/` with the boot script injected into index.html |
 
 pub mod auth;
-pub mod autostart;
 pub mod bus;
 pub mod commands;
 pub mod ctx;
@@ -67,7 +66,6 @@ use std::time::Instant;
 use crate::lifecycle::interaction::SharedInteraction;
 use crate::lifecycle::{Options as LifecycleOptions, Supervisor};
 use crate::rc::RcClient;
-use crate::state_files::APP_DOC;
 use crate::transfers::service::TransferService;
 use serde_json::{json, Map, Value};
 use tokio::net::TcpListener;
@@ -112,19 +110,12 @@ pub trait Updater: Send + Sync {
     fn install(&self, progress: Sink<Value>) -> Result<(), String>;
 }
 
-/// Start-at-login of the host binary.
-pub trait Autostart: Send + Sync {
-    fn is_enabled(&self) -> Result<bool, String>;
-    fn set_enabled(&self, enabled: bool) -> Result<(), String>;
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QuitKind {
     Exit,
     Relaunch,
 }
 
-pub type OsNotify = Arc<dyn Fn(&str, &str) -> Result<(), String> + Send + Sync>;
 pub type OnQuit = Arc<dyn Fn(QuitKind) + Send + Sync>;
 pub type OpenExternal = Arc<dyn Fn(&str, &str) -> Result<(), String> + Send + Sync>;
 
@@ -134,25 +125,18 @@ pub struct Hooks {
     /// Who answers the orchestrator's boot-time questions.
     pub interaction: SharedInteraction,
     pub updater: Option<Arc<dyn Updater>>,
-    pub autostart: Option<Arc<dyn Autostart>>,
-    /// `(title, body)` → an OS toast.
-    pub os_notify: Option<OsNotify>,
     /// Called last in the quit/relaunch flow, after the daemon is down.
     pub on_quit: OnQuit,
 }
 
 impl Hooks {
     /// The standalone server's behaviour: never prompts, updates itself from the release
-    /// manifest, registers a login item, toasts through notify-rust, exits/relaunches the process.
+    /// manifest and exits/relaunches the process.
     pub fn standalone() -> Hooks {
         Hooks {
             capabilities: Map::new(),
             interaction: Arc::new(ServerPolicy),
             updater: Some(Arc::new(updater::SelfUpdater)),
-            autostart: Some(Arc::new(autostart::LoginItem)),
-            os_notify: Some(Arc::new(|title, body| {
-                crate::notifications::os::notify_headless(title, body)
-            })),
             on_quit: Arc::new(|kind| {
                 if kind == QuitKind::Relaunch {
                     if supervised() {
@@ -176,11 +160,14 @@ impl Hooks {
 /// supervisor kills the whole process group when the main process exits.
 pub const RESTART_EXIT_CODE: i32 = 3;
 
-/// Whether a service manager started this process (the login items `autostart` writes).
+/// Whether a service manager started this process: systemd sets `INVOCATION_ID`, and launchd
+/// sets `XPC_SERVICE_NAME` to the job's label (a process started from a shell gets the literal
+/// `0`). The label itself is not ours to predict — the operator writes the unit or the plist, so
+/// matching one particular name would only recognise a service manager we set up ourselves.
 pub fn supervised() -> bool {
     std::env::var_os("INVOCATION_ID").is_some()
         || std::env::var("XPC_SERVICE_NAME")
-            .map(|name| name.contains("com.rclone.ui.server"))
+            .map(|name| !name.is_empty() && name != "0")
             .unwrap_or(false)
 }
 
@@ -274,14 +261,6 @@ impl AppState {
             })
     }
 
-    /// The daemon behind a host id: `local` = the managed daemon, anything else a configured
-    /// remote host (`hosts[]` in the app state).
-    /// The one daemon. Transfers, schedules and state documents are still filed under a host
-    /// id, and `local` is the only one this server serves.
-    pub fn daemon_for(&self, host_id: &str) -> Option<DaemonTarget> {
-        (host_id == "local").then(|| self.local_daemon()).flatten()
-    }
-
     pub(crate) fn quitting_flag(&self) -> std::sync::MutexGuard<'_, bool> {
         self.quitting.lock().unwrap()
     }
@@ -299,7 +278,6 @@ impl AppState {
     pub fn status(&self) -> Value {
         let supervisor = self.supervisor();
         let phase = supervisor.as_ref().map(|s| s.phase());
-        let app_state = self.store.state_or_default(APP_DOC);
         json!({
             "version": env!("CARGO_PKG_VERSION"),
             "uptimeSeconds": self.started_at.elapsed().as_secs(),
@@ -311,7 +289,6 @@ impl AppState {
             "lifecycle": phase.as_ref().map(|p| serde_json::to_value(p).unwrap_or(Value::Null)),
             "startup": phase.as_ref().map(|p| p.startup_status()),
             "daemon": self.local_daemon().map(|d| json!({ "url": d.base_url })),
-            "currentHostId": app_state.get("currentHostId").cloned().unwrap_or(Value::Null),
         })
     }
 }
@@ -355,13 +332,11 @@ pub fn capabilities(overlay: &Map<String, Value>) -> Value {
         "platform": std::env::consts::OS,
         "containerized": containerized,
         "updater": !containerized,
-        "autostart": !containerized,
         "mount": mount,
         "scheduler": true,
         "processExit": !containerized,
         "configSync": true,
         "pathIntegration": true,
-        "osNotifications": !containerized,
     });
     if let Some(map) = caps.as_object_mut() {
         for (key, value) in overlay {
@@ -482,9 +457,9 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
 
     {
         let st = Arc::clone(&state);
-        state.transfers.set_host_resolver(Arc::new(move |host| {
-            st.daemon_for(host).map(|d| d.client())
-        }));
+        state
+            .transfers
+            .set_daemon_resolver(Arc::new(move || st.local_daemon().map(|d| d.client())));
         // Before anything can start a transfer: what the previous process left open is closed
         // or watched again.
         state.transfers.recover();
@@ -508,7 +483,7 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
                 .put(state_api::put),
         )
         .route(
-            "/api/rc/{host}/{*path}",
+            "/api/rc/{*path}",
             any(rc_proxy::handle).layer(axum::extract::DefaultBodyLimit::disable()),
         )
         .route("/api/dl/{token}", get(download::handle))
@@ -520,34 +495,6 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
             auth::guard,
         ))
         .with_state(state.clone());
-
-    // Rust-side code (the lifecycle's automount) asks for OS toasts over the bus.
-    if let Some(os_notify) = state.hooks.os_notify.clone() {
-        let mut events = state.ctx.events.subscribe();
-        tokio::spawn(async move {
-            loop {
-                match events.recv().await {
-                    Ok(event) if event.name == "os.toast" => {
-                        let title = event.payload["title"]
-                            .as_str()
-                            .unwrap_or("Rclone UI")
-                            .to_string();
-                        let body = event.payload["body"].as_str().unwrap_or("").to_string();
-                        let os_notify = os_notify.clone();
-                        crate::rt::spawn_blocking(move || {
-                            if let Err(e) = os_notify(&title, &body) {
-                                log::warn!("[toast] {}", e);
-                            }
-                        });
-                    }
-                    Ok(_) => {}
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-                }
-            }
-        });
-    }
-
 
     let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
     let task = tokio::spawn(async move {
