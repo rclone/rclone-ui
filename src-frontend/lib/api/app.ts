@@ -94,18 +94,6 @@ export const hostProbe = (args: {
 export const downloadLink = (hostId: string, fs: string, remote: string) =>
     rpc<string>('download_link', { hostId, fs, remote })
 
-export interface TunnelInfo {
-    url: string
-    user?: string
-    pass?: string
-}
-
-export const tunnelStart = () => rpc<TunnelInfo>('tunnel_start')
-export const tunnelStop = () => rpc<null>('tunnel_stop')
-export const tunnelStatus = () => rpc<TunnelInfo | null>('tunnel_status')
-export const cloudflaredInstalled = () => rpc<boolean>('cloudflared_installed')
-export const cloudflaredProvision = () => rpc<boolean>('cloudflared_provision')
-
 // --- third-party fetches the server makes on the page's behalf ---------------------------
 
 export const rcloneLatestVersion = () => rpc<string>('rclone_latest_version')

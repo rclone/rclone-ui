@@ -11,7 +11,6 @@ export interface Capabilities {
     mount: boolean
     scheduler: boolean
     processExit: boolean
-    tunnel: boolean
     deepLink: boolean
     configSync: boolean
     pathIntegration: boolean
@@ -70,7 +69,6 @@ const FALLBACK: BootPayload = {
         mount: true,
         scheduler: true,
         processExit: false,
-        tunnel: false,
         deepLink: false,
         configSync: false,
         pathIntegration: false,

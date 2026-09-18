@@ -10,7 +10,6 @@ import {
     PackageIcon,
     SatelliteDishIcon,
     ServerIcon,
-    TabletSmartphoneIcon,
     UsersIcon,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
@@ -19,7 +18,6 @@ import BinarySection from './BinarySection'
 import ConfigSection from './ConfigSection'
 import GeneralSection from './GeneralSection'
 import HostsSection from './HostsSection'
-import MobileSection from './MobileSection'
 import NotificationsSection from './NotificationsSection'
 import ProxySection from './ProxySection'
 import RcloneSection from './RcloneSection'
@@ -33,7 +31,6 @@ export type SectionKey =
     | 'general'
     | 'remotes'
     | 'notifications'
-    | 'mobile'
     | 'hosts'
     | 'team'
     | 'config'
@@ -49,22 +46,12 @@ export interface SettingsSection {
     component: ComponentType
     /** Why the section is unavailable when the current host is not the local machine. */
     localOnly?: string
-    /** Why the section is unavailable when the host has no tunnel. */
-    needsTunnel?: string
 }
 
 export const SETTINGS_SECTIONS: Record<SectionKey, SettingsSection> = {
     general: { label: 'General', icon: CogIcon, component: GeneralSection },
     remotes: { label: 'Remotes', icon: ServerIcon, component: RemotesSection },
     notifications: { label: 'Notifications', icon: BellIcon, component: NotificationsSection },
-    mobile: {
-        label: 'Mobile',
-        icon: TabletSmartphoneIcon,
-        component: MobileSection,
-        needsTunnel: 'Mobile access is not available in browser mode',
-        localOnly:
-            'Mobile access is only available when using your local machine, not a remote host',
-    },
     hosts: { label: 'Hosts', icon: GlobeIcon, component: HostsSection },
     // Browser only: accounts are the server's; the desktop's windows use a launch token.
     team: { label: 'Team', icon: UsersIcon, component: TeamSection },

@@ -1,5 +1,4 @@
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
-import { useCapabilities } from '../../../lib/api/host'
 import { LOCAL_HOST_ID } from '../../../lib/hosts'
 import { useCurrentHost } from '../../../store/persisted'
 import SettingsGate from './SettingsGate'
@@ -11,7 +10,6 @@ import { SETTINGS_SECTIONS, type SectionKey, isSectionKey } from './sections'
 export default function SectionPage({ section: fixed }: { section?: SectionKey }) {
     const params = useParams<{ section?: string }>()
     const [searchParams] = useSearchParams()
-    const caps = useCapabilities()
     const host = useCurrentHost()
 
     const tab = searchParams.get('tab')
@@ -27,7 +25,6 @@ export default function SectionPage({ section: fixed }: { section?: SectionKey }
     const key: SectionKey = fixed ?? (isSectionKey(params.section) ? params.section : 'general')
     const section = SETTINGS_SECTIONS[key]
     const unavailable =
-        (section.needsTunnel && !caps.tunnel ? section.needsTunnel : undefined) ??
         (section.localOnly && host?.id !== LOCAL_HOST_ID ? section.localOnly : undefined)
     const Section = section.component
 

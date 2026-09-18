@@ -55,7 +55,6 @@ export interface EventPayloads {
     'state.changed': StateChanged
     'rclone.download-progress': DownloadProgress
     'rclone.download-finished': DownloadProgress
-    'tunnel.changed': { url: string; user?: string; pass?: string } | null
     'deep-link.add-template': AddTemplatePayload
     'window.focus': WindowEvent
     'window.blur': WindowEvent

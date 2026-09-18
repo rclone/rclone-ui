@@ -1,5 +1,5 @@
 //! RPCs the server answers itself (on top of the shared command table): the app's process,
-//! the lifecycle, hosts, the tunnel, the host's filesystem, and the third-party fetches a
+//! the lifecycle, hosts, the host's filesystem, and the third-party fetches a
 //! browser can't make. Same names and argument keys on both products.
 
 use axum::extract::State;
@@ -95,7 +95,7 @@ pub fn request_quit(st: &Shared, kind: QuitKind) -> bool {
     true
 }
 
-/// The quit/relaunch flow, once: confirm when transfers are active, drop the tunnel, stop the
+/// The quit/relaunch flow, once: confirm when transfers are active, stop the
 /// daemon, then hand over to the host.
 async fn quit(st: Shared, kind: QuitKind) {
     // Only what the daemon this process spawned is running goes down with it.
@@ -130,7 +130,6 @@ async fn quit(st: Shared, kind: QuitKind) {
             }
         }
     }
-    st.tunnel.stop_with(&st).await;
     if let Some(supervisor) = st.supervisor() {
         supervisor.shutdown().await;
     }
@@ -490,23 +489,6 @@ server_rpcs! {
             let token = st.downloads.mint(host, &fs, &remote);
             ok(format!("/api/dl/{}", token))
         },
-
-        // --- tunnel ------------------------------------------------------------------------
-        "tunnel_start" => {
-            if !cap(st, "tunnel") {
-                return Err("Mobile pairing is not available in this deployment.".into());
-            }
-            ok(st.tunnel.start(st).await?)
-        },
-        "tunnel_stop" => {
-            st.tunnel.stop_with(st).await;
-            ok(Value::Null)
-        },
-        "tunnel_status" => ok(st.tunnel.status()),
-        "cloudflared_installed" => {
-            ok(crate::tunnel::binary_path(&st.ctx.dirs.root).is_file())
-        },
-        "cloudflared_provision" => ok(crate::tunnel::provision(st).await?),
 
         // --- filesystem --------------------------------------------------------------------
         "fs_read_tail" => {

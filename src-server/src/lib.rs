@@ -10,7 +10,7 @@
 //! | Route | What |
 //! |---|---|
 //! | `GET /__boot?t=&next=` | token mode: turn the launch token into the session cookie |
-//! | `GET /api/status` | mode, version, lifecycle phase, daemon, tunnel |
+//! | `GET /api/status` | mode, version, lifecycle phase, daemon |
 //! | `POST /api/rpc/{name}` | shared command table + the server's own RPCs |
 //! | `POST /api/native/{name}` | the host's [`NativeBridge`] (desktop windows), else 404 |
 //! | `GET/PATCH/PUT /api/state/{doc}` | revisioned state documents |
@@ -34,7 +34,6 @@ pub mod server_rpcs;
 pub mod state_api;
 pub mod static_files;
 pub mod team;
-pub mod tunnel;
 pub mod updater;
 pub mod ws;
 
@@ -134,7 +133,7 @@ pub type OpenExternal = Arc<dyn Fn(&str, &str) -> Result<(), String> + Send + Sy
 
 pub struct Hooks {
     pub mode: Mode,
-    /// Overrides on top of the computed capabilities (the desktop sets `window`, `tunnel`, …).
+    /// Overrides on top of the computed capabilities.
     pub capabilities: Map<String, Value>,
     /// Who answers the orchestrator's boot-time questions.
     pub interaction: SharedInteraction,
@@ -143,7 +142,7 @@ pub struct Hooks {
     pub autostart: Option<Arc<dyn Autostart>>,
     /// `(title, body)` → an OS toast.
     pub os_notify: Option<OsNotify>,
-    /// Called last in the quit/relaunch flow, after the daemon and tunnel are down.
+    /// Called last in the quit/relaunch flow, after the daemon is down.
     pub on_quit: OnQuit,
 }
 
@@ -249,7 +248,6 @@ pub struct AppState {
     pub lifecycle: RwLock<Option<Arc<Supervisor>>>,
     /// Starts, watches and records transfers; alive in every mode, with or without a page.
     pub transfers: Arc<TransferService>,
-    pub tunnel: tunnel::Tunnel,
     pub downloads: download::Downloads,
     /// Remotes whose "reconnect?" dialog a page is showing, `host:remote` to when it was
     /// claimed (one dialog app-wide, released when the page is done with it).
@@ -337,7 +335,6 @@ impl AppState {
             "lifecycle": phase.as_ref().map(|p| serde_json::to_value(p).unwrap_or(Value::Null)),
             "startup": phase.as_ref().map(|p| p.startup_status()),
             "daemon": self.local_daemon().map(|d| json!({ "url": d.base_url })),
-            "tunnel": self.tunnel.status(),
             "currentHostId": app_state.get("currentHostId").cloned().unwrap_or(Value::Null),
         })
     }
@@ -388,7 +385,6 @@ pub fn capabilities(mode: Mode, overlay: &Map<String, Value>) -> Value {
         "mount": mount,
         "scheduler": true,
         "processExit": !containerized,
-        "tunnel": true,
         "deepLink": desktop,
         "configSync": true,
         "pathIntegration": true,
@@ -450,10 +446,9 @@ impl Handle {
         Some(supervisor)
     }
 
-    /// Stops accepting connections, stops the daemon and the tunnel.
+    /// Stops accepting connections and stops the daemon.
     pub async fn shutdown(&self) {
         let _ = self.shutdown.send(true);
-        self.state.tunnel.stop().await;
         if let Some(supervisor) = self.state.supervisor() {
             supervisor.shutdown().await;
         }
@@ -524,7 +519,6 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
         dev_proxy: opts.dev_proxy,
         lifecycle: RwLock::new(None),
         transfers,
-        tunnel: tunnel::Tunnel::default(),
         downloads: download::Downloads::default(),
         reconnect_claims: Mutex::new(HashMap::new()),
         http,
@@ -603,26 +597,6 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
         });
     }
 
-    // A managed daemon restart picks a new port and credentials: a pairing tunnel still
-    // forwarding to the old ones is rebuilt, and `tunnel.changed` carries the new pairing.
-    {
-        let state = state.clone();
-        let mut events = state.ctx.events.subscribe();
-        tokio::spawn(async move {
-            loop {
-                match events.recv().await {
-                    Ok(event)
-                        if event.name == "lifecycle.phase" && event.payload["phase"] == "ready" =>
-                    {
-                        state.tunnel.rebuild_if_stale(&state).await;
-                    }
-                    Ok(_) => {}
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-                }
-            }
-        });
-    }
 
     let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
     let task = tokio::spawn(async move {
