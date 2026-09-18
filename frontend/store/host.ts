@@ -12,6 +12,15 @@ const activeDoc = () => 'hosts/local'
 watchDoc(activeDoc, () => useHostStore.persist.rehydrate())
 
 /**
+ * Loads the host document into the store. The store is created with `skipHydration`, because at
+ * import time the page has no API layer to read the document through; the shell calls this once
+ * the rest is up, and nothing renders until it has.
+ */
+export async function initHostStore(): Promise<void> {
+    await useHostStore.persist.rehydrate()
+}
+
+/**
  * Waits for the writes the host store has queued so far to land. The persist middleware writes
  * asynchronously (a bare `set()` returns before the request is sent), leaving a crash window
  * between a Rust filesystem mutation and its state being persisted; call this right after a

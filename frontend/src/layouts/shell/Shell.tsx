@@ -4,7 +4,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { onBusy, setNavigate } from '../../../lib/api/navigation'
 import { getSession } from '../../../lib/api/session'
 import { hydrated } from '../../../lib/api/state'
-import { useHostStore } from '../../../store/host'
+import { initHostStore } from '../../../store/host'
 import { usePersistedStore } from '../../../store/persisted'
 import DialogHost from '../../components/DialogHost'
 import Sidebar from './Sidebar'
@@ -17,7 +17,7 @@ import { useSidebarState } from './useSidebarState'
  */
 async function ensureHostStore() {
     await hydrated(usePersistedStore.persist)
-    await hydrated(useHostStore.persist)
+    await initHostStore()
 }
 
 // The seam between the sidebar and the page: an invisible strip whose centre line lights up on

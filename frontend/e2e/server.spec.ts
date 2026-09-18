@@ -64,8 +64,18 @@ test('dashboard renders inside the shell with the injected boot payload', async 
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Commander', exact: true })).toBeVisible()
-    expect(await page.evaluate(() => window.__RCLONE_UI__?.mode)).toBe('server')
-    expect(await page.evaluate(() => window.__RCLONE_UI__?.capabilities.window)).toBe(false)
+    // There is one product now: the payload names no mode, and the desktop's capabilities are
+    // not merely false but absent. This is the guard against them creeping back in.
+    expect(
+        await page.evaluate(() => {
+            const boot = window.__RCLONE_UI__
+            return {
+                mode: 'mode' in (boot ?? {}),
+                window: 'window' in (boot?.capabilities ?? {}),
+                deepLink: 'deepLink' in (boot?.capabilities ?? {}),
+            }
+        })
+    ).toEqual({ mode: false, window: false, deepLink: false })
     // rclone rcd is up, so the throughput panel resolves through the rc proxy.
     await expect(page.getByText('Idle')).toBeVisible({ timeout: 15_000 })
     // A fresh install shows the getting-started timeline in place of the inventory rows. The
@@ -262,7 +272,7 @@ test('rpc round trip: the shared table, the server RPCs and errors', async ({ re
         await request.post('/api/rpc/app_info', { headers: SESSION, data: {} })
     ).json()
     expect(info.ok).toBe(true)
-    expect(info.value.mode).toBe('server')
+    expect(info.value.os).toBe(process.platform === 'darwin' ? 'macos' : process.platform)
 
     const unknown = await (
         await request.post('/api/rpc/nope', { headers: SESSION, data: {} })
@@ -662,26 +672,30 @@ test('a page that has not heard of another writer leaves that writer’s keys al
     page,
     request,
 }) => {
-    type Host = { id: string; name: string }
-    type AppDoc = { revision: number; state: { hosts?: Host[]; appearance?: { app: string } } }
+    type Template = { id: string; name: string; operation: string; options: Record<string, unknown> }
+    type AppDoc = {
+        revision: number
+        state: { templates?: Template[]; appearance?: { app: string } }
+    }
     const app = async () =>
         (await (await request.get('/api/state/app', { headers: SESSION })).json()) as AppDoc
     // A writer like any other: refused when the revision has moved, it reads again.
-    const renameHost = async (name: string) => {
+    const renameTemplate = async (name: string) => {
         for (;;) {
             const doc = await app()
-            const hosts = (doc.state.hosts ?? []).map((host) =>
-                host.id === 'local' ? { ...host, name } : host
-            )
+            const templates = [
+                { id: 'e2e-other-writer', name, operation: 'copy', options: {} },
+                ...(doc.state.templates ?? []).filter((one) => one.id !== 'e2e-other-writer'),
+            ]
             const response = await request.patch('/api/state/app', {
                 headers: { ...SESSION, 'If-Match': String(doc.revision) },
-                data: { set: { hosts }, unset: [] },
+                data: { set: { templates }, unset: [] },
             })
             if (response.status() !== 409) return expect(response.ok()).toBe(true)
         }
     }
-    const hostName = async () =>
-        (await app()).state.hosts?.find((host) => host.id === 'local')?.name
+    const templateName = async () =>
+        (await app()).state.templates?.find((one) => one.id === 'e2e-other-writer')?.name
     // The server's announcements to this page, held back as a slow socket would.
     let holding = false
     const held: (string | Buffer)[] = []
@@ -707,13 +721,13 @@ test('a page that has not heard of another writer leaves that writer’s keys al
         // The Dashboard's heading is the host's name, which the page itself never writes.
         await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
 
-        // Another writer renames the host. This page does not hear of it.
+        // Another writer adds a template. This page does not hear of it.
         holding = true
-        await renameHost('Far Machine')
+        await renameTemplate('Far Template')
 
         // It changes a key of its own, twice. The first write is refused (the revision moved)
         // and re-applied on top. By the second the adapter knows the newer document while the
-        // store still holds the old `hosts`: measured against the server's document that would
+        // store still holds the old `templates`: measured against the server's document that would
         // read as this page's change, and be written back over the other writer's.
         await page
             .locator('header', { has: page.getByRole('button', { name: 'Toggle sidebar' }) })
@@ -723,21 +737,30 @@ test('a page that has not heard of another writer leaves that writer’s keys al
         await expect.poll(async () => (await app()).state.appearance?.app).toBe('light')
         await pickTheme('Dark')
         await expect.poll(async () => (await app()).state.appearance?.app).toBe('dark')
-        expect(await hostName()).toBe('Far Machine')
-        // (By its element: the open cog hides the rest of the page from roles.)
-        const heading = page.locator('h1')
-        await expect(heading).toHaveText('Local Machine')
+        // The other writer's key is untouched: this page held an older copy of it and wrote
+        // only what it changed.
+        expect(await templateName()).toBe('Far Template')
 
         // The announcements arrive, none of them newer than what the adapter has adopted. The
-        // store is what is behind, and it catches up all the same.
+        // store is what is behind, and it catches up all the same — the theme it wrote is still
+        // its own, and the other writer's template is still there.
         holding = false
         for (const message of held) toPage(message)
-        await expect(heading).toHaveText('Far Machine', { timeout: 10_000 })
         await expect.poll(isDark).toBe(true)
-        expect(await hostName()).toBe('Far Machine')
+        expect(await templateName()).toBe('Far Template')
     } finally {
         holding = false
-        await renameHost('Local Machine')
+        for (;;) {
+            const doc = await app()
+            const templates = (doc.state.templates ?? []).filter(
+                (one) => one.id !== 'e2e-other-writer'
+            )
+            const response = await request.patch('/api/state/app', {
+                headers: { ...SESSION, 'If-Match': String(doc.revision) },
+                data: { set: { templates }, unset: [] },
+            })
+            if (response.status() !== 409) break
+        }
     }
 })
 

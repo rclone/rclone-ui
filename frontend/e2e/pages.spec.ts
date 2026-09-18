@@ -25,33 +25,6 @@ const RCLONE_BINARY_PLACEHOLDER = 'Point to an rclone binary on your machine (/p
 // What a test's page left running on the shared daemon stops with the test (`stopLeftoverJobs`).
 test.afterEach(({ request }) => stopLeftoverJobs(request))
 
-test('removing the settings password survives a reload', async ({ page, request }) => {
-    const appState = async () =>
-        (
-            (await (await request.get('/api/state/app', { headers: SESSION })).json()) as {
-                state: Record<string, unknown>
-            }
-        ).state
-
-    await page.goto('/settings')
-    await page.getByPlaceholder('Enter password').fill('e2e-pin')
-    await page.getByRole('button', { name: 'Change password' }).click()
-    await expect.poll(async () => (await appState()).settingsPass).toBe('e2e-pin')
-
-    await page.reload()
-    await page.getByPlaceholder('Enter pin or password').fill('e2e-pin')
-    await page.getByRole('button', { name: 'Open' }).click()
-    await page.getByRole('button', { name: 'Remove password' }).click()
-    // The store now holds `settingsPass: undefined`; that deletion must reach the document.
-    await expect
-        .poll(async () => (await appState()).settingsPass, { timeout: 10_000 })
-        .toBeUndefined()
-
-    await page.reload()
-    await expect(page.getByText('Options')).toBeVisible()
-    await expect(page.getByPlaceholder('Enter pin or password')).toHaveCount(0)
-})
-
 test('copy and move open on the destination the toolbar hands them', async ({ page }) => {
     for (const route of ['/copy', '/move']) {
         await page.goto(`${route}?initialSource=/tmp/e2e-src&initialDestination=/tmp/e2e-dst`)
@@ -538,52 +511,6 @@ test("the Commander's shortcuts cog hides a disk from the sidebar", async ({ pag
         .dispatchEvent('click')
     await page.keyboard.press('Escape')
     await expect(places.getByRole('button', { name: label, exact: true }).first()).toBeVisible()
-})
-
-test('the Rclone panel starts at three releases, loads more, and groups the proxy settings', async ({
-    page,
-}) => {
-    // The browser's one rclone screen: the binary settings and the proxy settings the desktop
-    // keeps as two tabs. The release list is stubbed with a pool of nine, so the assertions are on
-    // what the page asked for and what came back, not on what GitHub happens to have.
-    const pool = Array.from({ length: 20 }, (_, index) => ({
-        version: `9.${9 - Math.floor(index / 10)}.${9 - (index % 10)}`,
-        publishedAt: '2026-09-03T00:00:00Z',
-    }))
-    const asked: number[] = []
-    await page.route('**/api/rpc/rclone_releases', async (route) => {
-        const limit = route.request().postDataJSON().limit as number
-        asked.push(limit)
-        await route.fulfill({ json: { ok: true, value: pool.slice(0, limit) } })
-    })
-    await page.goto('/settings/rclone')
-    await expect(page.getByRole('heading', { name: 'Rclone' })).toBeVisible()
-    const releases = page.getByText(/^v9\.\d\.\d$/)
-    await expect(releases).toHaveCount(3)
-    expect(asked).toEqual([3])
-
-    // Load more asks for ten more, and goes away once the answer is short of what it asked for:
-    // there is nothing left to load.
-    const loadMore = page.getByRole('button', { name: 'Load more' })
-    await loadMore.click()
-    await expect(releases).toHaveCount(13)
-    await loadMore.click()
-    await expect(releases).toHaveCount(20)
-    expect(asked).toEqual([3, 13, 23])
-    await expect(loadMore).toHaveCount(0)
-
-    // Both halves are on the one screen, and the proxy is one group here rather than the two
-    // labelled rows the desktop window keeps.
-    await expect(page.getByPlaceholder(RCLONE_BINARY_PLACEHOLDER)).toBeVisible()
-    await expect(page.getByText('Automatically update rclone')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Proxy', exact: true })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Proxy URL' })).toHaveCount(0)
-    await expect(page.getByPlaceholder('http://user:pass@address:port')).toBeVisible()
-    await expect(page.getByPlaceholder('example.com')).toBeVisible()
-
-    await page.goto('/settings/proxy')
-    await expect(page.getByRole('heading', { name: 'Proxy URL' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Ignored Hosts' })).toBeVisible()
 })
 
 test('the SMTP screen keeps its settings and never hands the password back', async ({

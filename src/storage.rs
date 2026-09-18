@@ -520,11 +520,11 @@ mod tests {
         let dir = scratch("marker");
         let root = dir.join("root");
         write(&root.join(MARKER), r#"{"version": 99}"#);
-        let err = migrate(&root, Environment::Server).unwrap_err();
+        let err = migrate(&root).unwrap_err();
         assert!(err.contains("newer"), "{}", err);
         write(&root.join(MARKER), "not json");
         assert!(version(&root).is_err());
-        assert!(migrate(&root, Environment::Server).is_err());
+        assert!(migrate(&root).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

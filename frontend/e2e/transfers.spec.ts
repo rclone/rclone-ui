@@ -217,7 +217,7 @@ test('where a transfer came from is on its row, for the badge', () => {
 // (Every start the app makes is recorded; the Download page's URL download included.)
 test('nothing but the live reads asks rclone about jobs', () => {
     const root = new URL('..', import.meta.url).pathname
-    const sources = ['src', 'lib', 'toolbar'].flatMap((dir) =>
+    const sources = ['src', 'lib'].flatMap((dir) =>
         (readdirSync(join(root, dir), { recursive: true }) as string[])
             .filter((file) => /\.tsx?$/.test(file))
             .map((file) => join(dir, file))
