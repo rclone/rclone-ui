@@ -1,27 +1,14 @@
-//! 5-field cron parsing and conversion to the native scheduler formats: crontab entries on
-//! macOS/Linux and Task Scheduler triggers on Windows.
+//! 5-field cron parsing, and the question the ticker asks every minute: does this expression
+//! match the clock right now.
 //!
-//! Every field is normalized to either a wildcard or an explicit sorted value set — emitting
-//! explicit values is more verbose than structural mapping (steps/ranges) but is correct by
-//! construction on every backend. Cron's dom/dow OR semantics (when BOTH are restricted, a time
-//! matches if EITHER matches) are native to crontab and reproduced for schtasks.
+//! Every field is normalized to either a wildcard or an explicit sorted value set. Cron's
+//! dom/dow OR semantics — when BOTH day fields are restricted, a time matches if EITHER matches
+//! — are reproduced here, keyed off whether the field was written as a star (`Field::star`).
 //!
-//! Both converters compile on every platform (only one is reachable from production code per
-//! target, but the unit tests exercise both everywhere).
-#![allow(dead_code)]
+//! There is nothing to convert to: this server fires its own tasks, so a schedule never has to
+//! be expressed in another scheduler's format.
 
 use std::collections::BTreeSet;
-
-/// Our self-imposed ceiling on the launchd StartCalendarInterval dicts a single cron expands
-/// into (one per firing point, since launchd has no value lists). `launchd.plist(5)` documents no
-/// hard maximum; this is purely a guard so a fragmented schedule can't produce an unwieldy plist.
-/// Comfortably above any reasonable schedule.
-const MAX_SCHEDULE_ENTRIES: usize = 128;
-
-/// Task Scheduler's hard limit: the task XML schema allows at most 48 triggers per task
-/// (Task Scheduler schema docs, triggerGroup maxOccurs=48). Exceeding it fails at /Create, so
-/// reject at conversion/validation time with an actionable message instead.
-const SCHTASKS_MAX_TRIGGERS: usize = 48;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Field {
@@ -123,8 +110,6 @@ pub fn day_constraint(spec: &CronSpec) -> DayConstraint {
         },
     }
 }
-
-const DAY_AND_UNSUPPORTED: &str = "This schedule requires the day of month AND the weekday to match together (a '*/n' day step combined with a weekday restriction) — {platform} cannot express that in one scheduled task. Use explicit days of the month (e.g. 1,6,11) or drop one of the two day fields.";
 
 #[derive(Debug, Clone)]
 pub struct CronSpec {

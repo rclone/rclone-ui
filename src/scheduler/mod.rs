@@ -40,34 +40,17 @@ pub enum InstallState {
     Installed { enabled: bool },
 }
 
-/// Everything a backend needs to (re)create the OS artifact for a task.
+/// Everything the backend needs to (re)create a task's artifact: the schedule to match, the
+/// child to spawn, and whether it is armed. The run's own limits live in the job file, which the
+/// runner reads when it starts — nothing here has to carry them.
 pub struct RenderedSchedule {
     pub cron: cronconv::CronSpec,
     pub program: PathBuf,
     pub args: Vec<String>,
-    /// The task's friendly name. Only the Windows backend has somewhere to put it (the schtasks
-    /// XML `<Description>`); launchd identifies by Label = task id and crontab by a marker comment,
-    /// so neither reads it — hence the cfg-gated allow.
-    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-    pub display_name: String,
-    /// User-mode task (the default): only runs while the user is logged in. Only the Windows
-    /// backend reads this — it bakes the mode into a single artifact (InteractiveToken vs S4U).
-    /// On macOS the mode already picked the backend (launchd vs crontab) before rendering, and on
-    /// Linux the crontab entry is identical for both modes (the runner gates/borrows the session
-    /// at fire time from the job file). Hence the cfg-gated allow off Windows.
-    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-    pub user_mode: bool,
-    /// The state to install in. Baked into the artifact (crontab `#off#` prefix, launchd
-    /// active-vs-parked location, schtasks Settings `<Enabled>`) so registration is one
-    /// operation: a disabled task is never briefly armed between an install and a follow-up
-    /// set_enabled, and a partial failure can't leave it running against the user's intent.
+    /// The state to install in, baked into the artifact so registration is one operation: a
+    /// disabled task is never briefly armed between an install and a follow-up set_enabled, and a
+    /// partial failure can't leave it running against the user's intent.
     pub enabled: bool,
-    /// The task's max run time. Only the Windows backend reads it (schtasks
-    /// `<ExecutionTimeLimit>` must sit above the runner's own deadline or Task Scheduler kills
-    /// the run first); cron/launchd don't supervise run durations — the runner's deadline is the
-    /// only limit there.
-    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-    pub max_run_seconds: u64,
 }
 
 /// A task the backend holds: whether it will fire, and whether this profile made it (Windows
@@ -175,10 +158,7 @@ fn render(dirs: &DataDir, spec: &JobSpec, enabled: bool) -> Result<RenderedSched
         cron,
         program,
         args,
-        display_name: spec.name.clone(),
-        user_mode: spec.is_user_mode(),
         enabled,
-        max_run_seconds: spec.max_run_seconds,
     })
 }
 

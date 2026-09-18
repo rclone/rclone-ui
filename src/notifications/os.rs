@@ -1,8 +1,7 @@
-//! OS toast for the HEADLESS runner only. The GUI never calls this — it uses
-//! @tauri-apps/plugin-notification from JS, whose AppHandle-bound Rust API cannot run in
-//! scheduled-run mode (main.rs never builds a Tauri app there). This mirrors what that plugin's
-//! desktop.rs does per platform (tauri-plugin-notification 2.3.3), minus the icon handling:
-//! notify-rust is the plugin's own desktop backend, so behavior and attribution match.
+//! The OS toast. Two callers: a scheduled run (`scheduler/runner.rs`), which has no page to
+//! speak through, and the `os_notify` hook, which the `os.toast` bus event and the RPC of the
+//! same name reach. It is off in a container, where `osNotifications` is false and there is no
+//! desktop to show it on — pages there show their own toast instead.
 
 // The macOS bundle id / Windows AUMID the bundler registers, which is what makes the toast render
 // under the app's name and icon.

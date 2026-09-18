@@ -217,10 +217,7 @@ mod tests {
             cron: cronconv::parse("*/5 * * * *").unwrap(),
             program: PathBuf::from("/bin/true"),
             args: vec!["run-task".into(), "t1".into()],
-            display_name: "t1".into(),
-            user_mode: false,
             enabled: true,
-            max_run_seconds: 60,
         };
         assert_eq!(
             backend.is_installed("t1").unwrap(),
