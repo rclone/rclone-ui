@@ -220,7 +220,7 @@ pub struct CronValidation {
 }
 
 pub fn scheduler_validate_cron(_ctx: &Ctx, cron: String) -> Result<CronValidation, String> {
-    Ok(match cronconv::validate_for_current_platform(&cron) {
+    Ok(match cronconv::validate(&cron) {
         Ok(()) => CronValidation {
             valid: true,
             error: None,
