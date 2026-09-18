@@ -1,46 +1,59 @@
 [workspace]
-resolver = "2"
-members = ["src-shared", "src-server"]
 
-[workspace.package]
+[package]
+name = "rclone-ui-server"
+description = "Rclone UI served to a browser: the core behind an HTTP/WebSocket API, serving the frontend it runs"
 version = "3.7.4"
 edition = "2021"
 rust-version = "1.77.2"
 
-[workspace.dependencies]
+[dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 log = "0.4"
 reqwest = { version = "0.13", features = ["json", "stream"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "signal"] }
-# Local wall-clock for the macOS launchd catch-up suppression (the runner skips a fire whose
-# local minute doesn't match the cron — a wake-catch-up rather than an on-time fire).
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
+uuid = { version = "1", features = ["v4"] }
 dirs = "6"
+# Local wall-clock: the ticker asks every minute whether the schedule matches it.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 sysinfo = "0.37"
 sha2 = "0.10"
-uuid = { version = "1", features = ["v4"] }
 zip = "0.6.6"
 flate2 = "1.1.9"
 tar = "0.4.45"
-# The headless runner's OS toast (notifications/os.rs) — this is tauri-plugin-notification's own
-# desktop backend (same locked version), used directly because the plugin's API needs an
-# AppHandle and scheduled-run mode never builds a Tauri app.
+# The scheduled runner's OS toast (notifications/os.rs), where the host has a desktop.
 notify-rust = "4"
 # Email notifications (notifications/smtp.rs): the blocking SMTP transport on the TLS stack
 # reqwest already brought in (rustls, aws-lc-rs, the platform's certificate verifier), so a
 # mail costs no second TLS library. No default features: no native-tls, no pool, no hostname.
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "rustls", "aws-lc-rs", "rustls-platform-verifier"] }
+axum = { version = "0.8", features = ["ws", "http1", "json", "tokio", "query"] }
+futures-util = "0.3"
+rust-embed = { version = "8", features = ["include-exclude"] }
+mime_guess = "2"
+clap = { version = "4", features = ["derive", "env"] }
+env_logger = "0.11"
+subtle = "2"
+# Account passwords (team.rs): argon2id PHC strings. Pure Rust, no system libraries.
+argon2 = { version = "0.5", features = ["std"] }
+bytes = "1"
+percent-encoding = "2"
+minisign-verify = "0.2"
+base64 = "0.22"
+fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
+
+[target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
 winreg = "0.52"
-# open_url / open_path / reveal_item on the server (the desktop shell has the same three).
-opener = { version = "0.7", features = ["reveal"] }
-# Job-object features: the scheduler runner ties the transient rclone daemon's lifetime to a
-# KILL_ON_JOB_CLOSE job (scheduler/winjob.rs) so a hard-killed runner can't orphan it.
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
-    "Win32_Security",
-    "Win32_System_JobObjects",
-    "Win32_System_Threading",
 ] }
+
+[features]
+# A debug build reads the bundle from the checkout at runtime; a debug binary meant
+# for another machine (cargo zigbuild / cargo xwin) needs the bundle inside it like a release build.
+embed = ["rust-embed/debug-embed"]

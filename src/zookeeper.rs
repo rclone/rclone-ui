@@ -1722,13 +1722,13 @@ mod download_event_tests {
     fn download_events_are_declared_in_events_ts() {
         let events_ts = std::fs::read_to_string(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../src-frontend/lib/api/events.ts"
+            "/frontend/lib/api/events.ts"
         ))
-        .expect("src-frontend/lib/api/events.ts");
+        .expect("frontend/lib/api/events.ts");
         for name in [DOWNLOAD_PROGRESS_EVENT, DOWNLOAD_FINISHED_EVENT] {
             assert!(
                 events_ts.contains(&format!("'{}':", name)),
-                "{} is emitted but not declared in src-frontend/lib/api/events.ts",
+                "{} is emitted but not declared in frontend/lib/api/events.ts",
                 name
             );
         }

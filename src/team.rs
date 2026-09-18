@@ -397,7 +397,7 @@ impl Team {
             users: users.to_vec(),
         })
         .map_err(|e| e.to_string())?;
-        rclone_ui_shared::fsutil::write_atomic(path, &body)
+        crate::fsutil::write_atomic(path, &body)
     }
 }
 

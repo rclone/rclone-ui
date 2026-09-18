@@ -18,7 +18,7 @@ use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use axum::response::Response;
 use futures_util::{SinkExt, StreamExt};
-use rclone_ui_shared::sink::{RawSink, Sink};
+use crate::sink::{RawSink, Sink};
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 

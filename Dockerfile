@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Rclone UI in a browser: the shared Rust core behind rclone-ui-server, no Tauri/GTK/WebKit.
+# Rclone UI in a browser: rclone-ui-server, no GTK/WebKit.
 #   docker build -t rclone-ui-server .
 #   docker run -d -p 5573:5573 -e RCLONE_UI_PASSWORD=change-me -v rclone-ui:/data rclone-ui-server
 # Sign in as admin@localhost (or RCLONE_UI_EMAIL) with that password; the pair seeds the owner
@@ -9,25 +9,21 @@
 
 FROM node:22-bookworm AS web
 WORKDIR /app
-# The workspace member's manifest has to be in place before npm ci resolves the tree. Scoping the
-# install to src-frontend skips the video project's dependencies (the Remotion toolchain and its
-# platform binaries, 253 packages) — nothing in this image renders videos.
-COPY package.json package-lock.json ./
-COPY src-frontend/package.json ./src-frontend/
-RUN npm ci --workspace src-frontend --include-workspace-root
-COPY . .
-RUN npm run build
+# The manifests first, so a source-only change reuses the installed layer.
+COPY frontend/package.json frontend/package-lock.json ./frontend/
+RUN npm --prefix frontend ci
+COPY frontend ./frontend
+RUN npm --prefix frontend run build
 
 FROM rust:1-bookworm AS build
 WORKDIR /app
 # Nothing here needs GTK or WebKit: the server links neither.
 COPY Cargo.toml Cargo.lock ./
-COPY src-shared ./src-shared
-COPY src-server ./src-server
-COPY --from=web /app/src-frontend/dist ./src-frontend/dist
+COPY src ./src
+COPY --from=web /app/frontend/dist ./frontend/dist
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
-    cargo build --release -p rclone-ui-server \
+    cargo build --release \
     && cp target/release/rclone-ui-server /usr/local/bin/rclone-ui-server
 
 FROM debian:bookworm-slim

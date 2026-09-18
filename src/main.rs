@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use rclone_ui_server::{serve, Hooks, Owner, ServeOpts};
-use rclone_ui_shared::lifecycle::Options as LifecycleOptions;
+use rclone_ui_server::lifecycle::Options as LifecycleOptions;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -83,7 +83,7 @@ fn main() {
         let task_id = args[2].clone();
         let host_id = flag_value("--host").unwrap_or_else(|| "local".to_string());
         let data_dir = flag_value("--data-dir");
-        std::process::exit(rclone_ui_shared::scheduler::runner::run(
+        std::process::exit(rclone_ui_server::scheduler::runner::run(
             &task_id,
             &host_id,
             data_dir.as_deref(),
@@ -93,7 +93,7 @@ fn main() {
     // The metadata mapper (`--metadata-mapper`), which rclone spawns once per file and
     // directory copied: one JSON object in, one out, nothing started, nothing logged.
     if args.len() >= 2 && args[1] == "metadata-map" {
-        std::process::exit(rclone_ui_shared::metadata_mapper::run(&args[2..]));
+        std::process::exit(rclone_ui_server::metadata_mapper::run(&args[2..]));
     }
 
     let _ = fix_path_env::fix();
@@ -101,7 +101,7 @@ fn main() {
     let cli = Cli::parse();
     let opts = match cli.command {
         Some(Command::ListCommands) => {
-            let mut names: Vec<&str> = rclone_ui_shared::commands::COMMAND_NAMES.to_vec();
+            let mut names: Vec<&str> = rclone_ui_server::commands::COMMAND_NAMES.to_vec();
             names.extend(rclone_ui_server::server_rpcs::SERVER_RPCS);
             names.sort_unstable();
             for name in names {
@@ -133,13 +133,13 @@ async fn run(cli: CliServe) -> Result<(), String> {
     })?;
 
     let dirs = match &cli.data_dir {
-        Some(d) => rclone_ui_shared::DataDir { root: d.clone() },
-        None => rclone_ui_shared::DataDir::from_env()?,
+        Some(d) => rclone_ui_server::DataDir { root: d.clone() },
+        None => rclone_ui_server::DataDir::from_env()?,
     };
     // Before anything is opened or written (the log file included): a clean slate, then the
     // layout this build reads.
     let cleared = if cli.clear { Some(dirs.clear()?) } else { None };
-    let migration = rclone_ui_shared::storage::migrate(&dirs.root)?;
+    let migration = rclone_ui_server::storage::migrate(&dirs.root)?;
     // An overridden data directory (development, tests, containers) keeps its logs with its
     // data; otherwise the platform's app-log directory, where the desktop's log plugin writes.
     let log_dir = if cli.data_dir.is_some() {
@@ -169,7 +169,7 @@ async fn run(cli: CliServe) -> Result<(), String> {
 
     // The server is a long-running daemon (possibly in a container with no cron): tasks fire from
     // its own minute loop.
-    tokio::spawn(rclone_ui_shared::scheduler::ticker::run_ticker(
+    tokio::spawn(rclone_ui_server::scheduler::ticker::run_ticker(
         dirs.clone(),
     ));
     log::info!("data dir {}", dirs.root.display());

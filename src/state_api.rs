@@ -7,7 +7,7 @@ use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use rclone_ui_shared::state_files::{PatchError, StateDoc};
+use crate::state_files::{PatchError, StateDoc};
 use serde_json::{json, Map, Value};
 
 use crate::Shared;

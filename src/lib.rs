@@ -16,40 +16,64 @@
 //! | `GET /api/dl/{token}` | short-lived signed download link |
 //! | `POST /api/proxy` | allow-listed third-party fetch |
 //! | `GET /api/ws` | stream events + bus events |
-//! | everything else | `src-frontend/dist/` with the boot script injected into index.html |
+//! | everything else | `frontend/dist/` with the boot script injected into index.html |
 
 pub mod auth;
 pub mod autostart;
+pub mod bus;
+pub mod commands;
+pub mod ctx;
+pub mod datadir;
 pub mod download;
 pub mod fs;
+pub mod fsutil;
+pub mod lifecycle;
 pub mod logging;
+pub mod metadata_mapper;
+pub mod notifications;
+pub mod platform;
 pub mod port;
 pub mod proxy;
+pub mod rc;
 pub mod rc_proxy;
 pub mod rpc;
+pub mod rt;
+pub mod scheduler;
 pub mod server_rpcs;
+pub mod sink;
 pub mod state_api;
+pub mod state_files;
 pub mod static_files;
+pub mod storage;
 pub mod team;
+pub mod transfers;
 pub mod updater;
+pub mod version;
 pub mod ws;
+pub mod zookeeper;
+
+pub use bus::{Bus, Event};
+pub use ctx::{Ctx, Events};
+pub use datadir::DataDir;
+pub use platform::{is_flatpak, kill_pid};
+pub use sink::Sink;
+pub use state_files::StateStore;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
-use rclone_ui_shared::lifecycle::interaction::SharedInteraction;
-use rclone_ui_shared::lifecycle::{Options as LifecycleOptions, Supervisor};
-use rclone_ui_shared::rc::RcClient;
-use rclone_ui_shared::state_files::{StateStore, APP_DOC};
-use rclone_ui_shared::transfers::service::TransferService;
-use rclone_ui_shared::{Ctx, DataDir, Events, Sink};
+use crate::lifecycle::interaction::SharedInteraction;
+use crate::lifecycle::{Options as LifecycleOptions, Supervisor};
+use crate::rc::RcClient;
+use crate::state_files::APP_DOC;
+use crate::transfers::service::TransferService;
 use serde_json::{json, Map, Value};
 use tokio::net::TcpListener;
 use tokio::sync::watch;
 
-pub use rclone_ui_shared::lifecycle::{Interaction, ServerPolicy};
+pub use lifecycle::{Interaction, ServerPolicy};
 
 /// The owner account seeded on the first start.
 pub struct Owner {
@@ -127,7 +151,7 @@ impl Hooks {
             updater: Some(Arc::new(updater::SelfUpdater)),
             autostart: Some(Arc::new(autostart::LoginItem)),
             os_notify: Some(Arc::new(|title, body| {
-                rclone_ui_shared::notifications::os::notify_headless(title, body)
+                crate::notifications::os::notify_headless(title, body)
             })),
             on_quit: Arc::new(|kind| {
                 if kind == QuitKind::Relaunch {
@@ -510,7 +534,7 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
                             .to_string();
                         let body = event.payload["body"].as_str().unwrap_or("").to_string();
                         let os_notify = os_notify.clone();
-                        rclone_ui_shared::rt::spawn_blocking(move || {
+                        crate::rt::spawn_blocking(move || {
                             if let Err(e) = os_notify(&title, &body) {
                                 log::warn!("[toast] {}", e);
                             }

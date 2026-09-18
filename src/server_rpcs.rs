@@ -5,12 +5,12 @@
 use axum::extract::State;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use rclone_ui_shared::lifecycle::interaction::{ask, Decision, Question};
-use rclone_ui_shared::lifecycle::{resolve, RestartOverrides};
-use rclone_ui_shared::rt;
-use rclone_ui_shared::state_files::host_doc;
-use rclone_ui_shared::transfers::service::StartRequest;
-use rclone_ui_shared::Sink;
+use crate::lifecycle::interaction::{ask, Decision, Question};
+use crate::lifecycle::{resolve, RestartOverrides};
+use crate::rt;
+use crate::state_files::host_doc;
+use crate::transfers::service::StartRequest;
+use crate::Sink;
 use serde_json::{json, Value};
 
 use crate::rpc::{ok, Reply};
@@ -521,7 +521,7 @@ mod table_tests {
         );
         for name in SERVER_RPCS {
             assert!(
-                !rclone_ui_shared::commands::COMMAND_NAMES.contains(name),
+                !crate::commands::COMMAND_NAMES.contains(name),
                 "{} is also a portable command",
                 name
             );

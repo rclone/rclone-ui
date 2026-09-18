@@ -5,7 +5,7 @@
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
-use rclone_ui_shared::rt;
+use crate::rt;
 use serde_json::Value;
 
 fn io(e: std::io::Error, what: &str, path: &Path) -> String {
@@ -100,7 +100,7 @@ mod tests {
         std::fs::write(&file, "one\ntwo\nthree\n").unwrap();
         let path = file.to_string_lossy().into_owned();
         let tail = |lines: Value| {
-            rclone_ui_shared::rt::block_on(read_tail(&json!({ "path": path, "lines": lines })))
+            crate::rt::block_on(read_tail(&json!({ "path": path, "lines": lines })))
                 .unwrap()
         };
         assert_eq!(tail(json!(2)), json!(["two", "three"]));

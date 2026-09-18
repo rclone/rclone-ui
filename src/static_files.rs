@@ -1,4 +1,4 @@
-//! The frontend bundle (`src-frontend/dist/`, built by `npm run build`) with an SPA fallback,
+//! The frontend bundle (`frontend/dist/`, built by `npm run build`) with an SPA fallback,
 //! plus the boot script injected into index.html: `window.__RCLONE_UI__` carries the mode,
 //! capabilities, OS facts and well-known paths the page reads synchronously at import time, and
 //! the persisted theme so the first paint is right without localStorage. In debug builds
@@ -10,14 +10,14 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::{header, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
-use rclone_ui_shared::datadir::APP_IDENTIFIER;
-use rclone_ui_shared::state_files::APP_DOC;
+use crate::datadir::APP_IDENTIFIER;
+use crate::state_files::APP_DOC;
 use serde_json::{json, Value};
 
 use crate::Shared;
 
 #[derive(rust_embed::Embed)]
-#[folder = "../src-frontend/dist"]
+#[folder = "frontend/dist"]
 struct Assets;
 
 const MARKER: &str = "<!-- rclone-ui:server-inject -->";
@@ -30,7 +30,7 @@ fn path_string(path: Option<std::path::PathBuf>) -> Value {
 /// The log directory: on macOS Tauri's app-log directory (`~/Library/Logs/<identifier>`),
 /// which the desktop's log plugin writes to; elsewhere `logs/` under the data directory, which
 /// is where Tauri's resolver points on Windows and Linux too.
-pub fn log_dir_for(dirs: &rclone_ui_shared::DataDir) -> std::path::PathBuf {
+pub fn log_dir_for(dirs: &crate::DataDir) -> std::path::PathBuf {
     if cfg!(target_os = "macos") {
         if let Some(home) = dirs::home_dir() {
             return home.join("Library").join("Logs").join(APP_IDENTIFIER);

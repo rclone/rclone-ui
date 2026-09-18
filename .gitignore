@@ -31,6 +31,6 @@ dist-ssr
 /target
 
 # Playwright
-/src-frontend/e2e/.tmp
-/src-frontend/test-results
-/src-frontend/playwright-report
+/frontend/e2e/.tmp
+/frontend/test-results
+/frontend/playwright-report

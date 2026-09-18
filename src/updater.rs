@@ -6,7 +6,7 @@
 use std::sync::Mutex;
 use std::time::Duration;
 
-use rclone_ui_shared::Sink;
+use crate::Sink;
 use serde_json::{json, Value};
 
 use crate::{UpdateInfo, Updater};
@@ -43,7 +43,7 @@ fn client() -> Result<reqwest::Client, String> {
 
 /// Both trait methods run on the blocking pool, where waiting on the async client is fine.
 fn block_on<F: std::future::Future>(fut: F) -> F::Output {
-    rclone_ui_shared::rt::block_on(fut)
+    crate::rt::block_on(fut)
 }
 
 fn verify(data: &[u8], signature_b64: &str) -> Result<(), String> {
@@ -107,7 +107,7 @@ impl Updater for SelfUpdater {
         let platform = &manifest["platforms"][target()];
         if platform.is_null()
             || version.is_empty()
-            || !rclone_ui_shared::version::newer(&version, current)
+            || !crate::version::newer(&version, current)
         {
             *PENDING.lock().unwrap() = None;
             return Ok(None);

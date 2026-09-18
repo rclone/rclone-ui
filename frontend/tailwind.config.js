@@ -2,21 +2,14 @@ const { heroui } = require('@heroui/react')
 
 /** @type {import('tailwindcss').Config} */
 export default {
-    // Two tools share this config from two different working directories: Vite runs in
-    // src-frontend, Remotion in src-video, whose compositions render the app's real components
-    // and so need the same theme. `relative` resolves the globs against this file instead of the
-    // working directory, so both see the same files. The HeroUI theme is listed under both
-    // node_modules: npm's hoisting decides which one exists, and a glob that matches nothing
-    // costs nothing.
+    // `relative` resolves the globs against this file rather than the working directory.
     content: {
         relative: true,
         files: [
             './index.html',
             './src/**/*.{js,ts,jsx,tsx}',
             './lib/**/*.{js,ts,jsx,tsx}',
-            '../src-video/**/*.{js,ts,jsx,tsx}',
             './node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}',
-            '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}',
         ],
     },
     theme: {
