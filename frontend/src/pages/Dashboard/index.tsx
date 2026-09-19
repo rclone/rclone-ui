@@ -11,6 +11,7 @@ import { useLifecyclePhase } from '../../../lib/api/lifecycle'
 import { buildReadablePathMultiple, formatBytes } from '../../../lib/format'
 import { fetchMountList, fetchServeList } from '../../../lib/rclone/api'
 import rclone from '../../../lib/rclone/client'
+import { daemonVersionQueryOptions } from '../../../lib/hooks'
 import { ENDED, type TransferRow, totalsOf } from '../../../lib/transfers/rows'
 import { useTransferRows } from '../../../lib/transfers/useTransferRows'
 import { useHostStore } from '../../../store/host'
@@ -168,6 +169,14 @@ const PHASE_CHIP: Record<
     stopped: { label: 'Stopped', color: 'default' },
 }
 
+/** What is running, in the smallest voice the page has: reference, not news. */
+function Versions({ cloud, rclone }: { cloud?: string; rclone?: string }) {
+    const known = rclone && rclone !== 'unknown' ? rclone : undefined
+    const parts = [cloud && `cloud ${cloud}`, known && `rclone ${known}`].filter(Boolean)
+    if (parts.length === 0) return null
+    return <footer className="pt-1 text-xs text-center text-default-400">{parts.join(' · ')}</footer>
+}
+
 export default function Dashboard() {
     const phase = useLifecyclePhase()
     const server = useQuery({
@@ -175,6 +184,9 @@ export default function Dashboard() {
         queryFn: fetchStatus,
         refetchInterval: 30_000,
     })
+
+    // An external daemon publishes no lifecycle phase, so its version comes from rclone itself.
+    const daemonVersion = useQuery(daemonVersionQueryOptions())
 
     const stats = useQuery({
         queryKey: ['dashboard', 'stats'],
@@ -242,6 +254,8 @@ export default function Dashboard() {
     const speed = stats.data?.speed ?? 0
     const unreachable = stats.isError
     const chip = phase ? PHASE_CHIP[phase.phase] : undefined
+    const rcloneVersion =
+        (phase?.phase === 'ready' && phase.version) || daemonVersion.data
     const mountRows = useMemo(
         () => ((mounts.data ?? []) as { Fs: string; MountPoint: string }[]).slice(0, 4),
         [mounts.data]
@@ -622,6 +636,8 @@ export default function Dashboard() {
                     hasTransferred={all.some((row) => !row.isDryRun)}
                 />
             )}
+
+            <Versions cloud={server.data?.version} rclone={rcloneVersion} />
 
             <RemotesReconnectDrawer
                 isOpen={reconnectOpen}
