@@ -51,9 +51,6 @@ struct CliServe {
     /// Use an already-running rclone RC daemon at this URL instead of managing one.
     #[arg(long, env = "RCLONE_CLOUD_RCLONE_URL")]
     rclone_url: Option<String>,
-    /// Run the managed daemon with `--log-level INFO`.
-    #[arg(long, env = "RCLONE_CLOUD_VERBOSE_RCLONE")]
-    verbose_rclone: bool,
     /// Forward non-API requests to a Vite dev server instead of serving the embedded bundle.
     #[arg(long, env = "RCLONE_CLOUD_DEV_PROXY")]
     dev_proxy: Option<String>,
@@ -148,7 +145,9 @@ async fn run(cli: CliServe) -> Result<(), String> {
             dirs.root.display()
         );
     }
-    if migration.from != migration.to {
+    if migration.from == 0 {
+        log::info!("storage at version {}", migration.to);
+    } else if migration.from != migration.to {
         log::info!(
             "storage migrated from version {} to {}",
             migration.from,
@@ -192,7 +191,6 @@ async fn run(cli: CliServe) -> Result<(), String> {
             handle.start_lifecycle(LifecycleOptions {
                 rclone_path_override: cli.rclone_path.clone(),
                 can_mount,
-                verbose: cli.verbose_rclone,
                 path_integration: true,
                 check_updates: true,
                 interaction: handle.state.hooks.interaction.clone(),

@@ -2,7 +2,6 @@
 //! the lifecycle uses to raise the daemon.
 
 use std::time::Duration;
-use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
@@ -22,23 +21,11 @@ pub fn pick_port() -> Result<u16, String> {
     Err("could not allocate a local port".to_string())
 }
 
-/// A throwaway credential: the daemon is on loopback, and this is what keeps anything else on
-/// the machine from driving it.
-pub fn random_token(salt: &str) -> String {
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(format!(
-        "{:?}-{}-{}",
-        SystemTime::now(),
-        std::process::id(),
-        salt
-    ));
-    hasher
-        .finalize()
-        .iter()
-        .take(12)
-        .map(|b| format!("{:02x}", b))
-        .collect()
+/// A random hex string, 122 bits from the system CSPRNG. Used for the daemon's throwaway
+/// credentials — where being unguessable is the whole point — and for the id suffixes that only
+/// need not to collide. It was once a hash of the clock and the pid, which is neither.
+pub fn random_token() -> String {
+    uuid::Uuid::new_v4().simple().to_string()
 }
 
 #[derive(Clone, Debug)]

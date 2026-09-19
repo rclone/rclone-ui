@@ -121,8 +121,6 @@ pub struct Options {
     /// Whether this host can mount at all ([`crate::mount_supported`]). When it cannot, the
     /// remotes' "mount on start" jobs are not attempted and the reason is logged once.
     pub can_mount: bool,
-    /// `--log-level INFO` on the daemon.
-    pub verbose: bool,
     /// Keep the PATH-integration pointer (`<local>/bin/rclone`) aimed at the active binary.
     pub path_integration: bool,
     /// Check downloads.rclone.org for a newer managed binary at boot. Whether a newer one is
@@ -277,7 +275,7 @@ impl Supervisor {
         } else {
             storeread::HostState::default()
         };
-        let env = storeread::build_run_env(&host);
+        let mut env = storeread::build_run_env(&host);
 
         // Informational proxy check (the env vars come from build_run_env regardless): one
         // request through the proxy, once per proxy URL. It costs up to 10 s and reaches a third
@@ -304,33 +302,31 @@ impl Supervisor {
 
         self.set_phase(Phase::Starting);
         let port = rc::pick_port().map_err(StartError::Other)?;
-        let user = rc::random_token("user");
-        let pass = rc::random_token("pass");
-        let mut args: Vec<String> = [
+        let user = rc::random_token();
+        let pass = rc::random_token();
+        // The credentials go through the environment, not argv: a process list is readable by
+        // other local processes (on Linux `/proc/<pid>/cmdline` is world-readable), an
+        // environment is not. rclone reads `--rc-user`/`--rc-pass` from these names itself.
+        env.insert("RCLONE_RC_USER".to_string(), user.clone());
+        env.insert("RCLONE_RC_PASS".to_string(), pass.clone());
+
+        let args: Vec<String> = [
             "rcd",
             "--rc-addr",
             &format!("127.0.0.1:{}", port),
-            "--rc-user",
-            &user,
-            "--rc-pass",
-            &pass,
+            // Serves a file's bytes at `[fs]/remote`. It is how the config editor reads
+            // rclone.conf, how a preview fetches a file and how `/api/dl` streams a download —
+            // without it those read 404, and the daemon can still hand out any file through
+            // `core/command` anyway.
             "--rc-serve",
-            "--rc-job-expire-duration",
-            "24h",
-            "--rc-job-expire-interval",
-            "1h",
             // The daemon's stdin is /dev/null, so an encrypted config with no password in the
             // environment would have rclone prompt into EOF and report a panic. This turns that
-            // into rclone's own sentence naming `RCLONE_CONFIG_PASS` — the only thing that can
-            // fix it, and the one this server deliberately does not store.
+            // into a plain error. Passing a password is done using `RCLONE_CONFIG_PASS`.
             "--ask-password=false",
         ]
         .iter()
         .map(|s| s.to_string())
         .collect();
-        if self.options.verbose {
-            args.extend(["--log-level".to_string(), "INFO".to_string()]);
-        }
 
         let (close_tx, close_rx) = mpsc::unbounded_channel::<RcloneEvent>();
         log::info!("[lifecycle] starting {} on port {}", path, port);

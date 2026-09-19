@@ -516,7 +516,7 @@ pub async fn start_mount(
             [.., last] => last.to_string(),
             [] => "mount".to_string(),
         };
-        let suffix = (b'A' + (crate::rc::random_token("volname").as_bytes()[0] % 26)) as char;
+        let suffix = (b'A' + (crate::rc::random_token().as_bytes()[0] % 26)) as char;
         mount_options.insert(
             "volname".into(),
             Value::String(format!("{}-{}", source_path, suffix)),

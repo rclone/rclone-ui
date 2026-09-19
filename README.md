@@ -45,7 +45,6 @@ Every flag has an environment variable.
 | `--data-dir` | `RCLONE_CLOUD_DATA_DIR` | the platform's local data dir + `com.rclone.cloud` |
 | `--rclone-path` | `RCLONE_CLOUD_RCLONE_PATH` | the stored, system or downloaded binary |
 | `--rclone-url` | `RCLONE_CLOUD_RCLONE_URL` | unset; manage the daemon instead |
-| `--verbose-rclone` | `RCLONE_CLOUD_VERBOSE_RCLONE` | off |
 | `--clear` | `RCLONE_CLOUD_CLEAR` | off |
 
 Anything but loopback needs a password, and `--clear` empties the data directory before starting.

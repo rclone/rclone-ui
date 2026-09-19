@@ -307,7 +307,7 @@ impl TransferService {
             .unwrap_or_default()
             .as_millis();
         let started = Started {
-            id: format!("{}-{}-{}", millis, jobid, &crate::rc::random_token("id")[..6]),
+            id: format!("{}-{}-{}", millis, jobid, &crate::rc::random_token()[..6]),
             ts: now_iso(),
             // Which daemon took it, in the same reply as the job's id.
             execute_id: submitted["executeId"]

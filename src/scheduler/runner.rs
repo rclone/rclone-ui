@@ -126,7 +126,7 @@ pub async fn run(ctx: Ctx, transfers: Arc<TransferService>, task_id: String) {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis(),
-        &crate::rc::random_token("run")[..6]
+        &crate::rc::random_token()[..6]
     );
     let started_at = Instant::now();
     // The user-facing "max run time" covers the WHOLE run — webhook delivery included — not

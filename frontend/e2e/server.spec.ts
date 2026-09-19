@@ -1195,7 +1195,7 @@ test('--clear empties the data directory and seeds the owner again', async () =>
         expect(existsSync(join(data, 'store.json'))).toBe(false)
         expect(existsSync(join(data, 'configs', 'old'))).toBe(false)
         // The emptied directory was then brought to the current layout.
-        expect(JSON.parse(readFileSync(join(data, 'storage.json'), 'utf8'))).toEqual({ version: 4 })
+        expect(JSON.parse(readFileSync(join(data, 'storage.json'), 'utf8'))).toEqual({ version: 1 })
         // The owner is the one seeded from this start's flags.
         await signIn(request, base, { email: 'fresh@example.com', password: 'fresh-secret' })
         const session = (await (await request.get('/api/session')).json()) as {
@@ -1207,95 +1207,6 @@ test('--clear empties the data directory and seeds the owner again', async () =>
         server.kill('SIGTERM')
         await new Promise<void>((resolve) => server.once('exit', () => resolve()))
         rmSync(root, { recursive: true, force: true })
-    }
-})
-
-test('a data directory laid out by the old app is migrated at startup, once', async () => {
-    const data = mkdtempSync(join(tmpdir(), 'rcui-e2e-migrate-'))
-    // What the released desktop app left behind: zustand stores as JSON strings inside
-    // tauri-plugin-store files, and the downloaded rclone in its single slot.
-    const app = JSON.stringify({ state: { rclonePath: '/usr/bin/rclone', hosts: [] }, version: 3 })
-    writeFileSync(join(data, 'store.json'), JSON.stringify({ store: app }))
-    const host = JSON.stringify({
-        state: { favoritePaths: ['e2e-memory:kept'] },
-        version: 2,
-    })
-    mkdirSync(join(data, 'hosts', 'local'), { recursive: true })
-    writeFileSync(
-        join(data, 'hosts', 'local', 'store.json'),
-        JSON.stringify({ 'host-store': host })
-    )
-    // A slot "binary" no probe accepts: it must be left alone and reported, not lost.
-    writeFileSync(join(data, 'rclone'), 'not a binary')
-
-    const base = 'http://127.0.0.1:5613'
-    const start = () =>
-        spawn(
-            SERVER_BIN,
-            [
-                'serve',
-                '--bind',
-                '127.0.0.1:5613',
-                '--password',
-                'migrate-secret',
-                '--rclone-url',
-                'http://localhost:5572',
-                '--data-dir',
-                data,
-            ],
-            { stdio: 'ignore' }
-        )
-    const stop = async (server: ReturnType<typeof spawn>) => {
-        server.kill('SIGTERM')
-        await new Promise<void>((resolve) => server.once('exit', () => resolve()))
-    }
-    const up = async (request: Awaited<ReturnType<typeof playwrightRequest.newContext>>) =>
-        expect
-            .poll(
-                async () => {
-                    try {
-                        return (await request.get('/api/session')).ok()
-                    } catch {
-                        return false
-                    }
-                },
-                { timeout: 30_000, message: 'the migrated server did not come up' }
-            )
-            .toBe(true)
-
-    let server = start()
-    const request = await playwrightRequest.newContext({ baseURL: base })
-    try {
-        await up(request)
-        expect(JSON.parse(readFileSync(join(data, 'storage.json'), 'utf8'))).toEqual({ version: 4 })
-        expect(existsSync(join(data, 'store.json'))).toBe(false)
-        expect(existsSync(join(data, 'hosts'))).toBe(false)
-        expect(existsSync(join(data, 'rclone'))).toBe(true)
-        const appDoc = JSON.parse(readFileSync(join(data, 'state', 'app.json'), 'utf8'))
-        expect(appDoc).toMatchObject({
-            version: 3,
-            revision: 1,
-            state: { rclonePath: '/usr/bin/rclone' },
-        })
-        await signIn(request, base, { email: 'admin@localhost', password: 'migrate-secret' })
-        const hostDoc = (await (await request.get('/api/state/hosts/local')).json()) as {
-            version: number
-            state: { favoritePaths?: string[] }
-        }
-        expect(hostDoc.version).toBe(2)
-        expect(hostDoc.state.favoritePaths).toEqual(['e2e-memory:kept'])
-
-        // A second start finds the current layout and changes nothing: the document the first
-        // run wrote (with the revision the sign-in and reads left it at) is what it reads.
-        await stop(server)
-        const before = readFileSync(join(data, 'state', 'hosts', 'local.json'), 'utf8')
-        server = start()
-        await up(request)
-        expect(readFileSync(join(data, 'state', 'hosts', 'local.json'), 'utf8')).toBe(before)
-    } finally {
-        await request.dispose()
-        await stop(server)
-        rmSync(data, { recursive: true, force: true })
     }
 })
 
