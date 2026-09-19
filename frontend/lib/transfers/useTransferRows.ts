@@ -19,8 +19,7 @@ export function useTransferRows({
 }: { limit?: number; enabled?: boolean } = {}) {
     const queryClient = useQueryClient()
     const query = useQuery({
-        queryKey:
-            limit === undefined ? ['transfers', 'list'] : ['transfers', 'list', limit],
+        queryKey: limit === undefined ? ['transfers', 'list'] : ['transfers', 'list', limit],
         queryFn: () => transfersList(limit),
         refetchInterval: 5000,
         enabled,

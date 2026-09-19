@@ -167,12 +167,7 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
         >
             <div className="flex flex-col flex-1 min-h-0 gap-0.5 overflow-x-hidden overflow-y-auto">
                 {ZONES.map((zone, index) => (
-                    <Zone
-                        key={zone.label}
-                        zone={zone}
-                        collapsed={collapsed}
-                        first={index === 0}
-                    />
+                    <Zone key={zone.label} zone={zone} collapsed={collapsed} first={index === 0} />
                 ))}
                 <Zone
                     zone={{

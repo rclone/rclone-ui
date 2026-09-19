@@ -41,7 +41,6 @@ export async function classifyRclonePath(path: string): Promise<RcloneClassifica
     }
 }
 
-
 export function compareVersions(version1: string, version2: string): number {
     const parseVersion = (version: string) => {
         // Strip a leading 'v' and any pre-release suffix (e.g. "1.74.0-beta.x") before comparing;

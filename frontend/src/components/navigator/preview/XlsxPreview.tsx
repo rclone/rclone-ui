@@ -5,11 +5,7 @@ import { PreviewError, PreviewLoading, type PreviewViewerProps } from './preview
 import usePreviewSource from './usePreviewSource'
 
 export default function XlsxPreview({ url, name, onDownload }: PreviewViewerProps) {
-    const { buffer, error, progress } = usePreviewSource(
-        url,
-        xlsxWasmUrl,
-        setWasmSource
-    )
+    const { buffer, error, progress } = usePreviewSource(url, xlsxWasmUrl, setWasmSource)
 
     if (error) {
         return <PreviewError message={error} onDownload={onDownload} />

@@ -4,7 +4,6 @@
 
 import { rpc, stream } from './rpc'
 
-
 export interface UpdateInfo {
     version: string
     currentVersion: string

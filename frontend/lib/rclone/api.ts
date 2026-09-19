@@ -13,11 +13,7 @@ import type { FlagValue } from '../../types/rclone'
 import { UserCancelledError, formatErrorMessage } from '../errors'
 import { getFsInfo } from '../format'
 import { dispatchNotification } from '../notifications'
-import rclone, {
-    currentHostOs,
-    handleReconnectIfNeeded,
-    isHostWindows,
-} from './client'
+import rclone, { currentHostOs, handleReconnectIfNeeded, isHostWindows } from './client'
 import {
     type BisyncArgs,
     type CopyArgs,

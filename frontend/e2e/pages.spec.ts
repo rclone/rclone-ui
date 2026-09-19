@@ -132,16 +132,15 @@ test('a machine that cannot mount says why, and the remotes ask again on every v
     await expect(dialog).toBeVisible({ timeout: 30_000 })
     await expect(dialog.getByText(/There is no \/dev\/fuse/)).toBeVisible()
     await dialog.getByRole('button', { name: 'Open the docs' }).click()
-    expect(
-        await page.evaluate(() => (window as unknown as { __opened?: string }).__opened)
-    ).toBe('https://rclone.org/install/#docker')
+    expect(await page.evaluate(() => (window as unknown as { __opened?: string }).__opened)).toBe(
+        'https://rclone.org/install/#docker'
+    )
 
     // Set up while the server runs: the next visit offers Auto Mount, with no restart.
     supported = true
     await openMenu()
     await expect(autoMount).toBeVisible()
 })
-
 
 test('the template drawer keeps its input when the name is missing', async ({ page }) => {
     await page.goto('/templates')
@@ -1771,8 +1770,7 @@ test('renaming a remote carries its settings along', async ({ page, request }) =
     const remotes = async () =>
         ((await (await rc('config/listremotes', {})).json()) as { remotes: string[] }).remotes
     type HostDoc = { version: number; state: Record<string, unknown> }
-    const hostDoc = async () =>
-        (await (await request.get('/api/state/host')).json()) as HostDoc
+    const hostDoc = async () => (await (await request.get('/api/state/host')).json()) as HostDoc
     await rc('config/create', { name: 'sb-before', type: 'memory', parameters: {} })
     // This server's daemon is the suite's external rcd, on the shared config file.
     const configFile = new URL('./.tmp/rclone.conf', import.meta.url).pathname
@@ -1879,7 +1877,6 @@ test('local folders list through rclone and get their sizes', async ({ page }) =
         rmSync(dir, { recursive: true, force: true })
     }
 })
-
 
 // The Copy page's Metadata section, opened: its region (the first: the mapping panel inside it
 // is a region of its own), and the "Show more options" nudge out of the way. The nudge sits

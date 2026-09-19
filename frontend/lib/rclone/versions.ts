@@ -130,7 +130,6 @@ export async function activateRclonePath(path: string): Promise<boolean> {
     return true
 }
 
-
 export async function getPathIntegration(): Promise<PathStatus> {
     return await rpc<PathStatus>('get_rclone_path_integration')
 }
@@ -141,4 +140,3 @@ export async function setPathIntegration(enable: boolean, targetPath: string): P
         targetPath,
     })
 }
-

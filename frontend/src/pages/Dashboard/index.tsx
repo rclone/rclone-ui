@@ -174,7 +174,9 @@ function Versions({ cloud, rclone }: { cloud?: string; rclone?: string }) {
     const known = rclone && rclone !== 'unknown' ? rclone : undefined
     const parts = [cloud && `cloud ${cloud}`, known && `rclone ${known}`].filter(Boolean)
     if (parts.length === 0) return null
-    return <footer className="pt-1 text-xs text-center text-default-400">{parts.join(' · ')}</footer>
+    return (
+        <footer className="pt-1 text-xs text-center text-default-400">{parts.join(' · ')}</footer>
+    )
 }
 
 export default function Dashboard() {

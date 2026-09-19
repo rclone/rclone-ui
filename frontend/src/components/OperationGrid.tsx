@@ -57,12 +57,12 @@ export default function OperationGrid({
     const grid = { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5' }[columns]
     return (
         <div className={cn('grid gap-2', grid, className)}>
-            {operations.map(({ id, label, icon: Icon }) =>
-                    <Link key={id} to={`/${id}`} className={TILE}>
-                        <Icon className="w-5 h-5" />
-                        {label}
-                    </Link>
-            )}
+            {operations.map(({ id, label, icon: Icon }) => (
+                <Link key={id} to={`/${id}`} className={TILE}>
+                    <Icon className="w-5 h-5" />
+                    {label}
+                </Link>
+            ))}
         </div>
     )
 }

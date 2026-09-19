@@ -6,11 +6,7 @@ import { PreviewError, PreviewLoading, type PreviewViewerProps } from './preview
 import usePreviewSource from './usePreviewSource'
 
 export default function PptxPreview({ url, onDownload }: PreviewViewerProps) {
-    const { buffer, error, progress } = usePreviewSource(
-        url,
-        pptxWasmUrl,
-        setWasmSource
-    )
+    const { buffer, error, progress } = usePreviewSource(url, pptxWasmUrl, setWasmSource)
 
     if (error) {
         return <PreviewError message={error} onDownload={onDownload} />

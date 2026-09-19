@@ -396,9 +396,7 @@ export default function Download() {
                             <ClockIcon className="size-6" />
                         </Button>
                     </Tooltip>
-                    <CommandInfoButton
-                        command="copyurl"
-                    />
+                    <CommandInfoButton command="copyurl" />
                 </ButtonGroup>
             </OperationWindowFooter>
         </div>

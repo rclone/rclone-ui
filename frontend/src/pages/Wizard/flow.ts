@@ -830,7 +830,10 @@ export function infoFor(step: StepKey, answers: Answers, ctx: InfoContext = {}):
             }
             const paragraphs =
                 operation === 'mount'
-                    ? [...PLACES_INFO.mount, ...(MOUNT_NEEDS[ctx.platform ?? ''] ?? MOUNT_NEEDS.linux)]
+                    ? [
+                          ...PLACES_INFO.mount,
+                          ...(MOUNT_NEEDS[ctx.platform ?? ''] ?? MOUNT_NEEDS.linux),
+                      ]
                     : PLACES_INFO[operation]
             return { paragraphs, link: docsFor(operation, undefined) }
         }

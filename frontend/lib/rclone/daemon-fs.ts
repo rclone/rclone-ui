@@ -20,8 +20,7 @@ function split(path: string): { dir: string; name: string } {
 
 export async function readFile(path: string): Promise<string> {
     const { dir, name } = split(path)
-    const response = await rcFetch(`[${encodeURIComponent(dir)}]/${encodeURIComponent(name)}`
-    )
+    const response = await rcFetch(`[${encodeURIComponent(dir)}]/${encodeURIComponent(name)}`)
     if (!response.ok) {
         throw new Error(
             `rclone could not read ${path} (${response.status}). The daemon needs --rc-serve.`

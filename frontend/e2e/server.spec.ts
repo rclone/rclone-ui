@@ -386,10 +386,13 @@ test('the state API keeps its contract, and knows its two documents only', async
     const request = await playwrightRequest.newContext({ baseURL: base })
     try {
         await expect
-            .poll(async () => (await request.get('/api/session').catch(() => null))?.ok() ?? false, {
-                timeout: 30_000,
-                message: 'the server did not come up',
-            })
+            .poll(
+                async () => (await request.get('/api/session').catch(() => null))?.ok() ?? false,
+                {
+                    timeout: 30_000,
+                    message: 'the server did not come up',
+                }
+            )
             .toBe(true)
         await signIn(request, base)
         // No page has been opened here, so `host` has never been written.
@@ -694,7 +697,12 @@ test('a page that has not heard of another writer leaves that writer’s keys al
     page,
     request,
 }) => {
-    type Template = { id: string; name: string; operation: string; options: Record<string, unknown> }
+    type Template = {
+        id: string
+        name: string
+        operation: string
+        options: Record<string, unknown>
+    }
     type AppDoc = {
         revision: number
         state: { templates?: Template[]; appearance?: { app: string } }
@@ -838,19 +846,16 @@ test('the rc proxy reaches the daemon and streams file bytes', async ({ request 
     expect(((await version.json()) as { version: string }).version).toMatch(/^v\d/)
 
     // Upload through the proxy (multipart), then read it back with a Range through --rc-serve.
-    const upload = await request.post(
-        '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=dir',
-        {
-            headers: { 'X-RcloneUI-Session': 'e2e' },
-            multipart: {
-                file0: {
-                    name: 'hello.txt',
-                    mimeType: 'text/plain',
-                    buffer: Buffer.from('hello world'),
-                },
+    const upload = await request.post('/api/rc/operations/uploadfile?fs=e2e-memory:&remote=dir', {
+        headers: { 'X-RcloneUI-Session': 'e2e' },
+        multipart: {
+            file0: {
+                name: 'hello.txt',
+                mimeType: 'text/plain',
+                buffer: Buffer.from('hello world'),
             },
-        }
-    )
+        },
+    })
     expect(upload.ok()).toBe(true)
     const partial = await request.get('/api/rc/[e2e-memory:]/dir/hello.txt', {
         headers: { 'X-RcloneUI-Session': 'e2e', Range: 'bytes=0-4' },
@@ -999,7 +1004,10 @@ test('the team: an admin adds a member, the member signs in, removal ends their 
     await expect(row('pat@example.com')).toHaveCount(0)
     expect(
         (
-            await member.request.post('/api/rpc/scheduler_supported', { headers: SESSION, data: {} })
+            await member.request.post('/api/rpc/scheduler_supported', {
+                headers: SESSION,
+                data: {},
+            })
         ).status()
     ).toBe(401)
     expect(errors, errors.join('\n')).toEqual([])
@@ -1011,19 +1019,16 @@ test('asset-like file names never bypass the API guard', async ({ request }) => 
     // Both external-daemon servers share the rclone daemon: upload through the open one, then
     // ask the password-protected one for the file without a session. The proxy injects the
     // daemon's credentials, so it must refuse whatever the file is called.
-    const upload = await request.post(
-        '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=guard',
-        {
-            headers: { 'X-RcloneUI-Session': 'e2e' },
-            multipart: {
-                file0: {
-                    name: 'secret.png',
-                    mimeType: 'image/png',
-                    buffer: Buffer.from('not a picture'),
-                },
+    const upload = await request.post('/api/rc/operations/uploadfile?fs=e2e-memory:&remote=guard', {
+        headers: { 'X-RcloneUI-Session': 'e2e' },
+        multipart: {
+            file0: {
+                name: 'secret.png',
+                mimeType: 'image/png',
+                buffer: Buffer.from('not a picture'),
             },
-        }
-    )
+        },
+    })
     expect(upload.ok()).toBe(true)
 
     const base = 'http://127.0.0.1:5611'
@@ -1105,10 +1110,15 @@ test('limits: bandwidth applies at once, the transaction limits through a restar
     await signIn(request, base)
     type Lifecycle = { phase: string; pid?: number }
     const lifecycle = async () =>
-        ((await (await request.get(`${base}/api/status`)).json()) as { lifecycle: Lifecycle | null })
-            .lifecycle
+        (
+            (await (await request.get(`${base}/api/status`)).json()) as {
+                lifecycle: Lifecycle | null
+            }
+        ).lifecycle
     const rc = async (path: string) =>
-        (await (await request.post(`${base}/api/rc/${path}`, { headers: SESSION, data: {} })).json()) as {
+        (await (
+            await request.post(`${base}/api/rc/${path}`, { headers: SESSION, data: {} })
+        ).json()) as {
             rate?: string
             main?: { TPSLimit: number; TPSLimitBurst: number }
         }
@@ -1545,9 +1555,9 @@ test('a transfer is listed the moment it starts, before rclone has a file in fli
         await expect
             .poll(
                 async () =>
-                    (
-                        (await rpc('transfers_list', {})).value as TransferEntry[]
-                    ).find((e) => e.id === started.value.id)?.state,
+                    ((await rpc('transfers_list', {})).value as TransferEntry[]).find(
+                        (e) => e.id === started.value.id
+                    )?.state,
                 { timeout: 20_000 }
             )
             .toBe('completed')
@@ -1577,9 +1587,9 @@ test('a transfer is listed the moment it starts, before rclone has a file in fli
         })
         expect(doomed.ok).toBe(false)
         expect(doomed.error).toMatch(/not found|no such file/i)
-        const failed = (
-            (await rpc('transfers_list', {})).value as TransferEntry[]
-        ).find((e) => e.operation === 'sync' && e.sources[0] === join(root, 'missing'))
+        const failed = ((await rpc('transfers_list', {})).value as TransferEntry[]).find(
+            (e) => e.operation === 'sync' && e.sources[0] === join(root, 'missing')
+        )
         expect(failed?.state).toBe('failed')
     } finally {
         rmSync(root, { recursive: true, force: true })
@@ -1662,9 +1672,7 @@ test('finished transfers survive a server restart, with their totals and their f
         expect(started.error).toBeUndefined()
         const id = started.value.id as string
         const entry = async () =>
-            ((await rpc('transfers_list', {})).value as TransferEntry[]).find(
-                (e) => e.id === id
-            )
+            ((await rpc('transfers_list', {})).value as TransferEntry[]).find((e) => e.id === id)
         await expect.poll(async () => (await entry())?.state, { timeout: 20_000 }).toBe('completed')
 
         await stop(server)
@@ -1802,9 +1810,7 @@ test('a transfer whose daemon was replaced ends as interrupted, never as the new
         expect(started.error).toBeUndefined()
         const { id, jobid } = started.value as { id: string; jobid: number }
         const entry = async () =>
-            ((await rpc('transfers_list', {})).value as TransferEntry[]).find(
-                (e) => e.id === id
-            )
+            ((await rpc('transfers_list', {})).value as TransferEntry[]).find((e) => e.id === id)
         expect((await entry())?.state).toBe('running')
 
         // Another daemon on the same address, with a finished job under the same id.
@@ -1955,9 +1961,7 @@ test('a download from a URL is a transfer like any other', async ({ request }) =
         const started = await download(`http://127.0.0.1:${port}/files/notes.txt`, 'saved.txt')
         expect(started.error).toBeUndefined()
         const entry = async (id: string) =>
-            ((await rpc('transfers_list', {})).value as TransferEntry[]).find(
-                (e) => e.id === id
-            )
+            ((await rpc('transfers_list', {})).value as TransferEntry[]).find((e) => e.id === id)
         await expect
             .poll(async () => (await entry(started.value.id))?.state, { timeout: 20_000 })
             .toBe('completed')
@@ -2272,9 +2276,9 @@ test('a file that failed inside a folder copy is retried as a transfer of its ow
         })
         // The folder's one failed file fails the launch, and the transfer is on record as failed.
         expect(started.ok).toBe(false)
-        const failedEntry = (
-            (await rpc('transfers_list', {})).value as TransferEntry[]
-        ).find((entry) => entry.sources[0] === `${join(root, 'src')}/`)
+        const failedEntry = ((await rpc('transfers_list', {})).value as TransferEntry[]).find(
+            (entry) => entry.sources[0] === `${join(root, 'src')}/`
+        )
         expect(failedEntry?.state).toBe('failed')
         expect(readFileSync(join(root, 'dst', 'fine.txt'), 'utf8')).toBe('fine')
 

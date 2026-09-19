@@ -1,12 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import {
-    BellIcon,
-    CloudCogIcon,
-    CogIcon,
-    MailIcon,
-    ServerIcon,
-    UsersIcon,
-} from 'lucide-react'
+import { BellIcon, CloudCogIcon, CogIcon, MailIcon, ServerIcon, UsersIcon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import GeneralSection from './GeneralSection'
 import NotificationsSection from './NotificationsSection'
@@ -16,13 +9,7 @@ import SmtpSection from './SmtpSection'
 import TeamSection from './TeamSection'
 
 // The settings sections by their key (`/settings/<key>`; Remotes is `/remotes`).
-export type SectionKey =
-    | 'general'
-    | 'remotes'
-    | 'notifications'
-    | 'team'
-    | 'rclone'
-    | 'smtp'
+export type SectionKey = 'general' | 'remotes' | 'notifications' | 'team' | 'rclone' | 'smtp'
 
 export interface SettingsSection {
     label: string

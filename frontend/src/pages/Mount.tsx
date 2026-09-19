@@ -170,16 +170,13 @@ export default function Mount() {
                 return
             }
 
-            await message(
-                'Active mounts are listed on the Dashboard.',
-                {
-                    title: 'Mount Started',
-                    kind: 'info',
-                    buttons: {
-                        ok: 'Good to know',
-                    },
-                }
-            )
+            await message('Active mounts are listed on the Dashboard.', {
+                title: 'Mount Started',
+                kind: 'info',
+                buttons: {
+                    ok: 'Good to know',
+                },
+            })
 
             usePersistedStore.setState((prev) => {
                 if (prev.acknowledgements.includes('firstMount')) {
@@ -615,9 +612,7 @@ export default function Mount() {
                             <ClockIcon className="size-6" />
                         </Button>
                     </Tooltip>
-                    <CommandInfoButton
-                        command="mount"
-                    />
+                    <CommandInfoButton command="mount" />
                 </ButtonGroup>
             </OperationWindowFooter>
         </div>

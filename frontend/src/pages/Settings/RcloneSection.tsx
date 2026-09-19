@@ -1,13 +1,4 @@
-import {
-    Button,
-    Checkbox,
-    Chip,
-    Divider,
-    Input,
-    Progress,
-    Spinner,
-    Tooltip,
-} from '@heroui/react'
+import { Button, Checkbox, Chip, Divider, Input, Progress, Spinner, Tooltip } from '@heroui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
@@ -598,7 +589,8 @@ function PathIntegrationRow({
 // once, when it starts.
 function LimitsSettings() {
     const limits = useHostStore((state) => state.limits)
-    const managed = useQuery({ queryKey: ['server', 'status'], queryFn: status }).data?.managedDaemon
+    const managed = useQuery({ queryKey: ['server', 'status'], queryFn: status }).data
+        ?.managedDaemon
     const [bwLimit, setBwLimit] = useState('')
     const [tpsLimit, setTpsLimit] = useState('')
     const [tpsLimitBurst, setTpsLimitBurst] = useState('')
@@ -625,7 +617,8 @@ function LimitsSettings() {
     const burstProblem =
         !Number.isInteger(burst) || burst < 0 ? 'A whole number, or empty' : undefined
     const bwChanged = bwLimit.trim() !== shown.bwLimit
-    const tpsChanged = tpsLimit.trim() !== shown.tpsLimit || tpsLimitBurst.trim() !== shown.tpsLimitBurst
+    const tpsChanged =
+        tpsLimit.trim() !== shown.tpsLimit || tpsLimitBurst.trim() !== shown.tpsLimitBurst
 
     const save = async () => {
         setIsSaving(true)
@@ -731,7 +724,9 @@ function LimitsSettings() {
                 size="sm"
                 onPress={save}
                 isLoading={isSaving}
-                isDisabled={isSaving || !!tpsProblem || !!burstProblem || (!bwChanged && !tpsChanged)}
+                isDisabled={
+                    isSaving || !!tpsProblem || !!burstProblem || (!bwChanged && !tpsChanged)
+                }
                 data-focus-visible="false"
             >
                 Save limits

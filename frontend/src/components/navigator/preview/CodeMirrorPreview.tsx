@@ -32,11 +32,7 @@ const LIGHT_CONTENT_THEME = EditorView.theme(
 
 // Read-only viewer, hardcoded light (like the other preview viewers). basicSetup is
 // trimmed for a static view — syntax highlighting + line numbers, no active-line chrome.
-export default function CodeMirrorPreview({
-    url,
-    name,
-    onDownload,
-}: PreviewViewerProps) {
+export default function CodeMirrorPreview({ url, name, onDownload }: PreviewViewerProps) {
     const { text, error, progress } = usePreviewText(url)
 
     const extensions = useMemo(() => {

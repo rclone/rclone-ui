@@ -95,7 +95,7 @@ export default function RemoteSidebar({
         >
             <ScrollShadow
                 className={cn(
-                    'flex flex-col items-center w-full h-full gap-5 py-4 overflow-y-auto',
+                    'flex flex-col items-center w-full h-full gap-5 py-4 overflow-y-auto'
                 )}
                 size={69}
             >

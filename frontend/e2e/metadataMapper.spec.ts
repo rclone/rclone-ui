@@ -49,7 +49,6 @@ test('a program that is not ours is left alone', () => {
     expect(parseMapperValue([EXE, 'metadata-map', '--map', 'no-equals-sign'])).toBeNull()
 })
 
-
 test('the command line shown to the user quotes what a shell would', () => {
     expect(quoteArgv([EXE, 'metadata-map', '--map', 'a=b'])).toBe(`"${EXE}" metadata-map --map a=b`)
 })

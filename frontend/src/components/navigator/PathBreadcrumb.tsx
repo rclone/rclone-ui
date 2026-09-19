@@ -123,7 +123,7 @@ export default function PathBreadcrumb({
     return (
         <div
             className={cn(
-                'group flex items-center w-full h-12 px-3 gap-1 bg-default-100 border-b border-divider',
+                'group flex items-center w-full h-12 px-3 gap-1 bg-default-100 border-b border-divider'
             )}
         >
             {isInputMode ? (

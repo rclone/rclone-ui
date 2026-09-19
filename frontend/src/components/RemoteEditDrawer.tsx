@@ -127,11 +127,7 @@ export default function RemoteEditDrawer({
             onClose={onClose}
             hideCloseButton={true}
         >
-            <DrawerContent
-                className={cn(
-                    'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                )}
-            >
+            <DrawerContent className={cn('bg-content1/80 backdrop-blur-md dark:bg-content1/90')}>
                 {(close) => (
                     <>
                         <DrawerHeader className="flex flex-col gap-1">

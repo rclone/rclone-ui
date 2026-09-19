@@ -171,10 +171,7 @@ export default function TransferDetailsDrawer({
             isKeyboardDismissDisabled={retryDrawer.isOpen}
         >
             <DrawerContent
-                className={cn(
-                    'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                    undefined
-                )}
+                className={cn('bg-content1/80 backdrop-blur-md dark:bg-content1/90', undefined)}
             >
                 <DrawerHeader className="flex flex-row items-center gap-2">
                     Transfer Details #{transfer.jobid}{' '}

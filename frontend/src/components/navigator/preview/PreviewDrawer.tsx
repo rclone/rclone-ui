@@ -100,7 +100,6 @@ export default function PreviewDrawer({
     item: Entry | null
     onClose: () => void
 }) {
-
     // When expanded, the drawer widens to ~90% of the window (the Commander).
     const [expanded, setExpanded] = useState(false)
 

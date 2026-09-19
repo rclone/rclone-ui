@@ -177,7 +177,7 @@ export default function Templates() {
     }, [searchParams, onOpen])
 
     return (
-        <div className={cn('flex flex-col h-screen',)}>
+        <div className={cn('flex flex-col h-screen')}>
             {/* Nothing to search or select until the first template; the empty state adds it. */}
             {templates.length > 0 && (
                 <div className="flex flex-row items-center justify-between w-full px-6 py-4">

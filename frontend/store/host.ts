@@ -51,17 +51,11 @@ interface HostState {
     addScheduledTask: (task: Omit<ScheduledTask, 'id'>) => string
     removeScheduledTask: (id: string) => void
     updateScheduledTask: (id: string, task: Partial<ScheduledTask>) => void
-
 }
 
 type HostData = Pick<
     HostState,
-    | 'remoteConfigs'
-    | 'proxy'
-    | 'limits'
-    | 'favoritePaths'
-    | 'remoteFirstSeen'
-    | 'scheduledTasks'
+    'remoteConfigs' | 'proxy' | 'limits' | 'favoritePaths' | 'remoteFirstSeen' | 'scheduledTasks'
 >
 
 /** What the document holds before anything is saved. */
@@ -132,4 +126,3 @@ export const useHostStore = create<HostState>()(
         }
     )
 )
-

@@ -207,11 +207,7 @@ export default function TemplateAddDrawer({
             onClose={onClose}
             hideCloseButton={true}
         >
-            <DrawerContent
-                className={cn(
-                    'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
-                )}
-            >
+            <DrawerContent className={cn('bg-content1/80 backdrop-blur-md dark:bg-content1/90')}>
                 {(close) => (
                     <>
                         <DrawerHeader className="px-0 pb-0">

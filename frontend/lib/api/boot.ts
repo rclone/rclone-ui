@@ -62,4 +62,3 @@ const FALLBACK: BootPayload = {
 
 export const boot: BootPayload =
     typeof window !== 'undefined' && window.__RCLONE_CLOUD__ ? window.__RCLONE_CLOUD__ : FALLBACK
-

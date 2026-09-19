@@ -624,9 +624,7 @@ export default function Serve() {
                             <ClockIcon className="size-6" />
                         </Button>
                     </Tooltip>
-                    <CommandInfoButton
-                        command="serve"
-                    />
+                    <CommandInfoButton command="serve" />
                 </ButtonGroup>
             </OperationWindowFooter>
         </div>

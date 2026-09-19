@@ -4,14 +4,7 @@
 import { onEvent } from './ws'
 
 export interface LifecyclePhase {
-    phase:
-        | 'stopped'
-        | 'resolving'
-        | 'downloading'
-        | 'updating'
-        | 'starting'
-        | 'ready'
-        | 'failed'
+    phase: 'stopped' | 'resolving' | 'downloading' | 'updating' | 'starting' | 'ready' | 'failed'
     version?: string
     from?: string
     to?: string

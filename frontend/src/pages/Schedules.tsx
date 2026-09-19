@@ -130,11 +130,7 @@ export default function Schedules() {
                 />
             ))}
             {selectedTask && (
-                <ScheduleEditDrawer
-                    isOpen={isOpen}
-                    onClose={onClose}
-                    selectedTask={selectedTask}
-                />
+                <ScheduleEditDrawer isOpen={isOpen} onClose={onClose} selectedTask={selectedTask} />
             )}
         </div>
     )
