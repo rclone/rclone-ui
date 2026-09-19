@@ -106,6 +106,9 @@ commands! {
     sync smtp_set(settings: crate::notifications::smtp::SmtpInput) -> crate::notifications::smtp::SmtpView = crate::notifications::smtp_set;
     sync smtp_send_test(to: String) -> () = crate::notifications::smtp_send_test;
 
+    // --- mounting ---
+    sync mount_support() -> crate::lifecycle::mounts::MountSupport = crate::lifecycle::mounts::mount_support;
+
     // --- proxy ---
     async test_proxy_connection(proxy_url: String) -> String = crate::commands::misc::test_proxy_connection;
 }

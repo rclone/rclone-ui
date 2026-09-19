@@ -159,12 +159,8 @@ async fn run(cli: CliServe) -> Result<(), String> {
     match &cli.rclone_url {
         Some(url) => log::info!("using the external rclone daemon at {}", url),
         None => {
-            let can_mount = handle.state.capabilities["mount"]
-                .as_bool()
-                .unwrap_or(false);
             handle.start_lifecycle(LifecycleOptions {
                 rclone_path_override: cli.rclone_path.clone(),
-                can_mount,
             });
         }
     }

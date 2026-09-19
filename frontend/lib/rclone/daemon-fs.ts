@@ -1,36 +1,15 @@
 import { rcFetch } from '../api/rc'
 import { getFsInfo } from '../format'
-import rclone from './client'
 
-// Files on the machine the daemon runs on, through the daemon. rclone's rc stats, makes,
-// removes and sizes a local path like any remote, `--rc-serve` hands out a file's bytes and
-// `operations/uploadfile` takes them back: one road for the app's own daemon and an external
+// Files on the machine the daemon runs on, through the daemon. rclone's rc sizes a local path
+// like any remote, `--rc-serve` hands out a file's bytes and `operations/uploadfile` takes them
+// back: one road for the app's own daemon and an external
 // one. The UI server's own disk is never assumed to be the right one.
 
 /** rclone's `fs` + `remote` pair for a local path (`:local:/` or `:local:C:/` roots, as the pages build them). */
 export function localFs(path: string): { fs: string; remote: string } {
     const { root, filePath } = getFsInfo(path)
     return { fs: root, remote: filePath }
-}
-
-export async function exists(path: string): Promise<boolean> {
-    const { fs, remote } = localFs(path)
-    const result = (await rclone('/operations/stat', { params: { query: { fs, remote } } })) as
-        | { item?: unknown }
-        | undefined
-    return !!result?.item
-}
-
-/** Creates the folder and any missing parents. */
-export async function mkdir(path: string): Promise<void> {
-    const { fs, remote } = localFs(path)
-    await rclone('/operations/mkdir' as any, { params: { query: { fs, remote } } })
-}
-
-/** Removes a folder and everything in it. */
-export async function removeDir(path: string): Promise<void> {
-    const { fs, remote } = localFs(path)
-    await rclone('/operations/purge' as any, { params: { query: { fs, remote } } })
 }
 
 /** A path split the way the file endpoints want it: the folder as `fs`, the name inside it. */

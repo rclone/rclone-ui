@@ -440,14 +440,68 @@ fn asked_to_mount(host: &storeread::HostState) -> usize {
         .count()
 }
 
-/// Why [`crate::mount_supported`] said no, in the words the operator needs to act on.
-const WHY_NOT: &str = if cfg!(target_os = "windows") {
-    "WinFsp is not installed"
-} else if cfg!(target_os = "linux") {
-    "no /dev/fuse — a container needs --device /dev/fuse"
-} else {
-    "mounting is not supported here"
-};
+/// Whether this machine can mount: WinFsp on Windows, the FUSE device on Linux; macOS mounts
+/// through the system NFS client and needs neither. When it cannot, why, and where installing
+/// what is missing is explained. Installing it is the operator's: nothing is downloaded here.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MountSupport {
+    pub supported: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub docs: Option<&'static str>,
+}
+
+const WINFSP_DIRS: [&str; 2] = [
+    "C:\\Program Files\\WinFsp",
+    "C:\\Program Files (x86)\\WinFsp",
+];
+
+/// Looked at every time it matters (each daemon start, each ask from a page) and never kept:
+/// WinFsp or the FUSE device can turn up while the server runs.
+pub fn support() -> MountSupport {
+    support_in(std::path::Path::new("/dev/fuse"))
+}
+
+/// [`support`] against a given FUSE device path, so the rule can be tested without the machine's
+/// real one. Only the device's existence is checked: a container that has it but lacks
+/// `SYS_ADMIN` still fails when it mounts, and rclone says so then.
+fn support_in(dev_fuse: &std::path::Path) -> MountSupport {
+    let (reason, docs) = if cfg!(target_os = "windows") {
+        if WINFSP_DIRS
+            .iter()
+            .any(|dir| std::path::Path::new(dir).exists())
+        {
+            (None, None)
+        } else {
+            (
+                Some("WinFsp is not installed."),
+                Some("https://github.com/winfsp/winfsp"),
+            )
+        }
+    } else if cfg!(target_os = "linux") && !dev_fuse.exists() {
+        (
+            Some(
+                "There is no /dev/fuse: a container needs --device /dev/fuse --cap-add SYS_ADMIN.",
+            ),
+            Some("https://rclone.org/install/#docker"),
+        )
+    } else {
+        (None, None)
+    };
+    MountSupport {
+        supported: reason.is_none(),
+        reason,
+        docs,
+    }
+}
+
+/// The `mount_support` command: what a page asks before it offers Auto Mount and after a mount
+/// failed.
+pub fn mount_support(_ctx: &Ctx) -> Result<MountSupport, String> {
+    Ok(support())
+}
 
 /// Errors that describe a wrong Remote Path (never retried) are prefixed so the caller can
 /// tell them from transient failures.
@@ -660,23 +714,22 @@ pub async fn start_mount(
 /// Probes each auto-mount source (with backoff), then mounts it.
 /// Mounts every remote whose "mount on start" is set, one after another, once the daemon is up.
 ///
-/// `can_mount` is [`crate::mount_supported`]: a container without the FUSE device
-/// cannot mount anything, and each attempt would fail the same way on every restart. That is a
+/// A machine that cannot mount would fail each attempt the same way on every restart. That is a
 /// fact about the deployment rather than an incident, so it is said once, in the log, and
 /// nothing is notified.
-pub async fn startup_mounts(ctx: &Ctx, client: &RcClient, can_mount: bool) {
+pub async fn startup_mounts(ctx: &Ctx, client: &RcClient) {
     let host = match storeread::read_host(&ctx.dirs) {
         Ok(host) => host,
         Err(_) => return,
     };
 
-    if !can_mount {
+    if let Some(reason) = support().reason {
         let asked = asked_to_mount(&host);
         if asked > 0 {
             log::info!(
-                "[mounts] {} remote(s) ask to mount at start, but this host cannot mount ({}) — skipping",
+                "[mounts] {} remote(s) ask to mount at start, but this machine cannot mount: {}",
                 asked,
-                WHY_NOT
+                reason
             );
         }
         return;
@@ -936,5 +989,38 @@ mod tests {
         host.remote_configs
             .insert("wants-it-too".into(), remote(true, "/mnt/two"));
         assert_eq!(asked_to_mount(&host), 2);
+    }
+
+    /// A container without the FUSE device cannot mount, and says why and where to read on. Linux
+    /// only: macOS mounts over the system NFS client, Windows through WinFsp.
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn linux_needs_the_fuse_device_to_offer_mounting() {
+        let dir = std::env::temp_dir().join(format!("rclone-cloud-fuse-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let absent = dir.join("absent");
+        let present = dir.join("present");
+        std::fs::write(&present, b"").unwrap();
+
+        let without = support_in(&absent);
+        assert!(!without.supported, "no device, no mounting");
+        assert!(without.reason.is_some() && without.docs.is_some());
+        assert_eq!(
+            support_in(&present),
+            MountSupport {
+                supported: true,
+                reason: None,
+                docs: None
+            },
+            "the device is the whole check"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Everywhere else the device is beside the point and must not be looked at.
+    #[test]
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    fn other_platforms_do_not_ask_about_fuse() {
+        assert!(support_in(std::path::Path::new("/nowhere/near/a/real/device")).supported);
     }
 }

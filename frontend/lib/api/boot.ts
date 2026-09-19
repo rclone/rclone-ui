@@ -5,7 +5,6 @@ export interface Capabilities {
     platform: string
     containerized: boolean
     updater: boolean
-    mount: boolean
     processExit: boolean
 }
 
@@ -45,7 +44,6 @@ const FALLBACK: BootPayload = {
         platform: 'linux',
         containerized: false,
         updater: false,
-        mount: true,
         processExit: false,
     },
     os: { platform: 'linux', family: 'unix', arch: 'x86_64', version: '', eol: '\n' },

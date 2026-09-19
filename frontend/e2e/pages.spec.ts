@@ -72,6 +72,59 @@ test('the mount point picker only offers local folders', async ({ page }) => {
     await expect(dialog.locator('img[src^="/icons/backends/"]')).toHaveCount(0)
 })
 
+test('a machine that cannot mount says why, and the remotes ask again on every visit', async ({
+    page,
+}) => {
+    // The server's answer, stood in for: the machine the suite runs on can mount.
+    let supported = false
+    await page.route('**/api/rpc/mount_support', (route) =>
+        route.fulfill({
+            json: {
+                ok: true,
+                value: supported
+                    ? { supported: true }
+                    : {
+                          supported: false,
+                          reason: 'There is no /dev/fuse: a container needs --device /dev/fuse --cap-add SYS_ADMIN.',
+                          docs: 'https://rclone.org/install/#docker',
+                      },
+            },
+        })
+    )
+    const autoMount = page.getByRole('menuitem', { name: 'Auto Mount' })
+    const openMenu = async () => {
+        await page.goto('/remotes')
+        await page.getByRole('button', { name: 'Actions for e2e-memory', exact: true }).click()
+        await expect(page.getByRole('menuitem', { name: 'Edit Config' })).toBeVisible()
+    }
+    await openMenu()
+    await expect(autoMount).toHaveCount(0)
+
+    // A mount that fails is explained by what the machine lacks, with the way to the docs.
+    await page.goto('/mount')
+    await page.evaluate(() => {
+        window.open = (url) => {
+            ;(window as unknown as { __opened?: string }).__opened = String(url)
+            return null
+        }
+    })
+    await page.getByLabel('Remote Path', { exact: true }).fill('e2e-memory:')
+    await page.getByLabel('Mount Point', { exact: true }).fill('/nonexistent/e2e-mount-point')
+    await page.getByRole('button', { name: 'START MOUNT' }).click()
+    const dialog = page.getByRole('dialog', { name: 'This server cannot mount' })
+    await expect(dialog).toBeVisible({ timeout: 30_000 })
+    await expect(dialog.getByText(/There is no \/dev\/fuse/)).toBeVisible()
+    await dialog.getByRole('button', { name: 'Open the docs' }).click()
+    expect(
+        await page.evaluate(() => (window as unknown as { __opened?: string }).__opened)
+    ).toBe('https://rclone.org/install/#docker')
+
+    // Set up while the server runs: the next visit offers Auto Mount, with no restart.
+    supported = true
+    await openMenu()
+    await expect(autoMount).toBeVisible()
+})
+
 
 test('the template drawer keeps its input when the name is missing', async ({ page }) => {
     await page.goto('/templates')

@@ -70,4 +70,14 @@ export const downloadLink = (fs: string, remote: string) =>
 export const rcloneLatestVersion = () => rpc<string>('rclone_latest_version')
 export const rcloneReleases = (minVersion: string, limit: number) =>
     rpc<{ version: string; publishedAt: string }[]>('rclone_releases', { minVersion, limit })
-export const winfspDownload = () => rpc<string>('winfsp_download')
+
+// --- mounting -----------------------------------------------------------------------------
+
+/** Whether the server's machine can mount; when it cannot, why, and where setting it up is explained. */
+export interface MountSupport {
+    supported: boolean
+    reason?: string
+    docs?: string
+}
+
+export const mountSupport = () => rpc<MountSupport>('mount_support')

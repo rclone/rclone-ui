@@ -37,8 +37,7 @@ import { applyTemplatePaths, pathsFromArgs } from '../../lib/rclone/templatePath
 import { startMount } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { metadataOptionsProblem } from '../../lib/rclone/metadataMapper'
-import { dialogGetMountPlugin } from '../../lib/rclone/mount'
-import { needsMountPlugin } from '../../lib/rclone/mount'
+import { explainMountFailure } from '../../lib/rclone/mount'
 import { usePersistedStore } from '../../store/persisted'
 import type { FlagValue } from '../../types/rclone'
 import CommandInfoButton from '../components/CommandInfoButton'
@@ -193,13 +192,7 @@ export default function Mount() {
             })
         },
         onError: async (error) => {
-            const needsPlugin = await needsMountPlugin()
-            if (needsPlugin) {
-                console.log('[Mount] Mount plugin not installed')
-                await dialogGetMountPlugin()
-                return
-            }
-            console.log('[Mount] Mount plugin installed, but failed to start mount')
+            if (await explainMountFailure()) return
             console.error('Failed to start mount:', error)
             await reportError(error, {
                 title: 'Mount Error',

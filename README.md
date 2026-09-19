@@ -1,9 +1,7 @@
-# Rclone UI Server
+# Rclone Cloud
 
 A web interface for [rclone](https://rclone.org): remotes, transfers, mounts, schedules and
 notifications, served to a browser. One binary runs the HTTP API, the pages and rclone itself.
-
-Licensed under Apache-2.0.
 
 ## Run it
 
@@ -27,8 +25,11 @@ Mounting needs FUSE in the container:
 ```
 
 and a bind mount with `:rshared` propagation for the mount to appear on the host. Without
-`/dev/fuse` the server reports that it cannot mount, hides the mount settings and skips any
-remote set to mount on start, with one line in the log saying so — everything else works.
+`/dev/fuse` a mount fails with a note saying what is missing, a remote's Auto Mount setting is
+hidden, and any remote set to mount on start is skipped with one line in the log — everything
+else works. On Windows the same goes for [WinFsp](https://github.com/winfsp/winfsp). Installing
+either is up to you; the server checks again at every mount and every daemon start, so no
+restart is needed afterwards.
 
 Without Docker, run the binary from the releases page: `rclone-cloud serve`. Under systemd or
 launchd a self-update exits with code 3 and expects the supervisor to start it again.
@@ -53,12 +54,7 @@ Anything but loopback needs a password, and `--clear` empties the data directory
 
 Everything the server itself keeps lives in the data directory: accounts (`state/team.json`),
 settings (`state/`), rclone binaries, schedules and their run history, the transfer ledger,
-notification targets and SMTP settings, and the log file. Back up that directory — and the rclone
-config, which is not in it.
-
-Scheduled tasks fire from the server's own minute ticker, so no cron or Task Scheduler entry is
-needed; a task runs inside the server, on the rclone daemon it is already running, and each run
-shows up on the Transfers page like any other transfer.
+notification targets and SMTP settings, and the log file.
 
 ## The rclone config
 

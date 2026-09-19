@@ -36,10 +36,10 @@ import { useSearchParams } from 'react-router-dom'
 import { onErrorDialog } from '../../../lib/errors'
 import { formatBytes } from '../../../lib/format'
 import { hasFeature, remoteConfigQueryOptions, useFsInfo } from '../../../lib/hooks'
+import { mountSupportQueryOptions } from '../../../lib/rclone/mount'
 import rclone from '../../../lib/rclone/client'
 import ConfigEditDrawer from '../../components/ConfigEditDrawer'
 import RemoteAutoMountDrawer from '../../components/RemoteAutoMountDrawer'
-import { capabilities } from '../../../lib/api/host'
 import RemoteCreateDrawer from '../../components/RemoteCreateDrawer'
 import RemoteEditDrawer from '../../components/RemoteEditDrawer'
 import BaseSection from './BaseSection'
@@ -477,6 +477,8 @@ function RemoteCard({
 
     const fsInfoQuery = useFsInfo(remote)
     const supportsAbout = hasFeature(fsInfoQuery.data, 'About')
+    // Hidden only once the server has said it cannot mount, and asked again on every visit.
+    const canMount = useQuery(mountSupportQueryOptions()).data?.supported !== false
 
     const { data: remoteAboutData } = useQuery({
         queryKey: ['remotes', remote, 'about'],
@@ -552,6 +554,7 @@ function RemoteCard({
                                     isIconOnly={true}
                                     radius="full"
                                     variant="light"
+                                    aria-label={`Actions for ${remote}`}
                                 >
                                     <SettingsIcon className="opacity-50 size-8 hover:opacity-100" />
                                 </Button>
@@ -576,7 +579,7 @@ function RemoteCard({
                                 >
                                     Edit Config
                                 </DropdownItem>
-                                {capabilities.mount ? (
+                                {canMount ? (
                                     <DropdownItem
                                         startContent={<CableIcon className="w-4 h-4" />}
                                         key="automount"

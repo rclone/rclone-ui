@@ -665,6 +665,8 @@ export interface Info {
 export interface InfoContext {
     /** Why schedules cannot be taken here, when they cannot (the page's `timerReason`). */
     timerReason?: string
+    /** The server's OS: what a mount needs differs by it. */
+    platform?: string
 }
 
 const DOCS = 'https://rclone.org'
@@ -688,6 +690,22 @@ const REFINE_INFO: Partial<Record<Goal, string[]>> = {
     ],
 }
 
+// What a mount needs of the server, by its OS. Setting it up is the operator's.
+const MOUNT_NEEDS: Record<string, string[]> = {
+    windows: [
+        'Use a free drive letter or a path that does not exist yet as the mount point.',
+        'Mounting needs WinFsp installed on the server: github.com/winfsp/winfsp.',
+    ],
+    linux: [
+        'The mount point must be an empty folder that already exists.',
+        'Mounting needs FUSE on the server. A container has to be started with --device /dev/fuse --cap-add SYS_ADMIN.',
+    ],
+    macos: [
+        'The mount point must be an empty folder that already exists.',
+        'macOS needs nothing extra. Until write caching is turned on, most apps can only read from the drive.',
+    ],
+}
+
 const TRANSFER_PLACES =
     'The first place can be a folder or a single file. The second is a folder, created if it does not exist yet.'
 
@@ -708,11 +726,7 @@ const PLACES_INFO: Record<Exclude<OperationId, 'serve'>, string[]> = {
         'Changes on either side are carried to the other. Between runs it keeps a record of what each place held, so it can tell what changed since.',
         'When the same file changed on both sides, both versions are kept as renamed copies. The first run needs the resync switch on the Bisync page.',
     ],
-    mount: [
-        'The drive shows a remote, or a favorite on one, in your file manager like a disk.',
-        'On macOS and Linux the mount point must be an empty folder that already exists. On Windows use a free drive letter or a path that does not exist yet.',
-        'Windows needs WinFsp, which the Mount page offers to download if it is missing. macOS needs nothing extra. Until write caching is turned on there, most apps can only read from the drive.',
-    ],
+    mount: ['The drive shows a remote, or a favorite on one, in your file manager like a disk.'],
     download: [
         'The file is fetched from the link and written straight into the folder, with no temporary copy in between.',
         'For some sites the Download page can work out the direct link and suggest a file name.',
@@ -814,7 +828,11 @@ export function infoFor(step: StepKey, answers: Answers, ctx: InfoContext = {}):
                     link: docsFor(operation, type),
                 }
             }
-            return { paragraphs: PLACES_INFO[operation], link: docsFor(operation, undefined) }
+            const paragraphs =
+                operation === 'mount'
+                    ? [...PLACES_INFO.mount, ...(MOUNT_NEEDS[ctx.platform ?? ''] ?? MOUNT_NEEDS.linux)]
+                    : PLACES_INFO[operation]
+            return { paragraphs, link: docsFor(operation, undefined) }
         }
         case 'metadata':
             return {

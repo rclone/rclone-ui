@@ -375,14 +375,6 @@ server_rpcs! {
             let limit = args["limit"].as_u64().unwrap_or(20) as usize;
             ok(resolve::available_releases(min, limit).await?)
         },
-        "winfsp_download" => {
-            let url =
-                "https://github.com/winfsp/winfsp/releases/download/v2.2B4/winfsp-2.2.26215.msi";
-            let dir = dirs::download_dir().unwrap_or_else(std::env::temp_dir);
-            let path = dir.join("winfsp-installer.msi");
-            crate::fs::download_to(&st.http, url, &path).await?;
-            ok(path.to_string_lossy().into_owned())
-        },
     }
 }
 

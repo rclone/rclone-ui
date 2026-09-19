@@ -93,9 +93,6 @@ pub struct RestartOverrides {
 pub struct Options {
     /// Use this binary instead of resolving/downloading one.
     pub rclone_path_override: Option<PathBuf>,
-    /// Whether this host can mount at all ([`crate::mount_supported`]). When it cannot, the
-    /// remotes' "mount on start" jobs are not attempted and the reason is logged once.
-    pub can_mount: bool,
 }
 
 pub struct Supervisor {
@@ -326,7 +323,6 @@ impl Supervisor {
         }
         {
             let ctx = self.ctx.clone();
-            let can_mount = self.options.can_mount;
             // A mount pass belongs to the daemon that was up when it started: a crash-looping
             // one would otherwise stack passes, each retrying against a port that is gone.
             let previous = self
@@ -334,7 +330,7 @@ impl Supervisor {
                 .lock()
                 .unwrap()
                 .replace(tokio::spawn(async move {
-                    mounts::startup_mounts(&ctx, &client, can_mount).await
+                    mounts::startup_mounts(&ctx, &client).await
                 }));
             if let Some(previous) = previous {
                 previous.abort();

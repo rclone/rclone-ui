@@ -1,6 +1,7 @@
 import { Button, Input, cn } from '@heroui/react'
 import { ArrowLeftIcon, RotateCcwIcon } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useReducer, useRef } from 'react'
+import { platform } from '../../../lib/api/os'
 import { buildReadablePath } from '../../../lib/format'
 import { useSchedulerSupported } from '../../../lib/scheduler'
 import MetadataMapper from '../../components/MetadataMapper'
@@ -156,7 +157,7 @@ export default function Wizard() {
               ? undefined
               : (support.data.reason ?? 'This machine cannot run schedules.')
 
-    const info = infoFor(step, answers, { timerReason })
+    const info = infoFor(step, answers, { timerReason, platform })
 
     const setPlace = (key: 'source' | 'destination' | 'url', value: string) =>
         dispatch({ type: 'set', patch: { [key]: value } as Partial<Answers> })

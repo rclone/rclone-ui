@@ -1,46 +1,36 @@
-import { winfspDownload } from '../api/app'
+import { mountSupport } from '../api/app'
 import { ask } from '../api/dialog'
 import { platform } from '../api/os'
-import { revealItem } from '../api/shell'
+import { openUrl } from '../api/shell'
 import { getFsInfo } from '../format'
 import rclone from './client'
-import { exists } from './daemon-fs'
 
-// WinFsp on Windows is the only mount prerequisite the app checks (at mount time: the server's
-// capability is a boot-time snapshot). macOS mounts through the system NFS client and Linux
-// through the FUSE the distribution ships, so neither is checked.
-const WINFSP_PATHS = ['C:\\Program Files\\WinFsp', 'C:\\Program Files (x86)\\WinFsp']
-
-export async function needsMountPlugin() {
-    console.log('[needsMountPlugin]')
-    if (platform !== 'windows') return false
-    for (const path of WINFSP_PATHS) {
-        if (await exists(path).catch(() => false)) {
-            console.log('[needsMountPlugin] found', path)
-            return false
-        }
+// Whether the machine can mount is the server's to say (WinFsp on Windows, /dev/fuse on Linux),
+// and it looks every time it is asked: either can turn up while the server runs. Setting it up
+// is the operator's; the page only says what is missing and where to read on.
+export function mountSupportQueryOptions() {
+    return {
+        queryKey: ['mount', 'support'] as const,
+        queryFn: mountSupport,
+        staleTime: 0,
     }
-    console.log('[needsMountPlugin] WinFsp not found')
-    return true
 }
 
-export async function dialogGetMountPlugin() {
-    console.log('[dialogGetMountPlugin]')
-    if (platform !== 'windows') return
-
-    const wantsDownload = await ask(
-        'WinFsp is required on Windows to mount remotes. You can continue the operation once you\'re done with the installation.\n\nIf you still see this message, download the WinFsp installer from Github and make sure you toggle "FUSE for Cygwin" during the installation process.',
+/** After a mount failed: when the machine cannot mount, says why. Returns whether it did. */
+export async function explainMountFailure(): Promise<boolean> {
+    const support = await mountSupport().catch(() => null)
+    if (!support || support.supported) return false
+    const wantsDocs = await ask(
+        `${support.reason}\n\nSet it up on the server, then start the mount again.`,
         {
-            title: 'WinFsp not installed',
+            title: 'This server cannot mount',
             kind: 'warning',
-            okLabel: 'Download',
-            cancelLabel: 'Cancel',
+            okLabel: platform === 'windows' ? 'WinFsp on GitHub' : 'Open the docs',
+            cancelLabel: 'Close',
         }
     )
-    if (wantsDownload) {
-        const localPath = await winfspDownload()
-        await revealItem(localPath)
-    }
+    if (wantsDocs && support.docs) await openUrl(support.docs)
+    return true
 }
 
 export class AutomountSourceError extends Error {}

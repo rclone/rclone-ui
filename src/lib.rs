@@ -21,7 +21,6 @@ pub mod commands;
 pub mod ctx;
 pub mod datadir;
 pub mod download;
-pub mod fs;
 pub mod fsutil;
 pub mod lifecycle;
 pub mod logging;
@@ -248,37 +247,6 @@ pub fn containerized() -> bool {
         .unwrap_or(false)
 }
 
-/// Whether this machine can mount at all: WinFsp on Windows, the FUSE device on Linux. macOS mounts
-/// through the system NFS client and needs neither. Pages re-check at mount time (WinFsp can be
-/// installed while the app runs); this decides what the UI offers up front, and whether the
-/// startup mounts are even attempted.
-pub fn mount_supported() -> bool {
-    mount_supported_in(std::path::Path::new("/dev/fuse"))
-}
-
-/// [`mount_supported`] against a given FUSE device path, so the rule can be tested without the
-/// machine's real one.
-///
-/// Only the device's existence is checked. A container that has it but lacks `SYS_ADMIN` still
-/// fails when it mounts, and says so then: the privileges themselves cannot be probed for
-/// reliably, and guessing at them would turn off a feature that works.
-fn mount_supported_in(dev_fuse: &std::path::Path) -> bool {
-    if cfg!(target_os = "windows") {
-        return [
-            "C:\\Program Files\\WinFsp",
-            "C:\\Program Files (x86)\\WinFsp",
-        ]
-        .iter()
-        .any(|p| std::path::Path::new(p).exists());
-    }
-    // A plain `docker run` has no /dev/fuse: the remotes' mount-on-start jobs would each fail,
-    // loudly, on every restart. Better to know it up front and say so once.
-    if cfg!(target_os = "linux") {
-        return dev_fuse.exists();
-    }
-    true
-}
-
 /// What this machine can do; pages hide UI it can't back.
 pub fn capabilities() -> Value {
     let containerized = containerized();
@@ -286,7 +254,6 @@ pub fn capabilities() -> Value {
         "platform": std::env::consts::OS,
         "containerized": containerized,
         "updater": !containerized,
-        "mount": mount_supported(),
         "processExit": !containerized,
     })
 }
@@ -475,34 +442,5 @@ mod restart_tests {
         assert_eq!(restart_args(["serve".to_string()]), vec!["serve"]);
         assert!(is_one_shot_env("RCLONE_CLOUD_CLEAR"));
         assert!(!is_one_shot_env("RCLONE_CLOUD_PASSWORD"));
-    }
-
-    /// A container without the FUSE device cannot mount, and the capability has to say so before
-    /// the remotes' mount-on-start jobs are attempted one failure at a time. Linux only: macOS
-    /// mounts over the system NFS client, Windows through WinFsp.
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn linux_needs_the_fuse_device_to_offer_mounting() {
-        let dir = std::env::temp_dir().join(format!("rclone-cloud-fuse-{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
-        let absent = dir.join("absent");
-        let present = dir.join("present");
-        std::fs::write(&present, b"").unwrap();
-
-        assert!(!mount_supported_in(&absent), "no device, no mounting");
-        assert!(
-            mount_supported_in(&present),
-            "the device is the whole check"
-        );
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// Everywhere else the device is beside the point and must not be looked at.
-    #[test]
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-    fn other_platforms_do_not_ask_about_fuse() {
-        assert!(mount_supported_in(std::path::Path::new(
-            "/nowhere/near/a/real/device"
-        )));
     }
 }

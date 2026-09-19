@@ -1,4 +1,4 @@
-// What the host can do; pages hide UI the host can't back (mounting, updates).
+// What the host can do; pages hide UI the host can't back (updates, quitting).
 // Filled by the server's boot script.
 
 import { type ReactNode, createContext, useContext } from 'react'
