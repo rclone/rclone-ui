@@ -1,4 +1,4 @@
-import { BreadcrumbItem, Breadcrumbs, cn } from '@heroui/react'
+import { BreadcrumbItem, Breadcrumbs, Chip, cn } from '@heroui/react'
 import { LogOutIcon, PanelLeftIcon } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import AppearanceMenu from './AppearanceMenu'
@@ -68,7 +68,15 @@ export default function SiteHeader({
                     </BreadcrumbItem>
                 ))}
             </Breadcrumbs>
-            <div className="flex items-center min-w-0 gap-1 ml-auto">
+            <div className="flex items-center min-w-0 gap-2 ml-auto">
+                <Chip
+                    color="warning"
+                    variant="flat"
+                    size="sm"
+                    className="font-medium uppercase tracking-wide"
+                >
+                    Beta
+                </Chip>
                 <AppearanceMenu className={ICON_BUTTON} />
                 {(
                     <button
