@@ -1,4 +1,4 @@
-import { BreadcrumbItem, Breadcrumbs, Chip, cn } from '@heroui/react'
+import { BreadcrumbItem, Breadcrumbs, Chip, Tooltip, cn } from '@heroui/react'
 import { LogOutIcon, PanelLeftIcon } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import AppearanceMenu from './AppearanceMenu'
@@ -69,32 +69,36 @@ export default function SiteHeader({
                 ))}
             </Breadcrumbs>
             <div className="flex items-center min-w-0 gap-2 ml-auto">
-                <Chip
-                    color="warning"
-                    variant="flat"
-                    size="sm"
-                    className="font-medium uppercase tracking-wide"
+                <Tooltip
+                    content="Data loss may occur, use at your own risk"
+                    placement="bottom"
+                    color="foreground"
                 >
-                    Beta
-                </Chip>
-                <AppearanceMenu className={ICON_BUTTON} />
-                {(
-                    <button
-                        type="button"
-                        onClick={async () => {
-                            await fetch('/api/logout', {
-                                method: 'POST',
-                                credentials: 'same-origin',
-                            })
-                            navigate('/login', { replace: true })
-                        }}
-                        aria-label="Sign out"
-                        title="Sign out"
-                        className={ICON_BUTTON}
+                    <Chip
+                        color="warning"
+                        variant="flat"
+                        size="sm"
+                        className="font-medium uppercase tracking-wide"
                     >
-                        <LogOutIcon className="w-4 h-4" strokeWidth={1.75} />
-                    </button>
-                )}
+                        Beta
+                    </Chip>
+                </Tooltip>
+                <AppearanceMenu className={ICON_BUTTON} />
+                <button
+                    type="button"
+                    onClick={async () => {
+                        await fetch('/api/logout', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                        })
+                        navigate('/login', { replace: true })
+                    }}
+                    aria-label="Sign out"
+                    title="Sign out"
+                    className={ICON_BUTTON}
+                >
+                    <LogOutIcon className="w-4 h-4" strokeWidth={1.75} />
+                </button>
             </div>
         </header>
     )
