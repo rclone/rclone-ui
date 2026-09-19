@@ -25,6 +25,7 @@ pub struct RootState {
 #[serde(rename_all = "camelCase", default)]
 pub struct HostState {
     pub proxy: Option<ProxyCfg>,
+    pub limits: Limits,
     pub remote_configs: HashMap<String, RemoteConfig>,
     /// Only what the boot reconcile needs; the task bodies stay opaque to Rust.
     pub scheduled_tasks: Vec<ScheduledTaskEntry>,
@@ -62,6 +63,16 @@ pub struct MountOnStart {
 pub struct ProxyCfg {
     pub url: String,
     pub ignored_hosts: Vec<String>,
+}
+
+/// Mirrors store/host.ts `limits`: the budgets one rclone process shares across every transfer.
+/// Empty and zero mean "not set here".
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Limits {
+    pub bw_limit: String,
+    pub tps_limit: f64,
+    pub tps_limit_burst: u32,
 }
 
 /// The server's state documents (`state_files.rs`): `{version, revision, state}`.
@@ -107,7 +118,7 @@ pub fn read_host(dirs: &DataDir) -> Result<HostState, String> {
 
 /// The environment the daemon is started with, on top of the one this process already has.
 ///
-/// Only the proxy belongs here. Nothing about rclone's configuration file does: the server does
+/// The proxy and the limits belong here. Nothing about rclone's configuration file does: the server does
 /// not decide where that lives, so `RCLONE_CONFIG` and friends are left exactly as the operator
 /// set them and rclone resolves its own config (see `lifecycle/mod.rs`).
 pub fn build_run_env(host: &HostState) -> HashMap<String, String> {
@@ -123,6 +134,25 @@ pub fn build_run_env(host: &HostState) -> HashMap<String, String> {
                 env.insert("no_proxy".to_string(), joined.clone());
                 env.insert("NO_PROXY".to_string(), joined);
             }
+        }
+    }
+
+    // Only what is set here: left out, the operator's own RCLONE_BWLIMIT / RCLONE_TPSLIMIT
+    // still reach the daemon. `--tpslimit` is read once, at start, which is why it is here.
+    let limits = &host.limits;
+    if !limits.bw_limit.trim().is_empty() {
+        env.insert(
+            "RCLONE_BWLIMIT".to_string(),
+            limits.bw_limit.trim().to_string(),
+        );
+    }
+    if limits.tps_limit.is_finite() && limits.tps_limit > 0.0 {
+        env.insert("RCLONE_TPSLIMIT".to_string(), limits.tps_limit.to_string());
+        if limits.tps_limit_burst > 0 {
+            env.insert(
+                "RCLONE_TPSLIMIT_BURST".to_string(),
+                limits.tps_limit_burst.to_string(),
+            );
         }
     }
 
@@ -153,6 +183,39 @@ mod tests {
         assert_eq!(state.rclone_path.as_deref(), Some("/usr/local/bin/rclone"));
         assert!(!host_state_exists(&dirs));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn limits_reach_the_daemon_only_when_they_are_set() {
+        let unset = build_run_env(&HostState::default());
+        for key in ["RCLONE_BWLIMIT", "RCLONE_TPSLIMIT", "RCLONE_TPSLIMIT_BURST"] {
+            assert!(
+                !unset.contains_key(key),
+                "{} is the operator's when unset",
+                key
+            );
+        }
+        let host = HostState {
+            limits: Limits {
+                bw_limit: " 10M:5M ".into(),
+                tps_limit: 2.5,
+                tps_limit_burst: 4,
+            },
+            ..Default::default()
+        };
+        let env = build_run_env(&host);
+        assert_eq!(env["RCLONE_BWLIMIT"], "10M:5M");
+        assert_eq!(env["RCLONE_TPSLIMIT"], "2.5");
+        assert_eq!(env["RCLONE_TPSLIMIT_BURST"], "4");
+        // A burst means nothing without a limit.
+        let burst_only = build_run_env(&HostState {
+            limits: Limits {
+                tps_limit_burst: 4,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        assert!(!burst_only.contains_key("RCLONE_TPSLIMIT_BURST"));
     }
 
     /// The daemon's environment says nothing about rclone's config file. Setting any of these

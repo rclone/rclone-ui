@@ -37,6 +37,9 @@ interface HostState {
           }
         | undefined
 
+    // The budgets one rclone process shares across every transfer. Empty and 0 mean not set.
+    limits: { bwLimit: string; tpsLimit: number; tpsLimitBurst: number } | undefined
+
     favoritePaths: { remote: string; path: string; added: number }[]
 
     // When each remote was first listed on this host. rclone keeps no "added" time and lists
@@ -55,6 +58,7 @@ type HostData = Pick<
     HostState,
     | 'remoteConfigs'
     | 'proxy'
+    | 'limits'
     | 'favoritePaths'
     | 'remoteFirstSeen'
     | 'scheduledTasks'
@@ -64,6 +68,7 @@ type HostData = Pick<
 const HOST_DEFAULTS: HostData = {
     remoteConfigs: {},
     proxy: undefined,
+    limits: undefined,
     favoritePaths: [],
     remoteFirstSeen: {},
     scheduledTasks: [],

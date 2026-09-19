@@ -88,6 +88,7 @@ impl RcTarget {
 pub struct RestartOverrides {
     pub rclone_path: Option<String>,
     pub proxy: Option<Value>,
+    pub limits: Option<Value>,
 }
 
 pub struct Options {
@@ -189,9 +190,14 @@ impl Supervisor {
                 log::warn!("[lifecycle] could not persist rclonePath: {}", e);
             }
         }
-        if let Some(proxy) = overrides.proxy {
+        if overrides.proxy.is_some() || overrides.limits.is_some() {
             if let Err(e) = self.store.update(HOST_DOC, |s| {
-                s.insert("proxy".into(), proxy);
+                if let Some(proxy) = overrides.proxy {
+                    s.insert("proxy".into(), proxy);
+                }
+                if let Some(limits) = overrides.limits {
+                    s.insert("limits".into(), limits);
+                }
             }) {
                 log::warn!("[lifecycle] could not persist restart overrides: {}", e);
             }

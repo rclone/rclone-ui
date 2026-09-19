@@ -1096,6 +1096,139 @@ test('the managed daemon comes up, serves the pages and restarts on request', as
         .toBe(true)
 })
 
+test('limits: bandwidth applies at once, the transaction limits through a restart', async ({
+    browser,
+}) => {
+    const base = 'http://127.0.0.1:5612'
+    const context = await browser.newContext({ baseURL: base })
+    const request = context.request
+    await signIn(request, base)
+    type Lifecycle = { phase: string; pid?: number }
+    const lifecycle = async () =>
+        ((await (await request.get(`${base}/api/status`)).json()) as { lifecycle: Lifecycle | null })
+            .lifecycle
+    const rc = async (path: string) =>
+        (await (await request.post(`${base}/api/rc/${path}`, { headers: SESSION, data: {} })).json()) as {
+            rate?: string
+            main?: { TPSLimit: number; TPSLimitBurst: number }
+        }
+    const saved = async () =>
+        (
+            (await (await request.get(`${base}/api/state/host`, { headers: SESSION })).json()) as {
+                state: { limits?: { bwLimit: string; tpsLimit: number; tpsLimitBurst: number } }
+            }
+        ).state.limits
+    await expect.poll(async () => (await lifecycle())?.phase, { timeout: 30_000 }).toBe('ready')
+    const pid = (await lifecycle())?.pid
+
+    const page = await context.newPage()
+    await page.goto('/settings/rclone')
+    const bandwidth = page.getByLabel('Bandwidth', { exact: true })
+    const tps = page.getByLabel('Transactions per second', { exact: true })
+    const burst = page.getByLabel('Transaction burst', { exact: true })
+    const save = page.getByRole('button', { name: 'Save limits' })
+    await expect(save).toBeDisabled()
+
+    try {
+        // rclone is the judge of the syntax, and what it refuses is not kept.
+        await bandwidth.fill('nonsense')
+        await save.click()
+        const refused = page.getByRole('dialog', { name: 'Bandwidth limit not accepted' })
+        await expect(refused).toBeVisible()
+        await refused.getByRole('button', { name: 'Ok' }).click()
+        expect((await saved())?.bwLimit ?? '').toBe('')
+
+        // Bandwidth lands on the running rclone: same process, new rate.
+        await bandwidth.fill('1M')
+        await save.click()
+        await expect.poll(async () => (await rc('core/bwlimit')).rate).toBe('1Mi')
+        await expect.poll(async () => (await saved())?.bwLimit).toBe('1M')
+        expect((await lifecycle())?.pid).toBe(pid)
+
+        // Busy (a running transfer, stood in for): the choice is to wait or to restart. Waiting
+        // keeps nothing.
+        await page.route('**/api/rpc/transfers_list', (route) =>
+            route.fulfill({
+                json: {
+                    ok: true,
+                    value: [
+                        {
+                            id: 'e2e-busy',
+                            ts: new Date().toISOString(),
+                            executeId: 'e2e',
+                            jobid: 1,
+                            operation: 'copy',
+                            sources: ['/tmp/e2e-busy'],
+                            destination: 'e2e-memory:busy',
+                            isDryRun: false,
+                            tags: ['operation'],
+                            state: 'running',
+                            finishedAt: null,
+                            error: null,
+                            stats: null,
+                        },
+                    ],
+                },
+            })
+        )
+        await tps.fill('5')
+        await burst.fill('2')
+        await save.click()
+        const busy = page.getByRole('dialog', { name: 'Rclone is busy' })
+        await expect(busy.getByText(/interrupts every running transfer/)).toBeVisible()
+        await busy.getByRole('button', { name: 'Cancel' }).click()
+        await expect(tps).toHaveValue('')
+        expect((await saved())?.tpsLimit ?? 0).toBe(0)
+        expect((await lifecycle())?.pid).toBe(pid)
+
+        // Restart now: a new process, started with both limits, and the bandwidth with it.
+        await tps.fill('5')
+        await burst.fill('2')
+        await save.click()
+        await busy.getByRole('button', { name: 'Restart now' }).click()
+        await expect
+            .poll(
+                async () => {
+                    const now = await lifecycle()
+                    return now?.phase === 'ready' && now.pid !== pid
+                },
+                { timeout: 30_000, message: 'rclone did not restart' }
+            )
+            .toBe(true)
+        const main = (await rc('options/get')).main
+        expect([main?.TPSLimit, main?.TPSLimitBurst]).toEqual([5, 2])
+        expect((await rc('core/bwlimit')).rate).toBe('1Mi')
+        expect(await saved()).toEqual({ bwLimit: '1M', tpsLimit: 5, tpsLimitBurst: 2 })
+    } finally {
+        // The other tests share this daemon: leave it unthrottled.
+        await request.patch(`${base}/api/state/host`, {
+            headers: {
+                ...SESSION,
+                'If-Match': String(
+                    (
+                        (await (
+                            await request.get(`${base}/api/state/host`, { headers: SESSION })
+                        ).json()) as { revision: number }
+                    ).revision
+                ),
+            },
+            data: { set: {}, unset: ['limits'] },
+        })
+        const before = (await lifecycle())?.pid
+        await request.post(`${base}/api/rpc/rclone_restart`, { headers: SESSION, data: {} })
+        await expect
+            .poll(
+                async () => {
+                    const now = await lifecycle()
+                    return now?.phase === 'ready' && now.pid !== before
+                },
+                { timeout: 30_000 }
+            )
+            .toBe(true)
+        await context.close()
+    }
+})
+
 test('a daemon that keeps dying is restarted with a growing failure count', async () => {
     const base = 'http://127.0.0.1:5612'
     const request = await playwrightRequest.newContext({ baseURL: base })

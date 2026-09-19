@@ -80,7 +80,7 @@ export async function deleteVersion(version: string): Promise<void> {
  * with it — then its files in flight for what nothing recorded (a job put on the daemon by
  * something else), then its mounts.
  */
-async function isRcloneBusy(): Promise<boolean> {
+export async function isRcloneBusy(): Promise<boolean> {
     try {
         const entries = await transfersList()
         if (entries.some((entry) => entry.state === 'running')) return true

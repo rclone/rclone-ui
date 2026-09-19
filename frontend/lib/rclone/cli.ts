@@ -8,7 +8,7 @@ import { restartRclone } from '../api/app'
  * false if the request could not even be sent, so callers can roll back optimistic state on
  * failure.
  *
- * The snapshot carries the binary and the proxy, and nothing about rclone's configuration file:
+ * The snapshot carries the binary, the proxy and the limits, and nothing about rclone's configuration file:
  * the daemon inherits the server's environment and rclone resolves its own config. */
 export async function restartActiveRclone(): Promise<boolean> {
     try {
@@ -19,6 +19,7 @@ export async function restartActiveRclone(): Promise<boolean> {
         await restartRclone({
             rclonePath: persisted.rclonePath,
             proxy: host.proxy,
+            limits: host.limits,
         })
         return true
     } catch (error) {

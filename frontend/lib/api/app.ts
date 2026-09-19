@@ -39,6 +39,7 @@ export const releaseReconnectDialog = (remote: string) =>
 export interface RestartOverrides {
     rclonePath?: string
     proxy?: { url: string; ignoredHosts: string[] } | undefined
+    limits?: { bwLimit: string; tpsLimit: number; tpsLimitBurst: number } | undefined
 }
 
 export interface Status {

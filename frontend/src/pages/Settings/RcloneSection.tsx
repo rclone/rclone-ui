@@ -43,18 +43,22 @@ import {
     downloadVersion,
     fetchAvailableVersions,
     getPathIntegration,
+    isRcloneBusy,
     listDownloadedVersions,
     setPathIntegration,
 } from '../../../lib/rclone/versions'
+import { status } from '../../../lib/api/app'
+import { restartActiveRclone } from '../../../lib/rclone/cli'
+import rclone from '../../../lib/rclone/client'
 import { usePersistedStore } from '../../../store/persisted'
 import SettingsGroup from './SettingsGroup'
 import { useHostStore } from '../../../store/host'
 import { rpc } from '../../../lib/api/rpc'
 import BaseSection from './BaseSection'
 
-// The one screen for the rclone the server runs: which binary, and the proxy it reaches
-// the world through. There is no third group for a config file — rclone resolves its own, and the
-// file itself is edited from the remotes list.
+// The one screen for the rclone the server runs: which binary, the limits every transfer shares,
+// and the proxy it reaches the world through. There is no group for a config file — rclone
+// resolves its own, and the file itself is edited from the remotes list.
 export default function RcloneSection() {
     return (
         <BaseSection
@@ -62,6 +66,7 @@ export default function RcloneSection() {
             className="w-full max-w-3xl gap-4 px-6 pb-12 mx-auto"
         >
             <BinarySettings />
+            <LimitsSettings />
             <ProxySettings />
         </BaseSection>
     )
@@ -585,6 +590,153 @@ function PathIntegrationRow({
                 <span className="text-xs text-warning">{status.warning}</span>
             )}
         </div>
+    )
+}
+
+// One rclone process shares these across every transfer, so they are set here and not per
+// transfer. Bandwidth can be changed on a running rclone; the two transaction limits are read
+// once, when it starts.
+function LimitsSettings() {
+    const limits = useHostStore((state) => state.limits)
+    const managed = useQuery({ queryKey: ['server', 'status'], queryFn: status }).data?.managedDaemon
+    const [bwLimit, setBwLimit] = useState('')
+    const [tpsLimit, setTpsLimit] = useState('')
+    const [tpsLimitBurst, setTpsLimitBurst] = useState('')
+    const [isSaving, setIsSaving] = useState(false)
+
+    const shown = useMemo(
+        () => ({
+            bwLimit: limits?.bwLimit ?? '',
+            tpsLimit: limits?.tpsLimit ? String(limits.tpsLimit) : '',
+            tpsLimitBurst: limits?.tpsLimitBurst ? String(limits.tpsLimitBurst) : '',
+        }),
+        [limits]
+    )
+    useEffect(() => {
+        setBwLimit(shown.bwLimit)
+        setTpsLimit(shown.tpsLimit)
+        setTpsLimitBurst(shown.tpsLimitBurst)
+    }, [shown])
+
+    const tps = tpsLimit.trim() === '' ? 0 : Number(tpsLimit)
+    const burst = tpsLimitBurst.trim() === '' ? 0 : Number(tpsLimitBurst)
+    const tpsProblem =
+        !Number.isFinite(tps) || tps < 0 ? 'A number of requests per second, or empty' : undefined
+    const burstProblem =
+        !Number.isInteger(burst) || burst < 0 ? 'A whole number, or empty' : undefined
+    const bwChanged = bwLimit.trim() !== shown.bwLimit
+    const tpsChanged = tpsLimit.trim() !== shown.tpsLimit || tpsLimitBurst.trim() !== shown.tpsLimitBurst
+
+    const save = async () => {
+        setIsSaving(true)
+        try {
+            const saved = useHostStore.getState().limits
+            const next = {
+                bwLimit: saved?.bwLimit ?? '',
+                tpsLimit: saved?.tpsLimit ?? 0,
+                tpsLimitBurst: saved?.tpsLimitBurst ?? 0,
+            }
+            if (bwChanged) {
+                // Applied to the running rclone at once, which is also what checks the syntax.
+                try {
+                    await rclone('/core/bwlimit' as any, {
+                        params: { query: { rate: bwLimit.trim() || 'off' } },
+                    })
+                } catch (error) {
+                    await message(formatErrorMessage(error), {
+                        title: 'Bandwidth limit not accepted',
+                        kind: 'error',
+                    })
+                    return
+                }
+                next.bwLimit = bwLimit.trim()
+                useHostStore.setState({ limits: { ...next } })
+            }
+            if (!tpsChanged) return
+            if (await isRcloneBusy()) {
+                const restart = await ask(
+                    'Rclone is currently busy. Wait for the transfers to finish, or restart it now.\n\nRestarting interrupts every running transfer and scheduled run, and unmounts what is mounted.',
+                    {
+                        title: 'Rclone is busy',
+                        kind: 'warning',
+                        okLabel: 'Restart now',
+                        cancelLabel: 'Cancel',
+                    }
+                )
+                if (!restart) {
+                    setTpsLimit(shown.tpsLimit)
+                    setTpsLimitBurst(shown.tpsLimitBurst)
+                    return
+                }
+            }
+            next.tpsLimit = tps
+            next.tpsLimitBurst = tps > 0 ? burst : 0
+            useHostStore.setState({ limits: next })
+            await restartActiveRclone()
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    return (
+        <SettingsGroup
+            title="Limits"
+            description="Shared by every transfer, scheduled runs included."
+            contentClassName="gap-4"
+        >
+            <Input
+                label="Bandwidth"
+                labelPlacement="outside"
+                placeholder="No limit"
+                description="Like 10M, or 10M:5M for upload and download. Applies at once."
+                value={bwLimit}
+                onValueChange={setBwLimit}
+                size="lg"
+                autoCapitalize="off"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck="false"
+            />
+            <Input
+                label="Transactions per second"
+                labelPlacement="outside"
+                placeholder="No limit"
+                description={
+                    managed === false
+                        ? 'This server does not run rclone itself (--rclone-url): start that rclone with --tpslimit.'
+                        : 'Requests per second, to stay under a provider’s quota. Changing it restarts rclone.'
+                }
+                value={tpsLimit}
+                onValueChange={setTpsLimit}
+                isInvalid={!!tpsProblem}
+                errorMessage={tpsProblem}
+                isDisabled={managed === false}
+                inputMode="decimal"
+                size="lg"
+            />
+            <Input
+                label="Transaction burst"
+                labelPlacement="outside"
+                placeholder="1"
+                description="How many requests may go at once before the limit above holds them back."
+                value={tpsLimitBurst}
+                onValueChange={setTpsLimitBurst}
+                isInvalid={!!burstProblem}
+                errorMessage={burstProblem}
+                isDisabled={managed === false || tps <= 0 || !!tpsProblem}
+                inputMode="numeric"
+                size="lg"
+            />
+            <Button
+                size="sm"
+                onPress={save}
+                isLoading={isSaving}
+                isDisabled={isSaving || !!tpsProblem || !!burstProblem || (!bwChanged && !tpsChanged)}
+                data-focus-visible="false"
+            >
+                Save limits
+            </Button>
+        </SettingsGroup>
     )
 }
 
