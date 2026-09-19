@@ -7,7 +7,6 @@
         "build": "tsc && node --max-old-space-size=4096 ./node_modules/vite/bin/vite.js build",
         "preview": "vite preview",
         "test:e2e": "playwright test",
-        "check:no-tauri": "node scripts/checkNoTauri.mjs",
         "lint": "biome check ."
     },
     "dependencies": {

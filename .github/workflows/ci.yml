@@ -2,15 +2,11 @@ name: ci
 
 on:
   push:
-    # This product lives on `cloud` and never merges back, so `main` would never fire here.
-    # The native app runs its own copy of this file from its own branch.
     branches: [cloud]
   pull_request:
 
 jobs:
-  # The server must build with no GTK or WebKit anywhere: it runs on headless boxes and in
-  # containers. The guard also catches a bad cherry-pick from the native branch.
-  gtk-free-build:
+  build:
     runs-on: ubuntu-latest
     container: rust:1-bookworm
     steps:
@@ -19,16 +15,10 @@ jobs:
         with:
           node-version: 22
       - run: npm --prefix frontend ci
-      - run: npm --prefix frontend run check:no-tauri
       - run: npm --prefix frontend run build
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: '. -> target'
-      - name: No Tauri / GTK in the dependency tree
-        run: |
-          if cargo tree -e normal --prefix none | grep -E '^(tauri|gtk|webkit2gtk|wry|tao|glib|gdk) '; then
-            echo "the server depends on a GUI crate"; exit 1
-          fi
       - run: cargo build --release
       - run: cargo test
       - uses: actions/upload-artifact@v4

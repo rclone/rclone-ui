@@ -2,8 +2,6 @@ name: release
 
 on:
   push:
-    # The two products release from two branches into one tag namespace: cloud-v3.8.0
-    # here, v3.8.0 on the native branch.
     tags: ['cloud-v*']
   workflow_dispatch:
 
