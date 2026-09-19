@@ -193,20 +193,14 @@ test('a sync’s failed files are copied; the sync itself is never re-run with a
     expect(retryPlan(bisync)).toEqual([])
 })
 
-test('a stopped transfer can still retry what failed before the stop; an old record cannot', () => {
+test('a stopped transfer can still retry what failed before the stop', () => {
     // Stopped: no results to say which inputs failed, but the files collected while it ran.
     const stopped = folderCopy([], [failedFile('a.jpg', '/data/photos', 'gdrive:backup/photos')])
     stopped.status = {}
     expect(retryPlan(stopped).map((item) => item.label)).toEqual(['a.jpg'])
 
-    // Without `failed` (a record from before failures were collected) the last snapshot serves.
-    const old = folderCopy([{ error: 'x' }], [])
-    old.failed = undefined
-    old.transferred = [failedFile('b.jpg', '/data/photos', 'gdrive:backup/photos')]
-    expect(retryPlan(old).map((item) => item.label)).toEqual(['b.jpg'])
-
     // Without the request there is nothing to retry against.
-    expect(retryPlan({ ...old, request: undefined })).toEqual([])
+    expect(retryPlan({ ...stopped, request: undefined })).toEqual([])
     expect(retryPlan(null)).toEqual([])
 })
 

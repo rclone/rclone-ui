@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use tokio::sync::broadcast::{error::RecvError, Receiver};
 
 use super::history::{self, HistoryLine, RunLog};
-use super::jobfile::{self, JobSpec, RcRequest};
+use super::jobfile::{self, JobSpec};
 use super::storeread::DataDir;
 use crate::ctx::Ctx;
 use crate::notifications::webhooks;
@@ -238,15 +238,14 @@ async fn execute(
     let mut outcome = RunOutcome::default();
 
     for request in &spec.requests {
-        let (sources, destination) = transfer_paths(spec, request);
         // Subscribed before the start: `start` looks at a fresh transfer itself and writes its
         // end there if it is already over, and that end must not be missed.
         let mut ends = transfers.ends();
         let start = transfers
             .start(StartRequest {
                 operation: spec.operation.clone(),
-                sources,
-                destination,
+                sources: spec.sources.clone(),
+                destination: spec.destination.clone(),
                 is_dry_run: false,
                 preset: None,
                 retry_of: None,
@@ -348,7 +347,7 @@ async fn wait_for_end(
 }
 
 fn recorded(dirs: &DataDir, id: &str) -> Option<ledger::Entry> {
-    ledger::fold(ledger::read(&ledger::host_path(dirs)))
+    ledger::fold(ledger::read(&ledger::path(dirs)))
         .into_iter()
         .find(|entry| entry.id == id)
 }
@@ -381,38 +380,6 @@ async fn dispatch(
     })
     .await
     .unwrap_or_default()
-}
-
-/// What a run's transfer lists as its paths: the task's own, or for a job file written before
-/// they were kept, whatever its request names.
-fn transfer_paths(spec: &JobSpec, request: &RcRequest) -> (Vec<String>, Option<String>) {
-    if !spec.sources.is_empty() || spec.destination.is_some() {
-        return (spec.sources.clone(), spec.destination.clone());
-    }
-    let text = |value: &Value, key: &str| value[key].as_str().map(str::to_string);
-    let join = |fs: String, remote: Option<String>| match remote.filter(|r| !r.is_empty()) {
-        Some(remote) if fs.ends_with(':') || fs.ends_with('/') => format!("{}{}", fs, remote),
-        Some(remote) => format!("{}/{}", fs, remote),
-        None => fs,
-    };
-    let body = &request.body;
-    let inputs: Vec<&Value> = match body["inputs"].as_array() {
-        Some(inputs) => inputs.iter().collect(),
-        None => vec![body],
-    };
-    let sources = inputs
-        .iter()
-        .filter_map(|input| {
-            text(input, "srcFs")
-                .map(|fs| join(fs, text(input, "srcRemote")))
-                .or_else(|| text(input, "fs").map(|fs| join(fs, text(input, "remote"))))
-                .or_else(|| text(input, "path1"))
-        })
-        .collect();
-    let destination = inputs
-        .iter()
-        .find_map(|input| text(input, "dstFs").or_else(|| text(input, "path2")));
-    (sources, destination)
 }
 
 #[cfg(test)]

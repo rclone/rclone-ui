@@ -171,9 +171,7 @@ export default function Transfers() {
                 fullWidth={true}
                 size="lg"
                 classNames={{
-                    // The desktop window pins the tabs under its title bar. In the browser shell the
-                    // page is a scrolling sheet, so the bar sticks inside it instead of covering the
-                    // site header.
+                    // The page is a scrolling sheet, so the tab bar sticks inside it.
                     tabList: 'sticky top-0 z-40 !bg-content2',
                     panel: 'min-h-[calc(100vh-1.5rem)] p-0',
                 }}

@@ -97,14 +97,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
     }, [theme.app])
 
     return (
-        <main
-            className={
-                window.location?.pathname.startsWith('/toolbar') ||
-                window.location?.pathname.startsWith('/startup')
-                    ? undefined
-                    : 'bg-transparent dark:bg-[#121212] overflow-scroll overscroll-y-none'
-            }
-        >
+        <main className="bg-transparent dark:bg-[#121212] overflow-scroll overscroll-y-none">
             {children}
         </main>
     )

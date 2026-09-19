@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Rclone UI in a browser: rclone-cloud, no GTK/WebKit.
+# rclone-cloud: rclone in a browser.
 #   docker build -t rclone-cloud .
 #   docker run -d -p 5573:5573 -e RCLONE_CLOUD_PASSWORD=change-me \
 #     -v rclone-ui:/data -v rclone-ui-config:/config/rclone rclone-cloud
@@ -18,7 +18,6 @@ RUN npm --prefix frontend run build
 
 FROM rust:1-bookworm AS build
 WORKDIR /app
-# Nothing here needs GTK or WebKit: the server links neither.
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY --from=web /app/frontend/dist ./frontend/dist

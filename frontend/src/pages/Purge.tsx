@@ -23,32 +23,6 @@ const PATH_ALLOWED_KEYS: AllowedKey[] = ['REMOTES', 'FAVORITES']
 
 const DEFAULT_EXPANDED_KEYS = ['config']
 
-const HELP_CONTENT = `Removes a path and ALL of its contents.
-
-Purge completely deletes the specified directory and everything inside it — files, subdirectories, everything. This is a destructive operation that cannot be undone.
-
-Important: Purge does NOT obey include/exclude filters. Everything in the path will be removed regardless of any filter settings. If you need to selectively delete specific files while keeping others, use the "Delete" command instead.
-
-Many cloud storage backends (like Google Drive, Dropbox, OneDrive, S3) support server-side purge, which is much faster than deleting files one by one. Rclone will automatically use this when available.
-
-Here's a quick guide to using the Purge command:
-
-1. SELECT PATH
-Use the path selector at the top to choose which path to purge. You can select from configured remotes or favorites. Tap the folder icon to browse, or type a path directly. Double-check that you've selected the correct path — purge will delete everything inside it.
-
-2. CONFIGURE OPTIONS (Optional)
-Expand the accordion sections to customize your purge operation. Tap any chip on the right to add it to the JSON editor. Hover over chips to see what each option does.
-
-• Config — The "checkers" option controls concurrency for backends that don't support server-side purge. Other global rclone settings are also available here.
-
-• Schedule — Run this purge automatically at set intervals, for as long as the server is running. Useful for automated cleanup of temporary folders.
-
-3. USE TEMPLATES (Optional)
-Tap the folder icon in the bottom bar to load or save option presets.
-
-4. START THE PURGE
-Once a path is selected, tap "START PURGE" to begin. The entire directory and all its contents will be permanently deleted.`
-
 export default function Purge() {
     const { preset, onStarted } = useOperationPreset('purge')
     const { globalFlags, configFlags } = useFlags()
@@ -175,7 +149,6 @@ export default function Purge() {
                     newLabel="NEW PURGE"
                     showViewTransfers={false}
                     resetPathsLabel="Reset Path"
-                    helpContent={HELP_CONTENT}
                 />
             </OperationWindowFooter>
         </div>

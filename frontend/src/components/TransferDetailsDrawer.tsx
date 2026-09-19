@@ -140,15 +140,11 @@ export default function TransferDetailsDrawer({
     // the note that says "run it again" offers.
     const openItsPage = () => {
         if (!preset) return
-        openOperation(preset).catch((error) =>
-            console.error('[TransferDetailsDrawer] open failed', error)
-        )
+        openOperation(preset)
     }
 
     // What of it can be retried. Only of a transfer that is over (which inputs failed is not
-    // known before) and whose record has the request it was started with — which a run from
-    // before the server started them itself does not, nor does any transfer older than the
-    // record keeping it.
+    // known before) and whose record has the request it was started with.
     const navigate = useNavigate()
     const scheduledTasks = useHostStore((state) => state.scheduledTasks)
     // Whether the schedule that ran it is still there to open.

@@ -24,8 +24,7 @@ export type ScheduledTask = {
     registrationError?: string
     /**
      * What each source is, file or folder, as rclone answered when the task was saved: its
-     * job file is built from this, and rebuilt from it without asking again. A task saved
-     * before this field falls back to the spelling of its paths.
+     * job file is built from this, and rebuilt from it without asking again.
      */
     kinds?: Record<string, 'file' | 'folder'>
 } & (

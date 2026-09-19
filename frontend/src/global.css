@@ -49,45 +49,29 @@ html {
     overscroll-behavior: none;
 }
 
-body {
-    /* background-color: red; */
-}
-
-/* * {
-		-webkit-user-select: none;
-		-moz-user-select: none;
-		-ms-user-select: none;
-		user-select: none;
-} */
-
-/* Browser mode (rclone-cloud): the pages were written for their own desktop window, so
-   viewport-sized boxes must fit the Shell's content column instead. */
-html.browser .browser-outlet .w-screen {
+/* Pages render inside the Shell's content column: their viewport-sized boxes fit it instead. */
+.browser-outlet .w-screen {
     width: 100%;
 }
-html.browser .browser-outlet .h-screen {
+.browser-outlet .h-screen {
     height: 100%;
 }
-html.browser .browser-outlet .max-h-screen {
+.browser-outlet .max-h-screen {
     max-height: 100%;
 }
-html.browser .browser-outlet .max-w-screen {
+.browser-outlet .max-w-screen {
     max-width: 100%;
 }
-html.browser body {
+body {
     background-color: white;
-    /* A tab is a web page: its text can be selected (index.html's body is select-none for the
-       desktop's native feel). The shell's own chrome opts back out. */
-    -webkit-user-select: text;
-    user-select: text;
 }
-html.browser.dark body {
+.dark body {
     background-color: #121212;
 }
 
-/* Operation windows: the action bar floats as a rounded island only when the window is clearly
-   wider than the content column (768px plus 96px of margin on each side), so the desktop's
-   default 840px window keeps the edge-to-edge bar. Measured on the bar, not the viewport. */
+/* Operation pages: the action bar floats as a rounded island only when it is clearly wider than
+   the content column (768px plus 96px of margin on each side). Measured on the bar, not the
+   viewport. */
 .op-footer {
     container-type: inline-size;
 }

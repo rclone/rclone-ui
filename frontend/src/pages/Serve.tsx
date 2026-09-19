@@ -626,53 +626,6 @@ export default function Serve() {
                     </Tooltip>
                     <CommandInfoButton
                         command="serve"
-                        content={`Serve allows you to serve the contents of a remote as a file server using various protocols.
-
-This turns any rclone remote into a server that other applications and devices can connect to. Choose a protocol based on what your clients support.
-
-Available server types:
-
-• HTTP — Serves files over HTTP. Can be viewed in a web browser or used as an HTTP remote. Supports directory listing and file downloads.
-
-• WebDAV — Serves files via the WebDAV protocol. Compatible with Windows Explorer, macOS Finder, and many file managers. Supports read and write operations.
-
-• FTP — Serves files over the FTP protocol. Works with any FTP client. Supports read and write operations with VFS caching enabled.
-
-• SFTP — Serves files over SFTP (SSH File Transfer Protocol). More secure than FTP. Requires authentication via username/password or SSH keys.
-
-• DLNA — Serves media files to DLNA-compatible devices like smart TVs, Xbox, PlayStation, and VLC. Automatically discovered on your local network via SSDP.
-
-• S3 — Serves files using the S3 API. Allows S3-compatible clients and tools to access your remote. Experimental feature.
-
-• NFS — Serves files as an NFS mount. Useful on macOS where FUSE is difficult to install. Requires VFS caching for write access. Experimental feature.
-
-• Restic — Serves files via restic's REST API. Allows the restic backup tool to use rclone as a storage backend for cloud providers restic doesn't support directly.
-
-• Docker — Implements Docker's volume plugin API. Allows Docker containers to use rclone remotes as volumes. Linux only.
-
-Here's a quick guide to using Serve:
-
-1. SELECT SOURCE
-Choose which remote (and optional subfolder) to serve. This is the content that will be accessible to clients.
-
-2. SELECT TYPE
-Choose the server protocol. Pick based on what your clients support — HTTP for browsers, WebDAV for file managers, DLNA for media players, etc.
-
-3. CONFIGURE OPTIONS
-Expand the accordion sections to customize your server. The most important option is "addr" in the Serve section — this sets the IP and port to listen on (e.g., ":8080" for all interfaces, or "127.0.0.1:8080" for localhost only).
-
-• Serve — Protocol-specific options including listen address, authentication, and TLS settings.
-
-• VFS — Virtual File System caching. Set vfs_cache_mode to "writes" or "full" if you need write access.
-
-• Filters — Include or exclude files by pattern.
-
-• Config — Global rclone settings.
-
-• Metadata — Whether to preserve object metadata (metadata), a program that rewrites it (metadata_mapper), and metadata include/exclude/filter rules.
-
-4. START SERVE
-Once configured, tap "START SERVE" to begin. The server will run until you stop it or quit the app.`}
                     />
                 </ButtonGroup>
             </OperationWindowFooter>

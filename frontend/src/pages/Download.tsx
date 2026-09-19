@@ -398,48 +398,6 @@ export default function Download() {
                     </Tooltip>
                     <CommandInfoButton
                         command="copyurl"
-                        content={`Download a URL's content and copy it to the destination without saving it in temporary storage.
-
-This uses rclone's copyurl command to stream content directly to your destination.
-
-For supported platforms, the app will automatically extract the direct download URL and suggest a filename.
-
-Supported platforms include:
-• YouTube
-• TikTok
-• Instagram
-• Threads
-• Twitter / X
-• Facebook
-• Pinterest
-• Spotify
-• SoundCloud
-• Capcut
-• Douyin
-• Xiaohongshu
-• SnackVideo
-• Cocofun
-• Google Drive
-• MediaFire
-• Direct file URLs (any URL)
-
-If a platform isn't listed, it may still work — try pasting the URL and see if a preview appears.
-
-Here's a quick guide to using Download:
-
-1. ENTER URL
-Paste or type the URL you want to download. You can use the "Paste" button to quickly paste from your clipboard. If the URL is from a supported platform, the app will automatically fetch metadata and show a preview.
-
-2. SELECT DESTINATION
-Choose where to save the downloaded file. Tap the folder icon to browse your remotes and local filesystem, or type a path directly.
-
-3. SET FILENAME
-The filename is auto-populated based on the URL or video title. You can edit it if needed. Make sure to include the correct file extension (e.g., .mp4, .mp3, .jpg).
-
-4. DOWNLOAD
-Tap "DOWNLOAD" to start. The file will be streamed directly to your destination without using local temporary storage.
-
-Note: If a download doesn't work, the site may have restrictions. Try the URL with curl directly to verify it's accessible.`}
                     />
                 </ButtonGroup>
             </OperationWindowFooter>

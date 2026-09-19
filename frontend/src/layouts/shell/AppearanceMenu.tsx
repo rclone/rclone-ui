@@ -15,8 +15,7 @@ const LANGUAGES = [
     { key: 'zh', label: '中文' },
 ]
 
-// The header's cog: the two settings that belong to the tab itself rather than to the host it
-// drives. The desktop has no such button; its windows follow the OS and Settings › General.
+// The header's cog: the two settings that belong to the tab itself rather than to the server.
 export default function AppearanceMenu({ className }: { className?: string }) {
     const appearance = usePersistedStore((state) => state.appearance)
 

@@ -21,7 +21,6 @@ import {
 import { startTransition, useEffect, useMemo, useState } from 'react'
 
 import { ask, message, pickPath } from '../../../lib/api/dialog'
-import { useCapabilities } from '../../../lib/api/host'
 import { formatErrorMessage, reportError } from '../../../lib/errors'
 import { formatBytes } from '../../../lib/format'
 import {
@@ -48,12 +47,12 @@ import {
     setPathIntegration,
 } from '../../../lib/rclone/versions'
 import { usePersistedStore } from '../../../store/persisted'
-import SettingsGroup, { type SettingsLayout } from './SettingsGroup'
+import SettingsGroup from './SettingsGroup'
 import { useHostStore } from '../../../store/host'
 import { rpc } from '../../../lib/api/rpc'
 import BaseSection from './BaseSection'
 
-// The browser's one screen for the rclone the server runs: which binary, and the proxy it reaches
+// The one screen for the rclone the server runs: which binary, and the proxy it reaches
 // the world through. There is no third group for a config file — rclone resolves its own, and the
 // file itself is edited from the remotes list.
 export default function RcloneSection() {
@@ -62,8 +61,8 @@ export default function RcloneSection() {
             header={{ title: 'Rclone' }}
             className="w-full max-w-3xl gap-4 px-6 pb-12 mx-auto"
         >
-            <BinarySettings layout="web" />
-            <ProxySettings layout="web" />
+            <BinarySettings />
+            <ProxySettings />
         </BaseSection>
     )
 }
@@ -76,10 +75,8 @@ function subFloorWarning(version: string | null | undefined): string | null {
         : null
 }
 
-// The binary settings, beside the proxy settings below. The groups still take a layout from the
-// caller: `SettingsGroup` renders a tab's right-aligned labels differently from this wide screen.
-function BinarySettings({ layout }: { layout: SettingsLayout }) {
-    const caps = useCapabilities()
+// The binary settings, beside the proxy settings below.
+function BinarySettings() {
     const queryClient = useQueryClient()
     const rclonePath = usePersistedStore((state) => state.rclonePath)
     const [progress, setProgress] = useState<Record<string, DownloadProgress>>({})
@@ -187,7 +184,7 @@ function BinarySettings({ layout }: { layout: SettingsLayout }) {
 
     return (
         <>
-            <SettingsGroup layout={layout} title="Custom binary">
+            <SettingsGroup title="Custom binary">
                 <CustomBinaryRow
                     active={active}
                     systemPath={systemQuery.data ?? null}
@@ -196,20 +193,18 @@ function BinarySettings({ layout }: { layout: SettingsLayout }) {
                 />
             </SettingsGroup>
 
-            <SettingsGroup layout={layout} title="Integration" contentClassName="gap-6">
-                {caps.pathIntegration && (
-                    <PathIntegrationRow
-                        rclonePath={rclonePath}
-                        isSystemActive={active?.kind === 'system'}
-                    />
-                )}
+            <SettingsGroup title="Integration" contentClassName="gap-6">
+                <PathIntegrationRow
+                    rclonePath={rclonePath}
+                    isSystemActive={active?.kind === 'system'}
+                />
             </SettingsGroup>
 
-            <SettingsGroup layout={layout} title="Updates">
+            <SettingsGroup title="Updates">
                 <AutoUpdateRow />
             </SettingsGroup>
 
-            <SettingsGroup layout={layout} title="Versions">
+            <SettingsGroup title="Versions">
                 <div className="flex flex-col overflow-hidden border divide-y rounded-large border-divider divide-divider">
                     {/* System */}
                     {systemQuery.data && (
@@ -596,9 +591,8 @@ function PathIntegrationRow({
 const URL_HINT = 'Set the proxy server URL for network requests'
 const IGNORED_HINT = 'Hosts that should bypass the proxy server'
 
-// The proxy half of this screen. The groups still take a layout from the caller: `SettingsGroup`
-// renders a tab's right-aligned labels differently from this wide screen.
-function ProxySettings({ layout }: { layout: SettingsLayout }) {
+// The proxy half of this screen.
+function ProxySettings() {
     const proxy = useHostStore((state) => state.proxy)
 
     const [proxyUrl, setProxyUrl] = useState('')
@@ -652,7 +646,7 @@ function ProxySettings({ layout }: { layout: SettingsLayout }) {
         setIsTestingProxy(true)
 
         try {
-            await rpc<string>('test_proxy_connection', { proxy_url: url })
+            await rpc<string>('test_proxy_connection', { proxyUrl: url })
 
             // If test successful, save the proxy URL
             useHostStore.setState((state) => ({
@@ -806,41 +800,16 @@ function ProxySettings({ layout }: { layout: SettingsLayout }) {
         </>
     )
 
-    // One card, not two: the URL and its exceptions are one setting, and a card apiece would say
-    // otherwise. The desktop's labelled rows read fine as a pair, so they stay a pair.
-    if (layout === 'web') {
-        return (
-            <SettingsGroup
-                layout="web"
-                title="Proxy"
-                description={URL_HINT}
-                contentClassName="gap-2"
-            >
-                {urlControls}
-                <Divider className="my-2" />
-                <div className="flex flex-col gap-1">
-                    <h4 className="text-sm font-medium">Ignored hosts</h4>
-                    <p className="text-xs text-default-500">{IGNORED_HINT}</p>
-                </div>
-                {ignoredHostControls}
-            </SettingsGroup>
-        )
-    }
-
+    // One card, not two: the URL and its exceptions are one setting.
     return (
-        <>
-            <SettingsGroup
-                layout="native"
-                title="Proxy URL"
-                description={URL_HINT}
-                contentClassName="gap-2"
-            >
-                {urlControls}
-            </SettingsGroup>
-
-            <SettingsGroup layout="native" title="Ignored Hosts" description={IGNORED_HINT}>
-                {ignoredHostControls}
-            </SettingsGroup>
-        </>
+        <SettingsGroup title="Proxy" description={URL_HINT} contentClassName="gap-2">
+            {urlControls}
+            <Divider className="my-2" />
+            <div className="flex flex-col gap-1">
+                <h4 className="text-sm font-medium">Ignored hosts</h4>
+                <p className="text-xs text-default-500">{IGNORED_HINT}</p>
+            </div>
+            {ignoredHostControls}
+        </SettingsGroup>
     )
 }

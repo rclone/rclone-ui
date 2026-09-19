@@ -22,53 +22,6 @@ import { useOperationPreset } from '../components/operation/useOperationPreset'
 import { useOperationSubmission } from '../components/operation/useOperationSubmission'
 import { useOptionGroups } from '../components/operation/useOptionGroups'
 
-const HELP_CONTENT = `Performs bidirectional synchronization between two paths.
-
-Bisync keeps both Path1 and Path2 in sync by propagating changes in both directions. On each run, it compares the current state to the previous run and detects New, Newer, Older, and Deleted files on each side, then propagates those changes to the other path.
-
-Bisync retains the filesystem listings from the prior run. This history allows it to determine what has changed since the last sync. If something evil happens, bisync goes into a safe state to block damage by later runs — you may need to run with resync to recover.
-
-This is an advanced command — use with care. Unlike Copy or Sync which have a clear "source of truth", Bisync must resolve conflicts when both sides have changed. When a file changes on both sides and the versions differ, bisync will rename both versions as conflicts (e.g., file.conflict1, file.conflict2) so nothing is lost. Make sure you understand the behavior before using on important data.
-
-If you only need one-way synchronization (making destination match source), use the SYNC command instead.
-
-Here's a quick guide to using the Bisync command:
-
-1. SELECT PATHS
-Use the path selectors at the top to choose Path1 and Path2. Both paths will be kept in sync with each other — there is no "source" or "destination", changes flow both ways.
-
-2. CONFIGURE OPTIONS (Optional)
-Expand the accordion sections to customize your bisync operation. The Bisync section has important switches at the top:
-
-• resync — Required for the first run, or to reset bisync after an error. This makes both paths contain a matching superset of all files by copying Path2 to Path1, then Path1 to Path2. Only use resync when starting fresh, after changing filter settings, or recovering from an error — using it routinely would prevent deletions from syncing (deleted files would keep reappearing from the other side).
-
-• checkAccess — Safety check that looks for matching RCLONE_TEST files on both paths before syncing. You must first create these files yourself in both paths. This prevents data loss if a path is temporarily unavailable or mounted incorrectly.
-
-• force — Override safety checks like max-delete protection. Use with caution, as this bypasses safeguards designed to prevent accidental mass deletions.
-
-• createEmptySrcDirs — Sync empty directories as well as files. Without this, only files are synced and empty directories are ignored.
-
-• removeEmptyDirs — Remove directories that become empty after syncing. Not compatible with createEmptySrcDirs — use one or the other.
-
-• ignoreListingChecksum — Skip checksum retrieval when creating file listings, which can speed things up considerably on backends where hashes must be computed on the fly (like local). Note this only affects listing comparisons, not the actual sync operations.
-
-• resilient — Allow bisync to retry on the next run after certain errors, instead of requiring a resync. Useful for running bisync as a scheduled background process. Combine with --recover and --max-lock for a robust "set-it-and-forget-it" setup.
-
-• noCleanup — Don't delete temporary working files after the operation. Useful for debugging issues, but normally you should leave this off.
-
-3. OTHER OPTIONS
-Tap any chip on the right to add it to the JSON editor. Hover over chips to see what each option does.
-
-• Filters — Include or exclude files by pattern, limit by size (max_size, min_size) or age (max_age, min_age).
-
-• Config — Performance tuning: parallel transfers, checkers, buffer_size, bandwidth limits (bwlimit), and fast_list for faster directory listings on supported remotes.
-• Metadata — Whether to preserve object metadata (metadata), a program that rewrites it (metadata_mapper), and metadata include/exclude/filter rules.
-
-• Remotes — Override backend-specific settings for remotes involved in this operation.
-
-4. START BISYNC
-Once paths are selected, tap "START BISYNC" to begin. For your first run, make sure "resync" is enabled to establish the initial baseline. You can monitor progress on the Transfers page.`
-
 export default function Bisync() {
     const { preset, onStarted } = useOperationPreset('bisync')
     const { globalFlags, filterFlags, configFlags, copyFlags, metadataFlags } = useFlags()
@@ -438,7 +391,6 @@ export default function Bisync() {
                         destination: dest,
                     })}
                     newLabel="NEW BISYNC"
-                    helpContent={HELP_CONTENT}
                 />
             </OperationWindowFooter>
         </div>

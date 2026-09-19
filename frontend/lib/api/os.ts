@@ -14,8 +14,3 @@ export const eol = boot.os.eol
 export const isMac = platform === 'macos'
 export const isWindows = platform === 'windows'
 export const isLinux = platform === 'linux'
-
-/** `platform()`-compatible accessor for the few call sites that want a function. */
-export function currentPlatform(): Platform {
-    return platform
-}

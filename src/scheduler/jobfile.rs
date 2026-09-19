@@ -36,10 +36,7 @@ pub struct JobSpec {
     pub cron: String,
     #[serde(default = "default_max_run_seconds")]
     pub max_run_seconds: u64,
-    /// What the task runs on, as the page shows it, for the transfer each run records. Absent
-    /// in job files written before transfers were recorded; a run then reads the paths
-    /// off the requests.
-    #[serde(default)]
+    /// What the task runs on, as the page shows it, for the transfer each run records.
     pub sources: Vec<String>,
     #[serde(default)]
     pub destination: Option<String>,
@@ -50,21 +47,8 @@ fn default_max_run_seconds() -> u64 {
     DEFAULT_MAX_RUN_SECONDS
 }
 
-/// The directory job files have always been filed under. There is one machine, so this is a
-/// fixed path segment rather than a choice; it stays because the layout on disk is older than
-/// that fact, and renaming it would strand every schedule already written.
-pub const JOBS_DIR: &str = "local";
-
-/// Job files under one directory of the jobs root. Only [`scheduler_unregister_all`] passes
-/// anything but [`JOBS_DIR`], sweeping what an older multi-host install left behind.
-///
-/// [`scheduler_unregister_all`]: super::scheduler_unregister_all
-pub fn jobs_dir_of(dirs: &DataDir, dir: &str) -> PathBuf {
-    dirs.root.join("scheduler").join("jobs").join(dir)
-}
-
 pub fn jobs_dir(dirs: &DataDir) -> PathBuf {
-    jobs_dir_of(dirs, JOBS_DIR)
+    dirs.root.join("scheduler").join("jobs")
 }
 
 pub fn job_path(dirs: &DataDir, task_id: &str) -> PathBuf {
@@ -95,20 +79,12 @@ pub fn save(dirs: &DataDir, spec: &JobSpec) -> Result<(), String> {
 }
 
 pub fn remove(dirs: &DataDir, task_id: &str) {
-    remove_in(dirs, JOBS_DIR, task_id);
-}
-
-pub fn remove_in(dirs: &DataDir, host_dir: &str, task_id: &str) {
-    let _ = std::fs::remove_file(jobs_dir_of(dirs, host_dir).join(format!("{}.json", task_id)));
+    let _ = std::fs::remove_file(job_path(dirs, task_id));
 }
 
 /// Every registered job spec (unreadable files skipped with a log line).
 pub fn list(dirs: &DataDir) -> Vec<JobSpec> {
-    list_in(dirs, JOBS_DIR)
-}
-
-pub fn list_in(dirs: &DataDir, host_dir: &str) -> Vec<JobSpec> {
-    let dir = jobs_dir_of(dirs, host_dir);
+    let dir = jobs_dir(dirs);
     let Ok(entries) = std::fs::read_dir(&dir) else {
         return Vec::new();
     };

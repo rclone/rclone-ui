@@ -15,8 +15,7 @@ import RemotesSection from './RemotesSection'
 import SmtpSection from './SmtpSection'
 import TeamSection from './TeamSection'
 
-// The settings sections by their tab key (`/settings?tab=<key>` on the desktop,
-// `/settings/<key>` in the browser shell), with the rules the tabbed window applies.
+// The settings sections by their key (`/settings/<key>`; Remotes is `/remotes`).
 export type SectionKey =
     | 'general'
     | 'remotes'
@@ -35,12 +34,11 @@ export const SETTINGS_SECTIONS: Record<SectionKey, SettingsSection> = {
     general: { label: 'General', icon: CogIcon, component: GeneralSection },
     remotes: { label: 'Remotes', icon: ServerIcon, component: RemotesSection },
     notifications: { label: 'Notifications', icon: BellIcon, component: NotificationsSection },
-    // Browser only: accounts are the server's; the desktop's windows use a launch token.
     team: { label: 'Team', icon: UsersIcon, component: TeamSection },
     // Which rclone binary the server runs, and the proxy it reaches the world through. Both sets
     // of controls live in this file's component; there is no separate route for either.
     rclone: { label: 'Rclone', icon: CloudCogIcon, component: RcloneSection },
-    // The mail server the Email notification targets go through; both products.
+    // The mail server the Email notification targets go through.
     smtp: { label: 'SMTP', icon: MailIcon, component: SmtpSection },
 }
 

@@ -3,9 +3,8 @@
 //! The runner writes both and the pages only read them. History is what a page asks for a
 //! schedule's last result, in place of store fields two writers would have raced over.
 //!
-//! Where `native` keeps a lock file per task, one run of a schedule at a time is a set in memory
-//! here ([`super::runner::is_running`]): a run is a task on the server's own runtime, so there is
-//! no second process to keep out.
+//! One run of a schedule at a time is a set in memory ([`super::runner::is_running`]): a run is a
+//! task on the server's own runtime, so there is no second process to keep out.
 
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -179,16 +178,4 @@ pub fn remove_all(dirs: &DataDir, task_id: &str) {
     let _ = std::fs::remove_file(history_path(dirs, task_id));
     let _ = std::fs::remove_file(log_path(dirs, task_id));
     let _ = std::fs::remove_file(log_path(dirs, task_id).with_extension("log.old"));
-    // A run used to be a process, with a lock to keep the next one out and a second log for its
-    // own rclone's stderr (`<task>.daemon.log`, rotated to `.daemon.log.old`). None of that is
-    // written now, but an upgraded install still has them lying about, so unregistering a task
-    // still takes everything ever filed under its name.
-    let _ = std::fs::remove_file(
-        dirs.root
-            .join("scheduler")
-            .join("locks")
-            .join(format!("{}.lock", task_id)),
-    );
-    let _ = std::fs::remove_file(log_path(dirs, task_id).with_extension("daemon.log"));
-    let _ = std::fs::remove_file(log_path(dirs, task_id).with_extension("daemon.log.old"));
 }

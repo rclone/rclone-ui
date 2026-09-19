@@ -18,8 +18,8 @@ import { rpc } from './api/rpc'
 // In-page toasts
 // ---------------------------------------------------------------------------
 
-// The only kind there is: the server has no desktop, so what a person must see is shown by the
-// page they are looking at (or leaves over a webhook or email).
+// The only kind there is: what a person must see is shown by the page they are looking at (or
+// leaves over a webhook or email).
 export async function notify({ title, body }: { title: string; body: string }) {
     addToast({ title, description: body })
 }

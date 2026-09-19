@@ -75,7 +75,7 @@ pub struct PutBody {
     state: Map<String, Value>,
 }
 
-/// `If-Match` as the page sent it: absent means unconditional (Rust writers, tests); present
+/// `If-Match` as the page sent it: absent means unconditional; present
 /// must be a revision, or the write is refused rather than quietly made unconditional.
 fn if_match(headers: &HeaderMap) -> Result<Option<u64>, String> {
     let Some(value) = headers.get("if-match") else {

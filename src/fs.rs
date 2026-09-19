@@ -1,5 +1,5 @@
-//! The one thing written to the host's own disk outside the data directory: the installer
-//! download the updater asks for. Every file the pages touch lives where the daemon runs and goes
+//! The one thing written to this machine's disk outside the data directory: the WinFsp
+//! installer download. Every file the pages touch lives where the daemon runs and goes
 //! through rclone (`lib/rclone/daemon-fs.ts`).
 
 use std::io::Write;

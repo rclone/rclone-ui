@@ -111,8 +111,7 @@ export function isHostWindows(): boolean {
     return hostSeparator() === '\\'
 }
 
-// The path grammar's one bit of context: whether the host has drives. Read on every call, so a
-// host switch is followed without anything being told.
+// The path grammar's one bit of context: whether the host has drives.
 setHostProvider(() => ({ windows: isHostWindows() }))
 
 type ClientPaths<T> = T extends OpenApiClient<infer P, any> ? P : never

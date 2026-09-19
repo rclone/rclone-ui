@@ -35,10 +35,9 @@ const LIGHT_CONTENT_THEME = EditorView.theme(
 export default function CodeMirrorPreview({
     url,
     name,
-    authHeader,
     onDownload,
 }: PreviewViewerProps) {
-    const { text, error, progress } = usePreviewText(url, authHeader)
+    const { text, error, progress } = usePreviewText(url)
 
     const extensions = useMemo(() => {
         const ext = getFileExtension(name)

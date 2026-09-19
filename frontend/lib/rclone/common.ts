@@ -1,14 +1,8 @@
 import { rpc } from '../api/rpc'
 
-/**
- * Locates a genuine system rclone on PATH (excluding the app's own PATH-integration pointer).
- * Returns null under Flatpak, where the host PATH is unreachable.
- */
+/** Locates a genuine system rclone on PATH (excluding the app's own PATH-integration pointer). */
 export async function findSystemRclone(): Promise<string | null> {
     try {
-        if (await rpc<boolean>('is_flatpak')) {
-            return null
-        }
         return (await rpc<string | null>('find_system_rclone')) ?? null
     } catch (error) {
         console.error('[findSystemRclone] error', error)

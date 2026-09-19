@@ -20,8 +20,7 @@ use crate::transfers::service::TransferService;
 
 /// What registering a task leaves on disk. The schedule itself is the job file's; this is only
 /// whether the tick should act on it, kept where the minute loop can read it without opening a
-/// state document. (Older installs also have the command line of the process a run used to be;
-/// serde steps over it, and the next registration writes it away.)
+/// state document.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Artifact {
@@ -190,7 +189,7 @@ mod tests {
 
     #[test]
     fn install_set_enabled_uninstall_round_trip() {
-        let root = std::env::temp_dir().join(format!("rcloneui-ticker-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("rclone-cloud-ticker-{}", std::process::id()));
         let dirs = DataDir { root: root.clone() };
         let backend = TickerBackend::new(&dirs);
         let rendered = RenderedSchedule { enabled: true };

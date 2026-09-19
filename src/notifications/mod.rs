@@ -1,7 +1,6 @@
 //! The notification engine: event catalog, webhook targets + dispatch, and SMTP. Pages drive it
 //! through the commands below (lib/notifications.ts); the scheduler runner calls
-//! webhooks::dispatch directly. There are no OS toasts: a server has no desktop to show one on,
-//! so everything a person needs to see leaves over a webhook or email.
+//! webhooks::dispatch directly. Everything a person needs to see leaves over a webhook or email.
 
 pub mod catalog;
 pub mod smtp;
@@ -26,7 +25,7 @@ pub fn notifications_catalog(_ctx: &Ctx) -> Result<Catalog, String> {
 }
 
 /// The cross-process store lock can wait up to ~10s under contention — these are `sync`
-/// commands in the table so hosts keep them off the async workers.
+/// commands in the table, which keeps them off the async workers.
 pub fn notifications_list_targets(ctx: &Ctx) -> Result<Vec<targets::NotificationTarget>, String> {
     targets::load(&ctx.dirs)
 }
@@ -51,7 +50,7 @@ pub fn notifications_remove_target(ctx: &Ctx, id: String) -> Result<(), String> 
 }
 
 /// Fire-and-forget for the caller: delivery failures are recorded per target and logged, never
-/// returned as an error (matching the old TS dispatchNotification contract).
+/// returned as an error.
 pub fn notifications_dispatch(
     ctx: &Ctx,
     event_id: String,

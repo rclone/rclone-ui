@@ -8,7 +8,7 @@ import { pickPath } from '../../lib/api/dialog'
 const RE_LAST_SEGMENT = /[\\/][^\\/]*$/
 
 // Standard string RemoteField for options that hold a local filesystem path (rclone has no explicit
-// "path" flag, so callers opt fields in by name). Adds a button that opens the native file/folder
+// "path" flag, so callers opt fields in by name). Adds a button that opens the file/folder
 // picker and fills the field with the chosen path; the field stays freely editable.
 export default function PathPickerField({
     option,

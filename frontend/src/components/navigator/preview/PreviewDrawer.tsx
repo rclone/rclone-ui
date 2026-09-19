@@ -115,8 +115,7 @@ export default function PreviewDrawer({
         return buildPreviewUrl(item)
     }, [item])
 
-    // A signed, short-lived link: a desktop window's `open` lands in the system browser, which
-    // has no session cookie, so the token is the credential.
+    // A signed, short-lived link: the token is the credential.
     const handleDownload = useCallback(async () => {
         if (!item) return
         const { fs, path } = servePath(item)

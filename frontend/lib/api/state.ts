@@ -108,7 +108,7 @@ async function writeNow(doc: string, value: PersistValue): Promise<void> {
             )
         )
     if (!current || current.version !== version) {
-        // First write, or a migration changed the schema version: replace the document, on the
+        // First write, or the store's schema version changed: replace the document, on the
         // condition that nobody else has since (revision 0 = never written).
         const response = await request(`/api/state/${doc}`, {
             method: 'PUT',
@@ -164,21 +164,16 @@ async function writeNow(doc: string, value: PersistValue): Promise<void> {
     throw new Error(`state ${doc}: lost the write race twice`)
 }
 
-/**
- * A zustand `StateStorage` for one document. `resolveDoc` is called on every operation so the
- * host store can swap documents; `null` makes every operation a no-op (getItem → null).
- */
-export function stateStorage(resolveDoc: () => string | null): StateStorage {
-    // The documents this store has read. A write before that read would carry the store's
+/** A zustand `StateStorage` for one document. */
+export function stateStorage(doc: string): StateStorage {
+    // Whether this store has read the document. A write before that read would carry the store's
     // defaults (a page's first render can set state before hydration lands) and patch them
     // over what other pages saved; such a write is dropped, and hydration brings the truth.
-    const hydrated = new Set<string>()
+    let hydrated = false
     return {
         getItem: async () => {
-            const doc = resolveDoc()
-            if (!doc) return null
             const current = await read(doc)
-            hydrated.add(doc)
+            hydrated = true
             // The store's state is this document from here on.
             behind.delete(doc)
             if (!current) {
@@ -189,17 +184,13 @@ export function stateStorage(resolveDoc: () => string | null): StateStorage {
             return JSON.stringify({ state: current.state, version: current.version })
         },
         setItem: async (_name, value) => {
-            const doc = resolveDoc()
-            if (!doc) return
-            if (!hydrated.has(doc)) {
+            if (!hydrated) {
                 console.warn(`[state] dropped a write to ${doc} before it was read`)
                 return
             }
             await write(doc, JSON.parse(value) as PersistValue)
         },
         removeItem: async () => {
-            const doc = resolveDoc()
-            if (!doc) return
             const response = await request(`/api/state/${doc}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -213,33 +204,13 @@ export function stateStorage(resolveDoc: () => string | null): StateStorage {
     }
 }
 
-/** Replaces a document wholesale (the persisted store's v1→v2 migration writes the host doc). */
-export async function putDoc(
-    doc: string,
-    version: number,
-    state: Record<string, unknown>
-): Promise<void> {
-    const response = await request(`/api/state/${doc}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ version, state }),
-    })
-    if (!response.ok) throw new Error(`state ${doc}: PUT failed (${response.status})`)
-    known.set(doc, (await response.json()) as StateDoc)
-    mine.set(doc, state)
-}
-
 /**
  * Calls `rehydrate` whenever another writer (a page, the lifecycle) changed the document. Our
  * own writes are recognised by revision and ignored.
  */
-export function watchDoc(
-    resolveDoc: () => string | null,
-    rehydrate: () => Promise<void> | void
-): () => void {
+export function watchDoc(doc: string, rehydrate: () => Promise<void> | void): () => void {
     return on('state.changed', (change) => {
-        const doc = resolveDoc()
-        if (!doc || change.doc !== doc) return
+        if (change.doc !== doc) return
         const current = known.get(doc)
         if (current && change.revision <= current.revision && !behind.has(doc)) return
         Promise.resolve(rehydrate()).catch((error) =>
@@ -248,7 +219,6 @@ export function watchDoc(
     })
 }
 
-/** 50ms poll until a persist store reports hydration. */
 /** Resolves once every write to `doc` queued so far has landed (or failed); a later write needs a later call. */
 export function whenWritten(doc: string): Promise<void> {
     return (queues.get(doc) ?? Promise.resolve()).catch(() => undefined)
@@ -261,7 +231,7 @@ interface Hydratable {
 
 /**
  * Resolves when a persisted store has hydrated: at once if it has, otherwise on the store's own
- * notification (a host store waits here until its document is picked and read).
+ * notification.
  */
 export function hydrated(persist: Hydratable): Promise<void> {
     if (persist.hasHydrated()) return Promise.resolve()

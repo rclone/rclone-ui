@@ -8,9 +8,8 @@ const wasmCache = new Map<string, Promise<void>>()
  * it to that library's `setWasmSource` as an **ArrayBuffer**, then reports readiness.
  *
  * These libraries parse inside a Web Worker and forward the configured wasm source to
- * it. A string URL makes the worker fetch the wasm itself, which it can't resolve in
- * the Tauri webview — so we pass raw bytes instead: the buffer is structured-cloned to
- * the worker and instantiated directly. Gate the viewer on the returned flag so the
+ * it. We pass raw bytes rather than a URL the worker would have to resolve itself: the
+ * buffer is structured-cloned to the worker and instantiated directly. Gate the viewer on the returned flag so the
  * source is configured before the library spins up its worker.
  */
 export default function usePreviewWasm(

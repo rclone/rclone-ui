@@ -191,9 +191,8 @@ export default function useFileNavigation({
             const remote = (it as any).remote as string | undefined
             const rawPath = (it as any).path as string
             // The path under its remote, as it was kept: a leading slash is the absolute root.
-            // (A favourite from before the split held the whole `remote:path`.)
             const fullKey =
-                remote && remote !== 'UI_LOCAL_FS' && !isRemotePath(rawPath)
+                remote && remote !== 'UI_LOCAL_FS'
                     ? serializeRemotePath(remote, rawPath || '')
                     : rawPath
             if (fullKey) map[fullKey] = true
@@ -710,15 +709,11 @@ export default function useFileNavigation({
                         const isLocal = !remote || remote === 'UI_LOCAL_FS'
                         const rawPath = (fav as any).path as string
                         // Kept under its remote as the user had it (a leading slash is the
-                        // absolute root); a favourite from before the split held the whole
-                        // `remote:path`.
-                        const wholePath = !isLocal && isRemotePath(rawPath)
-                        const fullPath =
-                            isLocal || wholePath
-                                ? rawPath
-                                : serializeRemotePath(remote!, rawPath || '')
-                        const relForName = wholePath ? parseRemotePath(rawPath).path : rawPath
-                        const normalized = (relForName || '')
+                        // absolute root).
+                        const fullPath = isLocal
+                            ? rawPath
+                            : serializeRemotePath(remote!, rawPath || '')
+                        const normalized = (rawPath || '')
                             .replace(RE_BACKSLASH, '/')
                             .replace(RE_TRAILING_SLASH, '')
                         const baseName = normalized.split(RE_PATH_SEPARATOR).pop() || ''

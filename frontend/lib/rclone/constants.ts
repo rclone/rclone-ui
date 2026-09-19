@@ -22,15 +22,14 @@ export function rcloneDocsUrl(command: string): string {
     return `https://rclone.org/commands/rclone_${command}/`
 }
 export const RCLONE_RELEASES_API = 'https://api.github.com/repos/rclone/rclone/releases?per_page=30'
+/** How many releases the Rclone screen lists at first. */
 export const RCLONE_RELEASES_SHOWN = 20
-// A browser deployment manages one server's rclone, not a library of them, so its Rclone screen
-// offers the newest few rather than the desktop's full list.
 /** How many more the settings ask for each time Load more is pressed. */
 export const RCLONE_RELEASES_STEP = 10
 
 export const SERVE_TYPES = ['dlna', 'ftp', 'sftp', 'http', 'nfs', 'restic', 's3', 'webdav'] as const
 
-// Backend capabilities are no longer hardcoded here. They are read per-remote from the rclone RC
+// Backend capabilities are read per-remote from the rclone RC
 // `operations/fsinfo` endpoint (see `fsInfoQueryOptions` / `hasFeature` in lib/hooks.ts), which is
 // authoritative and correct for wrapping backends (crypt/alias/union) that static type lists could
 // not express.

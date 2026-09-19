@@ -1,72 +1,16 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { quit as exit } from '../lib/api/app'
-import { ask } from '../lib/api/dialog'
-import { putDoc, stateStorage, watchDoc } from '../lib/api/state'
+import { stateStorage, watchDoc } from '../lib/api/state'
 import { hasTemplatePaths } from '../lib/rclone/templatePaths'
-import type { SERVE_TYPES } from '../lib/rclone/constants'
 import type { Template } from '../types/template'
-import type { RemoteConfig as HostRemoteConfig } from './host'
 
-// The app-wide document (`<app_data>/state/app.json`, served as `/api/state/app`).
+// The app-wide document (`<data dir>/state/app.json`, served as `/api/state/app`).
 const APP_DOC = 'app'
-
-interface RemoteConfigV1 {
-    disabledActions?: ('tray' | 'tray-mount' | 'tray-browse' | 'tray-remove' | 'tray-cleanup')[]
-
-    defaultRemotePath?: string
-    defaultMountPoint?: string
-    mountOnStart?: boolean
-
-    mountDefaults?: Record<string, any>
-    vfsDefaults?: Record<string, any>
-    filterDefaults?: Record<string, any>
-    copyDefaults?: Record<string, any>
-    moveDefaults?: Record<string, any>
-    syncDefaults?: Record<string, any>
-    configDefaults?: Record<string, any>
-    serveDefaults?: Record<(typeof SERVE_TYPES)[number], Record<string, any>>
-    bisyncDefaults?: Record<string, any>
-    remoteDefaults?: Record<string, any>
-}
-
-interface TemplateV1 {
-    id: string
-    name: string
-    operation?: 'copy' | 'sync' | 'move' | 'delete' | 'purge' | 'serve' | 'mount' | 'bisync'
-    options: Record<string, any>
-}
-
-interface PersistedStateV1 {
-    remoteConfigList: Record<string, RemoteConfigV1>
-
-    proxy:
-        | {
-              url: string
-              ignoredHosts: string[]
-          }
-        | undefined
-
-    favoritePaths: { remote: string; path: string; added: number }[]
-
-    settingsPass: string | undefined
-
-    // Legacy v1 field; the v1→v2 migration never reads it (host stores own scheduling data).
-    scheduledTasks: unknown[]
-
-    templates: TemplateV1[]
-
-    hideStartup: boolean
-
-    themeV2: {
-        tray: 'light' | 'dark' | undefined
-    }
-}
 
 /** The Dashboard's getting-started steps, by the key each one is recorded under. */
 export type OnboardingStep = 'remote' | 'commander' | 'transfer' | 'team'
 
-interface PersistedStateV2 {
+interface PersistedState {
     templates: Template[]
     addTemplate: (
         name: string,
@@ -95,8 +39,8 @@ interface PersistedStateV2 {
     dismissOnboarding: () => void
 
     // Absolute path of the rclone executable the app runs. Managed downloads live under
-    // $APPLOCALDATA/rclone-versions/vX/, a system rclone is its PATH location, and a custom
-    // binary is any other path. `undefined` triggers one-time adoption at startup.
+    // <data dir>/rclone-versions/vX/, a system rclone is its PATH location, and a custom
+    // binary is any other path. `undefined` until the server picks one at startup.
     rclonePath: string | undefined
     setRclonePath: (path: string | undefined) => void
 
@@ -112,7 +56,7 @@ interface PersistedStateV2 {
     lastNotifiedRcloneVersion: string | undefined
 }
 
-export const usePersistedStore = create<PersistedStateV2>()(
+export const usePersistedStore = create<PersistedState>()(
     persist(
         (set) => ({
             templates: [],
@@ -120,8 +64,7 @@ export const usePersistedStore = create<PersistedStateV2>()(
                 set((state) => ({
                     templates: [
                         ...state.templates,
-                        // `paths` is left off entirely when the page had none, so a template
-                        // reads the same as one saved before templates carried them.
+                        // `paths` is left off entirely when the page had none.
                         {
                             id: crypto.randomUUID(),
                             name,
@@ -172,177 +115,11 @@ export const usePersistedStore = create<PersistedStateV2>()(
         }),
         {
             name: 'store',
-            storage: createJSONStorage(() => stateStorage(() => APP_DOC)),
-            version: 3,
-            migrate: async (persistedState, version) => {
-                if (!persistedState) {
-                    return persistedState as PersistedStateV2
-                }
-
-                if (version < 2) {
-                    const legacyState = persistedState as PersistedStateV1
-
-                    console.log('[Migration] Migrating from V1 to V2')
-
-                    const newRemoteConfigs: Record<string, HostRemoteConfig> = {}
-                    const newTemplates: Template[] = legacyState.templates
-                        ? [
-                              ...legacyState.templates.map((template) => ({
-                                  ...template,
-                                  tags: (template as unknown as TemplateV1).operation
-                                      ? [(template as unknown as TemplateV1).operation!]
-                                      : [],
-                              })),
-                          ]
-                        : []
-
-                    if (legacyState.remoteConfigList) {
-                        for (const [key, config] of Object.entries(legacyState.remoteConfigList)) {
-                            newRemoteConfigs[key] = {
-                                mountOnStart: {
-                                    enabled: config.mountOnStart || false,
-                                    remotePath: config.defaultRemotePath || '',
-                                    mountPoint: config.defaultMountPoint || '',
-                                    mountOptions: config.mountDefaults || {},
-                                    vfsOptions: config.vfsDefaults || {},
-                                    filterOptions: config.filterDefaults || {},
-                                    configOptions: config.configDefaults || {},
-                                },
-                            }
-
-                            // migrate defaults to templates
-                            const mergedOptions: Record<string, any> = {
-                                sources: [],
-                                dest: '',
-                            }
-
-                            if (
-                                config.copyDefaults &&
-                                Object.keys(config.copyDefaults).length > 0
-                            ) {
-                                mergedOptions.copyOptions = config.copyDefaults
-                            }
-                            if (config.vfsDefaults && Object.keys(config.vfsDefaults).length > 0) {
-                                mergedOptions.vfsOptions = config.vfsDefaults
-                            }
-                            if (
-                                config.filterDefaults &&
-                                Object.keys(config.filterDefaults).length > 0
-                            ) {
-                                mergedOptions.filterOptions = config.filterDefaults
-                            }
-                            if (
-                                config.mountDefaults &&
-                                Object.keys(config.mountDefaults).length > 0
-                            ) {
-                                mergedOptions.mountOptions = config.mountDefaults
-                            }
-                            if (
-                                config.configDefaults &&
-                                Object.keys(config.configDefaults).length > 0
-                            ) {
-                                mergedOptions.configOptions = config.configDefaults
-                            }
-                            if (
-                                config.syncDefaults &&
-                                Object.keys(config.syncDefaults).length > 0
-                            ) {
-                                mergedOptions.syncOptions = config.syncDefaults
-                            }
-                            if (
-                                config.moveDefaults &&
-                                Object.keys(config.moveDefaults).length > 0
-                            ) {
-                                mergedOptions.moveOptions = config.moveDefaults
-                            }
-                            if (
-                                config.bisyncDefaults &&
-                                Object.keys(config.bisyncDefaults).length > 0
-                            ) {
-                                mergedOptions.bisyncOptions = config.bisyncDefaults
-                            }
-
-                            // check if any options have keys
-                            const hasOptions = Object.values(mergedOptions).some(
-                                (opt) =>
-                                    typeof opt === 'object' &&
-                                    opt !== null &&
-                                    Object.keys(opt).length > 0
-                            )
-
-                            if (hasOptions) {
-                                newTemplates.push({
-                                    id: crypto.randomUUID(),
-                                    name: `${key} (Defaults)`,
-                                    tags: [
-                                        'copy',
-                                        'sync',
-                                        'move',
-                                        'delete',
-                                        'purge',
-                                        'serve',
-                                        'mount',
-                                        'bisync',
-                                    ],
-                                    options: mergedOptions,
-                                })
-                            }
-                        }
-                    }
-
-                    const hostState = {
-                        state: {
-                            remoteConfigs: newRemoteConfigs,
-                            proxy: legacyState.proxy,
-                            favoritePaths: legacyState.favoritePaths || [],
-                            scheduledTasks: [],
-                        },
-                        version: 1,
-                    }
-
-                    try {
-                        await putDoc('hosts/local', hostState.version, hostState.state)
-                        console.log('[Migration] Moved host-specific state to hosts/local')
-                    } catch (e) {
-                        console.error('[Migration] Failed to save host store', e)
-                        await ask(
-                            'Old data could not be migrated to V3. Please reinstall.\n\nYou can make a backup of the "store.json" file located in the app\'s directory before reinstalling.',
-                            {
-                                title: 'Fatal Error',
-                                kind: 'error',
-                            }
-                        )
-
-                        await exit()
-                    }
-
-                    return {
-                        templates: newTemplates,
-                        appearance: {
-                            app: 'dark',
-                        },
-                    } as unknown as PersistedStateV2
-                }
-
-                if (version < 3) {
-                    // v2 stored a whole host object; there is one machine here, so it goes.
-                    const { currentHost, ...rest } = persistedState as PersistedStateV2 & {
-                        currentHost?: unknown
-                    }
-                    return {
-                        ...rest,
-                    } as PersistedStateV2
-                }
-
-                return persistedState as PersistedStateV2
-            },
+            storage: createJSONStorage(() => stateStorage(APP_DOC)),
+            version: 1,
         }
     )
 )
 
-/** The one host this server serves: its own machine, reached through the managed daemon. */
 // Another page or the server changed the document: reload it.
-watchDoc(
-    () => APP_DOC,
-    () => usePersistedStore.persist.rehydrate()
-)
+watchDoc(APP_DOC, () => usePersistedStore.persist.rehydrate())

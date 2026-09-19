@@ -10,9 +10,9 @@ import {
 
 // lib/rclone/metadataMapper.ts is pure, so it runs in the test process itself. It is the codec
 // between the mapping drawer and the `metadata_mapper` flag: what it writes, rclone runs, and
-// what it reads back is whatever the user (or an older version of the app) left in the JSON.
+// what it reads back is whatever the user left in the JSON.
 
-const EXE = '/Applications/Rclone UI.app/Contents/MacOS/Rclone UI'
+const EXE = '/opt/rclone cloud/rclone-cloud'
 
 test('rules survive a trip through the flag and back', () => {
     const rules: MapperRule[] = [

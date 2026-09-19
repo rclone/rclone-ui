@@ -263,28 +263,11 @@ export default function RemotesSection() {
         return null
     }, [remotesQuery.isLoading, remotesQuery.isRefetching, remotes.length, creatingDrawerOpen])
 
+    // `/remotes?action=create` (the Dashboard's getting-started step) opens the create drawer.
     useEffect(() => {
-        const tab = searchParams.get('tab')
-        const action = searchParams.get('action')
-        const remote = searchParams.get('remote')
-
-        // The desktop's tabbed window names the tab; the browser's /remotes route has none.
-        if (tab !== null && tab !== 'remotes') return
-        if (action === 'create') {
+        if (searchParams.get('action') === 'create') {
             startTransition(() => {
                 setCreatingDrawerOpen(true)
-            })
-        } else if (action === 'edit' && remote) {
-            startTransition(() => {
-                setEditRemote(remote)
-                setOpening((n) => n + 1)
-                setEditingDrawerOpen(true)
-            })
-        } else if (action === 'auto-mount' && remote) {
-            startTransition(() => {
-                setMountRemote(remote)
-                setOpening((n) => n + 1)
-                setAutoMountDrawerOpen(true)
             })
         }
     }, [searchParams])

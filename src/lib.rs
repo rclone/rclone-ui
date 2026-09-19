@@ -1,18 +1,15 @@
-//! rclone-cloud as a library: one HTTP + WebSocket server that serves the frontend bundle and
-//! answers its API, serving the pages to a browser
-//! and run standalone by `main.rs` for browser deployments. The host describes what it can do on
-//! top of the shared core through [`Hooks`] (native windows, an updater, boot-time questions,
-//! quitting) and gets a [`Handle`] back to start the rclone lifecycle and
-//! shut the server down.
+//! rclone-cloud as a library: one HTTP + WebSocket server that serves the frontend bundle to a
+//! browser and answers its API. `main.rs` binds the listener, calls [`serve`] and gets a
+//! [`Handle`] back to start the rclone lifecycle and shut the server down.
 //!
 //! Routes:
 //!
 //! | Route | What |
 //! |---|---|
 //! | `GET /api/status` | version, lifecycle phase, daemon |
-//! | `POST /api/rpc/{name}` | shared command table + the server's own RPCs |
+//! | `POST /api/rpc/{name}` | the command table + the server's own RPCs |
 //! | `GET/PATCH/PUT /api/state/{doc}` | revisioned state documents |
-//! | `ANY /api/rc/{host}/{*path}` | streaming reverse proxy to an rclone daemon |
+//! | `ANY /api/rc/{*path}` | streaming reverse proxy to the rclone daemon |
 //! | `GET /api/dl/{token}` | short-lived signed download link |
 //! | `POST /api/proxy` | allow-listed third-party fetch |
 //! | `GET /api/ws` | stream events + bus events |
@@ -54,7 +51,7 @@ pub mod zookeeper;
 pub use bus::{Bus, Event};
 pub use ctx::{Ctx, Events};
 pub use datadir::DataDir;
-pub use platform::{is_flatpak, kill_pid};
+pub use platform::kill_pid;
 pub use sink::Sink;
 pub use state_files::StateStore;
 
@@ -63,15 +60,12 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
-use crate::lifecycle::interaction::SharedInteraction;
 use crate::lifecycle::{Options as LifecycleOptions, Supervisor};
 use crate::rc::RcClient;
 use crate::transfers::service::TransferService;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use tokio::net::TcpListener;
 use tokio::sync::watch;
-
-pub use lifecycle::{Interaction, ServerPolicy};
 
 /// The owner account seeded on the first start.
 pub struct Owner {
@@ -84,30 +78,10 @@ pub struct ServeOpts {
     /// seeds the owner account on the first start and is ignored once accounts exist.
     pub owner: Owner,
     pub dirs: DataDir,
-    /// Where the host writes its log file; reported to the pages (About, bug reports).
-    /// `None` = the platform's app-log directory for the app identifier.
-    pub log_dir: Option<std::path::PathBuf>,
     /// Use an already-running RC daemon instead of managing one.
     pub rclone_url: Option<String>,
     /// Forward non-API requests to a Vite dev server.
     pub dev_proxy: Option<String>,
-}
-
-#[derive(Clone, Debug, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateInfo {
-    pub version: String,
-    pub current_version: String,
-    pub body: Option<String>,
-    pub date: Option<String>,
-}
-
-/// Self-update of the host binary.
-pub trait Updater: Send + Sync {
-    /// Blocking. `None` = up to date.
-    fn check(&self) -> Result<Option<UpdateInfo>, String>;
-    /// Blocking. Streams `{event:'Started'|'Progress'|'Finished', data}` like the Tauri updater.
-    fn install(&self, progress: Sink<Value>) -> Result<(), String>;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -116,42 +90,18 @@ pub enum QuitKind {
     Relaunch,
 }
 
-pub type OnQuit = Arc<dyn Fn(QuitKind) + Send + Sync>;
-
-pub struct Hooks {
-    /// Overrides on top of the computed capabilities.
-    pub capabilities: Map<String, Value>,
-    /// Who answers the orchestrator's boot-time questions.
-    pub interaction: SharedInteraction,
-    pub updater: Option<Arc<dyn Updater>>,
-    /// Called last in the quit/relaunch flow, after the daemon is down.
-    pub on_quit: OnQuit,
-}
-
-impl Hooks {
-    /// The standalone server's behaviour: never prompts, updates itself from the release
-    /// manifest and exits/relaunches the process.
-    pub fn standalone() -> Hooks {
-        Hooks {
-            capabilities: Map::new(),
-            interaction: Arc::new(ServerPolicy),
-            updater: Some(Arc::new(updater::SelfUpdater)),
-            on_quit: Arc::new(|kind| {
-                if kind == QuitKind::Relaunch {
-                    if supervised() {
-                        log::info!(
-                            "relaunch requested; leaving the restart to the service manager"
-                        );
-                        std::process::exit(RESTART_EXIT_CODE);
-                    }
-                    if let Err(e) = relaunch_process() {
-                        log::error!("relaunch failed: {}", e);
-                    }
-                }
-                std::process::exit(0);
-            }),
+/// The last step of the quit/relaunch flow, after the daemon is down.
+pub fn exit(kind: QuitKind) -> ! {
+    if kind == QuitKind::Relaunch {
+        if supervised() {
+            log::info!("relaunch requested; leaving the restart to the service manager");
+            std::process::exit(RESTART_EXIT_CODE);
+        }
+        if let Err(e) = relaunch_process() {
+            log::error!("relaunch failed: {}", e);
         }
     }
+    std::process::exit(0);
 }
 
 /// Exit code that asks a supervisor (systemd `Restart=on-failure`, launchd `SuccessfulExit =
@@ -197,7 +147,7 @@ pub fn relaunch_process() -> Result<(), String> {
         .map_err(|e| format!("failed to start the new process: {}", e))
 }
 
-/// Where a host's rclone traffic goes and how to authenticate to it.
+/// Where the rclone traffic goes and how to authenticate to it.
 #[derive(Clone, Debug)]
 pub struct DaemonTarget {
     pub base_url: String,
@@ -213,21 +163,19 @@ impl DaemonTarget {
 
 pub struct AppState {
     pub ctx: Ctx,
-    pub log_dir: std::path::PathBuf,
     pub store: Arc<StateStore>,
     pub auth: auth::Auth,
     pub team: Arc<team::Team>,
     pub sessions: ws::Sessions,
-    pub hooks: Hooks,
     pub capabilities: Value,
     pub external_rclone_url: Option<String>,
     pub dev_proxy: Option<String>,
-    /// `None` until the host called [`Handle::start_lifecycle`], or in external-daemon mode.
+    /// `None` until [`Handle::start_lifecycle`], or in external-daemon mode.
     pub lifecycle: RwLock<Option<Arc<Supervisor>>>,
     /// Starts, watches and records transfers; alive in every mode, with or without a page.
     pub transfers: Arc<TransferService>,
     pub downloads: download::Downloads,
-    /// Remotes whose "reconnect?" dialog a page is showing, `host:remote` to when it was
+    /// Remotes whose "reconnect?" dialog a page is showing, each to when it was
     /// claimed (one dialog app-wide, released when the page is done with it).
     pub reconnect_claims: Mutex<HashMap<String, Instant>>,
     pub http: reqwest::Client,
@@ -260,10 +208,6 @@ impl AppState {
             })
     }
 
-    pub(crate) fn quitting_flag(&self) -> std::sync::MutexGuard<'_, bool> {
-        self.quitting.lock().unwrap()
-    }
-
     /// `true` the first time only; the quit flow runs once.
     pub fn begin_quit(&self) -> bool {
         let mut quitting = self.quitting.lock().unwrap();
@@ -283,10 +227,8 @@ impl AppState {
             "dirs": {
                 "data": self.ctx.dirs.root,
             },
-            "authRequired": true,
             "managedDaemon": self.external_rclone_url.is_none(),
             "lifecycle": phase.as_ref().map(|p| serde_json::to_value(p).unwrap_or(Value::Null)),
-            "startup": phase.as_ref().map(|p| p.startup_status()),
             "daemon": self.local_daemon().map(|d| json!({ "url": d.base_url })),
         })
     }
@@ -306,7 +248,7 @@ pub fn containerized() -> bool {
         .unwrap_or(false)
 }
 
-/// Whether the host can mount at all: WinFsp on Windows, the FUSE device on Linux. macOS mounts
+/// Whether this machine can mount at all: WinFsp on Windows, the FUSE device on Linux. macOS mounts
 /// through the system NFS client and needs neither. Pages re-check at mount time (WinFsp can be
 /// installed while the app runs); this decides what the UI offers up front, and whether the
 /// startup mounts are even attempted.
@@ -337,25 +279,16 @@ fn mount_supported_in(dev_fuse: &std::path::Path) -> bool {
     true
 }
 
-/// What this host can do; pages hide UI the host can't back.
-pub fn capabilities(overlay: &Map<String, Value>) -> Value {
+/// What this machine can do; pages hide UI it can't back.
+pub fn capabilities() -> Value {
     let containerized = containerized();
-    let mount = mount_supported();
-    let mut caps = json!({
+    json!({
         "platform": std::env::consts::OS,
         "containerized": containerized,
         "updater": !containerized,
-        "mount": mount,
-        "scheduler": true,
+        "mount": mount_supported(),
         "processExit": !containerized,
-        "pathIntegration": true,
-    });
-    if let Some(map) = caps.as_object_mut() {
-        for (key, value) in overlay {
-            map.insert(key.clone(), value.clone());
-        }
-    }
-    caps
+    })
 }
 
 pub struct Handle {
@@ -412,8 +345,8 @@ impl Handle {
 }
 
 /// Serves on `listener` (already bound) until [`Handle::shutdown`]. Returns as soon as the
-/// server task is running; the lifecycle is started separately by the host.
-pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Result<Handle, String> {
+/// server task is running; the lifecycle is started separately ([`Handle::start_lifecycle`]).
+pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, String> {
     use axum::routing::{any, get, post};
     use axum::Router;
 
@@ -435,21 +368,17 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
         );
     }
     let auth = auth::Auth::new(team.clone());
-    let capabilities = capabilities(&hooks.capabilities);
+    let capabilities = capabilities();
     let http = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| e.to_string())?;
 
-    let log_dir = opts
-        .log_dir
-        .unwrap_or_else(|| static_files::log_dir_for(&opts.dirs));
     // A daemon this process spawns takes its transfers down with it; `--rclone-url` names one
-    // that outlives us, like any remote host.
+    // that outlives us.
     let transfers = TransferService::new(ctx.clone(), opts.rclone_url.is_none());
     let state: Shared = Arc::new(AppState {
         ctx,
-        log_dir,
         store,
         auth,
         team,
@@ -464,7 +393,6 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
         http,
         started_at: Instant::now(),
         quitting: Mutex::new(false),
-        hooks,
     });
 
     {
@@ -555,7 +483,7 @@ mod restart_tests {
     #[test]
     #[cfg(target_os = "linux")]
     fn linux_needs_the_fuse_device_to_offer_mounting() {
-        let dir = std::env::temp_dir().join(format!("rcloneui-fuse-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("rclone-cloud-fuse-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let absent = dir.join("absent");
         let present = dir.join("present");

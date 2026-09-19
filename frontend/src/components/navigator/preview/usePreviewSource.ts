@@ -13,12 +13,11 @@ import usePreviewWasm from './usePreviewWasm'
  */
 export default function usePreviewSource(
     url: string,
-    authHeader: string | undefined,
     wasmUrl?: string,
     setWasmSource?: (source: ArrayBuffer) => void
 ): { buffer: ArrayBuffer | null; error: string | null; progress: number | null } {
     const wasmReady = usePreviewWasm(wasmUrl, setWasmSource)
-    const { buffer, error, progress } = usePreviewBytes(url, authHeader)
+    const { buffer, error, progress } = usePreviewBytes(url)
 
     return { buffer: wasmReady ? buffer : null, error, progress }
 }

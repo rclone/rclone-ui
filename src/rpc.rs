@@ -5,12 +5,12 @@
 //! server's own RPCs, then the shared command table. Bytes never travel here: files go through
 //! `/api/rc` and `/api/dl`.
 
+use crate::commands;
 use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use crate::commands;
 use serde_json::{json, Value};
 
 use crate::auth::{Caller, SESSION_HEADER};
@@ -69,15 +69,8 @@ pub async fn handle(
         .as_deref()
         .map(|id| st.sessions.stream_sink(&session, id));
 
-    if let Some(result) = crate::server_rpcs::handle(
-        &st,
-        &session,
-        caller.as_ref(),
-        &name,
-        args.clone(),
-        sink.clone(),
-    )
-    .await
+    if let Some(result) =
+        crate::server_rpcs::handle(&st, &session, &caller, &name, args.clone(), sink.clone()).await
     {
         return reply(result);
     }

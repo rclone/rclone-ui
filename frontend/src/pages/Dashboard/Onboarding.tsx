@@ -108,7 +108,7 @@ export default function Onboarding({
     const dismissOnboarding = usePersistedStore((state) => state.dismissOnboarding)
 
     // More than one account: someone besides the owner can sign in.
-    const hasTeam = (useTeam(true).data?.length ?? 0) > 1
+    const hasTeam = (useTeam().data?.length ?? 0) > 1
 
     useEffect(() => {
         const observed: [OnboardingStep, boolean][] = [

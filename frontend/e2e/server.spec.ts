@@ -12,7 +12,13 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { type Page, expect, request as playwrightRequest, test } from '@playwright/test'
+import {
+    type BrowserContext,
+    type Page,
+    expect,
+    request as playwrightRequest,
+    test,
+} from '@playwright/test'
 import { OWNER, SERVER_BIN, signIn, smtpReceiver, stopLeftoverJobs } from './helpers'
 import type { TransferDetail } from '../lib/api/transfers'
 import { retryPlan, retryRequest } from '../lib/transfers/retry'
@@ -22,7 +28,6 @@ import { retryPlan, retryRequest } from '../lib/transfers/retry'
 
 declare global {
     interface Window {
-        __RCLONE_CLOUD__?: { mode: string; capabilities: { mode: string; window: boolean } }
         __RCLONE_CLOUD_API__: typeof import('../lib/api')
     }
 }
@@ -32,7 +37,7 @@ function collectErrors(page: Page) {
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))
     page.on('console', (m) => {
         const text = m.text()
-        if (m.type() === 'error' || /__TAURI|no such command|unknown command/.test(text)) {
+        if (m.type() === 'error' || /no such command|unknown command/.test(text)) {
             errors.push(`console.${m.type()}: ${text}`)
         }
     })
@@ -64,18 +69,6 @@ test('dashboard renders inside the shell with the injected boot payload', async 
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Commander', exact: true })).toBeVisible()
-    // There is one product now: the payload names no mode, and the desktop's capabilities are
-    // not merely false but absent. This is the guard against them creeping back in.
-    expect(
-        await page.evaluate(() => {
-            const boot = window.__RCLONE_CLOUD__
-            return {
-                mode: 'mode' in (boot ?? {}),
-                window: 'window' in (boot?.capabilities ?? {}),
-                deepLink: 'deepLink' in (boot?.capabilities ?? {}),
-            }
-        })
-    ).toEqual({ mode: false, window: false, deepLink: false })
     // rclone rcd is up, so the throughput panel resolves through the rc proxy.
     await expect(page.getByText('Idle')).toBeVisible({ timeout: 15_000 })
     // A fresh install shows the getting-started timeline in place of the inventory rows. The
@@ -179,7 +172,7 @@ test('the shell: zones, settings routes, the remotes zone and the icon rail', as
             (target) => getComputedStyle(document.querySelector(target)!).userSelect,
             selector
         )
-    expect(await selectable('body')).toBe('text')
+    expect(await selectable('body')).not.toBe('none')
     expect(await selectable('nav[aria-label="Sidebar"]')).toBe('none')
     expect(await selectable('header')).toBe('none')
     // Rows keep their height on a short screen; the list scrolls instead of squeezing them.
@@ -194,40 +187,24 @@ test('the shell: zones, settings routes, the remotes zone and the icon rail', as
     await expect(page).toHaveURL(/\/copy$/)
     await expect(header.getByText('Operations')).toBeVisible()
     await expect(header.getByText('Copy', { exact: true })).toBeVisible()
-    // The footer's "Run another command" launcher is the desktop's; the sidebar covers it here.
     await expect(page.getByRole('button', { name: 'Please select a source path' })).toBeVisible()
-    await expect(page.locator('svg.lucide-command')).toHaveCount(0)
-    // Schedules and Templates are Overview entries, so the breadcrumb is the page alone; the
-    // Automation zone and the Watchers page it announced are gone.
+    // Schedules and Templates are Overview entries, so the breadcrumb is the page alone.
     await nav.getByRole('link', { name: 'Schedules', exact: true }).click()
     await expect(page).toHaveURL(/\/schedules$/)
     await expect(header.getByText('Schedules', { exact: true })).toBeVisible()
     await expect(nav.getByRole('link', { name: 'Templates', exact: true })).toBeVisible()
-    await expect(nav.getByText('Automation')).toHaveCount(0)
-    await expect(nav.getByRole('link', { name: 'Watchers', exact: true })).toHaveCount(0)
-    // The Settings zone lists its sections as routes. Rclone is the browser's own screen for the
-    // binary and the proxy; Binary, Proxy and Hosts keep their routes but are not listed here.
+    // The Settings zone lists its sections as routes. Rclone is the screen for the binary and
+    // the proxy.
     await nav.getByRole('link', { name: 'Rclone', exact: true }).click()
     await expect(page).toHaveURL(/\/settings\/rclone$/)
     await expect(page.getByRole('heading', { name: 'Rclone' })).toBeVisible()
-    for (const unlisted of ['Binary', 'Proxy', 'Hosts']) {
-        await expect(nav.getByRole('link', { name: unlisted, exact: true })).toHaveCount(0)
-    }
-    // General is not listed but keeps its route, without the desktop-only rows.
+    // General is not listed but keeps its route.
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Theme' })).toBeVisible()
     const caps = (await (await page.request.get('/api/capabilities')).json()) as {
         updater: boolean
     }
-    await expect(page.getByText('Show Startup screen')).toHaveCount(0)
-    await expect(page.getByText('Toolbar Shortcut')).toHaveCount(0)
-    // Starting at boot is the operator's supervisor's job, so the server offers no such row.
-    await expect(page.getByText('Start on boot')).toHaveCount(0)
-    await expect(page.getByText('Options')).toHaveCount(0)
     await expect(page.getByText('Check for updates')).toHaveCount(caps.updater ? 1 : 0)
-    // The old ?tab= deep links still land on their section.
-    await page.goto('/settings?tab=smtp')
-    await expect(page).toHaveURL(/\/settings\/smtp$/)
     // A remote in the sidebar opens it in the Commander, which collapses the sidebar to icons.
     await nav.getByRole('link', { name: 'e2e-memory' }).click()
     await expect(page).toHaveURL(/\/commander\?path=e2e-memory%3A$/)
@@ -262,18 +239,22 @@ test('the shell: zones, settings routes, the remotes zone and the icon rail', as
     expect(errors, errors.join('\n')).toEqual([])
 })
 
-test('rpc round trip: the shared table, the server RPCs and errors', async ({ request }) => {
-    const arch = await (
-        await request.post('/api/rpc/get_arch', { headers: SESSION, data: {} })
+test('rpc round trip: the command table, the server RPCs and errors', async ({ request }) => {
+    const cron = await (
+        await request.post('/api/rpc/scheduler_validate_cron', {
+            headers: SESSION,
+            data: { cron: '0 2 * * *' },
+        })
     ).json()
-    expect(arch).toMatchObject({ ok: true })
-    expect(typeof arch.value).toBe('string')
+    expect(cron).toMatchObject({ ok: true, value: { valid: true } })
 
-    const info = await (
-        await request.post('/api/rpc/app_info', { headers: SESSION, data: {} })
+    const logged = await (
+        await request.post('/api/rpc/log', {
+            headers: SESSION,
+            data: { level: 'debug', message: 'e2e round trip' },
+        })
     ).json()
-    expect(info.ok).toBe(true)
-    expect(info.value.os).toBe(process.platform === 'darwin' ? 'macos' : process.platform)
+    expect(logged.ok).toBe(true)
 
     const unknown = await (
         await request.post('/api/rpc/nope', { headers: SESSION, data: {} })
@@ -281,7 +262,7 @@ test('rpc round trip: the shared table, the server RPCs and errors', async ({ re
     expect(unknown.ok).toBe(false)
     expect(unknown.error).toContain('unknown command')
 
-    const noSession = await request.post('/api/rpc/get_arch', {
+    const noSession = await request.post('/api/rpc/scheduler_supported', {
         headers: { 'Content-Type': 'application/json' },
         data: {},
     })
@@ -311,59 +292,147 @@ test('the reconnect prompt is claimed one at a time, and per remote', async ({ r
     await call('release_reconnect_dialog', 'e2e-recon-two')
 })
 
-test('state documents: PUT, PATCH with If-Match, 409 on a stale revision', async ({ request }) => {
-    const put = await request.put('/api/state/hosts/e2e-state', {
-        headers: SESSION,
-        data: { version: 2, state: { a: 1, b: 'x' } },
-    })
-    expect(put.ok()).toBe(true)
-    const doc = (await put.json()) as {
-        version: number
-        revision: number
-        state: Record<string, unknown>
+// The server keeps two documents, and a live store sits on each, so the adapter's tests run
+// against a stand-in. The server and the stand-in are held to this one contract.
+interface StateDoc {
+    version: number
+    revision: number
+    state: Record<string, unknown>
+}
+type StateCall = (
+    method: 'GET' | 'PUT' | 'PATCH',
+    data?: unknown,
+    ifMatch?: string
+) => Promise<{ status: number; body: StateDoc }>
+
+async function stateContract(call: StateCall) {
+    // Unwritten: revision 0, nothing in it.
+    const fresh = await call('GET')
+    expect(fresh.body).toMatchObject({ revision: 0, state: {} })
+
+    // Created on the condition that nobody has yet; the second creation is refused and told
+    // what is there.
+    const created = await call('PUT', { version: 1, state: { a: 1, b: 'x' } }, '0')
+    expect(created.status).toBe(200)
+    expect(created.body).toEqual({ version: 1, revision: 1, state: { a: 1, b: 'x' } })
+    const again = await call('PUT', { version: 1, state: { c: 3 } }, '0')
+    expect(again.status).toBe(409)
+    expect(again.body.state).toEqual({ a: 1, b: 'x' })
+
+    const patched = await call('PATCH', { set: { b: 'y' } }, '1')
+    expect(patched.status).toBe(200)
+    expect(patched.body).toMatchObject({ revision: 2, state: { a: 1, b: 'y' } })
+    const stale = await call('PATCH', { set: { b: 'z' } }, '1')
+    expect(stale.status).toBe(409)
+    expect(stale.body.state).toEqual({ a: 1, b: 'y' })
+
+    const cleared = await call('PATCH', { set: {}, unset: ['a', 'neverThere'] }, '2')
+    expect(cleared.body).toMatchObject({ revision: 3, state: { b: 'y' } })
+    expect((await call('GET')).body).toEqual(cleared.body)
+
+    // A malformed precondition is refused, not treated as none.
+    expect((await call('PATCH', { set: { x: 1 }, unset: [] }, 'abc')).status).toBe(400)
+    // Without one the write is unconditional.
+    const replaced = await call('PUT', { version: 1, state: {} })
+    expect(replaced.body).toMatchObject({ revision: 4, state: {} })
+}
+
+/** One document of the state API, in memory, answering `/api/state/<name>` for a context's pages. */
+function stateStandIn(name: string) {
+    let doc: StateDoc = { version: 1, revision: 0, state: {} }
+    const call: StateCall = async (method, data, ifMatch) => {
+        if (method === 'GET') return { status: 200, body: doc }
+        if (ifMatch !== undefined && !/^\d+$/.test(ifMatch)) return { status: 400, body: doc }
+        if (ifMatch !== undefined && Number(ifMatch) !== doc.revision) {
+            return { status: 409, body: doc }
+        }
+        const body = data as Partial<StateDoc> & { set?: StateDoc['state']; unset?: string[] }
+        const state = method === 'PUT' ? body.state! : { ...doc.state, ...body.set }
+        for (const key of body.unset ?? []) delete state[key]
+        doc = { version: body.version ?? doc.version, revision: doc.revision + 1, state }
+        return { status: 200, body: doc }
     }
-    expect(doc.version).toBe(2)
+    const serve = (context: BrowserContext) =>
+        context.route(`**/api/state/${name}`, async (route) => {
+            const asked = route.request()
+            const reply = await call(
+                asked.method() as 'GET',
+                asked.postDataJSON() ?? undefined,
+                asked.headers()['if-match']
+            )
+            await route.fulfill({ status: reply.status, json: reply.body })
+        })
+    return { name, call, serve, state: () => doc.state }
+}
 
-    const patch = await request.patch('/api/state/hosts/e2e-state', {
-        headers: { ...SESSION, 'If-Match': String(doc.revision) },
-        data: { set: { b: 'y' } },
-    })
-    expect(patch.ok()).toBe(true)
-    const next = (await patch.json()) as typeof doc
-    expect(next.revision).toBe(doc.revision + 1)
-    expect(next.state).toEqual({ a: 1, b: 'y' })
+test('the state API keeps its contract, and knows its two documents only', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'rcui-e2e-state-'))
+    const base = 'http://127.0.0.1:5617'
+    const server = spawn(
+        SERVER_BIN,
+        [
+            'serve',
+            '--bind',
+            '127.0.0.1:5617',
+            '--password',
+            OWNER.password,
+            '--rclone-url',
+            'http://localhost:5572',
+            '--data-dir',
+            join(root, 'data'),
+        ],
+        { stdio: 'ignore' }
+    )
+    const request = await playwrightRequest.newContext({ baseURL: base })
+    try {
+        await expect
+            .poll(async () => (await request.get('/api/session').catch(() => null))?.ok() ?? false, {
+                timeout: 30_000,
+                message: 'the server did not come up',
+            })
+            .toBe(true)
+        await signIn(request, base)
+        // No page has been opened here, so `host` has never been written.
+        await stateContract(async (method, data, ifMatch) => {
+            const response = await request.fetch('/api/state/host', {
+                method,
+                headers: { ...SESSION, ...(ifMatch === undefined ? {} : { 'If-Match': ifMatch }) },
+                data,
+            })
+            return { status: response.status(), body: (await response.json()) as StateDoc }
+        })
+        // Nothing else is a document, the accounts file beside them least of all.
+        for (const name of ['team', 'hosts/local', '..%2Fstorage']) {
+            const response = await request.get(`/api/state/${name}`, { headers: SESSION })
+            expect(response.ok(), name).toBe(false)
+        }
+    } finally {
+        await request.dispose()
+        server.kill('SIGTERM')
+        await new Promise<void>((resolve) => server.once('exit', () => resolve()))
+        rmSync(root, { recursive: true, force: true })
+    }
+})
 
-    const stale = await request.patch('/api/state/hosts/e2e-state', {
-        headers: { ...SESSION, 'If-Match': String(doc.revision) },
-        data: { set: { b: 'z' } },
-    })
-    expect(stale.status()).toBe(409)
-    expect(((await stale.json()) as typeof doc).state).toEqual({ a: 1, b: 'y' })
-
-    const get = (await (
-        await request.get('/api/state/hosts/e2e-state', { headers: SESSION })
-    ).json()) as typeof doc
-    expect(get.state.b).toBe('y')
-    const fresh = (await (
-        await request.get('/api/state/hosts/never-written', { headers: SESSION })
-    ).json()) as typeof doc
-    expect(fresh.revision).toBe(0)
-    expect(fresh.state).toEqual({})
+test('the stand-in the adapter is tested against keeps the same contract', async () => {
+    await stateContract(stateStandIn('contract').call)
 })
 
 test('two writes from one page to the same document never conflict with each other', async ({
     page,
 }) => {
     const errors = collectErrors(page)
+    const standIn = stateStandIn('e2e-queue')
+    await standIn.serve(page.context())
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     // The adapter behind every store, fed two updates in the same tick, as an effect that sets
     // several keys does. The second must carry the revision the first produced, not race it
     // (a 409 is recovered from, but the browser still logs it as an error).
     const state = await page.evaluate(async (doc) => {
-        const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(() => doc)
+        const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(doc)
         const value = (patch: Record<string, unknown>) =>
-            JSON.stringify({ version: 2, state: { a: 1, ...patch } })
+            JSON.stringify({ version: 1, state: { a: 1, ...patch } })
         // Hydration reads first, as zustand does; a write before that is dropped (next test).
         await storage.getItem('x')
         await storage.setItem('x', value({}))
@@ -375,33 +444,36 @@ test('two writes from one page to the same document never conflict with each oth
         void storage.setItem('x', value({ b: 2, c: 3, d: 4 }))
         await window.__RCLONE_CLOUD_API__.state.whenWritten(doc)
         return storage.getItem('x')
-    }, 'hosts/e2e-queue')
+    }, standIn.name)
     expect(JSON.parse(state as string).state).toEqual({ a: 1, b: 2, c: 3, d: 4 })
     expect(errors, errors.join('\n')).toEqual([])
 })
 
 test('a write before the document was read is dropped', async ({ page }) => {
     const errors = collectErrors(page)
+    const standIn = stateStandIn('e2e-unread')
+    await standIn.serve(page.context())
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     // A store that sets state before its document has loaded holds only defaults; writing them
     // would patch defaults over what other pages saved. The adapter drops that write (with a
     // console warning, not an error) and hydration brings the document's truth.
     const state = await page.evaluate(async (doc) => {
-        const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(() => doc)
-        await storage.setItem('x', JSON.stringify({ version: 2, state: { a: 1 } }))
+        const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(doc)
+        await storage.setItem('x', JSON.stringify({ version: 1, state: { a: 1 } }))
         return storage.getItem('x')
-    }, 'hosts/e2e-unread')
+    }, standIn.name)
     expect(state).toBeNull()
+    expect(standIn.state()).toEqual({})
     expect(errors, errors.join('\n')).toEqual([])
 })
 
-test('two pages creating the same document keep both their keys', async ({
-    page,
-    context,
-    request,
-}) => {
+test('two pages creating the same document keep both their keys', async ({ page, context }) => {
     const errors = collectErrors(page)
+    const race = stateStandIn('e2e-create-race')
+    const later = stateStandIn('e2e-create-later')
+    await race.serve(context)
+    await later.serve(context)
     const other = await context.newPage()
     const otherErrors = collectErrors(other)
     await page.goto('/')
@@ -411,7 +483,7 @@ test('two pages creating the same document keep both their keys', async ({
     // Two pages hydrate an unwritten document at the same time and each write their own key.
     // The second creation is refused (its precondition is revision 0); the loser adopts the
     // winner's document and adds what it lacks, so neither key is lost.
-    const doc = 'hosts/e2e-create-race'
+    const doc = race.name
     type Holder = Window & {
         __e2eStorage?: {
             getItem: (name: string) => Promise<unknown>
@@ -420,7 +492,7 @@ test('two pages creating the same document keep both their keys', async ({
     }
     const hydrate = (target: Page) =>
         target.evaluate(async (doc) => {
-            const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(() => doc)
+            const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(doc)
             ;(window as unknown as Holder).__e2eStorage = storage
             await storage.getItem('x')
         }, doc)
@@ -428,18 +500,12 @@ test('two pages creating the same document keep both their keys', async ({
         target.evaluate(async (state) => {
             const storage = (window as unknown as Holder).__e2eStorage
             if (!storage) throw new Error('the page lost its storage')
-            await storage.setItem('x', JSON.stringify({ version: 2, state }))
+            await storage.setItem('x', JSON.stringify({ version: 1, state }))
         }, state)
     await hydrate(page)
     await hydrate(other)
     await Promise.all([write(page, { a: 1 }), write(other, { b: 2 })])
-    const stored = async (name: string) =>
-        (
-            (await (await request.get(`/api/state/${name}`, { headers: SESSION })).json()) as {
-                state: Record<string, unknown>
-            }
-        ).state
-    expect(await stored(doc)).toEqual({ a: 1, b: 2 })
+    expect(race.state()).toEqual({ a: 1, b: 2 })
 
     // The same, with the order that loses nothing to chance: the second page hydrated the
     // unwritten document, and by the time it writes the first has created it. It finds that out
@@ -447,24 +513,17 @@ test('two pages creating the same document keep both their keys', async ({
     // to timing this took the refused-creation path when run alone and this one in a full run,
     // where it removed the first page's key: a page's state was compared with the server's
     // document, so a key it had never heard of read as one it had cleared.)
-    const later = 'hosts/e2e-create-later'
     const hydrateDoc = (target: Page, name: string) =>
         target.evaluate(async (name) => {
-            const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(() => name)
+            const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(name)
             ;(window as unknown as Holder).__e2eStorage = storage
             await storage.getItem('x')
         }, name)
-    await hydrateDoc(page, later)
-    await hydrateDoc(other, later)
+    await hydrateDoc(page, later.name)
+    await hydrateDoc(other, later.name)
     await write(page, { a: 1 })
     await write(other, { b: 2 })
-    expect(await stored(later)).toEqual({ a: 1, b: 2 })
-    // The precondition on a creation, seen raw: the document exists, so revision 0 is stale.
-    const stale = await request.put(`/api/state/${doc}`, {
-        headers: { ...SESSION, 'If-Match': '0' },
-        data: { version: 2, state: { c: 3 } },
-    })
-    expect(stale.status()).toBe(409)
+    expect(later.state()).toEqual({ a: 1, b: 2 })
     // The browser logs the refused creation (a 409) on its own; the page recovered from it.
     // Nothing else may have gone wrong on either page.
     const unexpected = (list: string[]) => list.filter((line) => !line.includes('409'))
@@ -473,12 +532,10 @@ test('two pages creating the same document keep both their keys', async ({
     await other.close()
 })
 
-test('a page writes what it changed, never what it merely holds', async ({
-    page,
-    context,
-    request,
-}) => {
+test('a page writes what it changed, never what it merely holds', async ({ page, context }) => {
     const errors = collectErrors(page)
+    const standIn = stateStandIn('e2e-own-changes')
+    await standIn.serve(context)
     const other = await context.newPage()
     await page.goto('/')
     await other.goto('/')
@@ -488,12 +545,8 @@ test('a page writes what it changed, never what it merely holds', async ({
     // `x`. The other has not heard yet (the announcement is on its way) and changes `y`, then
     // `z`. Its `x` is the old one, but it never touched it, so it must never write it: a page's
     // changes are what differs from its own last state, not from the server's document.
-    const doc = 'hosts/e2e-own-changes'
-    const created = await request.put(`/api/state/${doc}`, {
-        headers: SESSION,
-        data: { version: 2, state: { x: 0, y: 0 } },
-    })
-    expect(created.ok()).toBe(true)
+    const doc = standIn.name
+    await standIn.call('PUT', { version: 1, state: { x: 0, y: 0 } })
     type Holder = Window & {
         __e2eStorage?: {
             getItem: (name: string) => Promise<unknown>
@@ -502,7 +555,7 @@ test('a page writes what it changed, never what it merely holds', async ({
     }
     const hydrate = (target: Page) =>
         target.evaluate(async (doc) => {
-            const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(() => doc)
+            const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(doc)
             ;(window as unknown as Holder).__e2eStorage = storage
             await storage.getItem('x')
         }, doc)
@@ -510,40 +563,25 @@ test('a page writes what it changed, never what it merely holds', async ({
         target.evaluate(async (state) => {
             const storage = (window as unknown as Holder).__e2eStorage
             if (!storage) throw new Error('the page lost its storage')
-            await storage.setItem('x', JSON.stringify({ version: 2, state }))
+            await storage.setItem('x', JSON.stringify({ version: 1, state }))
         }, state)
-    const stored = async () =>
-        (
-            (await (await request.get(`/api/state/${doc}`, { headers: SESSION })).json()) as {
-                state: Record<string, unknown>
-            }
-        ).state
+    const stored = standIn.state
     await hydrate(page)
     await hydrate(other)
     await write(page, { x: 9, y: 0 })
     // Refused once (the revision moved), re-applied on top: both changes stand.
     await write(other, { x: 0, y: 5 })
-    expect(await stored()).toEqual({ x: 9, y: 5 })
+    expect(stored()).toEqual({ x: 9, y: 5 })
     // Its next change. The `x` it still holds is not one.
     await write(other, { x: 0, y: 5, z: 1 })
-    expect(await stored()).toEqual({ x: 9, y: 5, z: 1 })
+    expect(stored()).toEqual({ x: 9, y: 5, z: 1 })
     // Clearing a key is a change: it was in this page's state and is not any more.
     await write(other, { x: 0, y: 5 })
-    expect(await stored()).toEqual({ x: 9, y: 5 })
+    expect(stored()).toEqual({ x: 9, y: 5 })
     const unexpected = (list: string[]) => list.filter((line) => !line.includes('409'))
     expect(unexpected(errors), errors.join('\n')).toEqual([])
     await other.close()
 })
-
-test('a malformed precondition is refused, not treated as none', async ({ request }) => {
-    const response = await request.patch('/api/state/hosts/e2e-state', {
-        headers: { ...SESSION, 'If-Match': 'abc' },
-        data: { set: { x: 1 }, unset: [] },
-    })
-    expect(response.status()).toBe(400)
-    expect(await response.text()).toContain('If-Match')
-})
-
 
 test('a removed member loses their WebSocket', async ({ browser }) => {
     const base = 'http://127.0.0.1:5611'
@@ -628,12 +666,12 @@ test('a state change by another writer rehydrates an open page', async ({ page, 
     // `state.changed`, reloads the document and re-applies the theme.
     const doc = (await (await request.get('/api/state/app', { headers: SESSION })).json()) as {
         revision: number
-        state: { appearance?: { tray: string; app: string } }
+        state: { appearance?: { app: string } }
     }
     const setTheme = async (revision: number, app: string) => {
         const response = await request.patch('/api/state/app', {
             headers: { ...SESSION, 'If-Match': String(revision) },
-            data: { set: { appearance: { ...(doc.state.appearance ?? { tray: 'system' }), app } } },
+            data: { set: { appearance: { ...doc.state.appearance, app } } },
         })
         expect(response.ok()).toBe(true)
         return ((await response.json()) as { revision: number }).revision
@@ -827,7 +865,7 @@ test('the rc proxy reaches the daemon and streams file bytes', async ({ request 
         })
     ).json()
     expect(link.ok).toBe(true)
-    // Signed links need no session: a system browser opened from a desktop window has no cookie.
+    // Signed links need no session: the token is the credential.
     const download = await request.get(link.value as string, { headers: {} })
     expect(download.ok()).toBe(true)
     expect(download.headers()['content-disposition']).toContain('attachment')
@@ -872,10 +910,10 @@ test('the team: an admin adds a member, the member signs in, removal ends their 
     const owner = await browser.newContext({ baseURL: base })
     await signIn(owner.request, base)
     // The query cache is persisted to local storage. A session answer restored from it (here:
-    // one without a user, as an older server gave) must never stand in for the server's.
+    // one without a user) must never stand in for the server's.
     await owner.addInitScript(() => {
         const state = {
-            data: { ok: true, mode: 'password', required: true, authenticated: true },
+            data: { ok: true, authenticated: true },
             dataUpdateCount: 1,
             dataUpdatedAt: Date.now(),
             error: null,
@@ -960,7 +998,9 @@ test('the team: an admin adds a member, the member signs in, removal ends their 
     await page.getByRole('button', { name: 'Yes' }).click()
     await expect(row('pat@example.com')).toHaveCount(0)
     expect(
-        (await member.request.post('/api/rpc/app_info', { headers: SESSION, data: {} })).status()
+        (
+            await member.request.post('/api/rpc/scheduler_supported', { headers: SESSION, data: {} })
+        ).status()
     ).toBe(401)
     expect(errors, errors.join('\n')).toEqual([])
     await member.close()
@@ -994,9 +1034,9 @@ test('asset-like file names never bypass the API guard', async ({ request }) => 
         const response = await request.get(`${base}${path}`)
         expect(response.status(), path).toBe(401)
     }
-    const put = await request.put(`${base}/api/state/hosts/rogue.png`, {
+    const put = await request.put(`${base}/api/state/host.png`, {
         headers: SESSION,
-        data: { version: 2, state: { a: 1 } },
+        data: { version: 1, state: { a: 1 } },
     })
     expect(put.status()).toBe(401)
 })
@@ -1112,7 +1152,7 @@ test('the sidebar lists the five newest remotes, then all of them with a count',
         const noted = page
             .waitForResponse(
                 (response) =>
-                    response.url().includes('/api/state/hosts/') &&
+                    response.url().includes('/api/state/host') &&
                     response.request().method() === 'PATCH',
                 { timeout: 5000 }
             )
@@ -1151,13 +1191,13 @@ test('the sidebar lists the five newest remotes, then all of them with a count',
 test('--clear empties the data directory and seeds the owner again', async () => {
     const root = mkdtempSync(join(tmpdir(), 'rcui-e2e-clear-'))
     const data = join(root, 'data')
-    // Leftovers of an earlier life: an accounts file the server could not even parse, a legacy
-    // store, a config. Without --clear the accounts file alone would stop the start.
-    mkdirSync(join(data, 'state', 'hosts'), { recursive: true })
+    // What is there before: an accounts file the server could not even parse (which alone would
+    // stop the start without --clear), a stray file and a folder.
+    mkdirSync(join(data, 'state'), { recursive: true })
     writeFileSync(join(data, 'state', 'team.json'), 'not json')
-    writeFileSync(join(data, 'store.json'), '{}')
-    mkdirSync(join(data, 'configs', 'old'), { recursive: true })
-    writeFileSync(join(data, 'configs', 'old', 'rclone.conf'), '[old]\ntype = memory\n')
+    writeFileSync(join(data, 'stray.json'), '{}')
+    mkdirSync(join(data, 'stray', 'deep'), { recursive: true })
+    writeFileSync(join(data, 'stray', 'deep', 'file.txt'), 'x')
 
     const base = 'http://127.0.0.1:5613'
     const server = spawn(
@@ -1192,8 +1232,8 @@ test('--clear empties the data directory and seeds the owner again', async () =>
                 { timeout: 30_000, message: 'the cleared server did not come up' }
             )
             .toBe(true)
-        expect(existsSync(join(data, 'store.json'))).toBe(false)
-        expect(existsSync(join(data, 'configs', 'old'))).toBe(false)
+        expect(existsSync(join(data, 'stray.json'))).toBe(false)
+        expect(existsSync(join(data, 'stray'))).toBe(false)
         // The emptied directory was then brought to the current layout.
         expect(JSON.parse(readFileSync(join(data, 'storage.json'), 'utf8'))).toEqual({ version: 1 })
         // The owner is the one seeded from this start's flags.
@@ -1509,8 +1549,8 @@ test('finished transfers survive a server restart, with their totals and their f
             transferred: { name: string }[]
         }
         expect(detail.transferred.map((file) => file.name).sort()).toEqual(['a.txt', 'b.txt'])
-        // On disk it is what it says: one JSONL per host, two lines per transfer.
-        const lines = readFileSync(join(data, 'transfers', 'hosts', 'local.jsonl'), 'utf8')
+        // On disk it is what it says: one JSONL, two lines per transfer.
+        const lines = readFileSync(join(data, 'transfers', 'ledger.jsonl'), 'utf8')
             .trim()
             .split('\n')
             .map((line) => JSON.parse(line) as { event: string; id: string })

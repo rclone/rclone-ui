@@ -1,7 +1,6 @@
-//! Startup reconciliation of scheduled tasks (lib/scheduler.ts `reconcile`, now in Rust and
-//! run by the orchestrator once the daemon is up): re-register every task the host document
-//! knows from its job file (heals exe-path drift, a registration that was lost, restored
-//! backups), unregister job files the document no longer lists, then sweep the leftovers that
+//! Startup reconciliation of scheduled tasks, run by the orchestrator once the daemon is up:
+//! re-register every task the host document knows from its job file (heals a registration that
+//! was lost, restored backups), unregister job files the document no longer lists, then sweep the leftovers that
 //! have a registration but no job file.
 //! Tasks whose job file never got written (a registration that failed in the page) stay the
 //! page's business: their request serialization lives in TypeScript.

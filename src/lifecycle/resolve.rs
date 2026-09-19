@@ -1,6 +1,5 @@
-//! Which rclone binary to run — the server flavor of lib/rclone/init.ts `resolveActiveRclone`
-//! + `provisionRclone` + `maybeAutoUpdateRclone`. Same ladder, minus the dialogs: a system
-//! rclone is adopted rather than offered, and a missing binary is downloaded without asking.
+//! Which rclone binary to run: the stored path, a system rclone, the newest downloaded one, or a
+//! fresh download, in that order. Nothing asks.
 
 use std::path::Path;
 use std::time::Duration;
@@ -13,7 +12,6 @@ use crate::scheduler::storeread;
 use crate::state_files::{StateStore, APP_DOC};
 use crate::zookeeper;
 
-use super::interaction::{ask, Decision, Question, SharedInteraction};
 use super::notify;
 
 async fn validate(ctx: &Ctx, path: &str) -> Option<String> {
@@ -109,7 +107,6 @@ pub async fn available_releases(
 pub async fn resolve_binary(
     ctx: &Ctx,
     store: &StateStore,
-    interaction: &SharedInteraction,
     override_path: Option<&Path>,
     on_download: impl Fn(String),
 ) -> Result<String, String> {
@@ -157,26 +154,12 @@ pub async fn resolve_binary(
         }
     }
 
-    // 1. A system rclone on PATH: the host decides (the desktop asks, the server adopts).
+    // 1. A system rclone on PATH.
     if let Ok(Some(system)) = zookeeper::find_system_rclone(ctx) {
         if let Some(version) = validate(ctx, &system).await {
-            let question = Question::AdoptSystemRclone {
-                path: system.clone(),
-                version: version.clone(),
-            };
-            if ask(interaction, question).await == Decision::Yes {
-                log::info!(
-                    "[lifecycle] adopting system rclone {} ({})",
-                    version,
-                    system
-                );
-                persist_rclone_path(store, &system);
-                return Ok(system);
-            }
-            log::info!(
-                "[lifecycle] system rclone {} declined; managing our own copy",
-                system
-            );
+            log::info!("[lifecycle] using system rclone {} ({})", version, system);
+            persist_rclone_path(store, &system);
+            return Ok(system);
         }
     }
 
@@ -197,7 +180,7 @@ pub async fn resolve_binary(
         Err(e) => log::warn!("[lifecycle] list_downloaded_rclone_versions failed: {}", e),
     }
 
-    // 4. Nothing anywhere: download the latest stable release.
+    // 3. Nothing anywhere: download the latest stable release.
     let version = latest_version()
         .await
         .map_err(|e| format!("could not determine the latest rclone version: {}", e))?;
@@ -249,7 +232,7 @@ pub async fn maybe_auto_update(
                 s.insert("lastNotifiedRcloneVersion".into(), Value::String(notified));
             });
             let body = format!(
-                "rclone v{} is available. You can update from Settings → Binary.",
+                "rclone v{} is available. You can update from Settings → Rclone.",
                 latest
             );
             notify(

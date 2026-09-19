@@ -1,5 +1,4 @@
-// Dialogs, all rendered in the page (src/components/DialogHost.tsx) on both products. The
-// option shapes match what the pages already pass (`title`, `kind`, `okLabel`, `cancelLabel`).
+// Dialogs, all rendered in the page (src/components/DialogHost.tsx).
 
 import { enqueue } from './dialogs'
 
@@ -117,8 +116,6 @@ export function pickPath(options?: PickOptions): Promise<string | string[] | nul
 export function saveAs(options?: {
     title?: string
     defaultPath?: string
-    /** Accepted for call-site compatibility; the in-page picker does not filter. */
-    filters?: { name: string; extensions: string[] }[]
 }): Promise<string | null> {
     return new Promise((resolve) => {
         enqueue({ kind: 'save', title: options?.title, defaultPath: options?.defaultPath, resolve })

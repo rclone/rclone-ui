@@ -22,7 +22,7 @@ test('a preset round-trips through the URL parameter', () => {
         templateName: 'Nightly photos',
     }
     const encoded = encodePreset(preset)
-    // Base64url: safe in a query string and in the desktop's percent-encoded boot redirect.
+    // Base64url: safe in a query string as it is.
     expect(encoded).toMatch(/^[A-Za-z0-9_-]+$/)
     expect(decodePreset(encoded, 'copy')).toEqual(preset)
     expect(presetRoute(preset)).toBe(`/copy?preset=${encoded}`)

@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 
 import { onErrorDialog } from '../../../lib/errors'
 import { ask } from '../../../lib/api/dialog'
-import { openWindow } from '../../../lib/api/windows'
+import { navigate } from '../../../lib/api/navigation'
 
 /**
  * The dry-run mutation shared by the operation pages that offer one (Copy/Sync/Move/Delete).
@@ -24,7 +24,7 @@ export function useOperationDryRun(mutationFn: () => Promise<unknown>) {
                 }
             )
             if (result) {
-                await openWindow({ name: 'Transfers', url: '/transfers' })
+                navigate('/transfers')
             }
         },
         onError: onErrorDialog('Dry Run', 'Failed to start dry run', {

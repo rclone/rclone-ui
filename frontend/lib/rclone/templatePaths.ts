@@ -23,8 +23,8 @@ export function hasTemplatePaths(paths: TemplatePaths | undefined): boolean {
 
 /**
  * The paths a page should end up with. A template that carries nothing leaves the page exactly as
- * it is, whichever button was pressed — every template saved before templates had paths is one of
- * those, and `Replace All` must not wipe the paths someone has just picked.
+ * it is, whichever button was pressed: `Replace All` must not wipe the paths someone has just
+ * picked.
  */
 export function applyTemplatePaths(
     current: TemplatePaths,

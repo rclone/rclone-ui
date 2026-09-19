@@ -13,7 +13,7 @@ import { AutomountSourceError, probeMountSource } from '../../lib/rclone/mount'
 
 import { message, pickPath } from '../../lib/api/dialog'
 import { home } from '../../lib/api/paths'
-import { lockWindows, unlockWindows } from '../../lib/api/windows'
+import { setBusy } from '../../lib/api/navigation'
 import { type RemoteConfig, useHostStore } from '../../store/host'
 import type { FlagValue } from '../../types/rclone'
 import OptionsSection from './OptionsSection'
@@ -248,14 +248,14 @@ export default function RemoteAutoMountDrawer({
                                         <Button
                                             onPress={async () => {
                                                 try {
-                                                    await lockWindows()
+                                                    setBusy(true)
                                                     const selected = await pickPath({
                                                         directory: true,
                                                         multiple: false,
                                                         defaultPath: home,
                                                         title: 'Select a mount point',
                                                     })
-                                                    await unlockWindows()
+                                                    setBusy(false)
                                                     if (selected) {
                                                         setMountOnStart({
                                                             mountPoint: selected,

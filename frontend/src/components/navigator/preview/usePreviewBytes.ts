@@ -12,15 +12,13 @@ export interface PreviewBytes {
 }
 
 /**
- * Downloads a preview target's bytes via the native (Tauri) HTTP client and hands
- * back an ArrayBuffer. Fetching the bytes ourselves — instead of letting a viewer
- * load by URL — avoids the webview CORS block against the rclone serve origin, so
- * any viewer that accepts a buffer can render local and remote files alike.
+ * Downloads a preview target's bytes and hands back an ArrayBuffer, so any viewer that
+ * accepts a buffer can render local and remote files alike.
  *
  * The body is read as a stream so `progress` can track bytes-received / Content-Length
  * for a download progress bar; it stays null when the server sends no Content-Length.
  */
-export default function usePreviewBytes(url: string, _authHeader?: string): PreviewBytes {
+export default function usePreviewBytes(url: string): PreviewBytes {
     const [state, setState] = useState<PreviewBytes>({
         buffer: null,
         isLoading: true,

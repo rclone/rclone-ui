@@ -1,8 +1,7 @@
 import { createPluginRegistration } from '@embedpdf/core'
 import { EmbedPDF } from '@embedpdf/core/react'
 import { usePdfiumEngine } from '@embedpdf/engines/react'
-// Bundle PDFium's wasm locally (via Vite ?url) so the preview works offline inside
-// the Tauri webview instead of reaching for the default CDN url.
+// PDFium's wasm is bundled (Vite ?url) rather than fetched from the default CDN url.
 import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url'
 import {
     DocumentContent,
@@ -19,7 +18,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { PreviewError, PreviewLoading, type PreviewViewerProps } from './previewStates'
 import usePreviewSource from './usePreviewSource'
 
-export default function PdfPreview({ url, name, authHeader, onDownload }: PreviewViewerProps) {
+export default function PdfPreview({ url, name, onDownload }: PreviewViewerProps) {
     const {
         engine,
         isLoading: engineLoading,
@@ -30,15 +29,15 @@ export default function PdfPreview({ url, name, authHeader, onDownload }: Previe
         // lifecycle races with React StrictMode's double-mount, orphaning the
         // openDocumentBuffer request so the document hangs in "loading" forever.
         worker: false,
-        // Desktop app: never fetch fallback fonts from a remote CDN.
+        // Never fetch fallback fonts from a remote CDN.
         fontFallback: null,
     })
 
     // Fetch the bytes ourselves and hand PDFium a buffer. This avoids EmbedPDF's
     // default range-request loader (which the rclone serve endpoint doesn't reliably
-    // answer) and the webview CORS block. No wasm arg: the pdfium wasm is loaded by
+    // answer). No wasm arg: the pdfium wasm is loaded by
     // the engine (usePdfiumEngine) above, not via setWasmSource.
-    const { buffer, error: fetchError, progress } = usePreviewSource(url, authHeader)
+    const { buffer, error: fetchError, progress } = usePreviewSource(url)
 
     const plugins = useMemo(
         () =>

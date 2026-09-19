@@ -69,9 +69,9 @@ export default defineConfig(async () => ({
         },
     },
 
-    // Development: the pages are always served by rclone-cloud (standalone or embedded in
-    // the desktop app) with `--dev-proxy http://localhost:1420`; the server forwards everything
-    // but its API here. HMR bypasses the proxy on its own port.
+    // Development: the pages are served by rclone-cloud with `--dev-proxy
+    // http://localhost:1420`; the server forwards everything but its API here. HMR bypasses the
+    // proxy on its own port.
     clearScreen: false,
     server: {
         port: 1420,

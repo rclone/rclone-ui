@@ -1,6 +1,5 @@
 //! Webhook and email dispatch — the single engine behind the `notifications_dispatch` command,
-//! a transfer's end and a scheduled run alike. Payload shapes stay byte-compatible with what the
-//! old TS dispatcher sent, so existing webhook consumers see no change. An email target is
+//! a transfer's end and a scheduled run alike. An email target is
 //! one whose `url` is its recipients (comma-separated); it goes through the saved SMTP settings
 //! (`smtp.rs`), read once per dispatch.
 
@@ -319,7 +318,7 @@ mod tests {
     fn test_dirs(tag: &str) -> DataDir {
         // The pid: two test processes at once must not share (and sweep) one directory.
         let root = std::env::temp_dir().join(format!(
-            "rcloneui-webhooks-test-{}-{}",
+            "rclone-cloud-webhooks-test-{}-{}",
             tag,
             std::process::id()
         ));
@@ -367,8 +366,7 @@ mod tests {
     }
 
     /// The full runner-side chain: load targets → filter by event → POST with header → record
-    /// lastSentAt/lastError back into targets.json (the gap the TS dispatcher had for runs
-    /// fired while the app was closed).
+    /// lastSentAt/lastError back into targets.json.
     #[test]
     fn dispatch_posts_and_records_outcomes_end_to_end() {
         let dirs = test_dirs("dispatch");
@@ -579,7 +577,7 @@ mod tests {
     }
 
     #[test]
-    fn payloads_stay_byte_compatible_with_the_ts_dispatcher() {
+    fn each_provider_gets_the_payload_shape_it_expects() {
         let event = catalog::find("schedule.failed").unwrap();
         let ts = "2026-01-01T00:00:00.000Z";
 

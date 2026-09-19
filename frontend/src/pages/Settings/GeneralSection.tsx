@@ -1,15 +1,14 @@
 import { Button, Select, SelectItem } from '@heroui/react'
 import * as Sentry from '@sentry/browser'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import { usePersistedStore } from '../../../store/persisted'
 import BaseSection from './BaseSection'
 import { type UpdateInfo, relaunch, updateCheck, updateInstall } from '../../../lib/api/app'
 import { ask } from '../../../lib/api/dialog'
 import { useCapabilities } from '../../../lib/api/host'
-import { rpc } from '../../../lib/api/rpc'
 import { openUrl } from '../../../lib/api/shell'
 
 export default function GeneralSection() {
@@ -18,16 +17,6 @@ export default function GeneralSection() {
 
     const [updateButtonText, setUpdateButtonText] = useState('Check for updates')
     const [update, setUpdate] = useState<UpdateInfo | null>(null)
-
-    const flathubQuery = useQuery({
-        queryKey: ['flathub'],
-        queryFn: async () => {
-            const flathub = await rpc<boolean>('is_flatpak')
-            return flathub
-        },
-    })
-
-    const isFlathub = useMemo(() => flathubQuery.data ?? true, [flathubQuery.data])
 
     const checkUpdatesMutation = useMutation({
         mutationFn: async () => {
@@ -148,7 +137,7 @@ export default function GeneralSection() {
                 </div>
             </div>
 
-            {!isFlathub && caps.updater && (
+            {caps.updater && (
                 <div className="flex flex-row justify-center w-full gap-8 px-8">
                     <div className="flex flex-col items-end flex-grow gap-2">
                         <h3 className="font-medium">Update</h3>

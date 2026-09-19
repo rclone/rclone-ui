@@ -18,7 +18,7 @@ export const WINDOWS: Host = { windows: true }
 
 let hostProvider: () => Host = () => POSIX
 
-/** Set once by the rclone client to the current host's OS; pure code passes a host instead. */
+/** Set once by the rclone client to the server's OS; pure code passes a host instead. */
 export function setHostProvider(provider: () => Host) {
     hostProvider = provider
 }

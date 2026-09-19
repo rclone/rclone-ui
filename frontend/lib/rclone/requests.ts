@@ -56,9 +56,8 @@ const METADATA_FILTER_FIELD_NAMES: Record<string, string> = {
 /**
  * The Metadata option section maps to two rc channels: the rule flags
  * (`metadata_include|exclude|filter[_from]`) belong in `_filter.MetaRules`, everything else
- * (`metadata`, `metadata_mapper`) in `_config`. The section is spread last, so a stale copy of
- * the same flag left in a legacy copy/filter/config group (old templates, schedules and
- * automounts) never beats what the page shows.
+ * (`metadata`, `metadata_mapper`) in `_config`. The section is spread last, so the same flag
+ * in another group never beats what the page shows.
  */
 export function mergeMetadataOptions({
     config,

@@ -1,38 +1,6 @@
-//! Portable one-off commands: machine facts, archive extraction and proxy probing.
+//! Proxy probing.
 
 use crate::ctx::Ctx;
-use crate::platform;
-
-pub fn get_arch(_ctx: &Ctx) -> Result<String, String> {
-    Ok(match std::env::consts::ARCH {
-        "aarch64" => "arm64",
-        "x86_64" => "amd64",
-        "i386" => "386",
-        _ => "unknown",
-    }
-    .to_string())
-}
-
-pub fn is_flatpak(_ctx: &Ctx) -> Result<bool, String> {
-    Ok(platform::is_flatpak())
-}
-
-pub fn extract_tgz(_ctx: &Ctx, tgz_path: String, output_folder: String) -> Result<(), String> {
-    use flate2::read::GzDecoder;
-    use std::fs::File;
-    use tar::Archive;
-
-    let file = File::open(&tgz_path).map_err(|e| e.to_string())?;
-    let tar = GzDecoder::new(file);
-    let mut archive = Archive::new(tar);
-
-    std::fs::create_dir_all(&output_folder).map_err(|e| e.to_string())?;
-
-    archive.set_preserve_permissions(true);
-    archive.unpack(&output_folder).map_err(|e| e.to_string())?;
-
-    Ok(())
-}
 
 pub async fn test_proxy_connection(_ctx: &Ctx, proxy_url: String) -> Result<String, String> {
     use std::time::Duration;

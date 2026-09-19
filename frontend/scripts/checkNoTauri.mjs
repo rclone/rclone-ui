@@ -1,5 +1,5 @@
 // The pages never talk to Tauri: every platform call goes through lib/api, which the server
-// answers on both products. Fails when any page-side source imports a Tauri package or reads
+// answers. Fails when any page-side source imports a Tauri package or reads
 // its globals.
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'

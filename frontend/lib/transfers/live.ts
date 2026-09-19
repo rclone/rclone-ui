@@ -50,7 +50,7 @@ export async function liveJob(jobid: number): Promise<LiveJob> {
 }
 
 /**
- * Whether a host's daemon has files in flight right now, whoever started them. For the questions
+ * Whether the daemon has files in flight right now, whoever started them. For the questions
  * that ask "would this interrupt something?", after the record has answered for the transfers:
  * a job put on the daemon by something other than this app is in no record, and shows here.
  */

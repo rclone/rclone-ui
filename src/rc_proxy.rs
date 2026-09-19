@@ -1,6 +1,5 @@
-//! `ANY /api/rc/{host}/{*path}` — a streaming reverse proxy to an rclone daemon: `local` is the
-//! managed (or `--rclone-url`) daemon with its credentials injected, any other id a configured
-//! remote host with its Basic auth. Bodies stream both ways (multipart uploads, `--rc-serve`
+//! `ANY /api/rc/{*path}` — a streaming reverse proxy to the managed (or `--rclone-url`) daemon,
+//! with its credentials injected. Bodies stream both ways (multipart uploads, `--rc-serve`
 //! downloads with `Range`), there is no body limit and no total timeout.
 
 use std::time::Duration;

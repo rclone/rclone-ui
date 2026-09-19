@@ -1,9 +1,4 @@
-//! Process- and platform-level helpers with no app-state dependency: Flatpak sandbox detection
-//! and OS process termination.
-
-pub fn is_flatpak() -> bool {
-    std::path::Path::new("/.flatpak-info").exists() || std::env::var_os("FLATPAK_ID").is_some()
-}
+//! OS process termination.
 
 /// Ends a process and everything under it.
 ///

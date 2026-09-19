@@ -1,5 +1,4 @@
-// The platform layer every page talks through. One import surface, the same on the desktop
-// (whose windows are served by the embedded server) and in a browser tab.
+// The platform layer every page talks through.
 export * as app from './app'
 export * as clipboard from './clipboard'
 export * as dialog from './dialog'
@@ -9,7 +8,6 @@ export * as paths from './paths'
 export * as session from './session'
 export * as shell from './shell'
 export * as state from './state'
-export * as windows from './windows'
 export { capabilities, useCapabilities } from './host'
 export { rpc, stream, RpcError } from './rpc'
 export { rcClient, rcFetch, rcUrl } from './rc'

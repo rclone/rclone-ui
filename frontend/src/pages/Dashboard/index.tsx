@@ -375,7 +375,7 @@ export default function Dashboard() {
                 <>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                         <Panel>
-                            <Eyebrow right={<MoreLink to="/settings?tab=remotes">Manage</MoreLink>}>
+                            <Eyebrow right={<MoreLink to="/remotes">Manage</MoreLink>}>
                                 Remotes · {remotes.data?.length ?? '–'}
                             </Eyebrow>
                             {/* Its own row rather than the eyebrow: this card is a quarter of the

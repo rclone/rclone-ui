@@ -1,8 +1,7 @@
-//! Async-runtime glue standing in for `tauri::async_runtime` (a lazily built global tokio
-//! runtime the desktop app shares with Tauri). Hosts may call into this crate from three
-//! places, and the helpers work from all of them:
+//! Async-runtime glue: a lazily built global tokio runtime for callers that have none. Code
+//! here is reached from three places, and the helpers work from all of them:
 //!
-//! - a tokio worker thread (async commands awaited by the server or the desktop's runtime),
+//! - a tokio worker thread (async commands awaited by the server),
 //! - a blocking-pool thread (`sync` commands, which the dispatch layer runs via `spawn_blocking`),
 //! - a plain thread with no runtime at all (`metadata-map`, which rclone spawns per file).
 //!

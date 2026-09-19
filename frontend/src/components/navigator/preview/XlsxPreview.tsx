@@ -4,10 +4,9 @@ import xlsxWasmUrl from '@extend-ai/react-xlsx/duke_sheets_wasm_bg.wasm?url'
 import { PreviewError, PreviewLoading, type PreviewViewerProps } from './previewStates'
 import usePreviewSource from './usePreviewSource'
 
-export default function XlsxPreview({ url, name, authHeader, onDownload }: PreviewViewerProps) {
+export default function XlsxPreview({ url, name, onDownload }: PreviewViewerProps) {
     const { buffer, error, progress } = usePreviewSource(
         url,
-        authHeader,
         xlsxWasmUrl,
         setWasmSource
     )

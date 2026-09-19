@@ -13,7 +13,7 @@ import { type DialogRequest, settle, subscribe } from '../../lib/api/dialogs'
 import PathSelector from './PathSelector'
 
 // Renders the head of the dialog queue (lib/api/dialogs.ts): the in-page message / ask /
-// prompt / open / save dialogs, on both products.
+// prompt / open / save dialogs.
 export default function DialogHost() {
     const [queue, setQueue] = useState<DialogRequest[]>([])
     useEffect(() => subscribe(setQueue), [])

@@ -136,18 +136,17 @@ pub async fn upgrade(
     Caller(caller): Caller,
     ws: WebSocketUpgrade,
 ) -> Response {
-    let account = caller.map(|user| user.id);
-    ws.on_upgrade(move |socket| connection(st, socket, account))
+    ws.on_upgrade(move |socket| connection(st, socket, caller.id))
 }
 
-async fn connection(st: Shared, socket: WebSocket, account: Option<String>) {
+async fn connection(st: Shared, socket: WebSocket, account: String) {
     let (mut sink, mut stream) = socket.split();
     let mut attached: Option<(String, u64)> = None;
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
     // The socket belongs to the account that opened it: a removal or an admin's password reset
     // revokes its HTTP sessions, and closes this too.
     let mut revoked = st.auth.revocations();
-    let mut watch_revocations = account.is_some();
+    let mut watch_revocations = true;
 
     let writer = tokio::spawn(async move {
         while let Some(frame) = rx.recv().await {
@@ -185,7 +184,7 @@ async fn connection(st: Shared, socket: WebSocket, account: Option<String>) {
             },
             revocation = revoked.recv(), if watch_revocations => {
                 match revocation {
-                    Ok(id) if Some(&id) == account.as_ref() => {
+                    Ok(id) if id == account => {
                         log::info!("[ws] closing the socket of a revoked account");
                         break;
                     }

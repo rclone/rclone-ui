@@ -9,8 +9,7 @@
 //! metadata_mapper: ["<the app's own binary>", "metadata-map", "--map", "mtime=modified"]
 //! ```
 //!
-//! An argv array, never a string: the macOS binary lives under `/Applications/Rclone UI.app/…`
-//! and rclone would split that path on its space.
+//! An argv array, never a string: rclone would split a path with a space in it.
 //!
 //! Nothing here touches the data directory, the log or the network — it is spawned per object
 //! and has to stay quick and silent.

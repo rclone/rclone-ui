@@ -148,7 +148,7 @@ function buildPlan(
     return { regexError, rows: rows.map((row) => ({ ...row, error: errorFor(row) })) }
 }
 
-// Free-text fields (names, patterns) must not be autocorrected by the webview.
+// Free-text fields (names, patterns) must not be autocorrected by the browser.
 const PLAIN_TEXT = {
     autoCapitalize: 'off',
     autoComplete: 'off',

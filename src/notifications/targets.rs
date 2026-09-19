@@ -72,8 +72,8 @@ fn now_ms() -> u64 {
 }
 
 /// Cross-process mutual exclusion for targets.json read-modify-write cycles. Held for
-/// milliseconds (never across HTTP sends). Unix: kernel flock — released on crash, valid across
-/// Flatpak sandbox PID namespaces; release truncates but never unlinks (an unlink/recreate race
+/// milliseconds (never across HTTP sends). Unix: kernel flock — released on crash; release
+/// truncates but never unlinks (an unlink/recreate race
 /// would let two processes lock two inodes of the same path). Windows: create_new existence
 /// with a stale break well above any real hold time.
 pub struct StoreLock {
@@ -317,7 +317,7 @@ mod tests {
     use super::*;
 
     fn test_dirs(tag: &str) -> DataDir {
-        let root = std::env::temp_dir().join(format!("rcloneui-targets-test-{}", tag));
+        let root = std::env::temp_dir().join(format!("rclone-cloud-targets-test-{}", tag));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         DataDir { root }
@@ -348,7 +348,7 @@ mod tests {
         assert!(!added.id.is_empty());
         assert!(added.created_at > 0);
 
-        // The written file is camelCase — byte-compatible with the TS NotificationTarget shape.
+        // The written file is camelCase, the page's NotificationTarget shape.
         let raw = std::fs::read_to_string(dirs.root.join("notifications/targets.json")).unwrap();
         assert!(raw.contains("\"isEnabled\": true"));
         assert!(raw.contains("\"createdAt\":"));

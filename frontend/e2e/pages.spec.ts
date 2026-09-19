@@ -1,4 +1,5 @@
 import {
+    appendFileSync,
     chmodSync,
     existsSync,
     mkdirSync,
@@ -11,7 +12,7 @@ import {
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { type Page, expect, test } from '@playwright/test'
-import { encodePreset } from '../lib/rclone/preset'
+import { encodePreset, presetRoute } from '../lib/rclone/preset'
 import { stopLeftoverJobs } from './helpers'
 
 // Page flows against the open server (127.0.0.1:5610). Each test drives a real page through a
@@ -25,17 +26,26 @@ const RCLONE_BINARY_PLACEHOLDER = 'Point to an rclone binary on your machine (/p
 // What a test's page left running on the shared daemon stops with the test (`stopLeftoverJobs`).
 test.afterEach(({ request }) => stopLeftoverJobs(request))
 
-test('copy and move open on the destination the toolbar hands them', async ({ page }) => {
-    for (const route of ['/copy', '/move']) {
-        await page.goto(`${route}?initialSource=/tmp/e2e-src&initialDestination=/tmp/e2e-dst`)
+test("copy and move open on their preset's destination", async ({ page }) => {
+    const args = { sources: ['/tmp/e2e-src'], destination: '/tmp/e2e-dst' }
+    for (const route of [
+        presetRoute({ operation: 'copy', args }),
+        presetRoute({ operation: 'move', args }),
+    ]) {
+        await page.goto(route)
         await expect(page.getByLabel('Destination')).toHaveValue('/tmp/e2e-dst')
     }
 })
 
 test('the Remotes option section only appears when a path names a remote', async ({ page }) => {
     // Its tabs are one remote's own backend flags each, so a copy between two local paths has
-    // nothing to put in it — the section used to open on an empty tab strip.
-    await page.goto('/copy?initialSource=/tmp/e2e-src&initialDestination=/tmp/e2e-dst')
+    // nothing to put in it.
+    await page.goto(
+        presetRoute({
+            operation: 'copy',
+            args: { sources: ['/tmp/e2e-src'], destination: '/tmp/e2e-dst' },
+        })
+    )
     const remotes = page.locator('button:has(svg.lucide-server)')
     // The accordion is up (its metadata section is always there) and Remotes is not part of it.
     await expect(page.locator('button:has(svg.lucide-tags)')).toBeVisible()
@@ -240,7 +250,7 @@ test('a wrapper remote picks the remote it wraps from the file panel', async ({
     page,
     request,
 }) => {
-    await page.goto('/settings?tab=remotes')
+    await page.goto('/remotes')
     await page.locator('button:has(svg.lucide-plus)').first().click()
     await page.getByPlaceholder('Remote name (for your reference)').fill('e2e-crypt')
     await page.getByPlaceholder('Select type or search').fill('crypt')
@@ -275,7 +285,7 @@ test('a wrapper remote picks the remote it wraps from the file panel', async ({
 })
 
 test('a combine remote is created from its upstreams field', async ({ page, request }) => {
-    await page.goto('/settings?tab=remotes')
+    await page.goto('/remotes')
     await page.locator('button:has(svg.lucide-plus)').first().click()
     await page.getByPlaceholder('Remote name (for your reference)').fill('e2e-combine')
     await page.getByPlaceholder('Select type or search').fill('combine')
@@ -337,7 +347,7 @@ test('a combine remote is created from its upstreams field', async ({ page, requ
 })
 
 test('a closed option list is a select that stores its choice', async ({ page, request }) => {
-    await page.goto('/settings?tab=remotes')
+    await page.goto('/remotes')
     await page.locator('button:has(svg.lucide-plus)').first().click()
     await page.getByPlaceholder('Remote name (for your reference)').fill('e2e-local')
     await page.getByPlaceholder('Select type or search').fill('local')
@@ -375,7 +385,7 @@ test('a path option browses from the folder it already points at', async ({ page
     writeFileSync(join(dir, 'token.json'), '{}')
     mkdirSync(join(dir, 'sub'))
     try {
-        await page.goto('/settings?tab=remotes')
+        await page.goto('/remotes')
         await page.locator('button:has(svg.lucide-plus)').first().click()
         await page.getByPlaceholder('Remote name (for your reference)').fill('e2e-drive')
         await page.getByPlaceholder('Select type or search').fill('drive')
@@ -605,11 +615,7 @@ test('the serve address field and the addr flag are one value', async ({ page })
     await expect(page.getByRole('button', { name: 'START SERVE' })).toBeVisible()
 })
 
-test('an operation page links to rclone.org in a browser instead of opening the docs sheet', async ({
-    page,
-}) => {
-    // The sheet is a native window's answer to having nowhere to open a page; a tab has somewhere,
-    // and rclone's own documentation is fuller than the prose the sheet carries.
+test("an operation page links to rclone's documentation for its command", async ({ page }) => {
     const commands = {
         copy: 'copy',
         move: 'move',
@@ -626,8 +632,6 @@ test('an operation page links to rclone.org in a browser instead of opening the 
         const docs = page.locator('a:has(svg.lucide-book-open-text)')
         await expect(docs).toHaveAttribute('href', `https://rclone.org/commands/rclone_${command}/`)
         await expect(docs).toHaveAttribute('target', '_blank')
-        // Nothing left that opens the sheet in place.
-        await expect(page.locator('button:has(svg.lucide-book-open-text)')).toHaveCount(0)
     }
 })
 
@@ -851,7 +855,7 @@ test('a finished job reopens its page with the same settings', async ({ page, re
             timeout: 15_000,
         })
         // What it was started with is kept with the transfer, by the server: the page that
-        // started it can be long gone (on the desktop the drawer is another window's).
+        // started it can be long gone.
         const kept = async () => {
             const list = (await (
                 await request.post('/api/rpc/transfers_list', {
@@ -909,7 +913,7 @@ test('the picker renames and deletes files in place', async ({ page }) => {
     writeFileSync(join(dir, 'draft.txt'), 'a')
     writeFileSync(join(dir, 'old.txt'), 'b')
     try {
-        await page.goto(`/copy?initialSource=${encodeURIComponent(dir)}`)
+        await page.goto(presetRoute({ operation: 'copy', args: { sources: [dir] } }))
         await page.locator('button:has(svg.lucide-folder-open)').first().click()
         const picker = page.getByRole('dialog').filter({ hasText: /0 SELECTED|PICK/ })
         const row = (name: string) => picker.locator('[draggable]', { hasText: name })
@@ -967,7 +971,7 @@ test('a backend whose type is not its prefix still gets its icon', async ({ page
             .poll(() => icon.evaluate((img: HTMLImageElement) => img.naturalWidth))
             .toBeGreaterThan(0)
         // The create list draws the same file, off the backend rather than off a remote.
-        await page.goto('/settings?tab=remotes')
+        await page.goto('/remotes')
         await page.locator('button:has(svg.lucide-plus)').first().click()
         await page.getByPlaceholder('Select type or search').fill('google cloud')
         const listed = page.getByRole('option').first().locator('img')
@@ -1058,11 +1062,11 @@ test('a favourite row shows its full path and carries the star alone', async ({
     // to the real path from a list that is only meant to point at it. Dropping the bookmark is
     // the one thing a row does here.
     const host = async () =>
-        (await (await request.get('/api/state/hosts/local', { headers: SESSION })).json()) as {
+        (await (await request.get('/api/state/host', { headers: SESSION })).json()) as {
             revision: number
         }
     const before = await host()
-    await request.patch('/api/state/hosts/local', {
+    await request.patch('/api/state/host', {
         headers: { ...SESSION, 'If-Match': String(before.revision) },
         data: {
             set: { favoritePaths: [{ remote: 'e2e-memory', path: 'keep/', added: 1 }] },
@@ -1090,7 +1094,7 @@ test('a favourite row shows its full path and carries the star alone', async ({
         await expect(row).toHaveCount(0)
     } finally {
         const after = await host()
-        await request.patch('/api/state/hosts/local', {
+        await request.patch('/api/state/host', {
             headers: { ...SESSION, 'If-Match': String(after.revision) },
             data: { set: { favoritePaths: [] }, unset: [] },
         })
@@ -1106,7 +1110,7 @@ test('a folder that disappeared shows the error, not its cached rows', async ({ 
     const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-gone-'))
     writeFileSync(join(dir, 'kept.txt'), 'a')
     try {
-        await page.goto(`/copy?initialSource=${encodeURIComponent(dir)}`)
+        await page.goto(presetRoute({ operation: 'copy', args: { sources: [dir] } }))
         await page.locator('button:has(svg.lucide-folder-open)').first().click()
         const picker = page.getByRole('dialog').filter({ hasText: /0 SELECTED|PICK/ })
         const kept = picker.locator('[draggable]', { hasText: 'kept.txt' })
@@ -1275,12 +1279,12 @@ test('a scheduled task keeps what its sources are, and its job file is built fro
     writeFileSync(join(dir, 'a.txt'), 'a')
     type Task = { id: string; kinds?: Record<string, string> }
     const host = async () =>
-        (await (await request.get('/api/state/hosts/local', { headers: SESSION })).json()) as {
+        (await (await request.get('/api/state/host', { headers: SESSION })).json()) as {
             revision: number
             state: { scheduledTasks?: Task[] }
         }
     const patch = async (set: Record<string, unknown>) =>
-        request.patch('/api/state/hosts/local', {
+        request.patch('/api/state/host', {
             headers: { ...SESSION, 'If-Match': String((await host()).revision) },
             data: { set, unset: [] },
         })
@@ -1306,7 +1310,7 @@ test('a scheduled task keeps what its sources are, and its job file is built fro
         const task = (await saved())!
         taskId = task.id
         expect(task.kinds).toEqual({ [dir]: 'folder' })
-        const jobFile = join('e2e', '.tmp', 'open', 'scheduler', 'jobs', 'local', `${taskId}.json`)
+        const jobFile = join('e2e', '.tmp', 'open', 'scheduler', 'jobs', `${taskId}.json`)
         const spec = JSON.parse(readFileSync(jobFile, 'utf8')) as {
             requests: { body: { inputs: { _path: string; srcFs: string }[] } }[]
         }
@@ -1373,7 +1377,7 @@ test('a new OAuth login stops a stuck one, and cancelling stops its own', async 
         // page would offer to reconnect it. The login server runs on regardless of the section.
         await rc('config/delete', { name: 'e2e-stray' })
 
-        await page.goto('/settings?tab=remotes')
+        await page.goto('/remotes')
         await page.locator('button:has(svg.lucide-plus)').first().click()
         await page.getByPlaceholder('Remote name (for your reference)').fill('e2e-oauth')
         await page.getByPlaceholder('Select type or search').fill('drive')
@@ -1532,7 +1536,7 @@ test('selecting a remote that needs reconnecting offers it every time', async ({
 test('the create drawer refuses a name another remote already has', async ({ page }) => {
     // rclone's config/create overwrites a section of the same name before it runs any login, so
     // the collision has to be stopped here: by the time it fails there is nothing left to undo.
-    await page.goto('/settings?tab=remotes')
+    await page.goto('/remotes')
     await page.locator('button:has(svg.lucide-plus)').first().click()
     const name = page.getByPlaceholder('Remote name (for your reference)')
     const create = page.getByRole('button', { name: 'Create Remote' })
@@ -1573,7 +1577,7 @@ test('an OAuth login is finished from another machine', async ({ page, request }
         ((await (await rc('config/listremotes', {})).json()) as { remotes?: string[] }).remotes ??
         []
     try {
-        await page.goto('/settings?tab=remotes')
+        await page.goto('/remotes')
         await page.locator('button:has(svg.lucide-plus)').first().click()
         await page.getByPlaceholder('Remote name (for your reference)').fill('e2e-handoff')
         await page.getByPlaceholder('Select type or search').fill('drive')
@@ -1698,7 +1702,7 @@ test('renaming a remote carries its settings along', async ({ page, request }) =
         ((await (await rc('config/listremotes', {})).json()) as { remotes: string[] }).remotes
     type HostDoc = { version: number; state: Record<string, unknown> }
     const hostDoc = async () =>
-        (await (await request.get('/api/state/hosts/local')).json()) as HostDoc
+        (await (await request.get('/api/state/host')).json()) as HostDoc
     await rc('config/create', { name: 'sb-before', type: 'memory', parameters: {} })
     // This server's daemon is the suite's external rcd, on the shared config file.
     const configFile = new URL('./.tmp/rclone.conf', import.meta.url).pathname
@@ -1715,7 +1719,7 @@ test('renaming a remote carries its settings along', async ({ page, request }) =
         filterOptions: {},
         configOptions: {},
     }
-    await request.put('/api/state/hosts/local', {
+    await request.put('/api/state/host', {
         data: {
             version: original.version,
             state: {
@@ -1777,7 +1781,7 @@ test('renaming a remote carries its settings along', async ({ page, request }) =
         await rc('config/delete', { name: 'sb-after' })
         await rc('config/delete', { name: 'sb-before' })
         const current = await hostDoc()
-        await request.put('/api/state/hosts/local', {
+        await request.put('/api/state/host', {
             data: { version: current.version, state: original.state },
         })
     }
@@ -1994,8 +1998,8 @@ test('a template keeps the paths a copy was set to, and fills them back in', asy
     await expect(page.getByLabel('Source', { exact: true })).toHaveValue('/tmp')
     await expect(page.getByLabel('Destination', { exact: true })).toHaveValue('e2e-memory:paths')
 
-    // A template that carries no paths is every template saved before this existed. Replace All
-    // must leave the page's paths where they are rather than emptying them.
+    // A template that carries no paths: Replace All must leave the page's paths where they are
+    // rather than emptying them.
     await page.goto('/copy')
     await page.getByRole('button', { name: 'Templates' }).click()
     await page.getByRole('menuitem', { name: 'SAVE AS TEMPLATE' }).click()
@@ -2055,15 +2059,13 @@ test('a scheduled run opens where every other transfer does, and can be filtered
     page,
     request,
 }) => {
-    // Written the way an older server wrote a run, into the file that run's own process owned.
-    // Nothing writes those any more, but they are still read, so an upgraded server keeps what
-    // it already ran — and shows it like any other transfer.
+    // A finished run, written into the ledger the way the server writes one.
     const taskId = 'e2e-nightly'
     const runId = '1789606923456-4242'
-    const file = join('e2e', '.tmp', 'open', 'transfers', 'tasks', `${taskId}.jsonl`)
-    mkdirSync(join('e2e', '.tmp', 'open', 'transfers', 'tasks'), { recursive: true })
+    const file = join('e2e', '.tmp', 'open', 'transfers', 'ledger.jsonl')
+    mkdirSync(join('e2e', '.tmp', 'open', 'transfers'), { recursive: true })
     const id = `${runId}-1`
-    writeFileSync(
+    appendFileSync(
         file,
         `${[
             {
@@ -2100,12 +2102,12 @@ test('a scheduled run opens where every other transfer does, and can be filtered
             .join('\n')}\n`
     )
     const host = async () =>
-        (await (await request.get('/api/state/hosts/local', { headers: SESSION })).json()) as {
+        (await (await request.get('/api/state/host', { headers: SESSION })).json()) as {
             revision: number
             state: { scheduledTasks?: unknown[] }
         }
     const setTasks = async (scheduledTasks: unknown[]) =>
-        request.patch('/api/state/hosts/local', {
+        request.patch('/api/state/host', {
             headers: { ...SESSION, 'If-Match': String((await host()).revision) },
             data: { set: { scheduledTasks }, unset: [] },
         })
@@ -2186,7 +2188,11 @@ test('a scheduled run opens where every other transfer does, and can be filtered
             headers: SESSION,
             data: { taskId },
         })
-        rmSync(file, { force: true })
+        // Dated 2030: left in, it would be the newest row of every later test.
+        const kept = readFileSync(file, 'utf8')
+            .split('\n')
+            .filter((line) => line && (JSON.parse(line) as { id: string }).id !== id)
+        writeFileSync(file, kept.map((line) => `${line}\n`).join(''))
     }
 })
 

@@ -1,18 +1,14 @@
 //! The app's persisted state, owned by the server. One JSON document per store:
 //!
-//! - `app`        → `<app_data>/state/app.json`        (zustand `usePersistedStore`, version 3)
-//! - `hosts/<id>` → `<app_data>/state/hosts/<id>.json` (zustand `useHostStore`, version 2)
+//! - `app`  → `<data dir>/state/app.json`  (zustand `usePersistedStore`)
+//! - `host` → `<data dir>/state/host.json` (zustand `useHostStore`)
 //!
 //! Each file is `{ "version": n, "revision": r, "state": { ... } }`. `version` is the page's
-//! zustand-persist schema version (only pages change it, when a migration runs); `revision` is
+//! zustand-persist schema version; `revision` is
 //! bumped by every write here and is what `PATCH` compares (`If-Match`) so a page never
 //! overwrites a document from a stale snapshot. Rust writers (the lifecycle) patch individual
 //! keys under the same lock. Every write publishes `state.changed {doc, revision, keys}` on the
 //! bus, which is how open pages rehydrate.
-//!
-//! Older installs have tauri-plugin-store files (`store.json` with the state as a JSON *string*
-//! under key `store`, `hosts/<id>/store.json` under `host-store`); those are migrated lazily the
-//! first time a document is read, and the originals are left in place.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -25,14 +21,13 @@ use crate::ctx::Events;
 use crate::datadir::DataDir;
 
 pub const APP_DOC: &str = "app";
-/// Current zustand-persist versions (store/persisted.ts, store/host.ts). New documents created
-/// by Rust before any page ran are stamped with these so the page's migrations don't fire.
-pub const APP_VERSION: u64 = 3;
-pub const HOST_VERSION: u64 = 2;
+/// The zustand-persist versions (store/persisted.ts, store/host.ts), which a document created
+/// by Rust before any page ran is stamped with.
+pub const APP_VERSION: u64 = 1;
+pub const HOST_VERSION: u64 = 1;
 
-/// The per-machine settings document. The `hosts/` segment and the `local` name are the shared
-/// storage layout, kept as written; this server has one machine and never another.
-pub const HOST_DOC: &str = "hosts/local";
+/// The settings that are about this machine: proxy, mount-on-start, schedules.
+pub const HOST_DOC: &str = "host";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StateDoc {
@@ -60,15 +55,6 @@ pub struct StateStore {
     cache: Mutex<HashMap<String, StateDoc>>,
 }
 
-fn valid_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 64
-        && id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
-        && !id.contains("..")
-}
-
 fn write_doc(path: &Path, doc: &StateDoc) -> Result<(), String> {
     let body = serde_json::to_vec_pretty(doc).map_err(|e| e.to_string())?;
     crate::fsutil::write_atomic(path, &body)
@@ -94,22 +80,12 @@ impl StateStore {
 
     /// `(path, default version)` for a document name.
     fn locate(&self, doc: &str) -> Result<(PathBuf, u64), String> {
-        if doc == APP_DOC {
-            return Ok((self.dirs.root.join("state").join("app.json"), APP_VERSION));
+        let state = self.dirs.root.join("state");
+        match doc {
+            APP_DOC => Ok((state.join("app.json"), APP_VERSION)),
+            HOST_DOC => Ok((state.join("host.json"), HOST_VERSION)),
+            _ => Err(format!("unknown state document '{}'", doc)),
         }
-        if let Some(id) = doc.strip_prefix("hosts/") {
-            if valid_id(id) {
-                return Ok((
-                    self.dirs
-                        .root
-                        .join("state")
-                        .join("hosts")
-                        .join(format!("{}.json", id)),
-                    HOST_VERSION,
-                ));
-            }
-        }
-        Err(format!("unknown state document '{}'", doc))
     }
 
     /// Loads a document into the cache; a missing file is a missing document.
@@ -149,7 +125,7 @@ impl StateStore {
         self.load(&mut cache, doc)
     }
 
-    /// Replaces the whole document (the page's first write and its migrations). With
+    /// Replaces the whole document (the page's first write). With
     /// `if_match`, the revision must be the one the page saw (0 for a document never written),
     /// so two pages creating the same document do not overwrite each other.
     pub fn put(
@@ -292,7 +268,7 @@ mod tests {
 
     fn store() -> (StateStore, PathBuf) {
         let root = std::env::temp_dir().join(format!(
-            "rcloneui-state-{}-{}",
+            "rclone-cloud-state-{}-{}",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));
@@ -315,7 +291,7 @@ mod tests {
         assert_eq!(created.revision, 1);
 
         let mut set = Map::new();
-        set.insert("hideStartup".into(), Value::Bool(true));
+        set.insert("autoUpdateRclone".into(), Value::Bool(true));
         let patched = store
             .patch(APP_DOC, set.clone(), vec![], Some(1))
             .unwrap_or_else(|_| panic!("patch"));
@@ -328,8 +304,8 @@ mod tests {
         }
 
         let mut state = Map::new();
-        state.insert("hosts".into(), json!([]));
-        let replaced = store.put(APP_DOC, 3, state, None).unwrap();
+        state.insert("templates".into(), json!([]));
+        let replaced = store.put(APP_DOC, APP_VERSION, state, None).unwrap();
         assert_eq!(replaced.revision, 3);
         assert!(replaced.state.get("rclonePath").is_none());
 
@@ -339,37 +315,47 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// A page that clears a value (Settings → "Remove password", Proxy → "Clear") persists
+    /// The accounts file sits beside the documents: no name may reach it, or anything else.
+    #[test]
+    fn only_the_two_documents_exist() {
+        let (store, root) = store();
+        for name in ["team", "hosts/local", "../storage", "app.json", ""] {
+            assert!(store.read(name).is_err(), "{:?}", name);
+            assert!(store.put(name, 1, Map::new(), None).is_err(), "{:?}", name);
+        }
+        assert!(store.read(APP_DOC).unwrap().is_none());
+        assert!(store.read(HOST_DOC).unwrap().is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A page that clears a value (Proxy → "Clear") persists
     /// through zustand as a missing key, so PATCH must be able to delete keys, not only set them.
     #[test]
     fn patch_unsets_keys() {
         let (store, root) = store();
         let mut state = Map::new();
-        state.insert("settingsPass".into(), Value::from("1234"));
-        state.insert("hosts".into(), json!([]));
+        state.insert("proxy".into(), Value::from("http://proxy:3128"));
+        state.insert("templates".into(), json!([]));
         let created = store.put(APP_DOC, APP_VERSION, state, None).unwrap();
 
         let mut set = Map::new();
-        set.insert("hideStartup".into(), Value::Bool(true));
+        set.insert("autoUpdateRclone".into(), Value::Bool(true));
         let patched = store
             .patch(
                 APP_DOC,
                 set,
-                vec!["settingsPass".into(), "neverThere".into()],
+                vec!["proxy".into(), "neverThere".into()],
                 Some(created.revision),
             )
             .unwrap_or_else(|_| panic!("patch"));
         assert_eq!(patched.revision, created.revision + 1);
-        assert!(
-            patched.state.get("settingsPass").is_none(),
-            "the key is gone"
-        );
-        assert_eq!(patched.state["hideStartup"], true);
-        assert_eq!(patched.state["hosts"], json!([]));
+        assert!(patched.state.get("proxy").is_none(), "the key is gone");
+        assert_eq!(patched.state["autoUpdateRclone"], true);
+        assert_eq!(patched.state["templates"], json!([]));
 
         let reread = store.read(APP_DOC).unwrap().unwrap();
         assert!(
-            reread.state.get("settingsPass").is_none(),
+            reread.state.get("proxy").is_none(),
             "and stays gone on disk"
         );
         let _ = std::fs::remove_dir_all(&root);

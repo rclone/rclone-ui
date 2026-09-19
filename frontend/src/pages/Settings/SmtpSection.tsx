@@ -54,7 +54,6 @@ function draftOf(view: SmtpView): Draft {
 // moment of sending by whatever dispatches). The password is write-only: the
 // form never gets it back, only that one is saved.
 export default function SmtpSection() {
-    const layout = 'web'
     const queryClient = useQueryClient()
     const settingsQuery = useSmtpSettings()
     const session = useSession()
@@ -126,10 +125,9 @@ export default function SmtpSection() {
     return (
         <BaseSection
             header={{ title: 'SMTP' }}
-            className={layout === 'web' ? 'w-full max-w-3xl gap-4 px-6 pb-12 mx-auto' : 'pb-12'}
+            className="w-full max-w-3xl gap-4 px-6 pb-12 mx-auto"
         >
             <SettingsGroup
-                layout={layout}
                 title="Server"
                 description="The mail server this Rclone UI sends email notifications through."
             >
@@ -170,7 +168,6 @@ export default function SmtpSection() {
             </SettingsGroup>
 
             <SettingsGroup
-                layout={layout}
                 title="Credentials"
                 description="Left empty for a server that accepts unauthenticated relays."
             >
@@ -194,7 +191,6 @@ export default function SmtpSection() {
             </SettingsGroup>
 
             <SettingsGroup
-                layout={layout}
                 title="Sender"
                 description="What the people you mail will see it come from."
             >
@@ -226,7 +222,6 @@ export default function SmtpSection() {
             </SettingsGroup>
 
             <SettingsGroup
-                layout={layout}
                 title="Test"
                 description={
                     isConfigured

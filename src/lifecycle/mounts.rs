@@ -1,6 +1,6 @@
-//! Startup mounts — main.ts `startupMounts` + lib/rclone/api.ts `startMountInner` +
-//! lib/rclone/mount.ts `probeMountSource`, ported so a headless host mounts the remotes the
-//! user marked "mount on start". Same RC calls, same option rekeying, same retry policy.
+//! Startup mounts: the remotes the user marked "mount on start", with the same RC calls, option
+//! rekeying and retry policy as the page's own mount (lib/rclone/api.ts `startMountInner`,
+//! lib/rclone/mount.ts `probeMountSource`).
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -284,8 +284,8 @@ pub fn to_filter_param(filter: &Map<String, Value>) -> Option<String> {
 
 /// lib/rclone/requests.ts `mergeMetadataOptions`: the Metadata section maps to two rc channels —
 /// the rule flags go to `_filter.MetaRules`, the rest (`metadata`, `metadata_mapper`) to
-/// `_config`. The section is spread last so it beats a stale copy of the same flag left in the
-/// legacy filter/config groups of an older automount.
+/// `_config`. The section is spread last so it beats the same flag set in the filter/config
+/// groups.
 pub fn merge_metadata_options(
     config: &Map<String, Value>,
     filter: &Map<String, Value>,
@@ -657,10 +657,10 @@ pub async fn start_mount(
     Ok(())
 }
 
-/// main.ts `startupMounts`: probe each auto-mount source (with the same backoff), then mount it.
+/// Probes each auto-mount source (with backoff), then mounts it.
 /// Mounts every remote whose "mount on start" is set, one after another, once the daemon is up.
 ///
-/// `can_mount` is the host's [`crate::mount_supported`]: a container without the FUSE device
+/// `can_mount` is [`crate::mount_supported`]: a container without the FUSE device
 /// cannot mount anything, and each attempt would fail the same way on every restart. That is a
 /// fact about the deployment rather than an incident, so it is said once, in the log, and
 /// nothing is notified.
@@ -753,8 +753,7 @@ pub async fn startup_mounts(ctx: &Ctx, client: &RcClient, can_mount: bool) {
                     )
                     .await
                 {
-                    // Log-only: the mount itself succeeded, so there is no mount.failed to
-                    // report, and a server has no desktop to toast at.
+                    // Log-only: the mount itself succeeded, so there is no mount.failed to report.
                     log::warn!(
                         "[mounts] {} mounted at {} but listing it failed ({}) — the folder may \
                          appear empty until the connection recovers",

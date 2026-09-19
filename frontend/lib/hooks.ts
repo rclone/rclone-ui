@@ -25,7 +25,7 @@ export function useNow(intervalMs: number | null = 30_000): number {
 }
 
 // Shared query options for a remote's `/config/get`. No default staleTime: most consumers rely on
-// staleTime-0 refetch-on-mount for cross-window freshness (each webview has its own QueryClient);
+// staleTime-0 refetch-on-mount for freshness across tabs (each has its own QueryClient);
 // the handful that want caching spread `staleTime` per-site.
 export function remoteConfigQueryOptions(remote: string | undefined | null) {
     return {

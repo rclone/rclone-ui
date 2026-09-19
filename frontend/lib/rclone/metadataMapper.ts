@@ -8,9 +8,9 @@ import type { FlagValue } from '../../types/rclone'
  * `metadata-map` subcommand, whose arguments are the rules — see
  * `src/metadata_mapper.rs`, which is the other half of this grammar.
  *
- * The value is an argv ARRAY, never a string. rclone splits a string on spaces, and the macOS
- * binary lives at `/Applications/Rclone UI.app/Contents/MacOS/…`; `toConfigParam` sends the
- * array straight through to `_config.MetadataMapper`, which is what rclone's SpaceSepList wants.
+ * The value is an argv ARRAY, never a string. rclone splits a string on spaces, and the
+ * binary's path may hold one; `toConfigParam` sends the array straight through to
+ * `_config.MetadataMapper`, which is what rclone's SpaceSepList wants.
  */
 
 export const MAPPER_SUBCOMMAND = 'metadata-map'

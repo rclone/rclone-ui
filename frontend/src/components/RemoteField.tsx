@@ -106,7 +106,7 @@ export default function RemoteField({
         )
     }
 
-    // Local-path options (service account files, certs, cache dirs, …) get a native picker.
+    // Local-path options (service account files, certs, cache dirs, …) get a path picker.
     const pathPicker = PATH_PICKER_FIELDS[option.Name]
     if (pathPicker) {
         return (

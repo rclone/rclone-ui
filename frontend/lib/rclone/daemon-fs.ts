@@ -4,8 +4,8 @@ import rclone from './client'
 
 // Files on the machine the daemon runs on, through the daemon. rclone's rc stats, makes,
 // removes and sizes a local path like any remote, `--rc-serve` hands out a file's bytes and
-// `operations/uploadfile` takes them back: one road for the app's own daemon, an external one
-// and a remote host. The UI server's own disk is never assumed to be the right one.
+// `operations/uploadfile` takes them back: one road for the app's own daemon and an external
+// one. The UI server's own disk is never assumed to be the right one.
 
 /** rclone's `fs` + `remote` pair for a local path (`:local:/` or `:local:C:/` roots, as the pages build them). */
 export function localFs(path: string): { fs: string; remote: string } {
@@ -80,9 +80,7 @@ async function rcJson<T>(
     return (await response.json()) as T
 }
 
-// Size jobs still running for this page, each with the host that issued its id: a job is
-// polled and stopped on that host, whichever host the page has switched to since. A listing
-// that is left stops its own; a page that is unloaded cannot, so the last thing it does is fire
+// Size jobs still running for this page. A listing that is left stops its own; a page that is unloaded cannot, so the last thing it does is fire
 // keep-alive stops for whatever is left.
 const runningSizeJobs = new Set<number>()
 if (typeof window !== 'undefined') {

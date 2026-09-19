@@ -82,13 +82,18 @@ impl Auth {
 }
 
 /// The signed-in account for a handler, put there by [`guard`].
-pub struct Caller(pub Option<AuthUser>);
+pub struct Caller(pub AuthUser);
 
 impl<S: Send + Sync> FromRequestParts<S> for Caller {
-    type Rejection = std::convert::Infallible;
+    type Rejection = Response;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        Ok(Caller(parts.extensions.get::<AuthUser>().cloned()))
+        parts
+            .extensions
+            .get::<AuthUser>()
+            .cloned()
+            .map(Caller)
+            .ok_or_else(unauthorized)
     }
 }
 
@@ -139,7 +144,7 @@ fn same_origin(headers: &HeaderMap) -> bool {
 
 /// Bundle files a login page needs before there is a session. Only the SPA's own paths: the
 /// suffix test must never reach `/api/…`, where an rc-proxy path or a state document name ends
-/// in whatever the user (or an attacker) chose — `/api/rc/<host>/[fs]/photo.png` is a file
+/// in whatever the user (or an attacker) chose — `/api/rc/[fs]/photo.png` is a file
 /// served with the daemon's credentials, not an asset.
 fn is_public_asset(path: &str) -> bool {
     if path.starts_with("/api/") {
@@ -210,7 +215,7 @@ pub async fn login(State(st): State<Shared>, Json(body): Json<LoginBody>) -> Res
             .unwrap_or(None);
     match session {
         Some(session) => {
-            let mut resp = Json(json!({ "ok": true, "required": true })).into_response();
+            let mut resp = Json(json!({ "ok": true })).into_response();
             resp.headers_mut()
                 .insert(header::SET_COOKIE, session_cookie(&session, 30 * 24 * 3600));
             resp
@@ -239,7 +244,6 @@ pub async fn session(State(st): State<Shared>, headers: HeaderMap) -> Response {
     let user = st.auth.user(&headers);
     Json(json!({
         "ok": true,
-        "required": true,
         "authenticated": user.is_some(),
         "user": user,
     }))

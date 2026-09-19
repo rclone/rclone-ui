@@ -38,7 +38,7 @@ import type {
 import ProviderIcon from './icons/ProviderIcon'
 import { message } from '../../lib/api/dialog'
 import { openUrl } from '../../lib/api/shell'
-import { openWindow } from '../../lib/api/windows'
+import { navigate } from '../../lib/api/navigation'
 
 // Single component for both add and edit — the forms are identical, only the header text,
 // initial values, and the Rust command differ. State seeds from props at mount: the parent
@@ -362,12 +362,7 @@ export default function NotificationTargetDrawer({
                                                 variant="flat"
                                                 color="warning"
                                                 startContent={<SettingsIcon className="w-4 h-4" />}
-                                                onPress={() =>
-                                                    openWindow({
-                                                        name: 'Settings',
-                                                        url: '/settings?tab=smtp',
-                                                    })
-                                                }
+                                                onPress={() => navigate('/settings/smtp')}
                                                 data-focus-visible="false"
                                             >
                                                 Open SMTP settings

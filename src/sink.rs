@@ -1,7 +1,6 @@
-//! Streaming results from a command back to whoever invoked it — the Tauri `Channel` on the
-//! desktop, a WebSocket on the server. Framing (message index, end-of-stream) belongs to the
-//! transport: Tauri's `Channel` frames on its own, the server's WebSocket adapter frames to
-//! match, and this type only carries ordered JSON messages.
+//! Streaming results from a command back to the page that invoked it. Framing (stream id,
+//! end-of-stream) belongs to the transport, the WebSocket; this type only carries ordered JSON
+//! messages.
 
 use std::marker::PhantomData;
 use std::sync::Arc;

@@ -1,4 +1,4 @@
-// `rpc(name, args)` → `POST /api/rpc/<name>`; the same envelope on both products. Streaming
+// `rpc(name, args)` → `POST /api/rpc/<name>`. Streaming
 // commands take a client-generated `stream` id and deliver their events over the WebSocket.
 
 import { newStreamId, registerStream, sessionId, setUnauthorizedHandler, whenReady } from './ws'

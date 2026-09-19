@@ -39,8 +39,8 @@ const TILE =
     'flex flex-col items-center justify-center gap-2 py-4 text-xs rounded-xl outline-none border border-divider dark:border-neutral-800 text-foreground transition-colors hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-primary'
 
 /**
- * The rclone operations as a grid of tiles. On the desktop each opens its window; in a browser
- * tab it navigates. `only` narrows the set (a schedule can't be a mount or a serve).
+ * The rclone operations as a grid of tiles, each a link to its page. `only` narrows the set (a
+ * schedule can't be a mount or a serve).
  */
 export default function OperationGrid({
     only,

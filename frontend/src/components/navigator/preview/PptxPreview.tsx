@@ -5,10 +5,9 @@ import '@extend-ai/react-pptx/styles.css'
 import { PreviewError, PreviewLoading, type PreviewViewerProps } from './previewStates'
 import usePreviewSource from './usePreviewSource'
 
-export default function PptxPreview({ url, authHeader, onDownload }: PreviewViewerProps) {
+export default function PptxPreview({ url, onDownload }: PreviewViewerProps) {
     const { buffer, error, progress } = usePreviewSource(
         url,
-        authHeader,
         pptxWasmUrl,
         setWasmSource
     )

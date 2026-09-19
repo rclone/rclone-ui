@@ -42,16 +42,12 @@ export interface RestartOverrides {
 }
 
 export interface Status {
-    mode: 'desktop' | 'server'
     version: string
     uptimeSeconds: number
     dirs: { data: string }
-    authRequired: boolean
     managedDaemon: boolean
     lifecycle: import('./events').LifecyclePhase | null
-    startup: 'initializing' | 'updating' | 'updated' | 'initialized' | 'error' | 'fatal' | null
     daemon: { url: string } | null
-    tunnel: { url: string; user?: string; pass?: string } | null
 }
 
 export async function status(): Promise<Status> {

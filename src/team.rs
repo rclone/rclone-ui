@@ -406,7 +406,7 @@ mod tests {
     use super::*;
 
     fn fresh() -> (Team, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("rclone-ui-team-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("rclone-cloud-team-{}", uuid::Uuid::new_v4()));
         (Team::open(&dir).unwrap(), dir)
     }
 

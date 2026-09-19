@@ -48,8 +48,8 @@ jobs:
           else
             cp target/release/rclone-cloud out/cloud/rclone-cloud-${{ matrix.target }}
           fi
-      # The server updates itself from these binaries: sign them with the desktop's updater key
-      # (minisign, `tauri signer`) so src/updater.rs can verify what it downloads.
+      # The server updates itself from these binaries: sign them (minisign) so src/updater.rs
+      # can verify what it downloads.
       - name: Sign
         shell: bash
         env:
@@ -70,8 +70,8 @@ jobs:
         with:
           files: out/cloud/*
 
-  # `cloud-latest.json`: what `rclone-cloud` polls to update itself. Same shape as Tauri's
-  # `latest.json`, with `cloud-<os>-<arch>` platform keys pointing at the signed binaries above.
+  # `cloud-latest.json`: what `rclone-cloud` polls to update itself, with `cloud-<os>-<arch>`
+  # platform keys pointing at the signed binaries above.
   manifest:
     needs: binaries
     if: startsWith(github.ref, 'refs/tags/')

@@ -12,7 +12,6 @@
 //! ([`TransferService::claim`]); whoever comes second finds nothing and writes nothing.
 
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -241,26 +240,11 @@ impl TransferService {
     /// transfers were interrupted; anything else may still be running and is watched again
     /// (whether its daemon is still the same one shows at the first look).
     pub fn recover(&self) {
-        for path in ledger::host_files(&self.ctx.dirs) {
-            for started in ledger::open(&path) {
-                if self.managed_local {
-                    self.write_end(&started, State::Interrupted, None, None);
-                } else {
-                    self.hold(started, false);
-                }
-            }
-        }
-        // A scheduled run used to be a process of its own, writing a file of its own. Nothing
-        // writes those files now, so whatever they still hold open ended when that process did.
-        for path in ledger::task_files(&self.ctx.dirs) {
-            for started in ledger::open(&path) {
-                self.record_end(
-                    &path,
-                    &started,
-                    State::Interrupted,
-                    Some("The run ended without saying how.".to_string()),
-                    None,
-                );
+        for started in ledger::open(&ledger::path(&self.ctx.dirs)) {
+            if self.managed_local {
+                self.write_end(&started, State::Interrupted, None, None);
+            } else {
+                self.hold(started, false);
             }
         }
     }
@@ -274,15 +258,6 @@ impl TransferService {
         for watched in local.iter().filter_map(|id| self.claim(id)) {
             self.write_end(&watched.started, State::Interrupted, None, None);
         }
-    }
-
-    /// How many running transfers a quit would stop: those of the daemon this process spawned.
-    /// A daemon it did not spawn (`--rclone-url`) carries on without it.
-    pub fn stopped_by_quit(&self) -> usize {
-        if !self.managed_local {
-            return 0;
-        }
-        self.watched.lock().unwrap().len()
     }
 
     pub async fn start(&self, request: StartRequest) -> Result<StartReply, String> {
@@ -421,15 +396,14 @@ impl TransferService {
         });
     }
 
-    /// One look at everything watched: the hosts side by side, a host's transfers in turn, so a
-    /// host that is slow to answer holds up nobody but itself.
+    /// One look at everything watched, side by side.
     async fn tick(self: &Arc<Self>) {
-        let mut hosts = tokio::task::JoinSet::new();
+        let mut checks = tokio::task::JoinSet::new();
         for started in self.due() {
             let service = Arc::clone(self);
-            hosts.spawn(async move { service.check(&started).await });
+            checks.spawn(async move { service.check(&started).await });
         }
-        while hosts.join_next().await.is_some() {}
+        while checks.join_next().await.is_some() {}
     }
 
     /// What a tick looks at: everything watched but what is still being launched.
@@ -580,7 +554,7 @@ impl TransferService {
     /// Records a transfer that just started and watches it. `launching`: its first look is
     /// `start`'s own ([`TransferService::launched`] hands it to the ticker).
     fn watch(&self, started: Started, launching: bool) {
-        let path = ledger::host_path(&self.ctx.dirs);
+        let path = ledger::path(&self.ctx.dirs);
         if let Err(error) = ledger::append(&path, &Line::Started(started.clone())) {
             log::error!("[transfers] {} not recorded: {}", started.id, error);
         }
@@ -613,13 +587,14 @@ impl TransferService {
     }
 
     fn changed(&self, started: &Started) {
-        self.ctx.events.emit(
-            "transfers.changed",
-            json!({ "id": started.id }),
-        );
+        self.ctx
+            .events
+            .emit("transfers.changed", json!({ "id": started.id }));
     }
 
-    /// Writes the end of a transfer that has been claimed (or that nothing watches yet).
+    /// Writes the end of a transfer that has been claimed (or that nothing watches yet), and
+    /// says it twice: to the pages (`transfers.changed`) and to whoever is waiting for this
+    /// transfer alone ([`Self::ends`]).
     fn write_end(
         &self,
         started: &Started,
@@ -627,20 +602,7 @@ impl TransferService {
         error: Option<String>,
         stats: Option<Stats>,
     ) {
-        let path = ledger::host_path(&self.ctx.dirs);
-        self.record_end(&path, started, state, error, stats);
-    }
-
-    /// An end, written to the file its start was written to, and then said twice: to the pages
-    /// (`transfers.changed`) and to whoever is waiting for this transfer alone ([`Self::ends`]).
-    fn record_end(
-        &self,
-        path: &Path,
-        started: &Started,
-        state: State,
-        error: Option<String>,
-        stats: Option<Stats>,
-    ) {
+        let path = ledger::path(&self.ctx.dirs);
         let finished = Finished {
             id: started.id.clone(),
             ts: now_iso(),
@@ -648,7 +610,7 @@ impl TransferService {
             error: error.clone(),
             stats,
         };
-        if let Err(error) = ledger::finish(&self.ctx.dirs, path, finished) {
+        if let Err(error) = ledger::finish(&self.ctx.dirs, &path, finished) {
             log::error!(
                 "[transfers] the end of {} not recorded: {}",
                 started.id,
@@ -698,7 +660,7 @@ mod tests {
 
     fn service(name: &str, managed_local: bool) -> (Arc<TransferService>, DataDir) {
         let root = std::env::temp_dir().join(format!(
-            "rcloneui-transfers-{}-{}",
+            "rclone-cloud-transfers-{}-{}",
             name,
             std::process::id()
         ));
@@ -745,29 +707,6 @@ mod tests {
             .find(|entry| entry.id == id)
             .map(|entry| entry.state)
             .expect("the transfer is in the ledger")
-    }
-
-    /// Quitting stops the daemon this process spawned, and with it what that daemon runs: that,
-    /// and nothing else, is what a quit asks about. It is known from the moment a transfer
-    /// starts, which rclone's files-in-flight are not (a transfer still listing has none).
-    #[test]
-    fn a_quit_would_stop_what_the_managed_daemon_is_running() {
-        let (managed, dirs) = service("quit-managed", true);
-        assert_eq!(managed.stopped_by_quit(), 0);
-        managed.watch(started("here"), false);
-        managed.watch(started("there"), false);
-        assert_eq!(managed.stopped_by_quit(), 2);
-        managed.give_up("here", State::Completed, None);
-        assert_eq!(managed.stopped_by_quit(), 1);
-        managed.give_up("there", State::Completed, None);
-        assert_eq!(managed.stopped_by_quit(), 0);
-        let _ = std::fs::remove_dir_all(&dirs.root);
-
-        // A daemon this process did not spawn outlives it, and so do its transfers.
-        let (external, dirs) = service("quit-external", false);
-        external.watch(started("here"), false);
-        assert_eq!(external.stopped_by_quit(), 0);
-        let _ = std::fs::remove_dir_all(&dirs.root);
     }
 
     /// The managed daemon restarts (a setting changed, it crashed): everything it was running
@@ -832,7 +771,7 @@ mod tests {
         service.write_end(&claimed.started, State::Stopped, None, None);
 
         assert_eq!(state_of(&dirs, "t"), State::Stopped);
-        assert_eq!(ledger::read(&ledger::host_path(&dirs)).len(), 2);
+        assert_eq!(ledger::read(&ledger::path(&dirs)).len(), 2);
         let _ = std::fs::remove_dir_all(&dirs.root);
     }
 
@@ -874,14 +813,17 @@ mod tests {
         service.hold(started("fresh"), true);
         service.hold(started("going"), false);
         let due = |service: &TransferService| -> Vec<String> {
-            let mut ids: Vec<String> =
-                service.due().into_iter().map(|started| started.id).collect();
+            let mut ids: Vec<String> = service
+                .due()
+                .into_iter()
+                .map(|started| started.id)
+                .collect();
             ids.sort();
             ids
         };
         assert_eq!(due(&service), ["going"]);
         // It can still be stopped, and still counts as running.
-        assert_eq!(service.stopped_by_quit(), 2);
+        assert_eq!(service.watched.lock().unwrap().len(), 2);
         service.launched("fresh");
         assert_eq!(due(&service), ["fresh", "going"]);
         let _ = std::fs::remove_dir_all(&dirs.root);

@@ -7,7 +7,7 @@ import { attendLogin, loginParameters, stopStrayOAuth } from './oauth'
 
 const PROMPT_TITLE = 'Configure remote'
 
-async function nativePrompt(args: {
+async function textPrompt(args: {
     message: string
     default?: string | null
     sensitive?: boolean
@@ -21,7 +21,7 @@ async function nativePrompt(args: {
         })
         return typeof result === 'string' ? result : null
     } catch (error) {
-        console.error('[interactive] native prompt failed', error)
+        console.error('[interactive] prompt failed', error)
         return null
     }
 }
@@ -38,7 +38,7 @@ function defaultString(option: BackendOption): string {
 const YES = new Set(['y', 'yes', 'true', '1'])
 const NO = new Set(['n', 'no', 'false', '0'])
 
-// Maps one config-machine question (rclone `Option`) onto the native text prompt and returns the
+// Maps one config-machine question (rclone `Option`) onto the text prompt and returns the
 // `result` string to send back — or null if the user cancelled. Because the dialog is text-only:
 //   - bool  -> ask for y/n, return "true"/"false"
 //   - choice (Examples) -> render a numbered list, return the chosen example's *Value* (not the
@@ -52,7 +52,7 @@ export async function promptForConfigOption(option: BackendOption): Promise<stri
         const message = `${help}\n\n(type y or n)`
         const boolDefault = def === 'true' ? 'y' : 'n'
         while (true) {
-            const answer = await nativePrompt({ message, default: boolDefault })
+            const answer = await textPrompt({ message, default: boolDefault })
             if (answer === null) return null
             const norm = answer.trim().toLowerCase()
             if (YES.has(norm)) return 'true'
@@ -71,7 +71,7 @@ export async function promptForConfigOption(option: BackendOption): Promise<stri
         const defaultIndex = examples.findIndex((ex) => ex.Value === def)
         const defaultNumber = defaultIndex >= 0 ? String(defaultIndex + 1) : '1'
         while (true) {
-            const answer = await nativePrompt({ message, default: defaultNumber })
+            const answer = await textPrompt({ message, default: defaultNumber })
             if (answer === null) return null
             const trimmed = answer.trim()
             const n = Number.parseInt(trimmed, 10)
@@ -84,7 +84,7 @@ export async function promptForConfigOption(option: BackendOption): Promise<stri
         }
     }
 
-    return nativePrompt({
+    return textPrompt({
         message: help,
         default: def,
         sensitive: option.IsPassword || option.Sensitive,

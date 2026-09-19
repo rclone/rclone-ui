@@ -5,9 +5,8 @@
 //! at. Readers everywhere else know only the current layout: there are no lazy conversions and no
 //! fallbacks to what an older version wrote.
 //!
-//! There are no migrations. This product has only ever written one layout and has never run
-//! anywhere that could hold an older one, so a fresh directory is at [`VERSION`] by definition and
-//! all this does is stamp the marker. [`apply_steps`] is where the first migration goes.
+//! There are no migrations yet: all this does is stamp the marker. [`apply_steps`] is where the
+//! first one goes.
 
 use std::path::Path;
 
@@ -20,8 +19,8 @@ pub const VERSION: u32 = 1;
 
 const MARKER: &str = "storage.json";
 
-/// What a migration did: the versions it went between and anything it could not finish (a
-/// file it left where it was, a binary it could not probe), for the host to log.
+/// What a migration did: the versions it went between and anything it could not finish, for
+/// `main` to log.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Report {
     pub from: u32,
@@ -29,8 +28,8 @@ pub struct Report {
     pub notes: Vec<String>,
 }
 
-/// The stored layout version: 0 when the marker is missing (a fresh directory or one written
-/// before versions existed), an error when the marker cannot be read.
+/// The stored layout version: 0 when the marker is missing (a fresh directory), an error when
+/// the marker cannot be read.
 pub fn version(root: &Path) -> Result<u32, String> {
     let path = root.join(MARKER);
     let raw = match std::fs::read(&path) {
@@ -53,7 +52,7 @@ pub fn migrate(root: &Path) -> Result<Report, String> {
     let from = version(root)?;
     if from > VERSION {
         return Err(format!(
-            "{} was written by a newer version of Rclone UI (storage version {}, this build reads {})",
+            "{} was written by a newer version of rclone-cloud (storage version {}, this build reads {})",
             root.display(),
             from,
             VERSION

@@ -29,7 +29,7 @@ import { message } from '../../lib/api/dialog'
 import { pathsProblem } from '../../lib/paths'
 import { platform } from '../../lib/api/os'
 import { openPath } from '../../lib/api/shell'
-import { closeSelf } from '../../lib/api/windows'
+import { navigate } from '../../lib/api/navigation'
 import { reportError } from '../../lib/errors'
 import { getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
@@ -172,7 +172,7 @@ export default function Mount() {
             }
 
             await message(
-                'You can open the Toolbar and search for "Mount" to see active mounts and unmount them.',
+                'Active mounts are listed on the Dashboard.',
                 {
                     title: 'Mount Started',
                     kind: 'info',
@@ -561,7 +561,7 @@ export default function Mount() {
                                             kind: 'error',
                                         })
                                     }
-                                    await closeSelf()
+                                    navigate('/')
                                 }}
                                 data-focus-visible="false"
                             >
@@ -624,36 +624,6 @@ export default function Mount() {
                     </Tooltip>
                     <CommandInfoButton
                         command="mount"
-                        content={`Mounts a remote as a local file system.
-
-Mount allows you to access any of rclone's cloud storage systems as if they were a local folder on your computer. Files appear in your file browser and can be opened directly by applications. On Windows this requires WinFsp; macOS mounts use the system's built-in NFS client, so no extra software is needed.
-
-On Linux/macOS/FreeBSD, the mount point must be an empty existing directory. On Windows, you can mount to an unused drive letter, or to a path representing a nonexistent subdirectory of an existing parent directory.
-
-Here's a quick guide to using the Mount command:
-
-1. SELECT PATHS
-• Remote Path — The remote (and optional subfolder) you want to mount. For example, "gdrive:" to mount your entire Google Drive, or "gdrive:/Documents" to mount just that folder.
-
-• Mount Point — The local path where the remote will appear. On macOS/Linux, create an empty folder first. On Windows, you can use a drive letter like "M:" or enter "*" to automatically assign the next available drive letter (starting from Z: and moving backward).
-
-2. CONFIGURE OPTIONS (Optional)
-Expand the accordion sections to customize your mount. Tap any chip on the right to add it to the JSON editor. Hover over chips to see what each option does.
-
-• Mount — Mount-specific settings like allowing non-empty directories, setting permissions, and controlling how the mount appears to your system.
-
-• VFS — Virtual File System caching options. The most important is vfs_cache_mode. Without it, the mount is essentially read-only for most applications. Set to "writes" or "full" if you need to edit files. "full" caches entire files locally for best compatibility.
-
-• Filters — Include or exclude files by pattern, limit by size (max_size, min_size) or age (max_age, min_age).
-
-• Config — Performance tuning: parallel transfers, checkers, buffer_size, and other global rclone settings.
-
-• Metadata — Whether to preserve object metadata (metadata), a program that rewrites it (metadata_mapper), and metadata include/exclude/filter rules.
-
-3. START THE MOUNT
-Once paths are selected, tap "START MOUNT" to begin. After mounting, you can tap "Open" to open the mount point in your file browser. The mount remains active until you unmount it (from the Mounts page) or quit the app.
-
-Note: Bucket-based remotes (S3, GCS, Azure Blob, B2) cannot store empty directories — they will disappear from the mount once they fall out of the directory cache.`}
                     />
                 </ButtonGroup>
             </OperationWindowFooter>

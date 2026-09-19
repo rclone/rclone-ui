@@ -39,10 +39,7 @@ function format(args: unknown[]): string {
 
 const ORDER: Level[] = ['trace', 'debug', 'info', 'warn', 'error']
 
-/**
- * Mirrors console methods at or above `minimum` (default: everything) into the host's log file,
- * which rotates, so both the desktop's windows and browser tabs forward their whole console.
- */
+/** Mirrors console methods at or above `minimum` (default: everything) into the server's log file. */
 export function forwardConsole(minimum: Level = 'trace') {
     const map: [keyof Console & ('log' | 'debug' | 'info' | 'warn' | 'error'), Level][] = [
         ['log', 'trace'],

@@ -123,12 +123,6 @@ export default function Templates() {
                 }))
 
             const path = await saveAs({
-                filters: [
-                    {
-                        name: 'JSON',
-                        extensions: ['json'],
-                    },
-                ],
                 defaultPath: `templates-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
             })
 

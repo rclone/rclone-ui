@@ -10,7 +10,6 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::{header, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
-use crate::datadir::APP_IDENTIFIER;
 use crate::state_files::APP_DOC;
 use serde_json::{json, Value};
 
@@ -20,32 +19,11 @@ use crate::Shared;
 #[folder = "frontend/dist"]
 struct Assets;
 
-const MARKER: &str = "<!-- rclone-ui:server-inject -->";
+const MARKER: &str = "<!-- rclone-cloud:boot -->";
 
 fn path_string(path: Option<std::path::PathBuf>) -> Value {
     path.map(|p| Value::String(p.to_string_lossy().into_owned()))
         .unwrap_or(Value::Null)
-}
-
-/// The log directory: on macOS Tauri's app-log directory (`~/Library/Logs/<identifier>`),
-/// which the desktop's log plugin writes to; elsewhere `logs/` under the data directory, which
-/// is where Tauri's resolver points on Windows and Linux too.
-pub fn log_dir_for(dirs: &crate::DataDir) -> std::path::PathBuf {
-    if cfg!(target_os = "macos") {
-        if let Some(home) = dirs::home_dir() {
-            return home.join("Library").join("Logs").join(APP_IDENTIFIER);
-        }
-    }
-    dirs.root.join("logs")
-}
-
-pub fn log_dir(st: &Shared) -> Option<std::path::PathBuf> {
-    Some(st.log_dir.clone())
-}
-
-/// The log file the pages read (About's last lines, bug reports).
-pub fn log_file(st: &Shared) -> Option<std::path::PathBuf> {
-    log_dir(st).map(|dir| dir.join(crate::logging::FILE_NAME))
 }
 
 pub fn boot_payload(st: &Shared) -> Value {
@@ -70,19 +48,15 @@ pub fn boot_payload(st: &Shared) -> Value {
             "delimiter": if cfg!(windows) { ";" } else { ":" },
             "home": path_string(dirs::home_dir()),
             "appData": st.ctx.dirs.root,
-            "appLog": path_string(log_dir(st)),
-            "logFile": path_string(log_file(st)),
             "temp": std::env::temp_dir(),
             // This binary. rclone's `--metadata-mapper` needs a program to run, and the app's
             // mapping editor points it back here (`metadata-map`), so the page has to be able
-            // to write the path down. Valid on this machine, which is where the managed daemon
-            // runs — a host somewhere else is the page's problem to warn about.
+            // to write the path down.
             "exe": path_string(std::env::current_exe().ok()),
             "download": path_string(dirs::download_dir()),
             "desktop": path_string(dirs::desktop_dir()),
         },
         "theme": theme,
-        "authRequired": true,
     })
 }
 

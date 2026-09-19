@@ -128,8 +128,8 @@ export function errorReason(error: string): string {
 export function retryPlan(detail: TransferDetail | null | undefined): RetryItem[] {
     const request = detail?.request
     if (!request) return []
-    // Failures collected while it ran; a record from before that keeps its last snapshot.
-    const failed = (detail.failed ?? detail.transferred ?? []).filter(isFailedTransfer)
+    // Failures collected while it ran.
+    const failed = (detail.failed ?? []).filter(isFailedTransfer)
 
     if (request.endpoint === '/sync/sync') {
         // Its failed files are copied. The sync itself is never re-run narrowed to them: with

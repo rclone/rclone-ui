@@ -9,10 +9,8 @@ export interface SessionUser {
 }
 
 export interface Session {
-    mode: 'users' | 'token'
-    required: boolean
     authenticated: boolean
-    /** The signed-in account; null on the desktop (token mode) or without a session. */
+    /** The signed-in account; null without a session. */
     user: SessionUser | null
 }
 

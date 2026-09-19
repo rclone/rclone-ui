@@ -1,11 +1,9 @@
-//! RPCs the server answers itself (on top of the shared command table): the app's process,
-//! the lifecycle, hosts, the host's filesystem, and the third-party fetches a
-//! browser can't make. Same names and argument keys on both products.
+//! RPCs the server answers itself (on top of the command table): its own process, the
+//! lifecycle, the machine's filesystem, and the third-party fetches a browser can't make.
 
 use axum::extract::State;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use crate::lifecycle::interaction::{ask, Decision, Question};
 use crate::lifecycle::{resolve, RestartOverrides};
 use crate::rt;
 use crate::transfers::service::StartRequest;
@@ -78,8 +76,7 @@ fn str_arg(args: &Value, key: &str) -> Result<String, String> {
         .ok_or_else(|| format!("missing '{}'", key))
 }
 
-/// Starts the quit/relaunch flow (once); returns `false` when it is already running. Used by
-/// the `app_quit` / `app_relaunch` RPCs and by the desktop's tray menu.
+/// Starts the quit/relaunch flow (once); returns `false` when it is already running.
 pub fn request_quit(st: &Shared, kind: QuitKind) -> bool {
     if !st.begin_quit() {
         return false;
@@ -89,51 +86,18 @@ pub fn request_quit(st: &Shared, kind: QuitKind) -> bool {
     true
 }
 
-/// The quit/relaunch flow, once: confirm when transfers are active, stop the
-/// daemon, then hand over to the host.
+/// The quit/relaunch flow, once: stop the daemon, then exit.
 async fn quit(st: Shared, kind: QuitKind) {
-    // Only what the daemon this process spawned is running goes down with it.
-    if st.external_rclone_url.is_none() {
-        // The record knows a transfer from the moment it starts, which rclone's files in flight
-        // do not (one that is still listing has none). Those are still looked at for what
-        // nothing recorded: a job put on the daemon by something other than this app.
-        let mut active = st.transfers.stopped_by_quit();
-        if active == 0 {
-            if let Some(daemon) = st.local_daemon() {
-                active = daemon
-                    .client()
-                    .call("/core/stats", &json!({}))
-                    .await
-                    .ok()
-                    .and_then(|stats| stats["transferring"].as_array().map(|t| t.len()))
-                    .unwrap_or(0);
-            }
-        }
-        if active > 0 {
-            let decision = ask(
-                &st.hooks.interaction,
-                Question::QuitWithActiveTransfers {
-                    relaunch: kind == QuitKind::Relaunch,
-                    active,
-                },
-            )
-            .await;
-            if decision != Decision::Yes {
-                *st.quitting_flag() = false;
-                return;
-            }
-        }
-    }
     if let Some(supervisor) = st.supervisor() {
         supervisor.shutdown().await;
     }
-    (st.hooks.on_quit)(kind);
+    crate::exit(kind);
 }
 
 pub async fn handle(
     st: &Shared,
     session: &str,
-    caller: Option<&AuthUser>,
+    caller: &AuthUser,
     name: &str,
     args: Value,
     sink: Option<Sink<Value>>,
@@ -142,9 +106,6 @@ pub async fn handle(
         return None;
     }
     if name.starts_with("team_") {
-        let Some(caller) = caller else {
-            return Some(Err("Accounts are not available here.".to_string()));
-        };
         return Some(team(st, caller.clone(), name, args).await);
     }
     Some(dispatch(st, session, name, args, sink).await)
@@ -245,13 +206,6 @@ server_rpcs! {
     }
     general(st, _session, name, args, sink) {
         // --- app ---------------------------------------------------------------------------
-        "app_info" => ok(json!({
-            "version": env!("CARGO_PKG_VERSION"),
-            "os": std::env::consts::OS,
-            "arch": std::env::consts::ARCH,
-            "logDir": crate::static_files::log_dir(st),
-            "logFile": crate::static_files::log_file(st),
-        })),
         "log" => {
             let level = args["level"].as_str().unwrap_or("info");
             let message = args["message"].as_str().unwrap_or("");
@@ -263,11 +217,11 @@ server_rpcs! {
                     .unwrap_or_default()
             );
             match level {
-                "error" => log::error!(target: "webview", "[{}] {}", target, message),
-                "warn" => log::warn!(target: "webview", "[{}] {}", target, message),
-                "debug" => log::debug!(target: "webview", "[{}] {}", target, message),
-                "trace" => log::trace!(target: "webview", "[{}] {}", target, message),
-                _ => log::info!(target: "webview", "[{}] {}", target, message),
+                "error" => log::error!(target: "page", "[{}] {}", target, message),
+                "warn" => log::warn!(target: "page", "[{}] {}", target, message),
+                "debug" => log::debug!(target: "page", "[{}] {}", target, message),
+                "trace" => log::trace!(target: "page", "[{}] {}", target, message),
+                _ => log::info!(target: "page", "[{}] {}", target, message),
             }
             ok(Value::Null)
         },
@@ -289,12 +243,7 @@ server_rpcs! {
             if !cap(st, "updater") {
                 return Err("Updates are not available in this deployment.".into());
             }
-            let updater = st
-                .hooks
-                .updater
-                .clone()
-                .ok_or("no updater in this deployment")?;
-            let info = rt::spawn_blocking(move || updater.check())
+            let info = rt::spawn_blocking(crate::updater::check)
                 .await
                 .map_err(|e| e.to_string())??;
             ok(info)
@@ -303,13 +252,8 @@ server_rpcs! {
             if !cap(st, "updater") {
                 return Err("Updates are not available in this deployment.".into());
             }
-            let updater = st
-                .hooks
-                .updater
-                .clone()
-                .ok_or("no updater in this deployment")?;
             let progress = sink.unwrap_or_else(Sink::discard);
-            rt::spawn_blocking(move || updater.install(progress))
+            rt::spawn_blocking(move || crate::updater::install(progress))
                 .await
                 .map_err(|e| e.to_string())??;
             ok(Value::Null)

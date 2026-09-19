@@ -6,9 +6,7 @@ export interface Capabilities {
     containerized: boolean
     updater: boolean
     mount: boolean
-    scheduler: boolean
     processExit: boolean
-    pathIntegration: boolean
 }
 
 export interface BootPayload {
@@ -26,8 +24,6 @@ export interface BootPayload {
         delimiter: string
         home: string | null
         appData: string
-        appLog: string | null
-        logFile: string | null
         temp: string
         /** The server's own binary — what the metadata mapper runs (`paths.exe`). */
         exe: string | null
@@ -35,7 +31,6 @@ export interface BootPayload {
         desktop: string | null
     }
     theme: 'light' | 'dark' | 'system'
-    authRequired: boolean
 }
 
 declare global {
@@ -51,9 +46,7 @@ const FALLBACK: BootPayload = {
         containerized: false,
         updater: false,
         mount: true,
-        scheduler: true,
         processExit: false,
-        pathIntegration: false,
     },
     os: { platform: 'linux', family: 'unix', arch: 'x86_64', version: '', eol: '\n' },
     paths: {
@@ -61,15 +54,12 @@ const FALLBACK: BootPayload = {
         delimiter: ':',
         home: null,
         appData: '',
-        appLog: null,
-        logFile: null,
         temp: '/tmp',
         exe: null,
         download: null,
         desktop: null,
     },
     theme: 'system',
-    authRequired: true,
 }
 
 export const boot: BootPayload =

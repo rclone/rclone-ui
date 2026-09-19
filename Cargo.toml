@@ -20,8 +20,6 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 sysinfo = "0.37"
 sha2 = "0.10"
 zip = "0.6.6"
-flate2 = "1.1.9"
-tar = "0.4.45"
 # Email notifications (notifications/smtp.rs): the blocking SMTP transport on the TLS stack
 # reqwest already brought in (rustls, aws-lc-rs, the platform's certificate verifier), so a
 # mail costs no second TLS library. No default features: no native-tls, no pool, no hostname.

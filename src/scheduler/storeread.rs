@@ -4,8 +4,6 @@
 //! A document is `{version, revision, state}` on disk, written by the state store. Only the
 //! fields the scheduler and the lifecycle need are modeled; unknown fields
 //! are ignored so unrelated store changes never break the runner.
-//!
-//! Path resolution lives in `datadir.rs` (and its note on why Flatpak paths are never rewritten).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -18,7 +16,6 @@ pub use crate::datadir::DataDir;
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RootState {
-    pub hide_startup: bool,
     pub rclone_path: Option<String>,
     pub auto_update_rclone: bool,
     pub last_notified_rclone_version: Option<String>,
@@ -57,7 +54,6 @@ pub struct MountOnStart {
     pub vfs_options: serde_json::Map<String, serde_json::Value>,
     pub filter_options: serde_json::Map<String, serde_json::Value>,
     pub config_options: serde_json::Map<String, serde_json::Value>,
-    /// The Metadata section; absent on documents written before it existed.
     pub metadata_options: serde_json::Map<String, serde_json::Value>,
 }
 
@@ -90,13 +86,8 @@ pub fn app_doc_path(dirs: &DataDir) -> PathBuf {
     dirs.root.join("state").join("app.json")
 }
 
-/// The host document's fixed path. The `hosts/` segment and the `local` name are the shared
-/// storage layout, not a choice this product makes.
 pub fn host_doc_path(dirs: &DataDir) -> PathBuf {
-    dirs.root
-        .join("state")
-        .join("hosts")
-        .join(format!("{}.json", crate::scheduler::jobfile::JOBS_DIR))
+    dirs.root.join("state").join("host.json")
 }
 
 /// Reads the app document; a missing one is the default (a fresh install).
@@ -144,7 +135,8 @@ mod tests {
 
     #[test]
     fn a_state_document_reads_with_unknown_fields_and_a_missing_one_is_the_default() {
-        let dir = std::env::temp_dir().join(format!("rcloneui-storetest-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("rclone-cloud-storetest-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let dirs = DataDir { root: dir.clone() };
         assert!(read_root(&dirs).unwrap().rclone_path.is_none());

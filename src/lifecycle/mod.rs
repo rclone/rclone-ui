@@ -1,15 +1,11 @@
-//! The orchestrator — the only one: it runs rclone for the desktop app and the standalone
-//! server alike. Resolve a binary, spawn `rclone rcd`, wait for it,
-//! restart it on request (coalescing bursts, applying the initiating page's overrides first),
-//! restart it after a crash with backoff, tell the transfers service when it went down, and run
-//! the startup mounts. Where a
-//! human decision is needed at boot it asks the host through [`Interaction`].
+//! The orchestrator: resolve a binary, spawn `rclone rcd`, wait for it, restart it on request
+//! (coalescing bursts, applying the initiating page's overrides first), restart it after a crash
+//! with backoff, tell the transfers service when it went down, and run the startup mounts.
 //!
 //! Nothing here resolves a configuration file. The daemon inherits this process's environment,
 //! so `RCLONE_CONFIG`, `XDG_CONFIG_HOME` and `RCLONE_CONFIG_PASS` reach rclone exactly as the
 //! operator set them, and rclone picks its own config.
 
-pub mod interaction;
 pub mod mounts;
 pub mod resolve;
 pub mod scheduler_reconcile;
@@ -32,9 +28,6 @@ use crate::scheduler::storeread;
 use crate::state_files::{StateStore, APP_DOC, HOST_DOC};
 use crate::transfers::service::TransferService;
 use crate::zookeeper::{self, RcloneEvent};
-use interaction::{ask, Decision, Question, SharedInteraction};
-
-pub use interaction::{Interaction, ServerPolicy};
 
 const MAX_ATTEMPTS: u32 = 5;
 const READINESS_TIMEOUT: Duration = Duration::from_secs(15);
@@ -64,28 +57,10 @@ pub enum Phase {
         /// The binary was updated during this start.
         updated: bool,
     },
-    /// `fatal` = the host decided to give up (nothing restarts until asked).
     Failed {
         error: String,
         attempts: u32,
-        fatal: bool,
     },
-}
-
-impl Phase {
-    /// The desktop startup window's vocabulary (`src/pages/Startup.tsx`).
-    pub fn startup_status(&self) -> &'static str {
-        match self {
-            Phase::Stopped | Phase::Resolving | Phase::Starting | Phase::Downloading { .. } => {
-                "initializing"
-            }
-            Phase::Updating { .. } => "updating",
-            Phase::Ready { updated: true, .. } => "updated",
-            Phase::Ready { .. } => "initialized",
-            Phase::Failed { fatal: true, .. } => "fatal",
-            Phase::Failed { .. } => "error",
-        }
-    }
 }
 
 /// Where the managed daemon listens and how to authenticate to it.
@@ -121,19 +96,6 @@ pub struct Options {
     /// Whether this host can mount at all ([`crate::mount_supported`]). When it cannot, the
     /// remotes' "mount on start" jobs are not attempted and the reason is logged once.
     pub can_mount: bool,
-    /// Keep the PATH-integration pointer (`<local>/bin/rclone`) aimed at the active binary.
-    pub path_integration: bool,
-    /// Check downloads.rclone.org for a newer managed binary at boot. Whether a newer one is
-    /// installed or only announced is the user's `autoUpdateRclone` setting, read by the check
-    /// itself; turning the check off here would silence the announcement too.
-    pub check_updates: bool,
-    /// Who answers boot-time questions.
-    pub interaction: SharedInteraction,
-}
-
-enum StartError {
-    Fatal(String),
-    Other(String),
 }
 
 pub struct Supervisor {
@@ -239,21 +201,20 @@ impl Supervisor {
         }
     }
 
-    async fn start_once(&self) -> Result<mpsc::UnboundedReceiver<RcloneEvent>, StartError> {
+    async fn start_once(&self) -> Result<mpsc::UnboundedReceiver<RcloneEvent>, String> {
         self.set_phase(Phase::Resolving);
         let path = resolve::resolve_binary(
             &self.ctx,
             &self.store,
-            &self.options.interaction,
             self.options.rclone_path_override.as_deref(),
             |version| self.set_phase(Phase::Downloading { version }),
         )
         .await
-        .map_err(StartError::Other)?;
+        ?;
 
         // A managed binary may be auto-updated; either way keep the PATH pointer on it.
         let (path, updated) =
-            if self.options.check_updates && self.options.rclone_path_override.is_none() {
+            if self.options.rclone_path_override.is_none() {
                 resolve::maybe_auto_update(&self.ctx, &self.store, path, |from, to| {
                     self.set_phase(Phase::Updating { from, to })
                 })
@@ -261,17 +222,15 @@ impl Supervisor {
             } else {
                 (path, false)
             };
-        if self.options.path_integration {
-            if let Err(e) = zookeeper::update_path_pointer(&self.ctx, path.clone()) {
-                log::warn!("[lifecycle] update_path_pointer failed: {}", e);
-            }
+        if let Err(e) = zookeeper::update_path_pointer(&self.ctx, path.clone()) {
+            log::warn!("[lifecycle] update_path_pointer failed: {}", e);
         }
 
         // The only thing the daemon is told about its environment is the proxy. Its config file
         // is rclone's business: whatever `RCLONE_CONFIG`/`XDG_CONFIG_HOME` this process was given
         // is inherited untouched, and rclone resolves the rest.
         let host = if storeread::host_state_exists(&self.ctx.dirs) {
-            storeread::read_host(&self.ctx.dirs).map_err(StartError::Other)?
+            storeread::read_host(&self.ctx.dirs)?
         } else {
             storeread::HostState::default()
         };
@@ -284,24 +243,14 @@ impl Supervisor {
             let probed = self.proxy_probed.lock().unwrap().as_deref() == Some(proxy.as_str());
             if !probed {
                 if let Err(error) = misc::test_proxy_connection(&self.ctx, proxy.clone()).await {
-                    let decision = ask(
-                        &self.options.interaction,
-                        Question::ProxyUnreachable {
-                            url: proxy.clone(),
-                            error: error.clone(),
-                        },
-                    )
-                    .await;
-                    if decision == Decision::Exit {
-                        return Err(StartError::Fatal(format!("proxy unreachable: {}", error)));
-                    }
+                    log::warn!("[lifecycle] the proxy {} is unreachable: {}", proxy, error);
                 }
                 *self.proxy_probed.lock().unwrap() = Some(proxy);
             }
         }
 
         self.set_phase(Phase::Starting);
-        let port = rc::pick_port().map_err(StartError::Other)?;
+        let port = rc::pick_port()?;
         let user = rc::random_token();
         let pass = rc::random_token();
         // Through the environment, not argv: a process list is readable by other local processes.
@@ -333,7 +282,7 @@ impl Supervisor {
                 let _ = close_tx.send(event);
             }),
         )
-        .map_err(StartError::Other)?;
+        ?;
 
         let target = RcTarget {
             base_url: format!("http://127.0.0.1:{}", port),
@@ -348,7 +297,7 @@ impl Supervisor {
                 (state.pid != Some(pid)).then(|| "rclone daemon exited during startup".to_string())
             })
             .await
-            .map_err(StartError::Other)?;
+            ?;
         let version = client
             .call("/core/version", &json!({}))
             .await
@@ -422,7 +371,6 @@ impl Supervisor {
         self.set_phase(Phase::Failed {
             error: body,
             attempts,
-            fatal: false,
         });
     }
 }
@@ -474,7 +422,7 @@ async fn run_loop(
 ) {
     // Consecutive failures: failed starts, and crashes of a daemon that never made it past
     // CRASH_GRACE. A successful start alone does not reset it — a daemon that comes up and dies
-    // seconds later would otherwise restart every two seconds forever, never reaching the host.
+    // seconds later would otherwise restart every two seconds forever, never backing off.
     let mut attempts: u32 = 0;
     loop {
         if supervisor.shutting_down.load(Ordering::SeqCst) {
@@ -512,102 +460,19 @@ async fn run_loop(
                             }
                             attempts = attempts.saturating_add(1);
                             supervisor.crashed(&event, attempts).await;
-                            if attempts >= MAX_ATTEMPTS {
-                                // Give the host a say: the desktop shows Relaunch/Exit, the
-                                // server keeps trying at the longest backoff.
-                                let question = Question::RcloneCrashed { code: event.code, attempts };
-                                match ask(&supervisor.options.interaction, question).await {
-                                    Decision::Relaunch | Decision::Retry | Decision::Yes => {
-                                        attempts = 0;
-                                        continue;
-                                    }
-                                    Decision::Exit => {
-                                        supervisor.set_phase(Phase::Failed {
-                                            error: "rclone kept crashing".into(),
-                                            attempts,
-                                            fatal: true,
-                                        });
-                                        if !wait_for_restart(&supervisor, &mut restart_rx, None).await {
-                                            return;
-                                        }
-                                        attempts = 0;
-                                    }
-                                    _ => {
-                                        if !wait_for_restart(&supervisor, &mut restart_rx, Some(backoff(attempts))).await {
-                                            return;
-                                        }
-                                    }
-                                }
-                            } else if !wait_for_restart(&supervisor, &mut restart_rx, Some(backoff(attempts))).await {
+                            if !wait_for_restart(&supervisor, &mut restart_rx, Some(backoff(attempts))).await {
                                 return;
                             }
                         }
                     }
                 }
             }
-            Err(StartError::Fatal(error)) => {
-                supervisor.stop_daemon().await;
-                log::error!("[lifecycle] {}", error);
-                supervisor.set_phase(Phase::Failed {
-                    error,
-                    attempts,
-                    fatal: true,
-                });
-                if !wait_for_restart(&supervisor, &mut restart_rx, None).await {
-                    return;
-                }
-                attempts = 0;
-            }
-            Err(StartError::Other(error)) => {
+            Err(error) => {
                 supervisor.stop_daemon().await;
                 attempts = attempts.saturating_add(1);
                 log::error!("[lifecycle] start failed (attempt {}): {}", attempts, error);
-                supervisor.set_phase(Phase::Failed {
-                    error: error.clone(),
-                    attempts,
-                    fatal: false,
-                });
-                if attempts >= MAX_ATTEMPTS {
-                    // The desktop parks (its Startup window shows the error, a page restarts);
-                    // the server keeps trying at the longest backoff.
-                    let question = Question::StartFailed { error, attempts };
-                    match ask(&supervisor.options.interaction, question).await {
-                        Decision::Relaunch | Decision::Retry | Decision::Yes => {
-                            attempts = 0;
-                            continue;
-                        }
-                        Decision::Continue => {
-                            if !wait_for_restart(
-                                &supervisor,
-                                &mut restart_rx,
-                                Some(backoff(attempts)),
-                            )
-                            .await
-                            {
-                                return;
-                            }
-                        }
-                        Decision::Exit => {
-                            supervisor.set_phase(Phase::Failed {
-                                error: "rclone could not be started".into(),
-                                attempts,
-                                fatal: true,
-                            });
-                            if !wait_for_restart(&supervisor, &mut restart_rx, None).await {
-                                return;
-                            }
-                            attempts = 0;
-                        }
-                        _ => {
-                            if !wait_for_restart(&supervisor, &mut restart_rx, None).await {
-                                return;
-                            }
-                            attempts = 0;
-                        }
-                    }
-                } else if !wait_for_restart(&supervisor, &mut restart_rx, Some(backoff(attempts)))
-                    .await
-                {
+                supervisor.set_phase(Phase::Failed { error, attempts });
+                if !wait_for_restart(&supervisor, &mut restart_rx, Some(backoff(attempts))).await {
                     return;
                 }
             }

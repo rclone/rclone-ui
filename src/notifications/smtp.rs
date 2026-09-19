@@ -245,8 +245,11 @@ pub(crate) mod tests {
     use super::*;
 
     fn test_dirs(tag: &str) -> DataDir {
-        let root =
-            std::env::temp_dir().join(format!("rcloneui-smtp-test-{}-{}", tag, std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "rclone-cloud-smtp-test-{}-{}",
+            tag,
+            std::process::id()
+        ));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         DataDir { root }

@@ -11,10 +11,7 @@ import Sidebar from './Sidebar'
 import SiteHeader from './SiteHeader'
 import { useSidebarState } from './useSidebarState'
 
-/**
- * The host's document loads after the app's (a current host is needed to name it). Pages must
- * not render before it has: their first writes would carry defaults over what is saved.
- */
+/** Pages must not render before both documents have loaded: their first writes would carry defaults over what is saved. */
 async function ensureHostStore() {
     await hydrated(usePersistedStore.persist)
     await initHostStore()
@@ -46,9 +43,7 @@ function SidebarRail({ collapsed, onToggle }: { collapsed: boolean; onToggle: ()
     )
 }
 
-// Browser mode's single window: a site header, the sidebar under it, and the page as a sheet
-// inset in that black frame. The desktop's per-operation windows become routes inside this
-// layout, and the toolbar's launcher becomes the sidebar.
+// The app's frame: a site header, the sidebar under it, and the page as a sheet inset in it.
 export default function Shell() {
     const navigate = useNavigate()
     const location = useLocation()
@@ -68,7 +63,7 @@ export default function Shell() {
         getSession()
             .then((session) => {
                 if (cancelled) return
-                if (session.required && !session.authenticated) {
+                if (!session.authenticated) {
                     navigate('/login', { replace: true })
                     return
                 }

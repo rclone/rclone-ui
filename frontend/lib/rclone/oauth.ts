@@ -62,8 +62,7 @@ export async function stopStrayOAuth(): Promise<void> {
 
 /**
  * rclone never opens the browser itself: the page shows the link and the person decides where
- * to finish. On a server the daemon's browser would be the wrong machine's anyway, and on the
- * desktop a window opening by itself is worse than being asked. The key is ephemeral
+ * to finish. The daemon's browser would be the wrong machine's anyway. The key is ephemeral
  * (`config_` prefix): never written to the config file.
  */
 export function loginParameters(): Record<string, string> {

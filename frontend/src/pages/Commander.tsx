@@ -59,7 +59,7 @@ import {
 import type { Entry, SelectItem } from '../components/navigator/types'
 import { writeText } from '../../lib/api/clipboard'
 import { saveAs } from '../../lib/api/dialog'
-import { openWindow } from '../../lib/api/windows'
+import { navigate } from '../../lib/api/navigation'
 import { usePersistedStore } from '../../store/persisted'
 
 /** `?path=remote:dir` targets a remote (rclone's own reading of it); anything else is local. */
@@ -436,9 +436,7 @@ function TransfersBar({
         setIsExpanded((prev) => !prev)
     }, [])
 
-    const handleOpenTransfers = useCallback(async () => {
-        await openWindow({ name: 'Transfers', url: '/transfers' })
-    }, [])
+    const handleOpenTransfers = useCallback(() => navigate('/transfers'), [])
 
     return (
         <div

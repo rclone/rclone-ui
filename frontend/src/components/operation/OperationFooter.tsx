@@ -17,7 +17,7 @@ import type { Template } from '../../../types/template'
 import CommandInfoButton from '../CommandInfoButton'
 import TemplatesDropdown from '../TemplatesDropdown'
 import { platform } from '../../../lib/api/os'
-import { openWindow } from '../../../lib/api/windows'
+import { navigate } from '../../../lib/api/navigation'
 
 /**
  * The footer strip shared by the operation pages: TemplatesDropdown wiring, the AnimatePresence
@@ -48,7 +48,6 @@ export default function OperationFooter({
     onResetPaths,
     onResetOptions,
     onResetAll,
-    helpContent,
 }: {
     operation: Template['tags'][number]
     templatesDisabled: boolean
@@ -72,7 +71,6 @@ export default function OperationFooter({
     onResetPaths: () => void
     onResetOptions: () => void
     onResetAll: () => void
-    helpContent: string
 }) {
     const dropdownShadow = useMemo(() => (platform === 'windows' ? 'none' : undefined), [])
 
@@ -95,12 +93,7 @@ export default function OperationFooter({
         setTimeout(() => onSchedule(), 100)
     }, [onSchedule])
 
-    const handleViewTransfersPress = useCallback(async () => {
-        await openWindow({
-            name: 'Transfers',
-            url: '/transfers',
-        })
-    }, [])
+    const handleViewTransfersPress = useCallback(() => navigate('/transfers'), [])
 
     return (
         <>
@@ -216,7 +209,7 @@ export default function OperationFooter({
                         </Button>
                     </Tooltip>
                 ) : null}
-                <CommandInfoButton content={helpContent} command={operation} />
+                <CommandInfoButton command={operation} />
             </ButtonGroup>
         </>
     )

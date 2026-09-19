@@ -7,11 +7,8 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Rclone UI</title>
-    <!-- rclone-ui:server-inject -->
+    <!-- rclone-cloud:boot -->
 	<script>
-		// Pages render inside the Shell's content column: `html.browser` scopes the CSS that
-		// turns their viewport-sized boxes into container-sized ones (src/global.css).
-		document.documentElement.classList.add('browser')
 		// The persisted theme rides on the boot payload; first paint matches it.
 		var boot = window.__RCLONE_CLOUD__
 		var theme = boot && boot.theme
@@ -23,7 +20,7 @@
 	</script>
   </head>
 
-  <body class="select-none">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

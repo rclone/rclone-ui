@@ -1,17 +1,12 @@
-//! The files: one append-only JSONL per writer, and one detail document per finished transfer.
+//! The files: one append-only JSONL, and one detail document per finished transfer.
 //!
 //! ```text
-//! transfers/hosts/<hostId>.jsonl    every transfer the server records, a scheduled run included
-//! transfers/tasks/<taskId>.jsonl    what scheduled runs wrote while each was a process of its
-//!                                   own: read for the history in them, and appended to exactly
-//!                                   once more, to close what a dead process left open
-//! transfers/details/<id>.json       the request from the start, the outcome at the end
+//! transfers/ledger.jsonl         every transfer the server records, a scheduled run included
+//! transfers/details/<id>.json    the request from the start, the outcome at the end
 //! ```
 //!
-//! One writer per file: compaction reads, trims and rewrites, which a second appender would lose
-//! lines to. The server is now the only writer there is — a scheduled run goes through the same
-//! service as a page's transfer — so it owns the task files too, and the end it writes into one
-//! on the first start after the upgrade is the last thing ever added to it.
+//! One writer: compaction reads, trims and rewrites, which a second appender would lose lines
+//! to. A scheduled run goes through the same service as a page's transfer.
 
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -65,15 +60,12 @@ pub struct Started {
     pub ts: String,
     /// rclone's name for the daemon process that took the job (`executeId`). Job ids start over
     /// with every daemon, so the pair names the job and the id alone does not.
-    #[serde(default)]
     pub execute_id: String,
     pub jobid: i64,
     pub operation: String,
-    #[serde(default)]
     pub sources: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub destination: Option<String>,
-    #[serde(default)]
     pub is_dry_run: bool,
     /// What the page had set, for Reuse settings and Run again.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -91,7 +83,6 @@ pub struct Started {
     /// Where it came from ([`TAG_SCHEDULE`], [`TAG_OPERATION`], [`TAG_COMMANDER`]): what the
     /// Transfers list badges a row with, and what makes a row a scheduled run. The ids above
     /// say which schedule and which run; they do not say that it is one.
-    #[serde(default)]
     pub tags: Vec<String>,
 }
 
@@ -156,16 +147,8 @@ fn root(dirs: &DataDir) -> PathBuf {
     dirs.root.join("transfers")
 }
 
-/// The ledger's fixed path. The `hosts/` segment and the `local` name are the shared storage
-/// layout, not a choice this product makes.
-pub fn host_path(dirs: &DataDir) -> PathBuf {
-    root(dirs)
-        .join("hosts")
-        .join(format!("{}.jsonl", crate::scheduler::jobfile::JOBS_DIR))
-}
-
-pub fn task_path(dirs: &DataDir, task_id: &str) -> PathBuf {
-    root(dirs).join("tasks").join(format!("{}.jsonl", task_id))
+pub fn path(dirs: &DataDir) -> PathBuf {
+    root(dirs).join("ledger.jsonl")
 }
 
 pub fn details_path(dirs: &DataDir, id: &str) -> PathBuf {
@@ -253,30 +236,6 @@ pub fn finish(dirs: &DataDir, path: &Path, finished: Finished) -> Result<(), Str
     result
 }
 
-/// Every host's file: what the server looks through for transfers a previous process left open.
-pub fn host_files(dirs: &DataDir) -> Vec<PathBuf> {
-    jsonl_in(root(dirs).join("hosts"))
-}
-
-/// The files scheduled runs used to write, back when a run was a process of its own. New runs go
-/// to the ledger with everything else, but these are still read, so a server that upgrades keeps
-/// what it already ran — and `recover` writes one last line into each, closing whatever the dead
-/// process left open ([`open`]).
-pub fn task_files(dirs: &DataDir) -> Vec<PathBuf> {
-    jsonl_in(root(dirs).join("tasks"))
-}
-
-fn jsonl_in(dir: PathBuf) -> Vec<PathBuf> {
-    let Ok(files) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    files
-        .flatten()
-        .map(|file| file.path())
-        .filter(|path| path.extension().is_some_and(|ext| ext == "jsonl"))
-        .collect()
-}
-
 /// A file's transfers as last parsed, and what the file looked like then.
 struct Parsed {
     len: u64,
@@ -358,23 +317,14 @@ pub fn compact_if_large(dirs: &DataDir, path: &Path) {
     }
 }
 
-/// What the Transfers list shows: the ledger and every scheduled task's file, newest first. A
-/// transfer's lines are all in one file (one writer each), so the files fold on their own and
-/// only what is listed is copied out.
+/// What the Transfers list shows: the ledger, newest first. Only what is listed is copied out.
 pub fn list(dirs: &DataDir, limit: usize) -> Vec<Entry> {
-    let tasks = root(dirs).join("tasks");
-    let mut files = jsonl_in(tasks.clone());
-    // A schedule that was deleted took its file with it: nothing will ask for it again.
-    let mut kept = parsed().lock().unwrap();
-    kept.retain(|path, _| !path.starts_with(&tasks) || files.contains(path));
-    drop(kept);
-    files.push(host_path(dirs));
-
-    let parsed: Vec<Arc<Vec<Entry>>> = files.iter().map(|path| entries_of(path).0).collect();
-    let mut entries: Vec<&Entry> = parsed.iter().flat_map(|file| file.iter()).collect();
-    // Timestamps are RFC 3339 in UTC with fixed width, so they order as text.
-    entries.sort_by(|a, b| b.ts.cmp(&a.ts));
-    entries.into_iter().take(limit).cloned().collect()
+    entries_of(&path(dirs))
+        .0
+        .iter()
+        .take(limit)
+        .cloned()
+        .collect()
 }
 
 pub fn write_details(dirs: &DataDir, id: &str, details: &Value) -> Result<(), String> {
@@ -397,8 +347,11 @@ mod tests {
     use serde_json::json;
 
     fn dirs(name: &str) -> DataDir {
-        let root =
-            std::env::temp_dir().join(format!("rcloneui-ledger-{}-{}", name, std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "rclone-cloud-ledger-{}-{}",
+            name,
+            std::process::id()
+        ));
         let _ = std::fs::remove_dir_all(&root);
         DataDir { root }
     }
@@ -436,7 +389,7 @@ mod tests {
     #[test]
     fn lines_fold_into_transfers_newest_first() {
         let dirs = dirs("fold");
-        let path = host_path(&dirs);
+        let path = path(&dirs);
         append(&path, &started("a", "2026-01-01T00:00:00.000Z")).unwrap();
         append(&path, &started("b", "2026-01-02T00:00:00.000Z")).unwrap();
         append(
@@ -489,10 +442,9 @@ mod tests {
             Value::Null
         );
 
-        // The wire shape the pages and the other writer rely on.
+        // The wire shape the pages rely on.
         let line = serde_json::to_value(started("a", "t")).unwrap();
         assert_eq!(line["event"], "started");
-        assert!(line.get("hostId").is_none(), "one machine, so no host to name");
         assert_eq!(line["executeId"], "daemon-1");
         assert!(line.get("taskId").is_none(), "absent, not null");
         assert!(line.get("retryOf").is_none(), "absent, not null");
@@ -507,8 +459,7 @@ mod tests {
         assert_eq!(entries[0].retry_of.as_deref(), Some("a"));
         assert_eq!(entries[1].retry_of, None);
 
-        // Where a transfer came from is a tag of it, handed on as it is. None is none: a line
-        // without the field reads, and one with nothing to say does not write it.
+        // Where a transfer came from is a tag of it, handed on as it is.
         let Line::Started(mut tagged) = started("d", "2026-01-05T00:00:00.000Z") else {
             unreachable!()
         };
@@ -521,12 +472,6 @@ mod tests {
         let entries = fold(read(&path));
         assert_eq!(entries[0].tags, ["commander"]);
         assert!(entries[1].tags.is_empty());
-        // A line from before there were tags, or a daemon's name, still reads.
-        let bare = r#"{"event":"started","id":"e","ts":"t","hostId":"local","jobid":1,"operation":"copy"}"#;
-        let Line::Started(bare) = serde_json::from_str::<Line>(bare).unwrap() else {
-            unreachable!()
-        };
-        assert!(bare.tags.is_empty() && bare.execute_id.is_empty() && bare.sources.is_empty());
         let _ = std::fs::remove_dir_all(&dirs.root);
     }
 
@@ -535,12 +480,8 @@ mod tests {
     #[test]
     fn compaction_keeps_the_newest_transfers_and_drops_the_rest_with_their_details() {
         let dirs = dirs("compact");
-        let path = host_path(&dirs);
-        append(
-            &path,
-            &started("old-running", "2026-01-01T00:00:00.000Z"),
-        )
-        .unwrap();
+        let path = path(&dirs);
+        append(&path, &started("old-running", "2026-01-01T00:00:00.000Z")).unwrap();
         for day in 2..=6 {
             let id = format!("t{}", day);
             append(
@@ -572,13 +513,13 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dirs.root);
     }
 
-    /// The list is asked for every few seconds by every open page, and used to read and parse
-    /// every file each time. A file is parsed when it has changed and not otherwise; an append, a
+    /// The list is asked for every few seconds by every open page. A file is parsed when it has
+    /// changed and not otherwise; an append, a
     /// compaction and a removal are all changes, and none of them is ever served stale.
     #[test]
     fn a_file_is_parsed_again_only_once_it_has_changed() {
         let dirs = dirs("cache");
-        let path = host_path(&dirs);
+        let path = path(&dirs);
         append(&path, &started("a", "2026-01-01T00:00:00.000Z")).unwrap();
 
         let (first, was_cached) = entries_of(&path);
@@ -612,37 +553,6 @@ mod tests {
         std::fs::remove_file(&path).unwrap();
         assert!(list(&dirs, 50).is_empty());
         assert!(!entries_of(&path).1);
-        let _ = std::fs::remove_dir_all(&dirs.root);
-    }
-
-    /// The list is the ledger plus every scheduled run's own file — several writers, several
-    /// files, one list.
-    #[test]
-    fn the_list_merges_the_ledger_with_the_scheduled_runs() {
-        let dirs = dirs("list");
-        append(
-            &host_path(&dirs),
-            &started("manual", "2026-01-02T00:00:00.000Z"),
-        )
-        .unwrap();
-        append(
-            &task_path(&dirs, "nightly"),
-            &started("scheduled", "2026-01-03T00:00:00.000Z"),
-        )
-        .unwrap();
-        append(
-            &task_path(&dirs, "weekly"),
-            &started("also-scheduled", "2026-01-04T00:00:00.000Z"),
-        )
-        .unwrap();
-
-        let ids: Vec<String> = list(&dirs, 50)
-            .into_iter()
-            .map(|e| e.started.id)
-            .collect();
-        // Newest first, across all three files.
-        assert_eq!(ids, ["also-scheduled", "scheduled", "manual"]);
-        assert_eq!(list(&dirs, 1).len(), 1);
         let _ = std::fs::remove_dir_all(&dirs.root);
     }
 }

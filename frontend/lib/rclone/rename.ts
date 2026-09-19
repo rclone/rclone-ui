@@ -13,7 +13,7 @@ const RE_REMOTE_NAME = /^[\w.+@][\w.+@ -]*$/
 
 /**
  * Why `name` cannot be a remote's new name, or nothing when it can. One letter is refused on
- * every host: rclone's rc takes it (only its interactive config refuses), and on Windows
+ * every OS: rclone's rc takes it (only its interactive config refuses), and on Windows
  * `c:path` is then the drive C, so the remote can never be named — and a config file made
  * here may be carried to a Windows machine.
  */
@@ -31,8 +31,8 @@ export function checkRemoteName(name: string, existing: string[]): string | unde
 
 /**
  * rclone has no rename call, so the section header is renamed in the config file itself, read
- * and written through the daemon (`config-file.ts`), which reaches the app's daemon, an
- * external one and a remote host alike. Every parameter stays as it was, OAuth tokens
+ * and written through the daemon (`config-file.ts`), which reaches the app's daemon and an
+ * external one alike. Every parameter stays as it was, OAuth tokens
  * included. What the app keeps by name follows: mount-on-start settings, favorites, the
  * sidebar's first-seen time, and scheduled tasks whose paths or per-remote options name it
  * (each re-registered). Anything mounted or served under the old name keeps running until it

@@ -5,7 +5,6 @@ import { DownloadIcon } from 'lucide-react'
 export interface PreviewViewerProps {
     url: string
     name: string
-    authHeader?: string
     onDownload: () => void
 }
 

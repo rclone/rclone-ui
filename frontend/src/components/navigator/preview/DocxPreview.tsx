@@ -4,14 +4,14 @@ import docxWasmUrl from '@extend-ai/react-docx/docx_wasm_bg.wasm?url'
 import { PreviewError, PreviewLoading, type PreviewViewerProps } from './previewStates'
 import usePreviewSource from './usePreviewSource'
 
-export default function DocxPreview({ url, authHeader, onDownload }: PreviewViewerProps) {
+export default function DocxPreview({ url, onDownload }: PreviewViewerProps) {
     // `buffer` is null until the wasm is configured, so parsing only starts once the
     // import worker can instantiate from the ArrayBuffer source.
     const {
         buffer,
         error: sourceError,
         progress,
-    } = usePreviewSource(url, authHeader, docxWasmUrl, setWasmSource)
+    } = usePreviewSource(url, docxWasmUrl, setWasmSource)
     const { model, isLoading: modelLoading, error: modelError } = useDocxModel(buffer ?? undefined)
 
     const errorMessage = sourceError ?? modelError?.message

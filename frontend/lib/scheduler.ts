@@ -149,17 +149,15 @@ function buildJobSpec(task: ScheduledTask): SchedulerJobSpec {
         // Pre-serialized here, at save time, by the exact same builders the live start* path
         // uses — a run just hands them over. Throws when the args can't serialize. What the
         // sources are (file or folder) is what rclone said when the task was saved
-        // (`task.kinds`): a later rebuild (enable, a cron edit, a remote rename) may run under
-        // another active config, so it is not asked again.
+        // (`task.kinds`): a later rebuild (enable, a cron edit, a remote rename) does not ask again.
         requests: buildTaskRequests(task, task.kinds),
     }
 }
 
 async function registerTask(task: ScheduledTask): Promise<void> {
     const spec = buildJobSpec(task)
-    // One command: the artifact is installed directly in the target enabled state. A separate
-    // set_enabled step used to leave disabled tasks briefly armed (and, when it failed, running
-    // against the user's intent — or flagged as unregistered although active).
+    // One command: the task is registered directly in its enabled state, so a disabled one is
+    // never briefly armed.
     await rpc('scheduler_register', { spec, enabled: task.isEnabled })
 }
 

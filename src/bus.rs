@@ -1,5 +1,4 @@
-//! The in-process event bus. Everything that used to be a Tauri `app.emit` is published here;
-//! WebSocket sessions forward it to pages, and Rust code (the desktop's tray, the shell) can
+//! The in-process event bus: WebSocket sessions forward it to pages, and Rust code can
 //! subscribe directly. Slow subscribers lag rather than block the publisher.
 
 use serde::Serialize;
@@ -32,7 +31,7 @@ impl Bus {
     pub fn publish<T: Serialize>(&self, name: &str, payload: T) {
         match serde_json::to_value(payload) {
             Ok(payload) => {
-                // No subscribers is not an error worth logging (headless boot, tests).
+                // No subscribers is not an error worth logging (boot, tests).
                 let _ = self.tx.send(Event {
                     name: name.to_string(),
                     payload,

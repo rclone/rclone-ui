@@ -1,7 +1,6 @@
 //! rclone binary manager: spawning, versioned downloads, and PATH integration.
 //!
-//! rclone is executed by absolute path from here (via `std::process`), replacing the
-//! old `tauri-plugin-shell` named-command approach that could only run two fixed paths.
+//! rclone is executed by absolute path from here (via `std::process`).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -60,8 +59,7 @@ pub struct PathStatus {
     pub warning: Option<String>,
 }
 
-/// Tracks the currently-running daemon so kills can be marked intentional (suppressing
-/// the crash dialog) and so a webview reload cannot orphan the process.
+/// Tracks the currently-running daemon so a kill can be marked intentional rather than a crash.
 #[derive(Default)]
 pub struct DaemonState {
     pub pid: Option<u32>,
@@ -88,7 +86,6 @@ fn versions_dir(dirs: &DataDir) -> Result<PathBuf, String> {
     Ok(data_root(dirs)?.join("rclone-versions"))
 }
 
-/// Legacy single-slot binary path used before the versioned layout.
 /// Stable pointer used for PATH integration (independent of the active version).
 fn path_pointer(dirs: &DataDir) -> Result<PathBuf, String> {
     Ok(data_root(dirs)?.join("bin").join(bin_name()))
@@ -227,8 +224,7 @@ pub fn validate_rclone_binary(_ctx: &Ctx, path: String) -> Result<String, String
     probe_rclone_version(Path::new(&path))
 }
 
-/// Runs `<path> version` and returns the version it reports; the storage migration and the
-/// resolver's validation both use it.
+/// Runs `<path> version` and returns the version it reports.
 pub fn probe_rclone_version(path: &Path) -> Result<String, String> {
     let path = path.to_string_lossy().into_owned();
     let result = exec_blocking(
@@ -461,7 +457,7 @@ fn classify_rclone_path_in(dirs: &DataDir, path: &str) -> RcloneClassification {
 }
 
 // ---------------------------------------------------------------------------
-// Versioned library: list / delete / adopt / self-heal
+// Versioned library: list / delete / self-heal
 // ---------------------------------------------------------------------------
 
 pub fn list_downloaded_rclone_versions(ctx: &Ctx) -> Result<Vec<DownloadedVersion>, String> {
@@ -1194,30 +1190,12 @@ fn windows_broadcast_env_change() {
 mod download_event_tests {
     use super::*;
 
-    /// Where the pages keep their event catalog, whichever way round the tree is: the desktop
-    /// keeps the frontend at the repo root (this crate is `src-server/`), the server keeps it in
-    /// `frontend/` (this crate is the root). Tried in order, and a miss is a failure rather than
-    /// a skip — quietly finding nothing to check is how an undeclared event would get through.
     fn events_ts() -> String {
-        const CANDIDATES: [&str; 3] = [
-            "/frontend/lib/api/events.ts",
-            "/../lib/api/events.ts",
-            "/lib/api/events.ts",
-        ];
-        let root = env!("CARGO_MANIFEST_DIR");
-        for relative in CANDIDATES {
-            if let Ok(text) = std::fs::read_to_string(format!("{}{}", root, relative)) {
-                return text;
-            }
-        }
-        panic!(
-            "lib/api/events.ts not found from {} — tried {:?}. The frontend has moved; teach this \
-             test where it went rather than deleting it.",
-            root, CANDIDATES
-        );
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/frontend/lib/api/events.ts");
+        std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {}", path, e))
     }
 
-    /// The Binary settings page renders the download bar from these events: an emitted name the
+    /// The Rclone settings section renders the download bar from these events: an emitted name the
     /// page never subscribed to leaves the bar indeterminate for the whole download.
     #[test]
     fn download_events_are_declared_in_events_ts() {
@@ -1243,7 +1221,7 @@ mod daemon_spawn_tests {
     use std::time::Duration;
 
     fn ctx() -> Ctx {
-        let root = std::env::temp_dir().join(format!("rcloneui-daemon-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("rclone-cloud-daemon-{}", std::process::id()));
         Ctx::new(DataDir { root }, Events::noop())
     }
 

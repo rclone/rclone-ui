@@ -6,7 +6,7 @@ import { fetchLive, isLive } from './live'
 import { toRows } from './rows'
 
 /**
- * A host's transfers as rows, newest first: the Transfers page's list, and the Dashboard's few.
+ * The transfers as rows, newest first: the Transfers page's list, and the Dashboard's few.
  *
  * The list is the server's record, not rclone's memory: a transfer is in it from the moment it
  * starts and stays after the daemon (or the server) restarts. The server says when it writes a

@@ -20,7 +20,6 @@ export interface LifecyclePhase {
     updated?: boolean
     error?: string
     attempts?: number
-    fatal?: boolean
 }
 
 export interface StateChanged {

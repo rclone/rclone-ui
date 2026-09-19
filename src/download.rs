@@ -1,6 +1,5 @@
 //! `GET /api/dl/{token}` — a short-lived link to a file on a daemon (`download_link` mints it).
-//! It exists because a download opened with `window.open` from a desktop window lands in the
-//! system browser, which has no session cookie; the token is the credential.
+//! The token is the credential: a plain link carries no session header.
 
 use std::collections::HashMap;
 use std::sync::Mutex;

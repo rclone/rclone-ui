@@ -1,11 +1,10 @@
-//! `rclone-cloud`: the shared Rclone UI core behind an HTTP + WebSocket API, serving the
-//! same frontend bundle the desktop app embeds. No Tauri, no GTK/WebKit — it runs in a
-//! container or on a headless box.
+//! `rclone-cloud`: rclone behind an HTTP + WebSocket API, with the frontend bundle served to a
+//! browser. It runs in a container or on a headless box.
 
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
-use rclone_cloud::{serve, Hooks, Owner, ServeOpts};
+use rclone_cloud::{serve, Owner, ServeOpts};
 use rclone_cloud::lifecycle::Options as LifecycleOptions;
 
 #[derive(Parser, Debug)]
@@ -41,7 +40,7 @@ struct CliServe {
     /// The owner account's email, used with --password on the first start only.
     #[arg(long, env = "RCLONE_CLOUD_EMAIL", default_value = rclone_cloud::team::DEFAULT_OWNER_EMAIL)]
     email: String,
-    /// The data directory: state, accounts, schedules, rclone configs and binaries, logs
+    /// The data directory: state, accounts, schedules, rclone binaries, logs
     /// (defaults to this machine's local data directory, under com.rclone.cloud).
     #[arg(long, env = "RCLONE_CLOUD_DATA_DIR")]
     data_dir: Option<PathBuf>,
@@ -54,9 +53,8 @@ struct CliServe {
     /// Forward non-API requests to a Vite dev server instead of serving the embedded bundle.
     #[arg(long, env = "RCLONE_CLOUD_DEV_PROXY")]
     dev_proxy: Option<String>,
-    /// Delete everything in the data directory before starting: accounts, hosts, settings,
-    /// schedules, notification targets, rclone configs and downloaded binaries. The owner is
-    /// seeded again from --password.
+    /// Delete everything in the data directory before starting: accounts, settings, schedules,
+    /// notification targets and downloaded binaries. The owner is seeded again from --password.
     #[arg(long, env = "RCLONE_CLOUD_CLEAR")]
     clear: bool,
 }
@@ -114,30 +112,9 @@ async fn run(cli: CliServe) -> Result<(), String> {
     // layout this build reads.
     let cleared = if cli.clear { Some(dirs.clear()?) } else { None };
     let migration = rclone_cloud::storage::migrate(&dirs.root)?;
-    // An overridden data directory (development, tests, containers) keeps its logs with its
-    // data; otherwise the platform's app-log directory, where the desktop's log plugin writes.
-    let log_dir = if cli.data_dir.is_some() {
-        dirs.root.join("logs")
-    } else {
-        rclone_cloud::static_files::log_dir_for(&dirs)
-    };
+    let log_dir = dirs.root.join("logs");
     let log_file = rclone_cloud::logging::init(&log_dir);
     log::info!("logging to {}", log_file.display());
-    // An upgrade from a build that shared the desktop app's directory: say where the accounts
-    // went rather than starting empty and looking like data loss.
-    if cli.data_dir.is_none() {
-        if let Some(former) = rclone_cloud::datadir::former_data_dir(&dirs.root) {
-            log::warn!(
-                "this server previously stored its data in {} and is now using {}. Nothing was \
-                 moved: that directory may belong to the desktop app. To keep the old accounts \
-                 and settings, stop the server and either move it across or start with \
-                 --data-dir {}",
-                former.display(),
-                dirs.root.display(),
-                former.display()
-            );
-        }
-    }
     if let Some(cleared) = cleared {
         log::warn!(
             "--clear: removed {} entries under {}; starting from scratch",
@@ -165,7 +142,6 @@ async fn run(cli: CliServe) -> Result<(), String> {
         rclone_cloud::port::bind_with_retry(addr, 20, std::time::Duration::from_millis(500))
             .await?;
 
-    let hooks = Hooks::standalone();
     let handle = serve(
         listener,
         ServeOpts {
@@ -174,11 +150,9 @@ async fn run(cli: CliServe) -> Result<(), String> {
                 password,
             },
             dirs,
-            log_dir: Some(log_dir),
             rclone_url: cli.rclone_url.clone(),
             dev_proxy: cli.dev_proxy,
         },
-        hooks,
     )
     .await?;
 
@@ -191,9 +165,6 @@ async fn run(cli: CliServe) -> Result<(), String> {
             handle.start_lifecycle(LifecycleOptions {
                 rclone_path_override: cli.rclone_path.clone(),
                 can_mount,
-                path_integration: true,
-                check_updates: true,
-                interaction: handle.state.hooks.interaction.clone(),
             });
         }
     }

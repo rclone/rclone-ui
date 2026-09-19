@@ -107,7 +107,7 @@ fn render(spec: &JobSpec, enabled: bool) -> Result<RenderedSchedule, String> {
 }
 
 // ---------------------------------------------------------------------------
-// Commands (declared in commands/mod.rs as `sync`: hosts run them on the blocking pool)
+// Commands (declared in commands/mod.rs as `sync`: they run on the blocking pool)
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize)]
@@ -118,8 +118,7 @@ pub struct SupportInfo {
 }
 
 /// Whether schedules can run here. The server is its own scheduler, so the answer is yes as
-/// long as a backend can be built — the shape is kept because the pages ask, and because the
-/// desktop's answer genuinely varies.
+/// long as a backend can be built.
 pub fn scheduler_supported(ctx: &Ctx) -> Result<SupportInfo, String> {
     Ok(match backend(&ctx.dirs) {
         Ok(_) => SupportInfo {
@@ -387,54 +386,18 @@ pub fn scheduler_read_history(
     Ok(history::read(&dirs, &task_id, limit.unwrap_or(50)))
 }
 
-/// Remove every registration this server ever made (Settings escape hatch / pre-uninstall
-/// cleanup). Sweeps job files and orphaned registrations alike.
-pub fn scheduler_unregister_all(ctx: &Ctx) -> Result<u32, String> {
-    let dirs = ctx.dirs.clone();
-    let _guard = mutation_guard();
-    let backend = backend(&dirs).ok();
-    let mut removed: u32 = 0;
-
-    let jobs_root = dirs.root.join("scheduler").join("jobs");
-    if let Ok(host_dirs) = std::fs::read_dir(&jobs_root) {
-        for host_dir in host_dirs.flatten() {
-            let host_dir = host_dir.file_name().to_string_lossy().to_string();
-            for spec in jobfile::list_in(&dirs, &host_dir) {
-                if backend
-                    .as_ref()
-                    .is_some_and(|b| b.uninstall(&spec.task_id).is_ok())
-                {
-                    removed += 1;
-                }
-                jobfile::remove_in(&dirs, &host_dir, &spec.task_id);
-                history::remove_all(&dirs, &spec.task_id);
-            }
-        }
-    }
-
-    // Orphan sweep: artifacts whose job files were lost, across every backend.
-    removed += sweep_orphans(&dirs);
-    Ok(removed)
-}
-
 /// Task ids that still have a job file — by FILENAME, deliberately not by parse: an unreadable
 /// or newer-schema job file is an environment problem, and sweeping its artifact would destroy
 /// a valid registration (same conservatism as the runner's self-heal).
 fn registered_task_ids(dirs: &DataDir) -> std::collections::HashSet<String> {
     let mut ids = std::collections::HashSet::new();
-    let jobs_root = dirs.root.join("scheduler").join("jobs");
-    let Ok(host_dirs) = std::fs::read_dir(&jobs_root) else {
+    let Ok(entries) = std::fs::read_dir(jobfile::jobs_dir(dirs)) else {
         return ids;
     };
-    for host_dir in host_dirs.flatten() {
-        let Ok(entries) = std::fs::read_dir(host_dir.path()) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if let Some(id) = name.strip_suffix(".json") {
-                ids.insert(id.to_string());
-            }
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if let Some(id) = name.strip_suffix(".json") {
+            ids.insert(id.to_string());
         }
     }
     ids

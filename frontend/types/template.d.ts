@@ -11,6 +11,6 @@ export interface Template {
     name: string
     tags: ('copy' | 'sync' | 'move' | 'delete' | 'purge' | 'serve' | 'mount' | 'bisync')[]
     options: Record<string, FlagValue>
-    /** Absent on every template saved before templates carried paths. */
+    /** Absent when the page it was saved from had none. */
     paths?: TemplatePaths
 }

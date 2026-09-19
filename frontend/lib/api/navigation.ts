@@ -1,5 +1,5 @@
-// The router's `navigate` for code outside React (window helpers in a single-page host). Set by
-// the Shell once mounted; calls made before that are replayed.
+// The router's `navigate` for code outside React. Set by the Shell once mounted; calls made
+// before that are replayed.
 
 type Navigate = (to: string | number) => void
 
@@ -21,7 +21,7 @@ export function navigate(to: string | number) {
     }
 }
 
-/** A lock/busy overlay counter (lockWindows / unlockWindows in a single-page host). */
+/** A busy overlay counter: the Shell dims the page while it is above zero. */
 let busy = 0
 const busyListeners = new Set<(busy: boolean) => void>()
 

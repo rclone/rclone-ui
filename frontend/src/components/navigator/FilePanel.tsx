@@ -23,7 +23,6 @@ import PreviewDrawer from './preview/PreviewDrawer'
 import type { AllowedKey, Entry, FilePanelHandle, SelectItem } from './types'
 import useCreateFolder from './useCreateFolder'
 import useFileNavigation from './useFileNavigation'
-import { isRemote } from '../../../lib/paths'
 import { dragStateRef, dropTargetsRef, parseRemotePath, serializeRemotePath } from './utils'
 
 export type { FilePanelHandle } from './types'
@@ -289,9 +288,8 @@ const FilePanel = forwardRef<
                         const remote = (it as any).remote as string | undefined
                         const rawPath = (it as any).path as string
                         // As kept: the path under its remote, a leading slash the absolute root.
-                        // (A favourite from before the split held the whole `remote:path`.)
                         const fullKey =
-                            remote && remote !== 'UI_LOCAL_FS' && !isRemote(rawPath)
+                            remote && remote !== 'UI_LOCAL_FS'
                                 ? serializeRemotePath(remote, rawPath || '')
                                 : rawPath
                         return fullKey !== entry.fullPath

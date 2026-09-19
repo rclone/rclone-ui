@@ -11,7 +11,7 @@ import {
 // src/pages/Wizard/flow.ts is the Wizard's model and pure, so it runs in the test process itself:
 // which questions a set of answers walks through, what they amount to, and how the plan reads.
 
-const MAPPER = ['/Applications/Rclone UI.app/Contents/MacOS/Rclone UI', 'metadata-map']
+const MAPPER = ['/opt/rclone cloud/rclone-cloud', 'metadata-map']
 const ONE_RULE = [...MAPPER, '--map', 'mtime=modified']
 
 const copy = (patch: Partial<Answers> = {}): Answers => ({

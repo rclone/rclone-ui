@@ -7,8 +7,7 @@ use crate::bus::{Bus, Event};
 use crate::datadir::DataDir;
 use crate::zookeeper::DaemonState;
 
-/// App-wide events: a handle on the [`Bus`]. Hosts subscribe (WebSocket fan-out, the desktop's
-/// tray) and commands emit.
+/// App-wide events: a handle on the [`Bus`]. The WebSocket fan-out subscribes and commands emit.
 #[derive(Clone, Default)]
 pub struct Events {
     bus: Bus,
@@ -19,7 +18,7 @@ impl Events {
         Events { bus: Bus::new() }
     }
 
-    /// A bus nobody listens to (headless processes, tests).
+    /// A bus nobody listens to (tests).
     pub fn noop() -> Self {
         Events::new()
     }
@@ -37,8 +36,8 @@ impl Events {
     }
 }
 
-/// Everything a command needs from its host process. Cloning is cheap (the state is shared
-/// through `Arc`s), so hosts hand out clones freely.
+/// Everything a command needs from the server. Cloning is cheap (the state is shared through
+/// `Arc`s).
 #[derive(Clone)]
 pub struct Ctx {
     pub dirs: DataDir,

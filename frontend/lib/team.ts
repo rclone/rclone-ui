@@ -48,7 +48,6 @@ export async function setMemberEmail(id: string, email: string): Promise<Member>
     return await rpc<Member>('team_set_email', { id, email })
 }
 
-/** `enabled: false` where there are no accounts (the desktop's token mode). */
-export function useTeam(enabled = true) {
-    return useQuery({ queryKey: ['team'], queryFn: listMembers, meta: { persist: false }, enabled })
+export function useTeam() {
+    return useQuery({ queryKey: ['team'], queryFn: listMembers, meta: { persist: false } })
 }

@@ -150,9 +150,9 @@ export function connect() {
             reconnectDelay = Math.min(reconnectDelay * 2, 10000)
             if (everConnected === false) {
                 fetch('/api/session', { credentials: 'same-origin' })
-                    .then((r) => r.json() as Promise<{ required: boolean; authenticated: boolean }>)
+                    .then((r) => r.json() as Promise<{ authenticated: boolean }>)
                     .then((session) => {
-                        if (session.required && !session.authenticated) onUnauthorized()
+                        if (!session.authenticated) onUnauthorized()
                     })
                     .catch(() => {})
             }

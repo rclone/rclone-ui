@@ -112,8 +112,7 @@ test('a template applies its paths the way the dialog was answered', () => {
     // ... and an empty destination is what merging is for.
     expect(applyTemplatePaths({ sources: [] }, template, true).destination).toBe('gdrive:backup')
 
-    // A template carrying nothing never clears the page, whichever button was pressed: every
-    // template saved before templates had paths is one of these.
+    // A template carrying nothing never clears the page, whichever button was pressed.
     for (const empty of [undefined, {}, { sources: [] }]) {
         expect(applyTemplatePaths(page, empty, false)).toEqual(page)
         expect(applyTemplatePaths(page, empty, true)).toEqual(page)

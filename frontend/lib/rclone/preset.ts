@@ -44,7 +44,7 @@ interface Keep {
     templateName?: string
 }
 
-/** Every field of the args is optional: a preset may carry a source alone (the toolbar's). */
+/** Every field of the args is optional: a preset may carry a source alone. */
 export type OperationPreset =
     | ({ operation: 'copy'; args: Partial<CopyArgs> } & Keep)
     | ({ operation: 'move'; args: Partial<MoveArgs> } & Keep)
@@ -68,7 +68,7 @@ const RE_PADDING = /=+$/
 const RE_DASH = /-/g
 const RE_UNDERSCORE = /_/g
 
-/** Base64url of the JSON: alphanumeric, so a query string and the desktop's percent-encoded boot redirect leave it small. */
+/** Base64url of the JSON: safe in a query string as it is. */
 export function encodePreset(preset: OperationPreset): string {
     const bytes = new TextEncoder().encode(JSON.stringify(preset))
     const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('')

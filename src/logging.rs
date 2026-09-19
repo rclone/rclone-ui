@@ -1,8 +1,6 @@
-//! The standalone server's log file. The desktop's log plugin writes `<log dir>/Rclone UI.log`;
-//! the server has no plugin, so it keeps the same contract itself: every record goes to stderr
-//! (containers, journals) and to `<log dir>/rclone-cloud.log`, which starts over once it
-//! reaches 10 MB (the desktop plugin's `KeepOne`: the full file is deleted, no `.old` copy), so
-//! the About page's "last lines" and bug reports always have something recent to read.
+//! The server's log. Every record goes to stderr (containers, journals) and to
+//! `<log dir>/rclone-cloud.log`, which starts over once it reaches 10 MB: the full file is
+//! deleted, no `.old` copy.
 
 use std::fs::{File, OpenOptions};
 use std::io::Write;
@@ -10,7 +8,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 pub const FILE_NAME: &str = "rclone-cloud.log";
-/// The same cap as the desktop's log plugin (`src-tauri/src/lib.rs`).
 pub const MAX_BYTES: u64 = 10 * 1024 * 1024;
 
 struct Tee {
@@ -48,8 +45,7 @@ impl Tee {
         }
     }
 
-    /// Starts the file over, like the desktop's log plugin: the full one is deleted, nothing is
-    /// kept aside.
+    /// Starts the file over: the full one is deleted, nothing is kept aside.
     fn rotate(&mut self) {
         self.file = None;
         let _ = std::fs::remove_file(&self.path);
@@ -107,11 +103,9 @@ pub fn init(log_dir: &Path) -> PathBuf {
     }
     let path = log_dir.join(FILE_NAME);
     let tee = Shared(Mutex::new(Tee::new(&path, MAX_BYTES)));
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info,webview=trace"),
-    )
-    .target(env_logger::Target::Pipe(Box::new(tee)))
-    .init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info,page=trace"))
+        .target(env_logger::Target::Pipe(Box::new(tee)))
+        .init();
     path
 }
 
@@ -121,7 +115,7 @@ mod tests {
 
     #[test]
     fn the_file_starts_over_at_the_limit_and_keeps_no_old_copy() {
-        let dir = std::env::temp_dir().join(format!("rcloneui-logging-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("rclone-cloud-logging-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join(FILE_NAME);

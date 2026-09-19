@@ -494,7 +494,7 @@ function Plan({
     const open = () => {
         const preset = presetFromAnswers(answers)
         if (!preset) return
-        openOperation(preset).catch((error) => console.error('[Wizard] open failed', error))
+        openOperation(preset)
     }
 
     return (

@@ -151,8 +151,8 @@ export async function startMove(args: MoveArgs, isDryRun = false, extra?: StartE
 }
 
 /* OPERATIONS */
-// Wraps the mount flow so every caller (Mount page, tray, startup automounts) emits the
-// mount.failed webhook event without per-site wiring. Rethrows for the caller's own handling.
+// Wraps the mount flow so a failure emits the mount.failed webhook event. Rethrows for the
+// caller's own handling.
 export async function startMount(params: MountArgs) {
     try {
         return await startMountInner(params)
