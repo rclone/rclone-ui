@@ -14,7 +14,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { PencilIcon, SendIcon, SettingsIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react'
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useRef, useState } from 'react'
 import {
     NOTIFICATION_PROVIDERS,
     removeNotificationTarget,
@@ -42,8 +42,21 @@ export default function NotificationsSection() {
     // back to as it delivers — polled so those lastSentAt/lastError land here.
     const targetsQuery = useNotificationTargets()
     const catalogQuery = useNotificationsCatalog()
-    const [addingProvider, setAddingProvider] = useState<NotificationProvider | null>(null)
-    const [editingTarget, setEditingTarget] = useState<NotificationTarget | null>(null)
+    // What the drawer shows outlives its being open, so it can slide shut still showing it;
+    // `key` changes per opening, which is what reseeds the form (the drawer reads props once).
+    const [shown, setShown] = useState<{
+        provider: NotificationProvider
+        target?: NotificationTarget
+        key: string
+    } | null>(null)
+    const [drawerOpen, setDrawerOpen] = useState(false)
+    const openings = useRef(0)
+
+    const openDrawer = (provider: NotificationProvider, target?: NotificationTarget) => {
+        openings.current += 1
+        setShown({ provider, target, key: `${target?.id ?? provider}-${openings.current}` })
+        setDrawerOpen(true)
+    }
 
     const notificationTargets = targetsQuery.data ?? []
 
@@ -52,10 +65,8 @@ export default function NotificationsSection() {
         [notificationTargets]
     )
 
-    const drawerProvider = editingTarget?.provider ?? addingProvider
-
     const handleAddPress = async (provider: NotificationProvider) => {
-        setAddingProvider(provider)
+        openDrawer(provider)
     }
 
     return (
@@ -95,7 +106,7 @@ export default function NotificationsSection() {
                             key={target.id}
                             target={target}
                             catalog={catalogQuery.data}
-                            onEdit={() => setEditingTarget(target)}
+                            onEdit={() => openDrawer(target.provider, target)}
                         />
                     ))}
                     {sortedTargets.length === 0 && !targetsQuery.isLoading && (
@@ -105,16 +116,13 @@ export default function NotificationsSection() {
                     )}
                 </section>
             </div>
-            {!!drawerProvider && !!catalogQuery.data && (
+            {shown && !!catalogQuery.data && (
                 <NotificationTargetDrawer
-                    key={editingTarget?.id ?? addingProvider ?? 'closed'}
-                    isOpen={true}
-                    onClose={() => {
-                        setAddingProvider(null)
-                        setEditingTarget(null)
-                    }}
-                    provider={drawerProvider}
-                    target={editingTarget ?? undefined}
+                    key={shown.key}
+                    isOpen={drawerOpen}
+                    onClose={() => setDrawerOpen(false)}
+                    provider={shown.provider}
+                    target={shown.target}
                     catalog={catalogQuery.data}
                     existingTargets={notificationTargets}
                 />
