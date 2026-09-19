@@ -11,7 +11,6 @@ export interface LifecyclePhase {
         | 'updating'
         | 'starting'
         | 'ready'
-        | 'needsPassword'
         | 'failed'
     version?: string
     from?: string
@@ -19,8 +18,6 @@ export interface LifecyclePhase {
     pid?: number
     port?: number
     updated?: boolean
-    configId?: string
-    label?: string
     error?: string
     attempts?: number
     fatal?: boolean

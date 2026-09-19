@@ -2,22 +2,14 @@ import type { LucideIcon } from 'lucide-react'
 import {
     BellIcon,
     CloudCogIcon,
-    CodeIcon,
     CogIcon,
-    InfoIcon,
     MailIcon,
-    PackageIcon,
-    SatelliteDishIcon,
     ServerIcon,
     UsersIcon,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
-import AboutSection from './AboutSection'
-import BinarySection from './BinarySection'
-import ConfigSection from './ConfigSection'
 import GeneralSection from './GeneralSection'
 import NotificationsSection from './NotificationsSection'
-import ProxySection from './ProxySection'
 import RcloneSection from './RcloneSection'
 import RemotesSection from './RemotesSection'
 import SmtpSection from './SmtpSection'
@@ -30,12 +22,8 @@ export type SectionKey =
     | 'remotes'
     | 'notifications'
     | 'team'
-    | 'config'
-    | 'binary'
     | 'rclone'
     | 'smtp'
-    | 'proxy'
-    | 'about'
 
 export interface SettingsSection {
     label: string
@@ -49,15 +37,11 @@ export const SETTINGS_SECTIONS: Record<SectionKey, SettingsSection> = {
     notifications: { label: 'Notifications', icon: BellIcon, component: NotificationsSection },
     // Browser only: accounts are the server's; the desktop's windows use a launch token.
     team: { label: 'Team', icon: UsersIcon, component: TeamSection },
-    config: { label: 'Config', icon: CodeIcon, component: ConfigSection },
-    binary: { label: 'Binary', icon: PackageIcon, component: BinarySection },
-    proxy: { label: 'Proxy', icon: SatelliteDishIcon, component: ProxySection },
-    // Browser only: the same settings as Binary and Proxy on one screen, in a layout for a wide
-    // tab. The desktop's tabbed window keeps those two sections instead.
+    // Which rclone binary the server runs, and the proxy it reaches the world through. Both sets
+    // of controls live in this file's component; there is no separate route for either.
     rclone: { label: 'Rclone', icon: CloudCogIcon, component: RcloneSection },
     // The mail server the Email notification targets go through; both products.
     smtp: { label: 'SMTP', icon: MailIcon, component: SmtpSection },
-    about: { label: 'About', icon: InfoIcon, component: AboutSection },
 }
 
 export function isSectionKey(value: string | undefined): value is SectionKey {

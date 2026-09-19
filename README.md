@@ -12,6 +12,7 @@ docker run -d --name rclone-ui \
   -p 5573:5573 \
   -e RCLONE_CLOUD_PASSWORD=change-me \
   -v rclone-ui:/data \
+  -v rclone-ui-config:/config/rclone \
   ghcr.io/rclone-ui/rclone-ui-server
 ```
 
@@ -51,13 +52,42 @@ Anything but loopback needs a password, and `--clear` empties the data directory
 
 ## Data
 
-Everything persistent lives in the data directory: accounts (`state/team.json`), settings
-(`state/`), rclone configs and binaries, schedules and their run history, the transfer ledger,
-notification targets and SMTP settings, and the log file. Back up that directory.
+Everything the server itself keeps lives in the data directory: accounts (`state/team.json`),
+settings (`state/`), rclone binaries, schedules and their run history, the transfer ledger,
+notification targets and SMTP settings, and the log file. Back up that directory — and the rclone
+config, which is not in it.
 
 Scheduled tasks fire from the server's own minute ticker, so no cron or Task Scheduler entry is
 needed; a task runs inside the server, on the rclone daemon it is already running, and each run
 shows up on the Transfers page like any other transfer.
+
+## The rclone config
+
+The server does not manage rclone's configuration file. It never picks a path for it, never
+creates it and never passes one to the daemon: rclone resolves its own config, the way it does on
+a command line. Create a remote and rclone writes the file itself.
+
+The daemon inherits the server's environment, so rclone's own variables are how you steer it:
+
+| Variable | What it does |
+| --- | --- |
+| `RCLONE_CONFIG` | the config file to use, absolutely |
+| `XDG_CONFIG_HOME` | the config *directory*: `<it>/rclone/rclone.conf` |
+| `RCLONE_CONFIG_PASS` | the password for an encrypted config |
+| `RCLONE_PASSWORD_COMMAND` | a command that prints that password |
+
+An encrypted config needs its password in the environment: the daemon has no terminal to ask at,
+so without one rclone refuses every request with `unable to decrypt configuration ... set
+RCLONE_CONFIG_PASS to your configuration password`.
+
+Set none of them and rclone uses the first config file that already exists — `XDG_CONFIG_HOME`,
+then `~/.config/rclone/rclone.conf`, then `~/.rclone.conf` — creating
+`~/.config/rclone/rclone.conf` when there is none.
+
+The image sets `XDG_CONFIG_HOME=/config`, so the config is `/config/rclone/rclone.conf` on its own
+volume, the same place rclone's own image keeps it. Mount your host config there
+(`-v ~/.config/rclone:/config/rclone`) and a terminal `rclone` and this server share one set of
+remotes. Because the config lives outside the data directory, `--clear` does not touch it.
 
 ## Development
 

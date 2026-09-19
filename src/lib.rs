@@ -348,7 +348,6 @@ pub fn capabilities(overlay: &Map<String, Value>) -> Value {
         "mount": mount,
         "scheduler": true,
         "processExit": !containerized,
-        "configSync": true,
         "pathIntegration": true,
     });
     if let Some(map) = caps.as_object_mut() {

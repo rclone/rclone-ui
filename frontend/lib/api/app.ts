@@ -4,14 +4,6 @@
 
 import { rpc, stream } from './rpc'
 
-export interface AppInfo {
-    version: string
-    mode: 'desktop' | 'server'
-    os: string
-    arch: string
-    logDir: string | null
-    logFile: string | null
-}
 
 export interface UpdateInfo {
     version: string
@@ -25,7 +17,6 @@ export interface UpdateProgress {
     data?: { contentLength?: number | null; chunkLength?: number }
 }
 
-export const info = () => rpc<AppInfo>('app_info')
 export const quit = () => rpc<null>('app_quit')
 export const relaunch = () => rpc<null>('app_relaunch')
 export const updateCheck = () => rpc<UpdateInfo | null>('app_update_check')
@@ -47,12 +38,7 @@ export const releaseReconnectDialog = (remote: string) =>
 
 export interface RestartOverrides {
     rclonePath?: string
-    defaultConfigPath?: string
-    configFiles?: unknown[]
-    activeConfigId?: string | null
     proxy?: { url: string; ignoredHosts: string[] } | undefined
-    syncConfigToSystem?: boolean
-    syncConfigLinkTarget?: string | null
 }
 
 export interface Status {
@@ -77,8 +63,6 @@ export async function status(): Promise<Status> {
 export const restartRclone = (overrides?: RestartOverrides) =>
     rpc<null>('rclone_restart', { overrides: overrides ?? null })
 export const stopRclone = () => rpc<null>('rclone_stop')
-export const rclonePassword = (configId: string, pass: string) =>
-    rpc<null>('rclone_password', { configId, pass })
 
 // --- downloads ----------------------------------------------------------------------
 

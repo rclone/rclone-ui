@@ -62,41 +62,6 @@ test('the mount point picker only offers local folders', async ({ page }) => {
     await expect(dialog.locator('img[src^="/icons/backends/"]')).toHaveCount(0)
 })
 
-test('editing an encrypted config keeps its saved password', async ({ page, request }) => {
-    const savedPass = async () => {
-        const doc = (await (
-            await request.get('/api/state/hosts/local', { headers: SESSION })
-        ).json()) as {
-            state: { configFiles?: { label: string; pass?: string; passCommand?: string }[] }
-        }
-        const file = doc.state.configFiles?.find((c) => c.label === 'e2e-encrypted')
-        return file ? { pass: file.pass, passCommand: file.passCommand } : null
-    }
-
-    await page.goto('/settings?tab=config')
-    await page.getByRole('button', { name: 'Add Config' }).click()
-    await page.getByRole('menuitem', { name: /Import Config/ }).click()
-    await page.getByPlaceholder('Enter a name for your config').fill('e2e-encrypted')
-    await page
-        .getByPlaceholder('Paste your config here or import an existing file')
-        .fill('RCLONE_ENCRYPT_V0:abc')
-    await page.getByPlaceholder('Leave blank to be prompted on every startup').fill('e2e-secret')
-    await page.getByRole('button', { name: 'Import', exact: true }).click()
-    await expect.poll(savedPass).toEqual({ pass: 'e2e-secret', passCommand: undefined })
-
-    const card = page.locator('.group\\/card', { hasText: 'e2e-encrypted' })
-    await card.hover()
-    await card.locator('button:has(svg.lucide-pencil)').click()
-    await expect(page.getByText('Edit e2e-encrypted')).toBeVisible()
-    // A saved password, not a password command: the switch must reflect what is stored.
-    await expect(page.getByRole('switch', { name: 'Command' })).not.toBeChecked()
-    await expect(page.getByPlaceholder('Leave blank to be prompted on every startup')).toHaveValue(
-        'e2e-secret'
-    )
-    await page.getByRole('button', { name: 'Save Changes' }).click()
-    await expect(page.getByText('Edit e2e-encrypted')).toBeHidden()
-    await expect.poll(savedPass).toEqual({ pass: 'e2e-secret', passCommand: undefined })
-})
 
 test('the template drawer keeps its input when the name is missing', async ({ page }) => {
     await page.goto('/templates')
@@ -1787,8 +1752,10 @@ test('renaming a remote carries its settings along', async ({ page, request }) =
         await expect.poll(remotes).toContain('sb-after')
         expect(await remotes()).not.toContain('sb-before')
         await expect(page.locator('[data-remote="sb-after"]')).toBeVisible()
-        // The text editor reads the same file through the daemon, external as it is here.
+        // The text editor reads the same file through the daemon, external as it is here — and
+        // names the path the daemon reported, which is the only place that path comes from.
         await page.getByRole('button', { name: 'Edit config file' }).click()
+        await expect(page.getByRole('dialog').getByText(configFile)).toBeVisible()
         await expect(page.getByRole('dialog').locator('textarea[name="content"]')).toHaveValue(
             /\[sb-after\]/
         )
@@ -1840,41 +1807,6 @@ test('local folders list through rclone and get their sizes', async ({ page }) =
     }
 })
 
-test('a config file is created and deleted through the daemon', async ({ page }) => {
-    const configsDir = new URL('./.tmp/open/configs/', import.meta.url).pathname
-    const before = new Set(existsSync(configsDir) ? readdirSync(configsDir) : [])
-    await page.goto('/settings/config')
-    await page.getByRole('button', { name: 'Add Config' }).click()
-    await page.getByRole('menuitem', { name: /Import Config/ }).click()
-    const dialog = page.getByRole('dialog')
-    await dialog.getByPlaceholder('Enter a name for your config').fill('E2E via rclone')
-    await dialog
-        .getByPlaceholder('Paste your config here or import an existing file')
-        .fill('[e2e-typed]\ntype = memory\n')
-    await dialog.getByRole('button', { name: 'Import' }).click()
-    await expect(dialog).toHaveCount(0)
-    // The file landed where the app keeps its configs, written by the daemon.
-    let id = ''
-    await expect
-        .poll(
-            () => {
-                const fresh = readdirSync(configsDir).filter((name) => !before.has(name))
-                id = fresh[0] ?? ''
-                return id !== '' && existsSync(join(configsDir, id, 'rclone.conf'))
-            },
-            { timeout: 15_000 }
-        )
-        .toBe(true)
-    expect(readFileSync(join(configsDir, id, 'rclone.conf'), 'utf8')).toContain('[e2e-typed]')
-    // Deleting it from the list removes the folder, through the daemon as well.
-    const card = page.locator('.group\\/card', { hasText: 'E2E via rclone' })
-    await card.hover()
-    await card.locator('button:has(svg.lucide-trash-2)').click()
-    const confirm = page.getByRole('dialog')
-    await expect(confirm.getByText('Delete Config', { exact: true })).toBeVisible()
-    await confirm.getByRole('button', { name: 'Delete' }).click()
-    await expect.poll(() => existsSync(join(configsDir, id)), { timeout: 15_000 }).toBe(false)
-})
 
 // The Copy page's Metadata section, opened: its region (the first: the mapping panel inside it
 // is a region of its own), and the "Show more options" nudge out of the way. The nudge sits

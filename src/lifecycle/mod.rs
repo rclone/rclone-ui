@@ -1,11 +1,14 @@
 //! The orchestrator — the only one: it runs rclone for the desktop app and the standalone
-//! server alike. Resolve a binary, resolve the active config, spawn `rclone rcd`, wait for it,
+//! server alike. Resolve a binary, spawn `rclone rcd`, wait for it,
 //! restart it on request (coalescing bursts, applying the initiating page's overrides first),
 //! restart it after a crash with backoff, tell the transfers service when it went down, and run
 //! the startup mounts. Where a
 //! human decision is needed at boot it asks the host through [`Interaction`].
+//!
+//! Nothing here resolves a configuration file. The daemon inherits this process's environment,
+//! so `RCLONE_CONFIG`, `XDG_CONFIG_HOME` and `RCLONE_CONFIG_PASS` reach rclone exactly as the
+//! operator set them, and rclone picks its own config.
 
-pub mod config;
 pub mod interaction;
 pub mod mounts;
 pub mod resolve;
@@ -61,11 +64,6 @@ pub enum Phase {
         /// The binary was updated during this start.
         updated: bool,
     },
-    /// The active config is encrypted and no password is stored: the UI has to save one.
-    NeedsPassword {
-        config_id: String,
-        label: String,
-    },
     /// `fatal` = the host decided to give up (nothing restarts until asked).
     Failed {
         error: String,
@@ -84,7 +82,6 @@ impl Phase {
             Phase::Updating { .. } => "updating",
             Phase::Ready { updated: true, .. } => "updated",
             Phase::Ready { .. } => "initialized",
-            Phase::NeedsPassword { .. } => "error",
             Phase::Failed { fatal: true, .. } => "fatal",
             Phase::Failed { .. } => "error",
         }
@@ -115,12 +112,7 @@ impl RcTarget {
 #[serde(rename_all = "camelCase", default)]
 pub struct RestartOverrides {
     pub rclone_path: Option<String>,
-    pub default_config_path: Option<String>,
-    pub config_files: Option<Value>,
-    pub active_config_id: Option<Value>,
     pub proxy: Option<Value>,
-    pub sync_config_to_system: Option<bool>,
-    pub sync_config_link_target: Option<Value>,
 }
 
 pub struct Options {
@@ -142,7 +134,6 @@ pub struct Options {
 }
 
 enum StartError {
-    NeedsPassword { config_id: String, label: String },
     Fatal(String),
     Other(String),
 }
@@ -234,7 +225,6 @@ impl Supervisor {
     }
 
     fn apply_overrides(&self, overrides: RestartOverrides) {
-        // Same order as the old RESTART_RCLONE handler: configFiles before activeConfigId.
         if let Some(path) = overrides.rclone_path {
             if let Err(e) = self.store.update(APP_DOC, |s| {
                 s.insert("rclonePath".into(), Value::String(path));
@@ -242,29 +232,10 @@ impl Supervisor {
                 log::warn!("[lifecycle] could not persist rclonePath: {}", e);
             }
         }
-        let host_updates: Vec<(&str, Option<Value>)> = vec![
-            (
-                "defaultConfigPath",
-                overrides.default_config_path.map(Value::String),
-            ),
-            ("configFiles", overrides.config_files),
-            ("activeConfigId", overrides.active_config_id),
-            ("proxy", overrides.proxy),
-            (
-                "syncConfigToSystem",
-                overrides.sync_config_to_system.map(Value::Bool),
-            ),
-            ("syncConfigLinkTarget", overrides.sync_config_link_target),
-        ];
-        if host_updates.iter().any(|(_, v)| v.is_some()) {
-            let result = self.store.update(HOST_DOC, |s| {
-                for (key, value) in host_updates {
-                    if let Some(value) = value {
-                        s.insert(key.to_string(), value);
-                    }
-                }
-            });
-            if let Err(e) = result {
+        if let Some(proxy) = overrides.proxy {
+            if let Err(e) = self.store.update(HOST_DOC, |s| {
+                s.insert("proxy".into(), proxy);
+            }) {
                 log::warn!("[lifecycle] could not persist restart overrides: {}", e);
             }
         }
@@ -298,31 +269,20 @@ impl Supervisor {
             }
         }
 
-        let ctx = self.ctx.clone();
-        let store = Arc::clone(&self.store);
-        let interaction = Arc::clone(&self.options.interaction);
-        let rclone_path = path.clone();
-        let resolved = rt::spawn_blocking(move || {
-            config::resolve(&ctx, &store, interaction.as_ref(), &rclone_path)
-        })
-        .await
-        .map_err(|e| StartError::Other(e.to_string()))?
-        .map_err(|e| match e {
-            config::ConfigError::NeedsPassword { config_id, label } => {
-                StartError::NeedsPassword { config_id, label }
-            }
-            config::ConfigError::Other(message) => StartError::Other(message),
-        })?;
+        // The only thing the daemon is told about its environment is the proxy. Its config file
+        // is rclone's business: whatever `RCLONE_CONFIG`/`XDG_CONFIG_HOME` this process was given
+        // is inherited untouched, and rclone resolves the rest.
+        let host = if storeread::host_state_exists(&self.ctx.dirs) {
+            storeread::read_host(&self.ctx.dirs).map_err(StartError::Other)?
+        } else {
+            storeread::HostState::default()
+        };
+        let env = storeread::build_run_env(&host);
 
         // Informational proxy check (the env vars come from build_run_env regardless): one
         // request through the proxy, once per proxy URL. It costs up to 10 s and reaches a third
         // party, so a restart with the same proxy (crash recovery, a settings change) skips it.
-        if let Some(proxy) = resolved
-            .env
-            .get("https_proxy")
-            .cloned()
-            .filter(|p| !p.is_empty())
-        {
+        if let Some(proxy) = env.get("https_proxy").cloned().filter(|p| !p.is_empty()) {
             let probed = self.proxy_probed.lock().unwrap().as_deref() == Some(proxy.as_str());
             if !probed {
                 if let Err(error) = misc::test_proxy_connection(&self.ctx, proxy.clone()).await {
@@ -359,6 +319,11 @@ impl Supervisor {
             "24h",
             "--rc-job-expire-interval",
             "1h",
+            // The daemon's stdin is /dev/null, so an encrypted config with no password in the
+            // environment would have rclone prompt into EOF and report a panic. This turns that
+            // into rclone's own sentence naming `RCLONE_CONFIG_PASS` — the only thing that can
+            // fix it, and the one this server deliberately does not store.
+            "--ask-password=false",
         ]
         .iter()
         .map(|s| s.to_string())
@@ -373,7 +338,7 @@ impl Supervisor {
             &self.ctx,
             path,
             args,
-            resolved.env,
+            env,
             Box::new(move |event| {
                 let _ = close_tx.send(event);
             }),
@@ -413,12 +378,10 @@ impl Supervisor {
             updated,
         });
 
-        // Off the critical path: config-sync self-heal and startup mounts.
+        // Off the critical path: the scheduler reconcile and startup mounts.
         {
             let ctx = self.ctx.clone();
-            let store = Arc::clone(&self.store);
             tokio::spawn(async move {
-                reconcile_config_sync(&ctx, &store).await;
                 scheduler_reconcile::reconcile(&ctx).await;
             });
         }
@@ -471,84 +434,6 @@ impl Supervisor {
             attempts,
             fatal: false,
         });
-    }
-}
-
-/// The desktop's `reconcileConfigSync` (lib/rclone/versions.ts): with intent on, re-point a
-/// stale system-config symlink or recreate a deleted one; with intent off but an ownership
-/// marker still recorded, remove the link we own. A no-op when both are clear.
-async fn reconcile_config_sync(ctx: &Ctx, store: &StateStore) {
-    // An unreadable host document is not "sync off": leave the link alone and say so.
-    let host_state = match store.state_or_error(HOST_DOC) {
-        Ok(state) => state,
-        Err(e) => {
-            log::warn!(
-                "[lifecycle] config sync skipped, host state unreadable: {}",
-                e
-            );
-            return;
-        }
-    };
-    let intent = host_state
-        .get("syncConfigToSystem")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let marker = host_state
-        .get("syncConfigLinkTarget")
-        .and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
-        .map(str::to_string);
-    if !intent && marker.is_none() {
-        return;
-    }
-    let Ok(host) = storeread::read_host(&ctx.dirs) else {
-        return;
-    };
-    let active_id = host
-        .active_config_id
-        .clone()
-        .unwrap_or_else(|| "default".into());
-    let entry = storeread::find_config(&host, &active_id)
-        .cloned()
-        .unwrap_or_default();
-    let app_config_path = match entry.sync.as_deref().filter(|s| !s.is_empty()) {
-        Some(sync) => std::path::Path::new(sync).join("rclone.conf"),
-        None => storeread::resolve_config_path(&ctx.dirs, &host, &active_id),
-    }
-    .to_string_lossy()
-    .into_owned();
-    let ctx2 = ctx.clone();
-    let default_path = host.default_config_path.clone();
-    let marker2 = marker.clone();
-    let app_config_path2 = app_config_path.clone();
-    let result = rt::spawn_blocking(move || {
-        zookeeper::set_config_sync(&ctx2, intent, app_config_path2, marker2, default_path)
-    })
-    .await;
-    match result {
-        Ok(Ok(status)) => {
-            let link_target = if status.managed {
-                Some(app_config_path)
-            } else {
-                None
-            };
-            let backup = status
-                .backup_path
-                .clone()
-                .filter(|_| status.default_backed_up);
-            let _ = store.update(HOST_DOC, |s| {
-                s.insert("syncConfigToSystem".into(), Value::Bool(intent));
-                s.insert(
-                    "syncConfigLinkTarget".into(),
-                    link_target.map(Value::String).unwrap_or(Value::Null),
-                );
-                if let Some(backup) = backup {
-                    s.insert("defaultConfigPath".into(), Value::String(backup));
-                }
-            });
-        }
-        Ok(Err(e)) => log::warn!("[lifecycle] config sync reconcile failed: {}", e),
-        Err(e) => log::warn!("[lifecycle] config sync reconcile failed: {}", e),
     }
 }
 
@@ -669,18 +554,6 @@ async fn run_loop(
                         }
                     }
                 }
-            }
-            Err(StartError::NeedsPassword { config_id, label }) => {
-                supervisor.stop_daemon().await;
-                log::warn!(
-                    "[lifecycle] config '{}' is encrypted and has no stored password",
-                    label
-                );
-                supervisor.set_phase(Phase::NeedsPassword { config_id, label });
-                if !wait_for_restart(&supervisor, &mut restart_rx, None).await {
-                    return;
-                }
-                attempts = 0;
             }
             Err(StartError::Fatal(error)) => {
                 supervisor.stop_daemon().await;

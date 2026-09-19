@@ -256,4 +256,34 @@ mod tests {
             "detached: the frame waits in the buffer"
         );
     }
+
+    /// The framing a progress-reporting RPC relies on (`app_update_install` is the only one left):
+    /// every message is a `stream` frame carrying the stream's id, and dropping the last clone
+    /// closes it with `stream_end`. Nothing else tells the page a stream has finished.
+    #[test]
+    fn a_stream_frames_its_messages_and_ends_when_dropped() {
+        let sessions = Sessions::default();
+        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+        sessions.attach("page", tx);
+        let frame = |rx: &mut mpsc::UnboundedReceiver<String>| -> Value {
+            serde_json::from_str(&rx.try_recv().expect("a frame")).unwrap()
+        };
+
+        let sink = sessions.stream_sink("page", "s1");
+        sink.send(json!({ "percent": 10 })).unwrap();
+        assert_eq!(
+            frame(&mut rx),
+            json!({ "type": "stream", "id": "s1", "event": { "percent": 10 } })
+        );
+
+        // A clone keeps the stream open: only the last one ends it.
+        let clone = sink.clone();
+        drop(sink);
+        assert!(
+            rx.try_recv().is_err(),
+            "a live clone must not end the stream"
+        );
+        drop(clone);
+        assert_eq!(frame(&mut rx), json!({ "type": "stream_end", "id": "s1" }));
+    }
 }

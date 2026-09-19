@@ -37,7 +37,6 @@ import { onErrorDialog } from '../../../lib/errors'
 import { formatBytes } from '../../../lib/format'
 import { hasFeature, remoteConfigQueryOptions, useFsInfo } from '../../../lib/hooks'
 import rclone from '../../../lib/rclone/client'
-import { useHostStore } from '../../../store/host'
 import ConfigEditDrawer from '../../components/ConfigEditDrawer'
 import RemoteAutoMountDrawer from '../../components/RemoteAutoMountDrawer'
 import { capabilities } from '../../../lib/api/host'
@@ -98,10 +97,8 @@ export default function RemotesSection() {
     const [searchParams] = useSearchParams()
     const [editingDrawerOpen, setEditingDrawerOpen] = useState(false)
     const [creatingDrawerOpen, setCreatingDrawerOpen] = useState(false)
-    // The Config section's editor on the active config, which it reads and writes through the
-    // daemon: the file rclone actually runs with, whichever daemon this host runs.
+    // The editor on rclone's config file, read and written through the daemon.
     const [configDrawerOpen, setConfigDrawerOpen] = useState(false)
-    const activeConfigId = useHostStore((state) => state.activeConfigId)
     const [autoMountDrawerOpen, setAutoMountDrawerOpen] = useState(false)
 
     const remotesQuery = useQuery({
@@ -434,8 +431,6 @@ export default function RemotesSection() {
             <ConfigEditDrawer
                 isOpen={configDrawerOpen}
                 onClose={() => setConfigDrawerOpen(false)}
-                id={activeConfigId}
-                daemon={true}
             />
 
             {pickedRemote && (

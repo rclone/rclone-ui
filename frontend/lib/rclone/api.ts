@@ -1,7 +1,4 @@
-import * as Sentry from '@sentry/browser'
-
 import pRetry from 'p-retry'
-import { selectActiveConfigFile, useHostStore } from '../../store/host'
 import {
     type TransferDetail,
     type TransferEntry,
@@ -16,7 +13,6 @@ import type { FlagValue } from '../../types/rclone'
 import { UserCancelledError, formatErrorMessage } from '../errors'
 import { getFsInfo } from '../format'
 import { dispatchNotification } from '../notifications'
-import { restartActiveRclone, runRcloneCli } from './cli'
 import rclone, {
     currentHostOs,
     handleReconnectIfNeeded,
@@ -43,7 +39,6 @@ import {
     toFilterParam,
 } from './requests'
 import { describeSources } from './kinds'
-import { message } from '../api/dialog'
 import { attendLogin, loginParameters, presentSignIn, stopStrayOAuth } from './oauth'
 
 const RE_BACKSLASH = /\\/g
@@ -637,84 +632,6 @@ export async function startBatch(
         },
         { isDryRun: options?.isDryRun, preset: options?.preset, tags: options?.tags }
     )
-}
-
-/* PASSWORD */
-export async function removeConfigPassword() {
-    console.log('[removeConfigPassword]')
-
-    const state = useHostStore.getState()
-    const activeConfig = selectActiveConfigFile(state)
-
-    if (!activeConfig || !activeConfig.id) {
-        throw new Error('No active configuration selected.')
-    }
-
-    if (!activeConfig.isEncrypted) {
-        throw new Error('Configuration is not encrypted.')
-    }
-
-    try {
-        await runRcloneCli(['config', 'encryption', 'remove'])
-        state.updateConfigFile(activeConfig.id, {
-            isEncrypted: false,
-            pass: undefined,
-            passCommand: undefined,
-        })
-        console.log('[removeConfigPassword] restarting rclone')
-        await restartActiveRclone()
-    } catch (error) {
-        Sentry.captureException(error)
-        await message(error instanceof Error ? error.message : 'Failed to disable encryption.', {
-            title: 'Config Encryption',
-            kind: 'error',
-            okLabel: 'OK',
-        })
-        throw error
-    }
-}
-
-export async function setConfigPassword(options: {
-    password: string
-    persist?: boolean
-}) {
-    console.log('[setConfigPassword]')
-
-    const state = useHostStore.getState()
-    const activeConfig = selectActiveConfigFile(state)
-
-    if (!activeConfig || !activeConfig.id) {
-        throw new Error('No active configuration selected.')
-    }
-
-    const password = options.password
-
-    if (!password) {
-        throw new Error('Password is required to update encryption.')
-    }
-
-    try {
-        await runRcloneCli(['config', 'encryption', 'set'], [password, password])
-        state.updateConfigFile(activeConfig.id, {
-            isEncrypted: true,
-            pass: options.persist ? password : undefined,
-            passCommand: undefined,
-        })
-
-        console.log('[setConfigPassword] restarting rclone')
-        await restartActiveRclone()
-    } catch (error) {
-        Sentry.captureException(error)
-        await message(
-            error instanceof Error ? error.message : 'Failed to update encryption password.',
-            {
-                title: 'Config Encryption',
-                kind: 'error',
-                okLabel: 'OK',
-            }
-        )
-        throw error
-    }
 }
 
 /* RECONNECT */

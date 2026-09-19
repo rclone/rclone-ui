@@ -8,7 +8,6 @@ use axum::Json;
 use crate::lifecycle::interaction::{ask, Decision, Question};
 use crate::lifecycle::{resolve, RestartOverrides};
 use crate::rt;
-use crate::state_files::HOST_DOC;
 use crate::transfers::service::StartRequest;
 use crate::Sink;
 use serde_json::{json, Value};
@@ -353,23 +352,6 @@ server_rpcs! {
             supervisor.stop().await;
             ok(Value::Null)
         },
-        "rclone_password" => {
-            let supervisor = st.supervisor().ok_or("the rclone daemon is external")?;
-            let config_id = str_arg(&args, "configId")?;
-            let pass = str_arg(&args, "pass")?;
-            st.store.update(HOST_DOC, |s| {
-                if let Some(list) = s.get_mut("configFiles").and_then(Value::as_array_mut) {
-                    for item in list.iter_mut() {
-                        if item.get("id").and_then(Value::as_str) == Some(&config_id) {
-                            item["pass"] = Value::String(pass.clone());
-                            item["isEncrypted"] = Value::Bool(true);
-                        }
-                    }
-                }
-            })?;
-            supervisor.request_restart(None);
-            ok(Value::Null)
-        },
         // --- transfers ---------------------------------------------------------------------
         // Submitting and recording are one step, so rclone never runs a transfer the ledger has
         // not heard of. The list and the details are plain reads (`transfers_list`,
@@ -406,19 +388,6 @@ server_rpcs! {
         },
 
         // --- filesystem --------------------------------------------------------------------
-        "fs_read_tail" => {
-            // The pages read the application's own log, nothing else on the server's disk.
-            let path = str_arg(&args, "path")?;
-            let allowed = crate::static_files::log_file(st).ok_or("there is no log file")?;
-            let same = match (std::fs::canonicalize(&path), std::fs::canonicalize(&allowed)) {
-                (Ok(requested), Ok(allowed)) => requested == allowed,
-                _ => false,
-            };
-            if !same {
-                return Err("only the application log can be read".into());
-            }
-            crate::fs::read_tail(&args).await.map(Reply::Json)
-        },
 
         // --- finishing a sign-in on another machine ----------------------------------------
         "oauth_auth_link" => {

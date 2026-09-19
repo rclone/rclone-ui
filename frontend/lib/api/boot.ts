@@ -8,7 +8,6 @@ export interface Capabilities {
     mount: boolean
     scheduler: boolean
     processExit: boolean
-    configSync: boolean
     pathIntegration: boolean
 }
 
@@ -54,7 +53,6 @@ const FALLBACK: BootPayload = {
         mount: true,
         scheduler: true,
         processExit: false,
-        configSync: false,
         pathIntegration: false,
     },
     os: { platform: 'linux', family: 'unix', arch: 'x86_64', version: '', eol: '\n' },

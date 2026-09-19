@@ -7,16 +7,8 @@ use std::sync::Arc;
 pub enum Question {
     /// A system rclone was found on PATH; adopt it instead of managing a copy?
     AdoptSystemRclone { path: String, version: String },
-    /// The active config is encrypted and no password is stored. `Text(password)` answers.
-    ConfigPassword {
-        config_id: String,
-        label: String,
-        attempt: u32,
-    },
     /// The configured proxy failed its connectivity test. `Continue` or `Exit`.
     ProxyUnreachable { url: String, error: String },
-    /// The synced (external-folder) config file is gone. `Yes` switches to the default config.
-    SyncedConfigMissing { label: String, path: String },
     /// rclone kept crashing (`attempts` in a row). `Relaunch` starts over now, `Exit` gives up;
     /// anything else keeps retrying at the longest backoff.
     RcloneCrashed { code: Option<i32>, attempts: u32 },
@@ -51,9 +43,7 @@ impl Interaction for ServerPolicy {
     fn decide(&self, question: Question) -> Decision {
         match question {
             Question::AdoptSystemRclone { .. } => Decision::Yes,
-            Question::ConfigPassword { .. } => Decision::No,
             Question::ProxyUnreachable { .. } => Decision::Continue,
-            Question::SyncedConfigMissing { .. } => Decision::Yes,
             // A headless server has nobody to click Relaunch: keep trying, backing off.
             Question::RcloneCrashed { .. } => Decision::Continue,
             Question::StartFailed { .. } => Decision::Continue,

@@ -11,8 +11,9 @@
 //! - `sync`   — the body may block (filesystem, subprocesses, HTTP via `rt::block_on`); hosts
 //!              run it on the blocking pool.
 //! - `async`  — the body awaits; hosts await it directly.
-//! - `stream` — returns quickly and keeps sending on its `Sink` afterwards; the channel
-//!              argument is declared after `;` and arrives from JS as `onEvent`.
+//!
+//! Nothing in the table streams. Progress-reporting commands are the server's own
+//! (`server_rpcs.rs`, e.g. `app_update_install`), which carry their `Sink` themselves.
 
 pub mod misc;
 
@@ -20,17 +21,13 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::ctx::Ctx;
-use crate::sink::Sink;
 
 #[macro_export]
 macro_rules! for_each_command {
     ($callback:ident) => {
         $callback! {
             // --- rclone binary management (zookeeper) ---
-            sync exec_rclone(path: String, args: Vec<String>, env: ::std::collections::HashMap<String, String>, stdin_lines: Option<Vec<String>>, timeout_ms: Option<u64>) -> $crate::zookeeper::ExecResult = $crate::zookeeper::exec_rclone;
             sync validate_rclone_binary(path: String) -> String = $crate::zookeeper::validate_rclone_binary;
-            sync rclone_config_path(path: String) -> String = $crate::zookeeper::rclone_config_path;
-            stream spawn_rclone(path: String, args: Vec<String>, env: ::std::collections::HashMap<String, String>; on_event: $crate::zookeeper::RcloneEvent) -> u32 = $crate::zookeeper::spawn_rclone;
             sync kill_rclone_daemon(timeout_ms: Option<u64>) -> bool = $crate::zookeeper::kill_rclone_daemon;
             sync find_system_rclone() -> Option<String> = $crate::zookeeper::find_system_rclone;
             sync classify_rclone_path(path: String) -> $crate::zookeeper::RcloneClassification = $crate::zookeeper::classify_rclone_path;
@@ -41,8 +38,6 @@ macro_rules! for_each_command {
             sync update_path_pointer(target_path: String) -> () = $crate::zookeeper::update_path_pointer;
             sync get_rclone_path_integration() -> $crate::zookeeper::PathStatus = $crate::zookeeper::get_rclone_path_integration;
             sync set_rclone_path_integration(enable: bool, target_path: String) -> $crate::zookeeper::PathStatus = $crate::zookeeper::set_rclone_path_integration;
-            sync get_config_sync_status(app_config_path: String, owned_link_target: Option<String>) -> $crate::zookeeper::ConfigSyncStatus = $crate::zookeeper::get_config_sync_status;
-            sync set_config_sync(enable: bool, app_config_path: String, owned_link_target: Option<String>, default_config_path: Option<String>) -> $crate::zookeeper::ConfigSyncStatus = $crate::zookeeper::set_config_sync;
 
             // --- scheduler ---
             sync scheduler_supported() -> $crate::scheduler::SupportInfo = $crate::scheduler::scheduler_supported;
@@ -96,35 +91,19 @@ fn to_value<T: Serialize>(value: T) -> Result<Value, String> {
 }
 
 macro_rules! gen_dispatch {
-    ( $( $kind:ident $name:ident ( $( $(#[$attr:meta])* $arg:ident : $ty:ty ),* $(,)? $( ; $ch:ident : $ev:ty )? ) -> $ok:ty = $path:path ; )* ) => {
+    ( $( $kind:ident $name:ident ( $( $(#[$attr:meta])* $arg:ident : $ty:ty ),* $(,)? ) -> $ok:ty = $path:path ; )* ) => {
         /// Every command in the table, by wire name.
         pub const COMMAND_NAMES: &[&str] = &[ $( stringify!($name) ),* ];
 
-        /// Whether a command streams through a channel (`onEvent` in its arguments).
-        pub fn is_streaming(cmd: &str) -> bool {
-            match cmd {
-                $( stringify!($name) => gen_dispatch!(@is_stream $kind), )*
-                _ => false,
-            }
-        }
-
         /// Runs a command by wire name with the JSON arguments the frontend's `invoke` sends.
-        /// Streaming commands need `sink`; the others ignore it.
-        pub async fn dispatch(
-            ctx: &Ctx,
-            cmd: &str,
-            args: Value,
-            sink: Option<Sink<Value>>,
-        ) -> Result<Value, String> {
+        pub async fn dispatch(ctx: &Ctx, cmd: &str, args: Value) -> Result<Value, String> {
             match cmd {
-                $( stringify!($name) => gen_dispatch!(@call $kind ctx args sink ( $( $(#[$attr])* $arg : $ty ),* $( ; $ch : $ev )? ) $path), )*
+                $( stringify!($name) => gen_dispatch!(@call $kind ctx args ( $( $(#[$attr])* $arg : $ty ),* ) $path), )*
                 other => Err(format!("unknown command '{}'", other)),
             }
         }
     };
-    (@is_stream stream) => { true };
-    (@is_stream $kind:ident) => { false };
-    (@call sync $ctx:ident $args:ident $sink:ident ( $( $(#[$attr:meta])* $arg:ident : $ty:ty ),* ) $path:path) => {{
+    (@call sync $ctx:ident $args:ident ( $( $(#[$attr:meta])* $arg:ident : $ty:ty ),* ) $path:path) => {{
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct Args { $( $(#[$attr])* $arg: $ty ),* }
@@ -136,25 +115,13 @@ macro_rules! gen_dispatch {
             .map_err(|e| e.to_string())??;
         to_value(out)
     }};
-    (@call async $ctx:ident $args:ident $sink:ident ( $( $(#[$attr:meta])* $arg:ident : $ty:ty ),* ) $path:path) => {{
+    (@call async $ctx:ident $args:ident ( $( $(#[$attr:meta])* $arg:ident : $ty:ty ),* ) $path:path) => {{
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct Args { $( $(#[$attr])* $arg: $ty ),* }
         #[allow(unused_variables)]
         let a: Args = parse_args($args)?;
         let out = $path($ctx, $( a.$arg ),* ).await?;
-        to_value(out)
-    }};
-    (@call stream $ctx:ident $args:ident $sink:ident ( $( $(#[$attr:meta])* $arg:ident : $ty:ty ),* ; $ch:ident : $ev:ty ) $path:path) => {{
-        #[derive(serde::Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Args { $( $(#[$attr])* $arg: $ty ),* }
-        #[allow(unused_variables)]
-        let a: Args = parse_args($args)?;
-        let sink = $sink
-            .ok_or_else(|| format!("'{}' needs a channel ({})", stringify!($name), stringify!($ch)))?
-            .retype::<$ev>();
-        let out = $path($ctx, $( a.$arg ),*, sink)?;
         to_value(out)
     }};
 }
@@ -183,33 +150,30 @@ mod tests {
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), COMMAND_NAMES.len());
-        assert!(is_streaming("spawn_rclone"));
-        assert!(!is_streaming("get_arch"));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn dispatches_sync_async_and_unknown() {
         let ctx = ctx();
-        let arch = dispatch(&ctx, "get_arch", Value::Null, None).await.unwrap();
+        let arch = dispatch(&ctx, "get_arch", Value::Null).await.unwrap();
         assert!(arch.is_string());
 
         let validation = dispatch(
             &ctx,
             "scheduler_validate_cron",
             serde_json::json!({ "cron": "*/5 * * * *" }),
-            None,
         )
         .await
         .unwrap();
         assert_eq!(validation["valid"], Value::Bool(true));
 
-        let err = dispatch(&ctx, "no_such_command", Value::Null, None)
+        let err = dispatch(&ctx, "no_such_command", Value::Null)
             .await
             .unwrap_err();
         assert!(err.contains("unknown command"));
 
         // Missing required argument → a deserialization error, never a panic.
-        let err = dispatch(&ctx, "scheduler_validate_cron", Value::Null, None)
+        let err = dispatch(&ctx, "scheduler_validate_cron", Value::Null)
             .await
             .unwrap_err();
         assert!(err.contains("invalid arguments"));

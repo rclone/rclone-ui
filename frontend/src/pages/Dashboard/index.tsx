@@ -165,7 +165,6 @@ const PHASE_CHIP: Record<
     resolving: { label: 'Finding rclone', color: 'warning' },
     downloading: { label: 'Downloading rclone', color: 'warning' },
     updating: { label: 'Updating rclone', color: 'warning' },
-    needsPassword: { label: 'Needs config password', color: 'danger' },
     failed: { label: 'Failed to start', color: 'danger' },
     stopped: { label: 'Stopped', color: 'default' },
 }

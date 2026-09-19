@@ -147,22 +147,6 @@ export function buildReadablePathMultiple(
     return readablePath
 }
 
-export function getConfigParentFolder(path: string) {
-    console.log('[getConfigParentFolder] path', path)
-    if (path.endsWith('\\rclone.conf')) {
-        console.log('[getConfigParentFolder] path ends with \\rclone.conf')
-        return path.slice(0, -11)
-    }
-
-    if (path.endsWith('/rclone.conf')) {
-        console.log('[getConfigParentFolder] path ends with /rclone.conf')
-        return path.slice(0, -11)
-    }
-
-    console.log('[getConfigParentFolder] path does not end with \\rclone.conf or /rclone.conf')
-    return path
-}
-
 /**
  * The split every request makes of a path: the fs `root` (`gdrive:`, `gdrive:/`, `:local:/`,
  * `:local:C:/` — a leading slash the user typed stays on the root, where it counts: absolute

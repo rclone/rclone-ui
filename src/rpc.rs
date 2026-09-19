@@ -1,6 +1,7 @@
 //! `POST /api/rpc/{name}` — the page's `rpc(name, args)`. The JSON body is the args object
-//! (or empty). Replies `{ok:true, value}` / `{ok:false, error}`. Streaming commands take a
-//! `stream` id in their args; events then arrive on the page's WebSocket. Resolution order: the
+//! (or empty). Replies `{ok:true, value}` / `{ok:false, error}`. A server RPC that reports
+//! progress takes a `stream` id in its args; events then arrive on the page's WebSocket (no
+//! command in the shared table streams). Resolution order: the
 //! server's own RPCs, then the shared command table. Bytes never travel here: files go through
 //! `/api/rc` and `/api/dl`.
 
@@ -81,11 +82,8 @@ pub async fn handle(
         return reply(result);
     }
 
-    if commands::is_streaming(&name) && sink.is_none() {
-        return reply(Err(format!("'{}' needs a stream id", name)));
-    }
     reply(
-        commands::dispatch(&st.ctx, &name, args, sink)
+        commands::dispatch(&st.ctx, &name, args)
             .await
             .map(Reply::Json),
     )

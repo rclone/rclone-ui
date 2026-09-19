@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { stateStorage, watchDoc, whenWritten } from '../lib/api/state'
-import type { ConfigFile } from '../types/config'
+import { stateStorage, watchDoc } from '../lib/api/state'
 import type { ScheduledTask } from '../types/schedules'
 
 // The host document (`<app_data>/state/hosts/local.json`, served as `/api/state/hosts/local`).
@@ -18,17 +17,6 @@ watchDoc(activeDoc, () => useHostStore.persist.rehydrate())
  */
 export async function initHostStore(): Promise<void> {
     await useHostStore.persist.rehydrate()
-}
-
-/**
- * Waits for the writes the host store has queued so far to land. The persist middleware writes
- * asynchronously (a bare `set()` returns before the request is sent), leaving a crash window
- * between a Rust filesystem mutation and its state being persisted; call this right after a
- * config-sync state write so the on-disk document matches the filesystem before proceeding.
- */
-export async function flushHostStore(): Promise<void> {
-    const doc = activeDoc()
-    if (doc) await whenWritten(doc)
 }
 
 export interface RemoteConfig {
@@ -68,33 +56,6 @@ interface HostState {
     removeScheduledTask: (id: string) => void
     updateScheduledTask: (id: string, task: Partial<ScheduledTask>) => void
 
-    configFiles: ConfigFile[]
-    addConfigFile: (configFile: ConfigFile) => void
-    removeConfigFile: (id: string) => void
-    activeConfigId: string | null
-    setActiveConfigFile: (id: string) => void
-    updateConfigFile: (id: string, configFile: Partial<ConfigFile>) => void
-
-    // Resolved-once location of the "default" rclone config for this host. Pinned so switching
-    // the rclone binary never relocates where the user's remotes are read from.
-    defaultConfigPath: string | undefined
-    setDefaultConfigPath: (path: string | undefined) => void
-
-    // User intent to keep the system rclone config path symlinked to the active config, so a
-    // terminal `rclone` shares the app's remotes. Drives reconcile on startup/switch/activation.
-    // Set together with the ownership marker via setConfigSyncState.
-    syncConfigToSystem: boolean
-
-    // Positive ownership marker: the exact target our config-sync symlink currently points at (null
-    // when we hold no link). The ONLY proof that the system-path symlink is ours — target *location*
-    // is not proof, so a user's own symlink is never misattributed to us. Passed to the config-sync
-    // commands and updated from their result. Note it records the link's target, not its location, so
-    // if the system path itself moves (XDG_CONFIG_HOME set/unset between sessions) a stale link at the
-    // old location is left orphaned — harmless (it points at a valid app config), intentionally unswept.
-    syncConfigLinkTarget: string | null
-    // Atomically set both the intent and the ownership marker (a single store write, so a crash can
-    // never land between them and desync intent from what we actually linked).
-    setConfigSyncState: (state: { intent: boolean; linkTarget: string | null }) => void
 }
 
 type HostData = Pick<
@@ -104,11 +65,6 @@ type HostData = Pick<
     | 'favoritePaths'
     | 'remoteFirstSeen'
     | 'scheduledTasks'
-    | 'configFiles'
-    | 'activeConfigId'
-    | 'defaultConfigPath'
-    | 'syncConfigToSystem'
-    | 'syncConfigLinkTarget'
 >
 
 /** What a host's document holds before anything is saved for it. */
@@ -118,11 +74,6 @@ const HOST_DEFAULTS: HostData = {
     favoritePaths: [],
     remoteFirstSeen: {},
     scheduledTasks: [],
-    configFiles: [],
-    activeConfigId: null,
-    defaultConfigPath: undefined,
-    syncConfigToSystem: false,
-    syncConfigLinkTarget: null,
 }
 
 export const useHostStore = create<HostState>()(
@@ -167,31 +118,6 @@ export const useHostStore = create<HostState>()(
                         t.id === id ? ({ ...t, ...task } as ScheduledTask) : t
                     ),
                 })),
-
-            addConfigFile: (configFile: ConfigFile) =>
-                set((state) => ({
-                    configFiles: [...state.configFiles, configFile],
-                })),
-            removeConfigFile: (id: string) =>
-                set((state) => ({
-                    configFiles: state.configFiles.filter((f) => f.id !== id),
-                })),
-            setActiveConfigFile: (id: string) =>
-                set((state) => ({
-                    activeConfigId: state.configFiles.some((f) => f.id === id) ? id : null,
-                })),
-            updateConfigFile: (id: string, configFile: Partial<ConfigFile>) =>
-                set((state) => ({
-                    configFiles: state.configFiles.map((f) =>
-                        f.id === id ? { ...f, ...configFile } : f
-                    ),
-                })),
-
-            setDefaultConfigPath: (path: string | undefined) =>
-                set((_) => ({ defaultConfigPath: path })),
-
-            setConfigSyncState: ({ intent, linkTarget }) =>
-                set((_) => ({ syncConfigToSystem: intent, syncConfigLinkTarget: linkTarget })),
         }),
         {
             name: 'host-store',
@@ -205,31 +131,25 @@ export const useHostStore = create<HostState>()(
                 ...HOST_DEFAULTS,
                 ...((persisted as Partial<HostState> | null | undefined) ?? {}),
             }),
-            version: 2,
+            version: 3,
             migrate: (persistedState, version) => {
                 if (!persistedState) {
                     return persistedState
                 }
                 let state = persistedState as Record<string, unknown>
 
-                // - The full active ConfigFile object collapses to just its id. Also handles the
-                //   version-1 blob written by the persisted-store's legacy migration, whose
-                //   configFiles can be undefined.
-                // - A task's runtime fields (isRunning/currentRunId/lastRun/lastRunError) moved
-                //   out of the store and into the scheduler's own run history. Pure reshape —
-                //   registering what the document lists happens in the startup reconcile.
+                // A task's runtime fields (isRunning/currentRunId/lastRun/lastRunError) moved out
+                // of the store and into the scheduler's own run history. Pure reshape —
+                // registering what the document lists happens in the startup reconcile.
                 if (version < 2) {
-                    const { activeConfigFile, configFiles, ...rest } = state as {
-                        activeConfigFile?: ConfigFile | null
-                        configFiles?: ConfigFile[]
+                    const { activeConfigFile, ...rest } = state as {
+                        activeConfigFile?: { id?: string } | null
                         [key: string]: unknown
                     }
                     const activeConfigId = activeConfigFile?.id ?? null
                     const tasks = (rest.scheduledTasks as Record<string, unknown>[]) ?? []
                     state = {
                         ...rest,
-                        configFiles: configFiles ?? [],
-                        activeConfigId,
                         scheduledTasks: tasks.map(
                             ({ isRunning, currentRunId, lastRun, lastRunError, ...task }) => ({
                                 ...task,
@@ -246,13 +166,24 @@ export const useHostStore = create<HostState>()(
                     }
                 }
 
+                // The app no longer has an opinion about rclone's config file: rclone resolves it
+                // from its own environment. These keys described a config the app managed, and
+                // `merge` would otherwise spread them back onto state forever.
+                if (version < 3) {
+                    const {
+                        configFiles,
+                        activeConfigId,
+                        defaultConfigPath,
+                        syncConfigToSystem,
+                        syncConfigLinkTarget,
+                        ...rest
+                    } = state
+                    state = rest
+                }
+
                 return state
             },
         }
     )
 )
 
-/** Resolves the active ConfigFile object from the stored id, or null if it no longer exists. */
-export function selectActiveConfigFile(state: HostState): ConfigFile | null {
-    return state.configFiles.find((f) => f.id === state.activeConfigId) ?? null
-}

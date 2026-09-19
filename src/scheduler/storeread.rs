@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 pub use crate::datadir::DataDir;
 
@@ -28,9 +28,6 @@ pub struct RootState {
 #[serde(rename_all = "camelCase", default)]
 pub struct HostState {
     pub proxy: Option<ProxyCfg>,
-    pub config_files: Vec<ConfigFileEntry>,
-    pub default_config_path: Option<String>,
-    pub active_config_id: Option<String>,
     pub remote_configs: HashMap<String, RemoteConfig>,
     /// Only what the boot reconcile needs; the task bodies stay opaque to Rust.
     pub scheduled_tasks: Vec<ScheduledTaskEntry>,
@@ -69,19 +66,6 @@ pub struct MountOnStart {
 pub struct ProxyCfg {
     pub url: String,
     pub ignored_hosts: Vec<String>,
-}
-
-/// Mirrors types/config.d.ts `ConfigFile` (every field, so a rewrite never drops one).
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct ConfigFileEntry {
-    pub id: Option<String>,
-    pub label: Option<String>,
-    /// External folder the config is synced from (its `rclone.conf` is the file to use).
-    pub sync: Option<String>,
-    pub is_encrypted: bool,
-    pub pass: Option<String>,
-    pub pass_command: Option<String>,
 }
 
 /// The server's state documents (`state_files.rs`): `{version, revision, state}`.
@@ -130,45 +114,12 @@ pub fn read_host(dirs: &DataDir) -> Result<HostState, String> {
     read_state_doc(&path)?.ok_or_else(|| format!("no host document at {}", path.display()))
 }
 
-/// Where a config entry's file is: a config
-/// synced from an external folder is that folder's `rclone.conf`; otherwise
-/// `configs/<id>/rclone.conf` under AppLocalData (lib/rclone/common.ts getConfigPath), except
-/// config id 'default' uses the host store's defaultConfigPath when set (so switching binaries
-/// never relocates the user's remotes).
-pub fn resolve_config_path(dirs: &DataDir, host: &HostState, config_id: &str) -> PathBuf {
-    if let Some(sync) = find_config(host, config_id)
-        .and_then(|c| c.sync.as_deref())
-        .filter(|s| !s.is_empty())
-    {
-        return Path::new(sync).join("rclone.conf");
-    }
-    if config_id == "default" {
-        if let Some(p) = host.default_config_path.as_deref() {
-            if !p.is_empty() {
-                return PathBuf::from(p);
-            }
-        }
-    }
-    dirs.root
-        .join("configs")
-        .join(config_id)
-        .join("rclone.conf")
-}
-
-pub fn find_config<'a>(host: &'a HostState, config_id: &str) -> Option<&'a ConfigFileEntry> {
-    host.config_files
-        .iter()
-        .find(|c| c.id.as_deref() == Some(config_id))
-}
-
-/// Mirrors lib/rclone/cli.ts buildRcloneEnv: proxy vars, config pinning, and encrypted-config
-/// credentials. Errors when the config is encrypted with nothing stored — the server has nobody
-/// to prompt.
-pub fn build_run_env(
-    host: &HostState,
-    config: Option<&ConfigFileEntry>,
-    config_path: &Path,
-) -> Result<HashMap<String, String>, String> {
+/// The environment the daemon is started with, on top of the one this process already has.
+///
+/// Only the proxy belongs here. Nothing about rclone's configuration file does: the server does
+/// not decide where that lives, so `RCLONE_CONFIG` and friends are left exactly as the operator
+/// set them and rclone resolves its own config (see `lifecycle/mod.rs`).
+pub fn build_run_env(host: &HostState) -> HashMap<String, String> {
     let mut env = HashMap::new();
 
     if let Some(proxy) = &host.proxy {
@@ -184,37 +135,7 @@ pub fn build_run_env(
         }
     }
 
-    let config_dir = config_path
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_default();
-    env.insert(
-        "RCLONE_CONFIG_DIR".to_string(),
-        config_dir.to_string_lossy().into_owned(),
-    );
-    env.insert(
-        "RCLONE_CONFIG".to_string(),
-        config_path.to_string_lossy().into_owned(),
-    );
-
-    if let Some(cfg) = config {
-        if cfg.is_encrypted {
-            env.insert("RCLONE_ASK_PASSWORD".to_string(), "false".to_string());
-            if let Some(cmd) = cfg.pass_command.as_deref().filter(|s| !s.is_empty()) {
-                env.insert("RCLONE_CONFIG_PASS_COMMAND".to_string(), cmd.to_string());
-            } else if let Some(pass) = cfg.pass.as_deref().filter(|s| !s.is_empty()) {
-                env.insert("RCLONE_CONFIG_PASS".to_string(), pass.to_string());
-            } else {
-                let label = cfg.label.clone().unwrap_or_else(|| "default".to_string());
-                return Err(format!(
-                    "Config '{}' is encrypted and no password is stored. Save the config password in Settings › Config so rclone can be started with it.",
-                    label
-                ));
-            }
-        }
-    }
-
-    Ok(env)
+    env
 }
 
 #[cfg(test)]
@@ -242,39 +163,36 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// A config created through "Sync Config" keeps its file in the external folder; a schedule
-    /// on it must run against that file, as the app does.
+    /// The daemon's environment says nothing about rclone's config file. Setting any of these
+    /// would override what the operator put in the environment we are inherited from, which is
+    /// the one thing this design must never do.
     #[test]
-    fn a_synced_config_resolves_to_its_folder() {
-        let dirs = DataDir {
-            root: PathBuf::from("/tmp/rcui-data"),
-        };
-        let mut host = HostState::default();
-        host.config_files.push(ConfigFileEntry {
-            id: Some("synced".into()),
-            sync: Some("/ext/folder".into()),
-            ..Default::default()
-        });
-        assert_eq!(
-            resolve_config_path(&dirs, &host, "synced"),
-            PathBuf::from("/ext/folder/rclone.conf")
-        );
-        assert_eq!(
-            resolve_config_path(&dirs, &host, "other"),
-            PathBuf::from("/tmp/rcui-data/configs/other/rclone.conf")
-        );
-    }
-
-    #[test]
-    fn encrypted_config_without_pass_errors() {
-        let host = HostState::default();
-        let cfg = ConfigFileEntry {
-            id: Some("default".into()),
-            label: Some("Default config".into()),
-            is_encrypted: true,
+    fn the_daemon_environment_says_nothing_about_the_config_file() {
+        let host = HostState {
+            proxy: Some(ProxyCfg {
+                url: "http://proxy:8080".into(),
+                ignored_hosts: vec!["localhost".into()],
+            }),
             ..Default::default()
         };
-        let err = build_run_env(&host, Some(&cfg), Path::new("/tmp/rclone.conf")).unwrap_err();
-        assert!(err.contains("encrypted"));
+        let env = build_run_env(&host);
+        assert_eq!(
+            env.get("http_proxy").map(String::as_str),
+            Some("http://proxy:8080")
+        );
+        assert_eq!(env.get("no_proxy").map(String::as_str), Some("localhost"));
+        for key in [
+            "RCLONE_CONFIG",
+            "RCLONE_CONFIG_DIR",
+            "RCLONE_ASK_PASSWORD",
+            "RCLONE_CONFIG_PASS",
+            "RCLONE_CONFIG_PASS_COMMAND",
+        ] {
+            assert!(
+                !env.contains_key(key),
+                "{} must be left to the operator",
+                key
+            );
+        }
     }
 }

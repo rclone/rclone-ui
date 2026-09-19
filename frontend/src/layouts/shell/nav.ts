@@ -76,8 +76,8 @@ function settingsLeaf(key: SectionKey): NavLeaf {
     }
 }
 
-// Only these sections are listed. General, Remotes, Config and About keep their routes for deep
-// links, and so do Binary and Proxy: those two are the Rclone screen here.
+// Only these sections are listed. General and Remotes keep their routes for deep links; the
+// binary and proxy settings are both on the Rclone screen.
 const SETTINGS_KEYS: SectionKey[] = ['notifications', 'smtp', 'rclone', 'team']
 
 export const SETTINGS_ZONE: NavZone = { label: 'Settings', items: SETTINGS_KEYS.map(settingsLeaf) }

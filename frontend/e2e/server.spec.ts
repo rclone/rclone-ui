@@ -226,8 +226,8 @@ test('the shell: zones, settings routes, the remotes zone and the icon rail', as
     await expect(page.getByText('Options')).toHaveCount(0)
     await expect(page.getByText('Check for updates')).toHaveCount(caps.updater ? 1 : 0)
     // The old ?tab= deep links still land on their section.
-    await page.goto('/settings?tab=config')
-    await expect(page).toHaveURL(/\/settings\/config$/)
+    await page.goto('/settings?tab=smtp')
+    await expect(page).toHaveURL(/\/settings\/smtp$/)
     // A remote in the sidebar opens it in the Commander, which collapses the sidebar to icons.
     await nav.getByRole('link', { name: 'e2e-memory' }).click()
     await expect(page).toHaveURL(/\/commander\?path=e2e-memory%3A$/)
@@ -544,23 +544,6 @@ test('a malformed precondition is refused, not treated as none', async ({ reques
     expect(await response.text()).toContain('If-Match')
 })
 
-test('the log tail reads the application log and nothing else', async ({ request }) => {
-    const rpc = (data: Record<string, unknown>) =>
-        request.post('/api/rpc/fs_read_tail', { headers: SESSION, data })
-    const refused = (await (await rpc({ path: '/etc/hosts', lines: 5 })).json()) as {
-        ok: boolean
-        error?: string
-    }
-    expect(refused.ok).toBe(false)
-    expect(refused.error).toContain('application log')
-    const logFile = resolve('e2e/.tmp/open/logs/rclone-ui-server.log')
-    const allowed = (await (await rpc({ path: logFile, lines: 5 })).json()) as {
-        ok: boolean
-        value?: string[]
-    }
-    expect(allowed.ok).toBe(true)
-    expect(Array.isArray(allowed.value)).toBe(true)
-})
 
 test('a removed member loses their WebSocket', async ({ browser }) => {
     const base = 'http://127.0.0.1:5611'
@@ -792,26 +775,12 @@ test('in-page dialogs: ask and prompt', async ({ page }) => {
     expect(await prompted).toBe('hello')
 })
 
-test('a streaming command delivers its events over the WebSocket', async ({ page }) => {
+test('the folder picker lists the daemon’s disk and returns the chosen path', async ({ page }) => {
     const errors = collectErrors(page)
     const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-'))
     writeFileSync(join(dir, 'note.txt'), 'hi')
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
-
-    // A one-off `rclone version` through the daemon spawner: its close event is the stream.
-    const events = await page.evaluate(async () => {
-        const { stream } = window.__RCLONE_CLOUD_API__
-        const seen: { kind: string; code: number | null }[] = []
-        const handle = await stream<number, { kind: string; code: number | null }>(
-            'spawn_rclone',
-            { path: '/usr/local/bin/rclone', args: ['version'], env: {} },
-            (event) => seen.push(event)
-        )
-        await handle.done
-        return seen
-    })
-    expect(events.at(-1)).toMatchObject({ kind: 'close', code: 0 })
 
     // The folder picker renders PathSelector, whose FilePanel lists the daemon's disk.
     const picked = page.evaluate(async (path) => {
@@ -1248,7 +1217,7 @@ test('a data directory laid out by the old app is migrated at startup, once', as
     const app = JSON.stringify({ state: { rclonePath: '/usr/bin/rclone', hosts: [] }, version: 3 })
     writeFileSync(join(data, 'store.json'), JSON.stringify({ store: app }))
     const host = JSON.stringify({
-        state: { favoritePaths: ['e2e-memory:kept'], activeConfigId: 'default' },
+        state: { favoritePaths: ['e2e-memory:kept'] },
         version: 2,
     })
     mkdirSync(join(data, 'hosts', 'local'), { recursive: true })

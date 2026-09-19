@@ -9,8 +9,7 @@ export default function SettingsGate({ children }: { children: ReactNode }) {
         phase !== null &&
         phase.phase !== 'ready' &&
         phase.phase !== 'stopped' &&
-        phase.phase !== 'failed' &&
-        phase.phase !== 'needsPassword'
+        phase.phase !== 'failed'
 
     if (isRestartingRclone) {
         return (

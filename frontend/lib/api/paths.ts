@@ -5,11 +5,6 @@ import { boot } from './boot'
 export const sep = boot.paths.sep
 export const delimiter = boot.paths.delimiter
 export const home = boot.paths.home ?? ''
-/** The data directory: state, configs, binaries, schedules; `storage.json` names its layout version. */
-export const appData = boot.paths.appData
-export const appLog = boot.paths.appLog ?? ''
-/** The host's log file (the desktop's plugin log, or the server's own). */
-export const logFile = boot.paths.logFile ?? ''
 export const temp = boot.paths.temp
 /** The UI's own binary, which rclone runs as the metadata mapper (`lib/rclone/metadataMapper.ts`). */
 export const exe = boot.paths.exe ?? ''

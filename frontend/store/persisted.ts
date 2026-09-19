@@ -5,7 +5,6 @@ import { ask } from '../lib/api/dialog'
 import { putDoc, stateStorage, watchDoc } from '../lib/api/state'
 import { hasTemplatePaths } from '../lib/rclone/templatePaths'
 import type { SERVE_TYPES } from '../lib/rclone/constants'
-import type { ConfigFile } from '../types/config'
 import type { Template } from '../types/template'
 import type { RemoteConfig as HostRemoteConfig } from './host'
 
@@ -56,9 +55,6 @@ interface PersistedStateV1 {
     scheduledTasks: unknown[]
 
     templates: TemplateV1[]
-
-    configFiles: ConfigFile[]
-    activeConfigFile: ConfigFile | null
 
     hideStartup: boolean
 
@@ -300,8 +296,6 @@ export const usePersistedStore = create<PersistedStateV2>()(
                             proxy: legacyState.proxy,
                             favoritePaths: legacyState.favoritePaths || [],
                             scheduledTasks: [],
-                            configFiles: legacyState.configFiles,
-                            activeConfigFile: legacyState.activeConfigFile,
                         },
                         version: 1,
                     }
