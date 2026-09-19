@@ -32,7 +32,8 @@ export default function CronEditor({ expression, onChange, error }: CronEditorPr
     )
 
     const readableDescription = useMemo(() => {
-        if (!expression) return 'Enter a cron expression to have this task run at regular intervals'
+        if (!expression)
+            return 'Enter a cron expression to have this task run at regular intervals (or just once)'
         let description: string
         try {
             description = cronstrue.toString(expression, { verbose: true })
