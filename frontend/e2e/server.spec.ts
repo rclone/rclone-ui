@@ -62,7 +62,7 @@ test('dashboard renders inside the shell with the injected boot payload', async 
         })
     }
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Commander', exact: true })).toBeVisible()
     // There is one product now: the payload names no mode, and the desktop's capabilities are
     // not merely false but absent. This is the guard against them creeping back in.
@@ -356,7 +356,7 @@ test('two writes from one page to the same document never conflict with each oth
 }) => {
     const errors = collectErrors(page)
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     // The adapter behind every store, fed two updates in the same tick, as an effect that sets
     // several keys does. The second must carry the revision the first produced, not race it
     // (a 409 is recovered from, but the browser still logs it as an error).
@@ -383,7 +383,7 @@ test('two writes from one page to the same document never conflict with each oth
 test('a write before the document was read is dropped', async ({ page }) => {
     const errors = collectErrors(page)
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     // A store that sets state before its document has loaded holds only defaults; writing them
     // would patch defaults over what other pages saved. The adapter drops that write (with a
     // console warning, not an error) and hydration brings the document's truth.
@@ -406,8 +406,8 @@ test('two pages creating the same document keep both their keys', async ({
     const otherErrors = collectErrors(other)
     await page.goto('/')
     await other.goto('/')
-    await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
-    await expect(other.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+    await expect(other.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     // Two pages hydrate an unwritten document at the same time and each write their own key.
     // The second creation is refused (its precondition is revision 0); the loser adopts the
     // winner's document and adds what it lacks, so neither key is lost.
@@ -482,8 +482,8 @@ test('a page writes what it changed, never what it merely holds', async ({
     const other = await context.newPage()
     await page.goto('/')
     await other.goto('/')
-    await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
-    await expect(other.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+    await expect(other.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     // Two pages on one document, each holding all of its keys, as every store does. One changes
     // `x`. The other has not heard yet (the announcement is on its way) and changes `y`, then
     // `z`. Its `x` is the old one, but it never touched it, so it must never write it: a page's
@@ -564,7 +564,7 @@ test('a removed member loses their WebSocket', async ({ browser }) => {
         })
         const memberPage = await member.newPage()
         await memberPage.goto('/')
-        await expect(memberPage.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
+        await expect(memberPage.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
         // A socket of the member's own, said hello on, beside the page's.
         await memberPage.evaluate(
             () =>
@@ -703,7 +703,7 @@ test('a page that has not heard of another writer leaves that writer’s keys al
     try {
         await page.goto('/')
         // The Dashboard's heading is the host's name, which the page itself never writes.
-        await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
 
         // Another writer adds a template. This page does not hear of it.
         holding = true
@@ -750,7 +750,7 @@ test('a page that has not heard of another writer leaves that writer’s keys al
 
 test('in-page dialogs: ask and prompt', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     const asked = page.evaluate(async () => {
         const { ask } = window.__RCLONE_CLOUD_API__.dialog
         return ask('Proceed?', {
@@ -780,7 +780,7 @@ test('the folder picker lists the daemon’s disk and returns the chosen path', 
     const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-'))
     writeFileSync(join(dir, 'note.txt'), 'hi')
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
 
     // The folder picker renders PathSelector, whose FilePanel lists the daemon's disk.
     const picked = page.evaluate(async (path) => {
@@ -851,7 +851,7 @@ test('signing in takes the owner account seeded from --password', async ({ brows
     await expect(page.getByText('Wrong email or password')).toBeVisible()
     await page.getByLabel('Password', { exact: true }).fill(OWNER.password)
     await page.getByRole('button', { name: 'Sign in' }).click()
-    await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     // The session names the account, and so does the header.
     const session = (await (await page.request.get('/api/session')).json()) as {
         user: { email: string; role: string } | null

@@ -9,7 +9,6 @@ import { Link } from 'react-router-dom'
 import { status as fetchStatus } from '../../../lib/api/app'
 import { useLifecyclePhase } from '../../../lib/api/lifecycle'
 import { buildReadablePathMultiple, formatBytes } from '../../../lib/format'
-import { daemonVersionQueryOptions } from '../../../lib/hooks'
 import { fetchMountList, fetchServeList } from '../../../lib/rclone/api'
 import rclone from '../../../lib/rclone/client'
 import { ENDED, type TransferRow, totalsOf } from '../../../lib/transfers/rows'
@@ -176,7 +175,6 @@ export default function Dashboard() {
         queryFn: fetchStatus,
         refetchInterval: 30_000,
     })
-    const daemonVersion = useQuery(daemonVersionQueryOptions())
 
     const stats = useQuery({
         queryKey: ['dashboard', 'stats'],
@@ -244,9 +242,6 @@ export default function Dashboard() {
     const speed = stats.data?.speed ?? 0
     const unreachable = stats.isError
     const chip = phase ? PHASE_CHIP[phase.phase] : undefined
-    const rcloneVersion =
-        (phase?.phase === 'ready' && phase.version) || daemonVersion.data
-
     const mountRows = useMemo(
         () => ((mounts.data ?? []) as { Fs: string; MountPoint: string }[]).slice(0, 4),
         [mounts.data]
@@ -266,19 +261,18 @@ export default function Dashboard() {
 
     return (
         <div className="flex flex-col gap-5 p-6 pb-10 lg:p-8">
-            <header className="flex flex-wrap items-end justify-between gap-3">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-2xl font-semibold tracking-tight">Local Machine</h1>
-                    <p className="text-sm text-default-500">
-                        {rcloneVersion && rcloneVersion !== 'unknown'
-                            ? `rclone ${rcloneVersion}`
-                            : 'rclone'}
-                        {server.data
-                            ? ` · server ${server.data.version} · ${formatUptime(server.data.uptimeSeconds)}`
-                            : ''}
-                    </p>
-                </div>
+            <header className="flex flex-wrap items-center justify-between gap-3">
+                <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
                 <div className="flex items-center gap-2">
+                    {server.data ? (
+                        <Chip
+                            variant="flat"
+                            size="sm"
+                            className="font-medium uppercase tracking-wide"
+                        >
+                            {formatUptime(server.data.uptimeSeconds)}
+                        </Chip>
+                    ) : null}
                     {unreachable ? (
                         <Chip
                             color="danger"

@@ -422,8 +422,7 @@ test('the header cog carries the tab theme and the language stub', async ({ page
     const header = page.locator('header', {
         has: page.getByRole('button', { name: 'Toggle sidebar' }),
     })
-    // The host and its rclone version are the Dashboard's business; the header only has the cog.
-    await expect(header.getByText('Local Machine')).toHaveCount(0)
+    // The rclone version is the Dashboard's business; the header only has the cog.
     await expect(header.getByText(/^rclone \d+\.\d+/)).toHaveCount(0)
 
     // The theme applies to the tab at once.
