@@ -10,7 +10,6 @@ import { ask } from '../api/dialog'
 import { rpc } from '../api/rpc'
 import { transfersList } from '../api/transfers'
 import { isMoving } from '../transfers/live'
-import { isScheduled } from '../transfers/rows'
 
 export interface DownloadedVersion {
     version: string
@@ -89,16 +88,16 @@ export async function deleteVersion(version: string): Promise<void> {
 }
 
 /**
- * True if switching rclone would interrupt something. The switch restarts the local daemon, so
- * that is the one asked about, whichever host is current: its running transfers from the record
- * (known from the moment they start), then its files in flight for what nothing recorded (a
- * job put on the daemon by something else), then its mounts.
+ * True if switching rclone would interrupt something. The switch restarts the daemon, so that is
+ * what is asked about: its running transfers from the record (known from the moment they start),
+ * a scheduled run among them — those are on this daemon too, and the restart would take them
+ * with it — then its files in flight for what nothing recorded (a job put on the daemon by
+ * something else), then its mounts.
  */
 async function isRcloneBusy(): Promise<boolean> {
     try {
         const entries = await transfersList()
-        // A scheduled run has a daemon of its own, which the switch does not restart.
-        if (entries.some((entry) => entry.state === 'running' && !isScheduled(entry))) return true
+        if (entries.some((entry) => entry.state === 'running')) return true
     } catch (error) {
         console.warn('[isRcloneBusy] transfers_list failed', error)
     }

@@ -1,4 +1,4 @@
-// Mirrors src-shared/src/notifications/catalog.rs (event ids/categories/severities) and
+// Mirrors src/notifications/catalog.rs (event ids/categories/severities) and
 // targets.rs (NotificationTarget shape, persisted in notifications/targets.json). The Rust side
 // is the source of truth — keep both in sync, and never rename an event id after release. An
 // `email` target's `url` is its recipients (comma-separated); it is sent through the SMTP

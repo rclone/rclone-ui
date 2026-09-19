@@ -177,8 +177,7 @@ pub fn resolve(
         .cloned()
         .unwrap_or_else(canonical_default);
 
-    // 4. Its file: a synced (external-folder) config, or configs/<id>/rclone.conf, by the one
-    // resolver the scheduled runner uses too.
+    // 4. Its file: a synced (external-folder) config, or configs/<id>/rclone.conf.
     let mut config_path = storeread::resolve_config_path(&ctx.dirs, &host, &active_id);
     if entry.sync.is_some() && !config_path.is_file() {
         log::warn!(

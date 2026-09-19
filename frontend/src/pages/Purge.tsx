@@ -41,7 +41,7 @@ Expand the accordion sections to customize your purge operation. Tap any chip on
 
 • Config — The "checkers" option controls concurrency for backends that don't support server-side purge. Other global rclone settings are also available here.
 
-• Schedule — Run this purge automatically at set intervals, even when the app is closed. Useful for automated cleanup of temporary folders.
+• Schedule — Run this purge automatically at set intervals, for as long as the server is running. Useful for automated cleanup of temporary folders.
 
 3. USE TEMPLATES (Optional)
 Tap the folder icon in the bottom bar to load or save option presets.

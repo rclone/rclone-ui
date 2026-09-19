@@ -144,24 +144,10 @@ export function BinarySettings({ layout }: { layout: SettingsLayout }) {
         },
     })
 
-    const scheduledTasks = useHostStore((state) => state.scheduledTasks)
-
-    const handleDeleteVersion = async (v: DownloadedVersion) => {
-        // Schedules can pin a specific downloaded version by absolute path — deleting it would
-        // make every later run fail with "binary not found". Being the active global binary is
-        // not the only way a version can be in use. (Schedules are local-host-only, so the host
-        // store is authoritative here.)
-        const pinnedBy = scheduledTasks.filter((task) => task.binaryPath === v.path)
-        if (pinnedBy.length > 0) {
-            const names = pinnedBy.map((task) => task.name || task.operation).join(', ')
-            await message(
-                `This version is used by ${pinnedBy.length} scheduled task(s): ${names}. Change their rclone binary in the schedule settings first.`,
-                { title: 'Version in use', kind: 'warning' }
-            )
-            return
-        }
-        deleteMutation.mutate(v.version)
-    }
+    // Only the active version is in use: nothing else picks a binary of its own any more — a
+    // scheduled run goes to the daemon the server is running, like everything else — and the
+    // active one has no delete button to begin with.
+    const handleDeleteVersion = (v: DownloadedVersion) => deleteMutation.mutate(v.version)
 
     const downloadedVersions = downloadedQuery.data ?? []
     const downloadedSet = useMemo(

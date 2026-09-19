@@ -32,7 +32,7 @@ export type TransferRow = TransferEntry & {
     /** Files it moved and errors it met: so far while it runs, in all once it has ended. */
     fileCount: number
     errorCount: number
-    /** A scheduled run: its row belongs to the Schedules page. */
+    /** A scheduled run: which schedule it was, and which run of it. */
     scheduled: { taskId: string; runId?: string; name?: string } | null
 }
 
@@ -49,9 +49,9 @@ export const ENDED: Record<
 }
 
 /**
- * Whether a schedule ran it: its row belongs to the Schedules page, and rclone cannot be asked
- * about it from here (a run has a daemon of its own). Its tag says so. The task and run ids
- * beside it only say which schedule and which run.
+ * Whether a schedule ran it. Its tag says so, and that is all it changes: the row is badged, and
+ * it can be filtered to its schedule. In every other way it is an ordinary transfer, on the same
+ * daemon as the rest. The task and run ids beside it only say which schedule and which run.
  */
 export function isScheduled(entry: TransferEntry) {
     return entry.tags.includes('schedule')

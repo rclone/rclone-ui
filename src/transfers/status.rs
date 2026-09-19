@@ -1,5 +1,5 @@
-//! How rclone's replies about a job read. Pure, and the one reading: the server's service, the
-//! scheduled runner and the START button's error all come from here.
+//! How rclone's replies about a job read. Pure, and the one reading: what the service makes of
+//! a tick and what the START button says on a failed launch both come from here.
 
 use std::collections::HashMap;
 
@@ -243,7 +243,7 @@ mod tests {
     }
 
     /// A folder has no file of its own to name: it is named by where it copies from, in every
-    /// message. (The scheduled runner read these for itself and called a folder "unknown".)
+    /// message.
     #[test]
     fn a_failed_input_is_named_by_its_file_or_else_by_its_folder() {
         let folder = batch(json!([

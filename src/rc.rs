@@ -1,11 +1,45 @@
-//! A small async client for rclone's RC API, plus the ephemeral-port / credential helpers the
-//! scheduler runner and the lifecycle share for their private daemons.
+//! A small async client for rclone's RC API, plus the ephemeral-port and credential helpers
+//! the lifecycle uses to raise the daemon.
 
 use std::time::Duration;
+use std::time::SystemTime;
 
 use serde_json::{json, Value};
 
-pub use crate::scheduler::runner::{pick_port, random_token};
+/// A free local port for a daemon to listen on.
+pub fn pick_port() -> Result<u16, String> {
+    for _ in 0..10 {
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0))
+            .map_err(|e| format!("failed to allocate a port: {}", e))?;
+        let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+        drop(listener);
+        // Never collide with rclone's own default RC port: a daemon somebody else started is
+        // listening there, and it is not ours to talk to.
+        if port != 5572 {
+            return Ok(port);
+        }
+    }
+    Err("could not allocate a local port".to_string())
+}
+
+/// A throwaway credential: the daemon is on loopback, and this is what keeps anything else on
+/// the machine from driving it.
+pub fn random_token(salt: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(format!(
+        "{:?}-{}-{}",
+        SystemTime::now(),
+        std::process::id(),
+        salt
+    ));
+    hasher
+        .finalize()
+        .iter()
+        .take(12)
+        .map(|b| format!("{:02x}", b))
+        .collect()
+}
 
 #[derive(Clone, Debug)]
 pub struct RcClient {
@@ -72,10 +106,6 @@ impl RcClient {
             return Err(message);
         }
         Ok(value)
-    }
-
-    pub fn call_blocking(&self, endpoint: &str, body: &Value) -> Result<Value, String> {
-        crate::rt::block_on(self.call(endpoint, body))
     }
 
     /// Polls `/rc/noop` every 250 ms until the daemon answers, `is_dead` reports the process

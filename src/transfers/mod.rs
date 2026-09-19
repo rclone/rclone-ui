@@ -17,24 +17,12 @@ pub fn transfers_list(
     ctx: &Ctx,
     limit: Option<usize>,
 ) -> Result<Vec<ledger::Entry>, String> {
-    let mut entries = ledger::list(&ctx.dirs, limit.unwrap_or(ledger::KEEP_ENTRIES));
-    // A scheduled run that was killed outright left its transfer open, and its file has no
-    // writer until the task runs again. The run lock is the truth about that: nobody holds it,
-    // nothing is running. Read that way here; the runner writes it down on its next run.
-    for entry in entries.iter_mut() {
-        if !entry.tags.iter().any(|tag| tag == ledger::TAG_SCHEDULE) {
-            continue;
-        }
-        let Some(task_id) = &entry.task_id else {
-            continue;
-        };
-        if entry.state == ledger::State::Running
-            && !crate::scheduler::history::is_running(&ctx.dirs, task_id)
-        {
-            entry.state = ledger::State::Interrupted;
-        }
-    }
-    Ok(entries)
+    // Every transfer is the service's now, a scheduled run included, so what the record says
+    // is what is true: nothing here has to second-guess a row's state.
+    Ok(ledger::list(
+        &ctx.dirs,
+        limit.unwrap_or(ledger::KEEP_ENTRIES),
+    ))
 }
 
 /// What a finished transfer left behind: rclone's last `job/status` and the files it moved.
@@ -63,11 +51,12 @@ mod tests {
         })
     }
 
-    /// A scheduled run that was killed left its transfer open. Nobody holds its run lock, so it
-    /// reads as interrupted. What makes it a scheduled run is its tag; the task id only says
-    /// which schedule to ask about.
+    /// A scheduled run used to be a process of its own, with a ledger file of its own. Those
+    /// files have no writer left, so whatever one still holds open ended when that process did:
+    /// the server closes them once, on the first start after the upgrade, and from then on the
+    /// list only reports what the record says.
     #[test]
-    fn an_open_scheduled_run_nobody_holds_reads_as_interrupted() {
+    fn a_run_left_open_by_the_old_runner_is_closed_at_startup() {
         let root = std::env::temp_dir().join(format!("rcloneui-list-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let dirs = DataDir { root };
@@ -77,16 +66,24 @@ mod tests {
             &run("scheduled", "nightly", &[ledger::TAG_SCHEDULE]),
         )
         .unwrap();
-        ledger::append(
-            &ledger::task_path(&dirs, "other"),
-            &run("untagged", "other", &[]),
-        )
-        .unwrap();
 
-        let entries = transfers_list(&ctx, None).unwrap();
-        let state = |id: &str| entries.iter().find(|entry| entry.id == id).unwrap().state;
+        let state = |id: &str| {
+            transfers_list(&ctx, None)
+                .unwrap()
+                .into_iter()
+                .find(|entry| entry.id == id)
+                .unwrap()
+                .state
+        };
+        assert_eq!(
+            state("scheduled"),
+            State::Running,
+            "as the file has it, until the server has looked"
+        );
+
+        super::service::TransferService::new(ctx.clone(), true).recover();
+
         assert_eq!(state("scheduled"), State::Interrupted);
-        assert_eq!(state("untagged"), State::Running);
         let _ = std::fs::remove_dir_all(&dirs.root);
     }
 }

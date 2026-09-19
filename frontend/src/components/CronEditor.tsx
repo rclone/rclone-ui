@@ -36,7 +36,7 @@ export default function CronEditor({ expression, onChange, error }: CronEditorPr
         let description: string
         try {
             description = cronstrue.toString(expression, { verbose: true })
-            description += '. Runs even when the app is closed.'
+            description += '. Runs whenever the server is up.'
         } catch {
             description = 'Invalid cron expression'
         }

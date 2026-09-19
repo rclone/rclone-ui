@@ -9,7 +9,7 @@ export const OWNER = { email: 'admin@localhost', password: 'e2e-secret' }
 /**
  * The debug binary, from `cargo build -p rclone-ui-server`. Anchored to this file rather than to
  * the working directory: the Cargo target sits at the repo root while the suite runs from
- * src-frontend, and the specs that start a server of their own spawn it themselves.
+ * frontend, and the specs that start a server of their own spawn it themselves.
  */
 export const SERVER_BIN = fileURLToPath(
     new URL('../../target/debug/rclone-ui-server', import.meta.url)

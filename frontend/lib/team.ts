@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { rpc } from './api/rpc'
 import type { Role } from './api/session'
 
-// Settings › Team: the server's accounts (`src-server/src/team.rs`). The rules (who may change
+// Settings › Team: the server's accounts (`src/team.rs`). The rules (who may change
 // what) live there; errors come back as plain sentences for the dialogs.
 
 export interface Member {

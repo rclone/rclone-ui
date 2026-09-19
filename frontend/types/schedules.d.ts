@@ -12,27 +12,14 @@ export type ScheduledTask = {
     name?: string
     cron: string
     isEnabled: boolean
-    /** The config file this task runs with (a lookup into the host's configFiles). */
-    configId: string
-    /** 'app-default' or an absolute path to a specific rclone binary. */
-    binaryPath: 'app-default' | string
-    /** Raise the run's rclone daemon to INFO logging (per-transfer lines in the rclone log). */
-    verboseLogging?: boolean
     /**
-     * Max run time in whole hours (1-120); the runner stops the job when it's exceeded.
+     * Max run time in whole hours (1-120); the run stops its transfer when it's exceeded.
      * Default 24 when absent.
      */
     maxRunHours?: number
     /**
-     * 'user' (default, also when absent): only runs while the user is logged in, borrowing the
-     * session's context. 'system': runs even while logged out, but outside the login session —
-     * no OS keychain, session-mounted drives, or (macOS) protected folders without a cron FDA
-     * grant.
-     */
-    runMode?: 'system' | 'user'
-    /**
-     * Set when the last OS-registration attempt failed (cron unrepresentable on this platform,
-     * register error). Persisted so a disabled task can explain itself across restarts.
+     * Set when the last registration attempt failed (an unparseable cron, a write that did not
+     * land). Persisted so a disabled task can explain itself across restarts.
      */
     registrationError?: string
     /**

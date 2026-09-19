@@ -8,12 +8,11 @@ import type {
 } from '../types/notifications'
 import { rpc } from './api/rpc'
 
-// The TS face of the notification system. The engine lives in Rust (src-shared/src/
-// notifications/): webhook and email dispatch (email through the SMTP settings, lib/smtp.ts),
-// target storage (targets.json — NOT the zustand store), delivery-outcome recording, and the
-// event catalog are shared with the headless scheduler runner, so notifications behave
-// identically whether the app is open or not. This file keeps the thin RPC wrappers and the
-// provider form helpers.
+// The TS face of the notification system. The engine lives in Rust (src/notifications/):
+// webhook and email dispatch (email through the SMTP settings, lib/smtp.ts), target storage
+// (targets.json — NOT the zustand store), delivery-outcome recording, and the event catalog.
+// The server owns all of it, so notifications go out whether or not a page is open. This file
+// keeps the thin RPC wrappers and the provider form helpers.
 
 // ---------------------------------------------------------------------------
 // In-page toasts
@@ -101,9 +100,9 @@ export function useNotificationTargets() {
     return useQuery({
         queryKey: ['notifications', 'targets'],
         queryFn: listNotificationTargets,
-        // Dispatches (and their outcome recording) happen in the hidden main window and the
-        // headless runner — separate queryClients that can't invalidate this window's cache.
-        // Polling is what keeps lastSentAt/lastError chips honest.
+        // Dispatches (and their outcome recording) happen in the server, with no page involved,
+        // so nothing invalidates this window's cache. Polling is what keeps the
+        // lastSentAt/lastError chips honest.
         refetchInterval: 10_000,
         refetchOnWindowFocus: true,
     })

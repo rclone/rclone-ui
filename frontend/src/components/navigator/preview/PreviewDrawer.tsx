@@ -101,9 +101,6 @@ export default function PreviewDrawer({
     onClose: () => void
 }) {
 
-    // File previews are a PRO feature — without a valid license we tease the preview
-    // behind an upsell overlay instead of unlocking it.
-
     // When expanded, the drawer widens to ~90% of the window (the Commander).
     const [expanded, setExpanded] = useState(false)
 

@@ -10,13 +10,12 @@ import {
     SearchCheckIcon,
 } from 'lucide-react'
 import { startTransition, useCallback, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { message } from '../../lib/api/dialog'
-import { openWindow } from '../../lib/api/windows'
 import { buildReadablePathMultiple, formatBytes } from '../../lib/format'
 import { useIsPreview } from '../../lib/preview'
 import { ENDED, type TransferRow } from '../../lib/transfers/rows'
 import { useTransferRows } from '../../lib/transfers/useTransferRows'
-import { useHostStore } from '../../store/host'
 import { usePersistedStore } from '../../store/persisted'
 import EmptyState from '../components/EmptyState'
 import TransferDetailsDrawer from '../components/TransferDetailsDrawer'
@@ -45,8 +44,30 @@ export default function Transfers() {
     })
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const acknowledgements = usePersistedStore((state) => state.acknowledgements)
-    const scheduledTasks = useHostStore((state) => state.scheduledTasks)
-    const { rows: transfers, query: transfersQuery } = useTransferRows()
+    const [searchParams, setSearchParams] = useSearchParams()
+    const { rows: allRows, query: transfersQuery } = useTransferRows()
+
+    // A schedule's own runs, when a schedule sent us here (`?task=<id>`). The name is the one
+    // the run was recorded under, so a schedule that has since been deleted still reads.
+    const taskFilter = searchParams.get('task')
+    const transfers = useMemo(() => {
+        if (!taskFilter) return allRows
+        const ofTask = (row: TransferRow) => row.scheduled?.taskId === taskFilter
+        return {
+            active: allRows.active.filter(ofTask),
+            inactive: allRows.inactive.filter(ofTask),
+        }
+    }, [allRows, taskFilter])
+    const filterLabel = useMemo(
+        () =>
+            [...transfers.active, ...transfers.inactive].find((row) => row.scheduled?.name)
+                ?.scheduled?.name ?? taskFilter,
+        [transfers, taskFilter]
+    )
+    const showEverything = useCallback(
+        () => setSearchParams({}, { replace: true }),
+        [setSearchParams]
+    )
     // The open drawer follows its row: a transfer that ends while it is open stops being live.
     const selected = useMemo(
         () =>
@@ -55,22 +76,13 @@ export default function Transfers() {
         [transfers, selectedId]
     )
 
+    // A scheduled run is a transfer like any other now, so it opens where every other one does.
     const handleSelect = useCallback(
         (row: TransferRow) => {
-            // A scheduled run belongs to its schedule: that is where its history and logs are.
-            // A new tab in a browser, a window of its own on the desktop. One whose schedule is
-            // gone has nowhere to go and opens here with what the record kept.
-            const schedule = row.scheduled
-            if (schedule && scheduledTasks.some((task) => task.id === schedule.taskId)) {
-                const search = new URLSearchParams({ task: schedule.taskId })
-                if (schedule.runId) search.set('run', schedule.runId)
-                openWindow({ name: 'Schedules', url: `/schedules?${search}`, newTab: true })
-                return
-            }
             setSelectedId(row.id)
             onOpen()
         },
-        [onOpen, scheduledTasks]
+        [onOpen]
     )
 
     // A transfer and its retries point at each other: the record says which transfer a retry
@@ -91,7 +103,24 @@ export default function Transfers() {
         )
     }
 
-    if (!transfers || (transfers.active.length === 0 && transfers.inactive.length === 0)) {
+    if (taskFilter && transfers.active.length === 0 && transfers.inactive.length === 0) {
+        return (
+            <div className="w-full h-screen overflow-y-auto">
+                <EmptyState
+                    icon={ClockIcon}
+                    title="This schedule has not run yet"
+                    description="Each run shows up here as a transfer, with its progress while it goes and its result after."
+                    actions={
+                        <Button variant="flat" onPress={showEverything} data-focus-visible="false">
+                            Show all transfers
+                        </Button>
+                    }
+                />
+            </div>
+        )
+    }
+
+    if (!allRows || (allRows.active.length === 0 && allRows.inactive.length === 0)) {
         return (
             <div className="w-full h-screen overflow-y-auto">
                 <EmptyState
@@ -122,6 +151,22 @@ export default function Transfers() {
 
     return (
         <>
+            {taskFilter && (
+                <div className="flex flex-row items-center gap-3 px-4 py-2 border-b border-divider bg-content1">
+                    <ClockIcon className="size-4 shrink-0 text-default-500" />
+                    <p className="text-small grow">
+                        Runs of <span className="font-medium">{filterLabel}</span>
+                    </p>
+                    <Button
+                        size="sm"
+                        variant="light"
+                        onPress={showEverything}
+                        data-focus-visible="false"
+                    >
+                        Show all
+                    </Button>
+                </div>
+            )}
             <Tabs
                 fullWidth={true}
                 size="lg"
@@ -181,8 +226,8 @@ function OriginBadges({ row }: { row: TransferRow }) {
             <Tooltip
                 key={tag}
                 content={
-                    tag === 'schedule' && row.scheduled
-                        ? `Run by the schedule “${row.scheduled.name ?? row.operation}”. Opens it in Schedules.`
+                    tag === 'schedule' && row.scheduled?.name
+                        ? `Run by the schedule “${row.scheduled.name}”.`
                         : origin.about
                 }
                 color="foreground"
@@ -213,8 +258,7 @@ function TransferCard({
 }: { row: TransferRow; onSelect: (row: TransferRow) => void }) {
     const isPreview = useIsPreview()
     const isActive = row.type === 'active'
-    // Nothing to measure against until rclone has sized the transfer (or, for a scheduled run on
-    // its own daemon, at all).
+    // Nothing to measure against until rclone has sized the transfer.
     const isIndeterminate = isActive && row.totalBytes === 0
     const ended = endedLabel(row)
     const hasFailed = row.state === 'failed'
@@ -268,7 +312,7 @@ function TransferCard({
                                     </Chip>
                                 )}
 
-                                {row.phase === 'preparing' && !row.scheduled ? (
+                                {row.phase === 'preparing' ? (
                                     <Tooltip
                                         content="rclone is opening both ends and listing them. Nothing moves until that is done."
                                         color="foreground"
@@ -310,7 +354,7 @@ function TransferCard({
                                         />
                                     </Tooltip>
                                 ) : null}
-                                {isActive && !row.scheduled ? (
+                                {isActive ? (
                                     <p className="w-24 text-sm text-right shrink-0 tabular-nums text-default-500">
                                         {formatBytes(row.speed)}/s
                                     </p>

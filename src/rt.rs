@@ -4,11 +4,11 @@
 //!
 //! - a tokio worker thread (async commands awaited by the server or the desktop's runtime),
 //! - a blocking-pool thread (`sync` commands, which the dispatch layer runs via `spawn_blocking`),
-//! - a plain thread with no runtime at all (the `run-task` scheduler child process).
+//! - a plain thread with no runtime at all (`metadata-map`, which rclone spawns per file).
 //!
-//! Rule for code in this crate: functions in `scheduler` and `notifications` that call
-//! `block_on` are synchronous and may block; reach them from `spawn_blocking` or a non-async
-//! thread, never `.await` an async wrapper around them from a worker without one.
+//! Rule for code in this crate: functions in `notifications` that call `block_on` are
+//! synchronous and may block; reach them from `spawn_blocking` or a non-async thread, never
+//! `.await` an async wrapper around them from a worker without one.
 
 use std::future::Future;
 use std::sync::OnceLock;

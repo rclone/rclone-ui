@@ -1,4 +1,4 @@
-// Mirrors src-shared/src/notifications/smtp.rs: the mail server every email notification goes
+// Mirrors src/notifications/smtp.rs: the mail server every email notification goes
 // through, kept in notifications/smtp.json by the server. Pages see the view, never the file.
 
 export type SmtpEncryption = 'starttls' | 'tls' | 'none'

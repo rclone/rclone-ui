@@ -6,7 +6,7 @@ import type { FlagValue } from '../../types/rclone'
  * rclone's flag wants a program, not a rule list: it runs one per file and directory copied and
  * talks JSON to it over a pipe. The program is this app's own binary (`paths.exe`) with the
  * `metadata-map` subcommand, whose arguments are the rules — see
- * `src-shared/src/metadata_mapper.rs`, which is the other half of this grammar.
+ * `src/metadata_mapper.rs`, which is the other half of this grammar.
  *
  * The value is an argv ARRAY, never a string. rclone splits a string on spaces, and the macOS
  * binary lives at `/Applications/Rclone UI.app/Contents/MacOS/…`; `toConfigParam` sends the

@@ -59,10 +59,10 @@ impl DataDir {
         })
     }
 
-    /// `resolve()` with the `RCLONE_UI_DATA_DIR` override honoured (development, tests,
+    /// `resolve()` with the `RCLONE_CLOUD_DATA_DIR` override honoured (development, tests,
     /// containers).
     pub fn from_env() -> Result<DataDir, String> {
-        match std::env::var_os("RCLONE_UI_DATA_DIR").filter(|v| !v.is_empty()) {
+        match std::env::var_os("RCLONE_CLOUD_DATA_DIR").filter(|v| !v.is_empty()) {
             Some(dir) => Ok(DataDir {
                 root: PathBuf::from(dir),
             }),

@@ -126,8 +126,9 @@ pub struct RestartOverrides {
 pub struct Options {
     /// Use this binary instead of resolving/downloading one.
     pub rclone_path_override: Option<PathBuf>,
-    /// Run the remotes' "mount on start" jobs once the daemon is up.
-    pub mounts: bool,
+    /// Whether this host can mount at all ([`crate::mount_supported`]). When it cannot, the
+    /// remotes' "mount on start" jobs are not attempted and the reason is logged once.
+    pub can_mount: bool,
     /// `--log-level INFO` on the daemon.
     pub verbose: bool,
     /// Keep the PATH-integration pointer (`<local>/bin/rclone`) aimed at the active binary.
@@ -158,6 +159,8 @@ pub struct Supervisor {
     proxy_probed: Mutex<Option<String>>,
     /// Told when the daemon goes down: what it was transferring went with it.
     transfers: Arc<TransferService>,
+    /// The startup mount pass of the daemon that is up, so a restart can cancel it.
+    mounting: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 impl Supervisor {
@@ -180,6 +183,7 @@ impl Supervisor {
             shutting_down: AtomicBool::new(false),
             proxy_probed: Mutex::new(None),
             transfers,
+            mounting: Mutex::new(None),
         });
         tokio::spawn(run_loop(Arc::clone(&supervisor), restart_rx));
         supervisor
@@ -418,9 +422,21 @@ impl Supervisor {
                 scheduler_reconcile::reconcile(&ctx).await;
             });
         }
-        if self.options.mounts {
+        {
             let ctx = self.ctx.clone();
-            tokio::spawn(async move { mounts::startup_mounts(&ctx, &client).await });
+            let can_mount = self.options.can_mount;
+            // A mount pass belongs to the daemon that was up when it started: a crash-looping
+            // one would otherwise stack passes, each retrying against a port that is gone.
+            let previous = self
+                .mounting
+                .lock()
+                .unwrap()
+                .replace(tokio::spawn(async move {
+                    mounts::startup_mounts(&ctx, &client, can_mount).await
+                }));
+            if let Some(previous) = previous {
+                previous.abort();
+            }
         }
         Ok(close_rx)
     }

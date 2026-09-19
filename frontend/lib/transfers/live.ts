@@ -1,7 +1,7 @@
 import { rcFetch } from '../api/rc'
 import type { TransferDetail, TransferEntry, TransferredFile } from '../api/transfers'
 import rclone from '../rclone/client'
-import { type LiveStats, isScheduled } from './rows'
+import type { LiveStats } from './rows'
 
 // The one place the app asks rclone about its jobs: the live numbers of what is running.
 // What exists, what ran and how it ended is the server's record (`lib/api/transfers.ts`); no
@@ -71,8 +71,9 @@ export async function isMoving(): Promise<boolean> {
 
 /** Whether rclone can be asked about this transfer from here. */
 export function isLive(entry: TransferEntry) {
-    // A scheduled run has a private daemon of its own, which this client cannot ask about.
-    return entry.state === 'running' && !isScheduled(entry)
+    // Every transfer is on the daemon this client talks to, a scheduled run included: whether
+    // it is still going is the only question left.
+    return entry.state === 'running'
 }
 
 /** Live numbers by transfer id. A transfer rclone can't answer for is simply not in the result. */

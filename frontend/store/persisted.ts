@@ -60,8 +60,6 @@ interface PersistedStateV1 {
     configFiles: ConfigFile[]
     activeConfigFile: ConfigFile | null
 
-    lastSkippedVersion: string | undefined
-
     hideStartup: boolean
 
     themeV2: {
@@ -82,7 +80,8 @@ interface PersistedStateV2 {
     ) => void
 
     // Notification targets are NOT here: they live in a Rust-owned store
-    // (notifications/targets.json) so the headless scheduler runner can read AND write them.
+    // (notifications/targets.json), because the server both reads them and writes back what
+    // each delivery did, with no page involved.
 
     acknowledgements: string[]
 
@@ -109,6 +108,11 @@ interface PersistedStateV2 {
     // When off, the app still checks and notifies once per new version.
     autoUpdateRclone: boolean
     setAutoUpdateRclone: (enabled: boolean) => void
+    /**
+     * Which rclone version the user has already been told about. The server writes it
+     * (`lifecycle/resolve.rs`) and nothing here reads it — it is declared so a page's next write
+     * does not drop it from the document and make the notice repeat.
+     */
     lastNotifiedRcloneVersion: string | undefined
 }
 
@@ -298,7 +302,6 @@ export const usePersistedStore = create<PersistedStateV2>()(
                             scheduledTasks: [],
                             configFiles: legacyState.configFiles,
                             activeConfigFile: legacyState.activeConfigFile,
-                            lastSkippedVersion: legacyState.lastSkippedVersion,
                         },
                         version: 1,
                     }

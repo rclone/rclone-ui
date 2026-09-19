@@ -379,7 +379,9 @@ fn to_struct_options(flags: &Map<String, Value>, infos: Option<&Vec<Value>>) -> 
 }
 
 // ---------------------------------------------------------------------------
-// Retries (p-retry defaults: exponential, factor 2, 1s..)
+// Retries: exponential, factor 2, from `min`, each sleep capped at `max`. `retries` counts the
+// retries, so the call is made `retries + 1` times — 3 means four attempts and 1+2+4 seconds
+// of waiting.
 // ---------------------------------------------------------------------------
 
 async fn retry<T, Fut>(
@@ -427,6 +429,25 @@ async fn rc_retry(client: &RcClient, endpoint: &str, body: Value) -> Result<Valu
 // ---------------------------------------------------------------------------
 
 const AUTOMOUNT_SOURCE_ERROR: &str = "AUTOMOUNT_SOURCE:";
+
+/// How many remotes are set to mount at start. The same two conditions the loop below applies
+/// per remote, so a host that cannot mount stays quiet unless there was really something to skip.
+fn asked_to_mount(host: &storeread::HostState) -> usize {
+    host.remote_configs
+        .values()
+        .filter_map(|c| c.mount_on_start.as_ref())
+        .filter(|m| m.enabled && !m.mount_point.is_empty())
+        .count()
+}
+
+/// Why [`crate::mount_supported`] said no, in the words the operator needs to act on.
+const WHY_NOT: &str = if cfg!(target_os = "windows") {
+    "WinFsp is not installed"
+} else if cfg!(target_os = "linux") {
+    "no /dev/fuse — a container needs --device /dev/fuse"
+} else {
+    "mounting is not supported here"
+};
 
 /// Errors that describe a wrong Remote Path (never retried) are prefixed so the caller can
 /// tell them from transient failures.
@@ -637,11 +658,30 @@ pub async fn start_mount(
 }
 
 /// main.ts `startupMounts`: probe each auto-mount source (with the same backoff), then mount it.
-pub async fn startup_mounts(ctx: &Ctx, client: &RcClient) {
+/// Mounts every remote whose "mount on start" is set, one after another, once the daemon is up.
+///
+/// `can_mount` is the host's [`crate::mount_supported`]: a container without the FUSE device
+/// cannot mount anything, and each attempt would fail the same way on every restart. That is a
+/// fact about the deployment rather than an incident, so it is said once, in the log, and
+/// nothing is notified.
+pub async fn startup_mounts(ctx: &Ctx, client: &RcClient, can_mount: bool) {
     let host = match storeread::read_host(&ctx.dirs) {
         Ok(host) => host,
         Err(_) => return,
     };
+
+    if !can_mount {
+        let asked = asked_to_mount(&host);
+        if asked > 0 {
+            log::info!(
+                "[mounts] {} remote(s) ask to mount at start, but this host cannot mount ({}) — skipping",
+                asked,
+                WHY_NOT
+            );
+        }
+        return;
+    }
+
     let remotes = match client.call("/config/listremotes", &json!({})).await {
         Ok(reply) => reply["remotes"]
             .as_array()
@@ -671,10 +711,14 @@ pub async fn startup_mounts(ctx: &Ctx, client: &RcClient) {
         let source = format!("{}:{}", remote, config.remote_path);
         let mount_point = config.mount_point.clone();
 
+        // The same ladder the RC calls themselves use ([`rc_retry`]): four attempts over about
+        // seven seconds. A remote whose network is still coming up at boot gets its chance; one
+        // that is simply unreachable does not hold up the remotes behind it, which are probed
+        // one after another.
         let probe = retry(
-            7,
+            3,
             Duration::from_secs(1),
-            Duration::from_secs(15),
+            Duration::from_secs(8),
             |error| !error.starts_with(AUTOMOUNT_SOURCE_ERROR),
             || probe_mount_source(client, &source),
         )
@@ -864,5 +908,34 @@ mod tests {
         let out: Value = serde_json::from_str(&to_struct_options(&vfs, Some(&infos))).unwrap();
         assert_eq!(out["CacheMode"], json!("full"));
         assert_eq!(out["UID"], json!(["501"]));
+    }
+
+    /// A host that cannot mount says so once, and only when a remote actually asked. The two
+    /// conditions are the loop's own: switched on, and with somewhere to mount.
+    #[test]
+    fn only_remotes_that_really_asked_are_counted() {
+        let remote = |enabled, mount_point: &str| storeread::RemoteConfig {
+            mount_on_start: Some(storeread::MountOnStart {
+                enabled,
+                mount_point: mount_point.to_string(),
+                ..Default::default()
+            }),
+        };
+        let mut host = storeread::HostState::default();
+        assert_eq!(asked_to_mount(&host), 0, "nothing configured");
+
+        host.remote_configs
+            .insert("no-config".into(), storeread::RemoteConfig::default());
+        host.remote_configs
+            .insert("switched-off".into(), remote(false, "/mnt/off"));
+        host.remote_configs
+            .insert("nowhere-to-go".into(), remote(true, ""));
+        assert_eq!(asked_to_mount(&host), 0, "none of those would be mounted");
+
+        host.remote_configs
+            .insert("wants-it".into(), remote(true, "/mnt/one"));
+        host.remote_configs
+            .insert("wants-it-too".into(), remote(true, "/mnt/two"));
+        assert_eq!(asked_to_mount(&host), 2);
     }
 }

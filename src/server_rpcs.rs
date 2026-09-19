@@ -384,6 +384,20 @@ server_rpcs! {
             ok(Value::Null)
         },
 
+        // --- scheduler ---------------------------------------------------------------------
+        // The rest of the scheduler is in the command table; this one is here because a run is
+        // transfers, and those are the server's. Fire and forget, as a fire is: the page watches
+        // it through `scheduler_status` and the Transfers list, not through this reply.
+        "scheduler_run_now" => {
+            let task_id = crate::scheduler::runnable_now(&st.ctx, &str_arg(&args, "taskId")?)?;
+            tokio::spawn(crate::scheduler::runner::run(
+                st.ctx.clone(),
+                std::sync::Arc::clone(&st.transfers),
+                task_id,
+            ));
+            ok(Value::Null)
+        },
+
         "download_link" => {
             let fs = str_arg(&args, "fs")?;
             let remote = str_arg(&args, "remote")?;

@@ -3,15 +3,20 @@
 //! gets recorded (and its webhook sent) while nobody is looking.
 //!
 //! The pages build the request and hand it over ([`TransferService::start`]): it is submitted
-//! and recorded in the same breath, before the page hears back.
+//! and recorded in the same breath, before the page hears back. A schedule's run comes through
+//! the same door and differs only in what it is marked with — which is why one is a transfer
+//! like any other: it shows its progress, it can be stopped, and it can be retried.
 //!
 //! A transfer ends once. Whatever wants to write an end — the tick that saw the job finish, a
 //! stop from a page, the daemon going down — first takes the transfer out of the watched set
 //! ([`TransferService::claim`]); whoever comes second finds nothing and writes nothing.
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
+
+use tokio::sync::broadcast;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -69,6 +74,27 @@ pub struct StartRequest {
     #[serde(default)]
     pub tags: Vec<String>,
     pub request: RcRequest,
+    /// The run this transfer is, when a schedule started it. Never deserialized: a page cannot
+    /// claim to be a schedule, which is what [`page_tags`] has always been for.
+    #[serde(skip)]
+    pub scheduled: Option<Scheduled>,
+}
+
+/// The schedule and the run a transfer belongs to, for the one caller that is allowed to say so.
+#[derive(Clone, Debug)]
+pub struct Scheduled {
+    pub task_id: String,
+    pub task_name: Option<String>,
+    pub run_id: String,
+}
+
+/// How a transfer ended, for whoever is waiting on that one in particular. A scheduled run is:
+/// it cannot say how it went until its transfer has.
+#[derive(Clone, Debug)]
+pub struct Ended {
+    pub id: String,
+    pub state: State,
+    pub error: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -98,11 +124,13 @@ pub struct TransferService {
     managed_local: bool,
     watched: Mutex<HashMap<String, Watched>>,
     resolver: RwLock<Option<DaemonResolver>>,
+    /// Every end, as it is written, for whoever is waiting for one ([`TransferService::ends`]).
+    ends: broadcast::Sender<Ended>,
 }
 
 /// The tags a page may give its transfer: short lowercase words, each once, and never
-/// [`ledger::TAG_SCHEDULE`]. That one sends a row to the Schedules page and keeps rclone from
-/// being asked about it, so only the scheduled runner writes it.
+/// [`ledger::TAG_SCHEDULE`]. That one says a schedule ran it, and only the scheduler may say so
+/// — through `StartRequest::scheduled`, which does not come off the wire.
 pub fn page_tags(given: Vec<String>) -> Vec<String> {
     let mut tags: Vec<String> = Vec::new();
     for tag in given {
@@ -159,6 +187,14 @@ fn describe(started: &Started) -> String {
     description
 }
 
+/// Whether a schedule ran it. A scheduled run has three events of its own (`schedule.started`
+/// and friends), so it does not also announce itself as a transfer: the catalog promises
+/// `job.*` for what was started by hand, and someone subscribed to both would otherwise hear
+/// about every run twice.
+fn ran_by_a_schedule(started: &Started) -> bool {
+    started.tags.iter().any(|tag| tag == ledger::TAG_SCHEDULE)
+}
+
 fn webhook_data(started: &Started) -> Value {
     json!({
         "jobid": started.jobid,
@@ -175,7 +211,14 @@ impl TransferService {
             managed_local,
             watched: Mutex::new(HashMap::new()),
             resolver: RwLock::new(None),
+            ends: broadcast::channel(64).0,
         })
+    }
+
+    /// Every end written from now on. Subscribe *before* starting the transfer you mean to wait
+    /// for: `start` looks at a fresh job itself and ends it there if it is already over.
+    pub fn ends(&self) -> broadcast::Receiver<Ended> {
+        self.ends.subscribe()
     }
 
     pub fn set_daemon_resolver(&self, resolver: DaemonResolver) {
@@ -185,6 +228,13 @@ impl TransferService {
     fn client(&self) -> Option<RcClient> {
         let resolver = self.resolver.read().unwrap().clone()?;
         resolver()
+    }
+
+    /// Whether there is a daemon to submit to. What the scheduler asks before it begins a run,
+    /// so a task due while rclone is restarting is skipped with a reason rather than started
+    /// and failed.
+    pub fn daemon_ready(&self) -> bool {
+        self.client().is_some()
     }
 
     /// What a previous process left open. A managed daemon died with that process, so its
@@ -198,6 +248,19 @@ impl TransferService {
                 } else {
                     self.hold(started, false);
                 }
+            }
+        }
+        // A scheduled run used to be a process of its own, writing a file of its own. Nothing
+        // writes those files now, so whatever they still hold open ended when that process did.
+        for path in ledger::task_files(&self.ctx.dirs) {
+            for started in ledger::open(&path) {
+                self.record_end(
+                    &path,
+                    &started,
+                    State::Interrupted,
+                    Some("The run ended without saying how.".to_string()),
+                    None,
+                );
             }
         }
     }
@@ -258,7 +321,13 @@ impl TransferService {
             is_dry_run: request.is_dry_run,
             preset: request.preset,
             retry_of: request.retry_of,
-            tags: page_tags(request.tags),
+            tags: match &request.scheduled {
+                Some(_) => vec![ledger::TAG_SCHEDULE.to_string()],
+                None => page_tags(request.tags),
+            },
+            task_id: request.scheduled.as_ref().map(|s| s.task_id.clone()),
+            task_name: request.scheduled.as_ref().and_then(|s| s.task_name.clone()),
+            run_id: request.scheduled.as_ref().map(|s| s.run_id.clone()),
             ..Started::default()
         };
         let reply = StartReply {
@@ -284,15 +353,16 @@ impl TransferService {
         // A launch that died says so once, as the failure it is (and as this call's error),
         // and never as a start: "started" is for a transfer that got going.
         let launch_error = status.as_ref().and_then(status::launch_error);
-        let said = (launch_error.is_none() && !started.is_dry_run).then(|| {
-            notify(
-                &self.ctx,
-                "job.started",
-                "Transfer started",
-                &describe(&started),
-                webhook_data(&started),
-            )
-        });
+        let said = (launch_error.is_none() && !started.is_dry_run && !ran_by_a_schedule(&started))
+            .then(|| {
+                notify(
+                    &self.ctx,
+                    "job.started",
+                    "Transfer started",
+                    &describe(&started),
+                    webhook_data(&started),
+                )
+            });
         if let Some(status) = &status {
             if let Some((state, error)) = status::outcome_of(status) {
                 // Over already, so its end is about to be said too. Notifications go out side
@@ -479,7 +549,7 @@ impl TransferService {
         let duration = stats.duration_ms / 1000;
         let started = watched.started;
         self.write_end(&started, state, error.clone(), Some(stats));
-        if started.is_dry_run {
+        if started.is_dry_run || ran_by_a_schedule(&started) {
             return;
         }
         let mut data = webhook_data(&started);
@@ -558,14 +628,27 @@ impl TransferService {
         stats: Option<Stats>,
     ) {
         let path = ledger::host_path(&self.ctx.dirs);
+        self.record_end(&path, started, state, error, stats);
+    }
+
+    /// An end, written to the file its start was written to, and then said twice: to the pages
+    /// (`transfers.changed`) and to whoever is waiting for this transfer alone ([`Self::ends`]).
+    fn record_end(
+        &self,
+        path: &Path,
+        started: &Started,
+        state: State,
+        error: Option<String>,
+        stats: Option<Stats>,
+    ) {
         let finished = Finished {
             id: started.id.clone(),
             ts: now_iso(),
             state,
-            error,
+            error: error.clone(),
             stats,
         };
-        if let Err(error) = ledger::finish(&self.ctx.dirs, &path, finished) {
+        if let Err(error) = ledger::finish(&self.ctx.dirs, path, finished) {
             log::error!(
                 "[transfers] the end of {} not recorded: {}",
                 started.id,
@@ -573,6 +656,12 @@ impl TransferService {
             );
         }
         self.changed(started);
+        // No receiver is the ordinary case: nothing is waiting unless a schedule is running.
+        let _ = self.ends.send(Ended {
+            id: started.id.clone(),
+            state,
+            error,
+        });
     }
 
     /// The request a transfer was started with, written as it starts.
@@ -635,9 +724,9 @@ mod tests {
         service.watched.lock().unwrap().contains_key(id)
     }
 
-    /// A page says where its transfer came from. It cannot say "a schedule": that tag is what
-    /// sends a row to the Schedules page and keeps rclone from being asked about it, and only
-    /// the scheduled runner writes it.
+    /// A page says where its transfer came from. It cannot say "a schedule": that tag means the
+    /// server started the transfer itself, on a schedule's behalf, and the only way to set it is
+    /// `StartRequest::scheduled`, which no request off the wire can fill in.
     #[test]
     fn a_page_tags_its_transfer_but_never_as_a_schedule() {
         let tags = |given: &[&str]| page_tags(given.iter().map(|tag| tag.to_string()).collect());

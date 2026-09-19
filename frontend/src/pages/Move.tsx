@@ -43,7 +43,7 @@ Expand the accordion sections to customize your move operation. Tap any chip on 
 
 • Filters — Include or exclude files by pattern, limit by size (max_size, min_size) or age (max_age, min_age).
 
-• Schedule — Run this move automatically at set intervals, even when the app is closed.
+• Schedule — Run this move automatically at set intervals, for as long as the server is running.
 
 • Config — Performance tuning: parallel transfers, checkers, buffer_size, bandwidth limits (bwlimit), and fast_list for faster directory listings on supported remotes.
 • Metadata — Whether to preserve object metadata (metadata), a program that rewrites it (metadata_mapper), and metadata include/exclude/filter rules.

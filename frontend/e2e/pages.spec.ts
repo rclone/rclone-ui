@@ -1304,42 +1304,22 @@ test('a scheduled task keeps what its sources are, and its job file is built fro
     page,
     request,
 }) => {
-    // The job file is written once, when the task is saved, and the runner only posts it; a
-    // later re-registration (enable, a cron edit, a remote rename) may happen under another
-    // active config, so the answer is kept with the task rather than asked again.
+    // The job file is written once, when the task is saved, and a run only submits it; a later
+    // re-registration (enable, a cron edit, a remote rename) rebuilds it without asking rclone
+    // again, so what the sources are has to be kept with the task.
     const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-sched-'))
     writeFileSync(join(dir, 'a.txt'), 'a')
     type Task = { id: string; kinds?: Record<string, string> }
     const host = async () =>
         (await (await request.get('/api/state/hosts/local', { headers: SESSION })).json()) as {
             revision: number
-            state: {
-                scheduledTasks?: Task[]
-                configFiles?: unknown[]
-                activeConfigId?: string | null
-            }
+            state: { scheduledTasks?: Task[] }
         }
     const patch = async (set: Record<string, unknown>) =>
         request.patch('/api/state/hosts/local', {
             headers: { ...SESSION, 'If-Match': String((await host()).revision) },
             data: { set, unset: [] },
         })
-    // This server drives an external daemon and has no config file of its own; a schedule
-    // needs one to be named on the task, so one is lent to the host document for the test.
-    const before = (await host()).state
-    await patch({
-        configFiles: [
-            {
-                id: 'e2e-config',
-                label: 'e2e',
-                sync: undefined,
-                isEncrypted: false,
-                pass: undefined,
-                passCommand: undefined,
-            },
-        ],
-        activeConfigId: 'e2e-config',
-    })
     let taskId: string | undefined
     try {
         await page.goto('/copy')
@@ -1381,8 +1361,6 @@ test('a scheduled task keeps what its sources are, and its job file is built fro
             scheduledTasks: ((await host()).state.scheduledTasks ?? []).filter(
                 (t) => t.id !== taskId
             ),
-            configFiles: before.configFiles ?? [],
-            activeConfigId: before.activeConfigId ?? null,
         })
         rmSync(dir, { recursive: true, force: true })
         await request.post('/api/rc/operations/purge', {
@@ -2142,13 +2120,13 @@ test('delete takes several paths and removes every one of them', async ({ page, 
     await expect.poll(listing, { timeout: 20_000 }).toEqual([])
 })
 
-test('a scheduled run is listed in Transfers, and its row opens its schedule in a new tab', async ({
+test('a scheduled run opens where every other transfer does, and can be filtered to its schedule', async ({
     page,
     request,
-    context,
 }) => {
-    // A scheduled run has a private rclone of its own, which the Transfers page could never see.
-    // The runner writes its transfer to the record instead, with the schedule and the run on it.
+    // Written the way an older server wrote a run, into the file that run's own process owned.
+    // Nothing writes those any more, but they are still read, so an upgraded server keeps what
+    // it already ran — and shows it like any other transfer.
     const taskId = 'e2e-nightly'
     const runId = '1789606923456-4242'
     const file = join('e2e', '.tmp', 'open', 'transfers', 'tasks', `${taskId}.jsonl`)
@@ -2201,6 +2179,17 @@ test('a scheduled run is listed in Transfers, and its row opens its schedule in 
             data: { set: { scheduledTasks }, unset: [] },
         })
     const before = (await host()).state.scheduledTasks ?? []
+    // By name: the first drawer a store ever closes is followed by a one-time tip about the ESC
+    // key, which is a dialog too.
+    const drawer = page.getByRole('dialog', { name: /Transfer Details/ })
+    const dismissTip = async () => {
+        const tip = page.getByRole('dialog', { name: 'Did you know?' })
+        await tip
+            .waitFor({ timeout: 2000 })
+            .then(() => tip.getByRole('button', { name: 'Good to know' }).click())
+            .catch(() => {})
+        await expect(tip).toBeHidden()
+    }
     try {
         await page.goto('/transfers')
         await page.getByRole('tab', { name: 'INACTIVE' }).click()
@@ -2208,23 +2197,15 @@ test('a scheduled run is listed in Transfers, and its row opens its schedule in 
         const row = page.getByRole('tabpanel').getByRole('button').filter({ hasText: 'Schedule' })
         await expect(row.first()).toBeVisible()
 
-        // Its schedule does not exist (any more): there is nowhere to send it, and the record
-        // kept enough to show it here.
+        // Its schedule is gone, so there is nothing to open — but the run is still here, with
+        // what the record kept, in the drawer every transfer uses.
         await row.first().click()
-        // By name: the first drawer a store ever closes is followed by a one-time tip about the
-        // ESC key, which is a dialog too.
-        const drawer = page.getByRole('dialog', { name: /Transfer Details/ })
         await expect(drawer.getByText(/Nightly photos.*no longer exists/)).toBeVisible()
+        await expect(page).toHaveURL(/\/transfers/)
         await page.keyboard.press('Escape')
         await expect(drawer).toBeHidden()
-        const tip = page.getByRole('dialog', { name: 'Did you know?' })
-        await tip
-            .waitFor({ timeout: 2000 })
-            .then(() => tip.getByRole('button', { name: 'Good to know' }).click())
-            .catch(() => {})
-        await expect(tip).toBeHidden()
+        await dismissTip()
 
-        // With its schedule in place the row belongs to it: a new tab, on that task's drawer.
         await setTasks([
             ...before,
             {
@@ -2232,8 +2213,6 @@ test('a scheduled run is listed in Transfers, and its row opens its schedule in 
                 name: 'Nightly photos',
                 cron: '0 2 1 1 *',
                 isEnabled: false,
-                configId: 'default',
-                binaryPath: 'app-default',
                 operation: 'copy',
                 args: {
                     sources: ['/tmp/e2e-nightly-src'],
@@ -2244,17 +2223,32 @@ test('a scheduled run is listed in Transfers, and its row opens its schedule in 
         ])
         await page.reload()
         await page.getByRole('tab', { name: 'INACTIVE' }).click()
-        const opened = context.waitForEvent('page')
+
+        // With the schedule in place the drawer still opens here — no second tab — and offers
+        // the way back to it.
         await row.first().click()
-        const schedules = await opened
-        await expect(schedules).toHaveURL(new RegExp(`/schedules\\?task=${taskId}&run=${runId}`))
-        await expect(schedules.getByRole('dialog').getByText('Edit Schedule')).toBeVisible()
-        await expect(schedules.getByRole('dialog').getByLabel('Schedule name')).toHaveValue(
+        await expect(drawer.getByText(/Started by the schedule .Nightly photos./)).toBeVisible()
+        await expect(drawer.getByText(/no longer exists/)).toBeHidden()
+        await drawer.getByRole('button', { name: 'Open schedule' }).click()
+        await expect(page).toHaveURL(new RegExp(`/schedules\\?task=${taskId}$`))
+        await expect(page.getByRole('dialog').getByText('Edit Schedule')).toBeVisible()
+        await expect(page.getByRole('dialog').getByLabel('Schedule name')).toHaveValue(
             'Nightly photos'
         )
-        // The Transfers tab stayed where it was.
-        await expect(page).toHaveURL(/\/transfers/)
-        await schedules.close()
+
+        // And the other way: the schedule's runs, on the Transfers page, only its own.
+        await page.goto(`/transfers?task=${taskId}`)
+        await expect(page.getByText('Runs of')).toBeVisible()
+        await expect(page.getByText('Nightly photos')).toBeVisible()
+        await page.getByRole('tab', { name: 'INACTIVE' }).click()
+        // One row, and it is the scheduled one: the origin badges say what is left.
+        const panel = page.getByRole('tabpanel')
+        await expect(panel.getByText('Schedule', { exact: true })).toHaveCount(1)
+        await expect(panel.getByText('Operation', { exact: true })).toHaveCount(0)
+        await expect(panel.getByText('Commander', { exact: true })).toHaveCount(0)
+        await page.getByRole('button', { name: 'Show all' }).click()
+        await expect(page).toHaveURL(/\/transfers$/)
+        await expect(page.getByText('Runs of')).toBeHidden()
     } finally {
         await setTasks(before)
         await request.post('/api/rpc/scheduler_unregister', {

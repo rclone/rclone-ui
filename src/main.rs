@@ -32,64 +32,40 @@ enum Command {
 #[derive(Args, Debug, Clone)]
 struct CliServe {
     /// Address to listen on.
-    #[arg(long, env = "RCLONE_UI_BIND", default_value = "127.0.0.1:5573")]
+    #[arg(long, env = "RCLONE_CLOUD_BIND", default_value = "127.0.0.1:5573")]
     bind: String,
     /// The owner account's password. Required. It seeds the owner on the first start and is
     /// ignored once accounts exist (Settings › Team; delete state/team.json to start over).
-    #[arg(long, env = "RCLONE_UI_PASSWORD")]
+    #[arg(long, env = "RCLONE_CLOUD_PASSWORD")]
     password: Option<String>,
     /// The owner account's email, used with --password on the first start only.
-    #[arg(long, env = "RCLONE_UI_EMAIL", default_value = rclone_ui_server::team::DEFAULT_OWNER_EMAIL)]
+    #[arg(long, env = "RCLONE_CLOUD_EMAIL", default_value = rclone_ui_server::team::DEFAULT_OWNER_EMAIL)]
     email: String,
     /// The data directory: state, accounts, schedules, rclone configs and binaries, logs
-    /// (defaults to the desktop app's).
-    #[arg(long, env = "RCLONE_UI_DATA_DIR")]
+    /// (defaults to this machine's local data directory, under com.rclone.cloud).
+    #[arg(long, env = "RCLONE_CLOUD_DATA_DIR")]
     data_dir: Option<PathBuf>,
     /// rclone binary to run instead of the stored / system / downloaded one.
-    #[arg(long, env = "RCLONE_UI_RCLONE_PATH")]
+    #[arg(long, env = "RCLONE_CLOUD_RCLONE_PATH")]
     rclone_path: Option<PathBuf>,
     /// Use an already-running rclone RC daemon at this URL instead of managing one.
-    #[arg(long, env = "RCLONE_UI_RCLONE_URL")]
+    #[arg(long, env = "RCLONE_CLOUD_RCLONE_URL")]
     rclone_url: Option<String>,
-    /// Skip the remotes' "mount on start" jobs.
-    #[arg(long, env = "RCLONE_UI_NO_AUTOMOUNT")]
-    no_automount: bool,
     /// Run the managed daemon with `--log-level INFO`.
-    #[arg(long, env = "RCLONE_UI_VERBOSE_RCLONE")]
+    #[arg(long, env = "RCLONE_CLOUD_VERBOSE_RCLONE")]
     verbose_rclone: bool,
     /// Forward non-API requests to a Vite dev server instead of serving the embedded bundle.
-    #[arg(long, env = "RCLONE_UI_DEV_PROXY")]
+    #[arg(long, env = "RCLONE_CLOUD_DEV_PROXY")]
     dev_proxy: Option<String>,
     /// Delete everything in the data directory before starting: accounts, hosts, settings,
     /// schedules, notification targets, rclone configs and downloaded binaries. The owner is
     /// seeded again from --password.
-    #[arg(long, env = "RCLONE_UI_CLEAR")]
+    #[arg(long, env = "RCLONE_CLOUD_CLEAR")]
     clear: bool,
 }
 
 fn main() {
-    // Headless scheduled-task mode: `run-task <taskId> [--data-dir X]`. Handled before any
-    // runtime or server state exists so the child stays as small as it looks.
-    //
-    // A schedule registered by an older build still carries `--host local` in its stored
-    // invocation until the startup reconcile re-renders it, so unknown flags are stepped over
-    // rather than rejected: refusing them would break every existing schedule on its next fire.
     let args: Vec<String> = std::env::args().collect();
-    if args.len() >= 3 && args[1] == "run-task" {
-        let _ = fix_path_env::fix();
-        let flag_value = |flag: &str| {
-            args.iter()
-                .position(|a| a == flag)
-                .and_then(|i| args.get(i + 1))
-                .cloned()
-        };
-        let task_id = args[2].clone();
-        let data_dir = flag_value("--data-dir");
-        std::process::exit(rclone_ui_server::scheduler::runner::run(
-            &task_id,
-            data_dir.as_deref(),
-        ));
-    }
 
     // The metadata mapper (`--metadata-mapper`), which rclone spawns once per file and
     // directory copied: one JSON object in, one out, nothing started, nothing logged.
@@ -130,7 +106,7 @@ async fn run(cli: CliServe) -> Result<(), String> {
         .parse()
         .map_err(|e| format!("invalid --bind '{}': {}", cli.bind, e))?;
     let password = cli.password.clone().filter(|p| !p.is_empty()).ok_or_else(|| {
-        "a password is required: set --password or RCLONE_UI_PASSWORD (it becomes the owner account's password on the first start)".to_string()
+        "a password is required: set --password or RCLONE_CLOUD_PASSWORD (it becomes the owner account's password on the first start)".to_string()
     })?;
 
     let dirs = match &cli.data_dir {
@@ -183,11 +159,6 @@ async fn run(cli: CliServe) -> Result<(), String> {
         log::warn!("storage: {}", note);
     }
 
-    // The server is a long-running daemon (possibly in a container with no cron): tasks fire from
-    // its own minute loop.
-    tokio::spawn(rclone_ui_server::scheduler::ticker::run_ticker(
-        dirs.clone(),
-    ));
     log::info!("data dir {}", dirs.root.display());
 
     // After a relaunch the previous process may still hold the port for a moment.
@@ -215,13 +186,12 @@ async fn run(cli: CliServe) -> Result<(), String> {
     match &cli.rclone_url {
         Some(url) => log::info!("using the external rclone daemon at {}", url),
         None => {
-            let mounts = !cli.no_automount
-                && handle.state.capabilities["mount"]
-                    .as_bool()
-                    .unwrap_or(false);
+            let can_mount = handle.state.capabilities["mount"]
+                .as_bool()
+                .unwrap_or(false);
             handle.start_lifecycle(LifecycleOptions {
                 rclone_path_override: cli.rclone_path.clone(),
-                mounts,
+                can_mount,
                 verbose: cli.verbose_rclone,
                 path_integration: true,
                 check_updates: true,

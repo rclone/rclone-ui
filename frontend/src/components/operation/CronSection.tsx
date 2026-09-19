@@ -4,7 +4,8 @@ import CronEditor from '../CronEditor'
 
 /**
  * The Schedule options-accordion section for the operation pages: the cron editor plus live
- * per-platform validation (scheduler_validate_cron). Rendered as the 'cron' accordion item.
+ * validation by the server's own matcher (scheduler_validate_cron). Rendered as the 'cron'
+ * accordion item.
  */
 export default function CronSection({
     expression,

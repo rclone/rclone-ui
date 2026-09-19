@@ -22,8 +22,8 @@ import { retryPlan, retryRequest } from '../lib/transfers/retry'
 
 declare global {
     interface Window {
-        __RCLONE_UI__?: { mode: string; capabilities: { mode: string; window: boolean } }
-        __RCLONE_UI_API__: typeof import('../lib/api')
+        __RCLONE_CLOUD__?: { mode: string; capabilities: { mode: string; window: boolean } }
+        __RCLONE_CLOUD_API__: typeof import('../lib/api')
     }
 }
 
@@ -68,7 +68,7 @@ test('dashboard renders inside the shell with the injected boot payload', async 
     // not merely false but absent. This is the guard against them creeping back in.
     expect(
         await page.evaluate(() => {
-            const boot = window.__RCLONE_UI__
+            const boot = window.__RCLONE_CLOUD__
             return {
                 mode: 'mode' in (boot ?? {}),
                 window: 'window' in (boot?.capabilities ?? {}),
@@ -361,7 +361,7 @@ test('two writes from one page to the same document never conflict with each oth
     // several keys does. The second must carry the revision the first produced, not race it
     // (a 409 is recovered from, but the browser still logs it as an error).
     const state = await page.evaluate(async (doc) => {
-        const storage = window.__RCLONE_UI_API__.state.stateStorage(() => doc)
+        const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(() => doc)
         const value = (patch: Record<string, unknown>) =>
             JSON.stringify({ version: 2, state: { a: 1, ...patch } })
         // Hydration reads first, as zustand does; a write before that is dropped (next test).
@@ -373,7 +373,7 @@ test('two writes from one page to the same document never conflict with each oth
         ])
         // A write fired without waiting: the barrier resolves once it has landed.
         void storage.setItem('x', value({ b: 2, c: 3, d: 4 }))
-        await window.__RCLONE_UI_API__.state.whenWritten(doc)
+        await window.__RCLONE_CLOUD_API__.state.whenWritten(doc)
         return storage.getItem('x')
     }, 'hosts/e2e-queue')
     expect(JSON.parse(state as string).state).toEqual({ a: 1, b: 2, c: 3, d: 4 })
@@ -388,7 +388,7 @@ test('a write before the document was read is dropped', async ({ page }) => {
     // would patch defaults over what other pages saved. The adapter drops that write (with a
     // console warning, not an error) and hydration brings the document's truth.
     const state = await page.evaluate(async (doc) => {
-        const storage = window.__RCLONE_UI_API__.state.stateStorage(() => doc)
+        const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(() => doc)
         await storage.setItem('x', JSON.stringify({ version: 2, state: { a: 1 } }))
         return storage.getItem('x')
     }, 'hosts/e2e-unread')
@@ -420,7 +420,7 @@ test('two pages creating the same document keep both their keys', async ({
     }
     const hydrate = (target: Page) =>
         target.evaluate(async (doc) => {
-            const storage = window.__RCLONE_UI_API__.state.stateStorage(() => doc)
+            const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(() => doc)
             ;(window as unknown as Holder).__e2eStorage = storage
             await storage.getItem('x')
         }, doc)
@@ -450,7 +450,7 @@ test('two pages creating the same document keep both their keys', async ({
     const later = 'hosts/e2e-create-later'
     const hydrateDoc = (target: Page, name: string) =>
         target.evaluate(async (name) => {
-            const storage = window.__RCLONE_UI_API__.state.stateStorage(() => name)
+            const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(() => name)
             ;(window as unknown as Holder).__e2eStorage = storage
             await storage.getItem('x')
         }, name)
@@ -502,7 +502,7 @@ test('a page writes what it changed, never what it merely holds', async ({
     }
     const hydrate = (target: Page) =>
         target.evaluate(async (doc) => {
-            const storage = window.__RCLONE_UI_API__.state.stateStorage(() => doc)
+            const storage = window.__RCLONE_CLOUD_API__.state.stateStorage(() => doc)
             ;(window as unknown as Holder).__e2eStorage = storage
             await storage.getItem('x')
         }, doc)
@@ -769,7 +769,7 @@ test('in-page dialogs: ask and prompt', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Local Machine' })).toBeVisible()
     const asked = page.evaluate(async () => {
-        const { ask } = window.__RCLONE_UI_API__.dialog
+        const { ask } = window.__RCLONE_CLOUD_API__.dialog
         return ask('Proceed?', {
             title: 'E2E',
             kind: 'warning',
@@ -782,7 +782,7 @@ test('in-page dialogs: ask and prompt', async ({ page }) => {
     expect(await asked).toBe(true)
 
     const prompted = page.evaluate(async () => {
-        const { prompt } = window.__RCLONE_UI_API__.dialog
+        const { prompt } = window.__RCLONE_CLOUD_API__.dialog
         return prompt({ title: 'Name it', message: 'Type', default: 'x' })
     })
     const input = page.getByRole('dialog').getByRole('textbox')
@@ -801,7 +801,7 @@ test('a streaming command delivers its events over the WebSocket', async ({ page
 
     // A one-off `rclone version` through the daemon spawner: its close event is the stream.
     const events = await page.evaluate(async () => {
-        const { stream } = window.__RCLONE_UI_API__
+        const { stream } = window.__RCLONE_CLOUD_API__
         const seen: { kind: string; code: number | null }[] = []
         const handle = await stream<number, { kind: string; code: number | null }>(
             'spawn_rclone',
@@ -815,7 +815,7 @@ test('a streaming command delivers its events over the WebSocket', async ({ page
 
     // The folder picker renders PathSelector, whose FilePanel lists the daemon's disk.
     const picked = page.evaluate(async (path) => {
-        const { pickPath } = window.__RCLONE_UI_API__.dialog
+        const { pickPath } = window.__RCLONE_CLOUD_API__.dialog
         return pickPath({ directory: true, defaultPath: path })
     }, dir)
     await page.getByRole('button', { name: /PICK CURRENT FOLDER/ }).click({ timeout: 20_000 })
@@ -2007,7 +2007,7 @@ test('a launch that dies says it failed, and never that it started', async ({ re
 test('an email notification goes out through the SMTP settings', async ({ page, request }) => {
     // Email is a provider like the others: a target with a name and its recipients, its events,
     // Send Test, and a delivery record. What differs is the way out: the mail server saved on
-    // the SMTP screen, read by the server (and the headless runner) at the moment it sends.
+    // the SMTP screen, read by the server at the moment it sends.
     const mail = await smtpReceiver()
     const rpc = async (name: string, data: Record<string, unknown> = {}) =>
         (await (await request.post(`/api/rpc/${name}`, { headers: SESSION, data })).json()) as {
@@ -2120,9 +2120,9 @@ test('a scheduled run keeps the files that failed early, as the server does', as
                 { timeout: 30_000, message: 'lifecycle never reached ready' }
             )
             .toBe('ready')
-        const host = (await (
-            await api.get(`${base}/api/state/hosts/local`, { headers: SESSION })
-        ).json()) as { state: { activeConfigId?: string } }
+        // Slow enough for the run to look at its files while they go by. On the daemon, not in
+        // the job file: a run submits transfers, and a bandwidth limit is not one.
+        await api.post(`${base}/api/rc/core/bwlimit`, { headers: SESSION, data: { rate: '64k' } })
         const registered = await rpc('scheduler_register', {
             enabled: false,
             spec: {
@@ -2131,13 +2131,9 @@ test('a scheduled run keeps the files that failed early, as the server does', as
                 name: 'E2E collect',
                 operation: 'copy',
                 cron: '0 3 1 1 *',
-                configId: host.state.activeConfigId ?? 'default',
-                binary: '/usr/local/bin/rclone',
                 sources: [`${join(root, 'src')}/`],
                 destination: destination,
                 requests: [
-                    // Slow enough for the run to look at its files while they go by.
-                    { endpoint: '/core/bwlimit', body: { rate: '64k', _async: true } },
                     {
                         endpoint: '/job/batch',
                         body: {
@@ -2170,6 +2166,7 @@ test('a scheduled run keeps the files that failed early, as the server does', as
         expect(detail.failed?.map((file) => file.name)).toEqual(['000-locked.txt'])
     } finally {
         chmodSync(locked, 0o644)
+        await api.post(`${base}/api/rc/core/bwlimit`, { headers: SESSION, data: { rate: 'off' } })
         await rpc('scheduler_unregister', { taskId })
         await context.close()
         rmSync(root, { recursive: true, force: true })

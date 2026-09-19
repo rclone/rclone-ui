@@ -47,17 +47,14 @@ export default function Schedules() {
         supportQuery.data?.reason ?? 'Scheduling is not available on this system.'
 
     const [selectedTask, setSelectedTask] = useState<ScheduledTask | null>(null)
-    const [highlightedRunId, setHighlightedRunId] = useState<string | null>(null)
     const { isOpen, onOpen, onClose } = useDisclosure()
 
-    // A scheduled run's row in Transfers lands here as `?task=<id>&run=<runId>`: its history and
-    // its logs are this page's. Answers whether the task was found, so the URL can wait for the
-    // tasks to load.
+    // A scheduled run's transfer links back here as `?task=<id>`: the schedule it came from.
+    // Answers whether the task was found, so the URL can wait for the tasks to load.
     const openFromSearch = useCallback(
         (search: URLSearchParams) => {
             const task = scheduledTasks.find((candidate) => candidate.id === search.get('task'))
             if (!task) return false
-            setHighlightedRunId(search.get('run'))
             setSelectedTask(task)
             onOpen()
             return true
@@ -105,7 +102,7 @@ export default function Schedules() {
                     title={available ? 'Nothing scheduled yet' : 'Scheduling is not available here'}
                     description={
                         available
-                            ? 'Set up a copy, move, sync, bisync, delete or purge, then schedule it from its window. Scheduled tasks run on their own, even while the app is closed.'
+                            ? 'Set up a copy, move, sync, bisync, delete or purge, then schedule it from its window. The server runs them on its own, with nobody looking, and each run shows up in Transfers.'
                             : unavailableReason
                     }
                 />
@@ -135,12 +132,8 @@ export default function Schedules() {
             {selectedTask && (
                 <ScheduleEditDrawer
                     isOpen={isOpen}
-                    onClose={() => {
-                        setHighlightedRunId(null)
-                        onClose()
-                    }}
+                    onClose={onClose}
                     selectedTask={selectedTask}
-                    highlightedRunId={highlightedRunId}
                 />
             )}
         </div>
@@ -164,9 +157,9 @@ function TaskCard({
     // their last dep change (e.g. a past occurrence kept showing as the "next run" forever).
     const now = useNow()
 
-    // Next-run preview comes from Rust (the runner's own cron matcher) — JS cron libraries
+    // Next-run preview comes from Rust (the very matcher the tick uses) — JS cron libraries
     // disagree with real cron on dom/dow star semantics, so computing it here could predict
-    // fires the native schedule never performs. The query returns the next 5; the memo picks
+    // fires that will never happen. The query returns the next 5; the memo picks
     // the first still in the future so the label stays fresh between refetches.
     const nextRunsQuery = useQuery({
         queryKey: ['scheduler', 'validate-cron', task.cron],
@@ -288,25 +281,6 @@ function TaskCard({
                         >
                             {task.operation.toUpperCase()}
                         </Chip>
-                        {task.runMode === 'system' && (
-                            <Tooltip
-                                content="Runs even while logged out — without your session's keychain, mounted drives, or (on macOS) protected folders"
-                                placement="bottom"
-                                size="lg"
-                                color="foreground"
-                            >
-                                <Chip
-                                    isCloseable={false}
-                                    size="lg"
-                                    variant="flat"
-                                    radius="sm"
-                                    color="secondary"
-                                    className="h-10"
-                                >
-                                    SYSTEM
-                                </Chip>
-                            </Tooltip>
-                        )}
                         <div className="flex flex-col gap-0 min-w-0">
                             <p className="max-w-64 text-sm font-bold truncate text-start">
                                 {task.name || 'Untitled Schedule'}

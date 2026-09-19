@@ -117,7 +117,6 @@ pub enum QuitKind {
 }
 
 pub type OnQuit = Arc<dyn Fn(QuitKind) + Send + Sync>;
-pub type OpenExternal = Arc<dyn Fn(&str, &str) -> Result<(), String> + Send + Sync>;
 
 pub struct Hooks {
     /// Overrides on top of the computed capabilities.
@@ -178,9 +177,9 @@ pub fn restart_args(args: impl IntoIterator<Item = String>) -> Vec<String> {
     args.into_iter().filter(|a| a != "--clear").collect()
 }
 
-/// `RCLONE_UI_CLEAR` is `--clear`'s environment form: as one-shot as the flag.
+/// `RCLONE_CLOUD_CLEAR` is `--clear`'s environment form: as one-shot as the flag.
 pub fn is_one_shot_env(key: &str) -> bool {
-    key == "RCLONE_UI_CLEAR"
+    key == "RCLONE_CLOUD_CLEAR"
 }
 
 /// Starts a fresh copy of this binary with the same arguments (less the one-shot ones); the
@@ -191,7 +190,7 @@ pub fn relaunch_process() -> Result<(), String> {
     let args = restart_args(std::env::args().skip(1));
     std::process::Command::new(exe)
         .args(args)
-        .env_remove("RCLONE_UI_CLEAR")
+        .env_remove("RCLONE_CLOUD_CLEAR")
         .stdin(std::process::Stdio::null())
         .spawn()
         .map(|_| ())
@@ -307,21 +306,35 @@ pub fn containerized() -> bool {
         .unwrap_or(false)
 }
 
-/// Whether the host can mount. WinFsp on Windows is the only prerequisite checked; macOS mounts
-/// through the system NFS client and Linux through the distribution's FUSE. Pages re-check at
-/// mount time (WinFsp can be installed while the app runs); this decides what the UI offers up
-/// front.
+/// Whether the host can mount at all: WinFsp on Windows, the FUSE device on Linux. macOS mounts
+/// through the system NFS client and needs neither. Pages re-check at mount time (WinFsp can be
+/// installed while the app runs); this decides what the UI offers up front, and whether the
+/// startup mounts are even attempted.
 pub fn mount_supported() -> bool {
+    mount_supported_in(std::path::Path::new("/dev/fuse"))
+}
+
+/// [`mount_supported`] against a given FUSE device path, so the rule can be tested without the
+/// machine's real one.
+///
+/// Only the device's existence is checked. A container that has it but lacks `SYS_ADMIN` still
+/// fails when it mounts, and says so then: the privileges themselves cannot be probed for
+/// reliably, and guessing at them would turn off a feature that works.
+fn mount_supported_in(dev_fuse: &std::path::Path) -> bool {
     if cfg!(target_os = "windows") {
-        [
+        return [
             "C:\\Program Files\\WinFsp",
             "C:\\Program Files (x86)\\WinFsp",
         ]
         .iter()
-        .any(|p| std::path::Path::new(p).exists())
-    } else {
-        true
+        .any(|p| std::path::Path::new(p).exists());
     }
+    // A plain `docker run` has no /dev/fuse: the remotes' mount-on-start jobs would each fail,
+    // loudly, on every restart. Better to know it up front and say so once.
+    if cfg!(target_os = "linux") {
+        return dev_fuse.exists();
+    }
+    true
 }
 
 /// What this host can do; pages hide UI the host can't back.
@@ -464,6 +477,13 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts, hooks: Hooks) -> Resu
         // or watched again.
         state.transfers.recover();
         state.transfers.spawn_ticker();
+        // The server is a long-running daemon (possibly in a container with no cron), so
+        // schedules fire from its own minute loop — and run on it, through the same transfer
+        // service as everything else.
+        tokio::spawn(scheduler::ticker::run_ticker(
+            state.ctx.clone(),
+            Arc::clone(&state.transfers),
+        ));
     }
 
     let app = Router::new()
@@ -526,7 +546,36 @@ mod restart_tests {
         let args = restart_args(["serve", "--clear", "--password", "x"].map(String::from));
         assert_eq!(args, vec!["serve", "--password", "x"]);
         assert_eq!(restart_args(["serve".to_string()]), vec!["serve"]);
-        assert!(is_one_shot_env("RCLONE_UI_CLEAR"));
-        assert!(!is_one_shot_env("RCLONE_UI_PASSWORD"));
+        assert!(is_one_shot_env("RCLONE_CLOUD_CLEAR"));
+        assert!(!is_one_shot_env("RCLONE_CLOUD_PASSWORD"));
+    }
+
+    /// A container without the FUSE device cannot mount, and the capability has to say so before
+    /// the remotes' mount-on-start jobs are attempted one failure at a time. Linux only: macOS
+    /// mounts over the system NFS client, Windows through WinFsp.
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn linux_needs_the_fuse_device_to_offer_mounting() {
+        let dir = std::env::temp_dir().join(format!("rcloneui-fuse-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let absent = dir.join("absent");
+        let present = dir.join("present");
+        std::fs::write(&present, b"").unwrap();
+
+        assert!(!mount_supported_in(&absent), "no device, no mounting");
+        assert!(
+            mount_supported_in(&present),
+            "the device is the whole check"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Everywhere else the device is beside the point and must not be looked at.
+    #[test]
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    fn other_platforms_do_not_ask_about_fuse() {
+        assert!(mount_supported_in(std::path::Path::new(
+            "/nowhere/near/a/real/device"
+        )));
     }
 }

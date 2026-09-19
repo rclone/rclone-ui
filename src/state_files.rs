@@ -315,7 +315,7 @@ mod tests {
         assert_eq!(created.revision, 1);
 
         let mut set = Map::new();
-        set.insert("licenseValid".into(), Value::Bool(true));
+        set.insert("hideStartup".into(), Value::Bool(true));
         let patched = store
             .patch(APP_DOC, set.clone(), vec![], Some(1))
             .unwrap_or_else(|_| panic!("patch"));
@@ -350,7 +350,7 @@ mod tests {
         let created = store.put(APP_DOC, APP_VERSION, state, None).unwrap();
 
         let mut set = Map::new();
-        set.insert("licenseValid".into(), Value::Bool(true));
+        set.insert("hideStartup".into(), Value::Bool(true));
         let patched = store
             .patch(
                 APP_DOC,
@@ -364,7 +364,7 @@ mod tests {
             patched.state.get("settingsPass").is_none(),
             "the key is gone"
         );
-        assert_eq!(patched.state["licenseValid"], true);
+        assert_eq!(patched.state["hideStartup"], true);
         assert_eq!(patched.state["hosts"], json!([]));
 
         let reread = store.read(APP_DOC).unwrap().unwrap();

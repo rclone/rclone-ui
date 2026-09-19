@@ -44,7 +44,7 @@ Expand the accordion sections to customize your delete operation. Tap any chip o
 • Config — Performance tuning: parallel checkers, and other global rclone settings.
 • Metadata — Whether to preserve object metadata (metadata), a program that rewrites it (metadata_mapper), and metadata include/exclude/filter rules.
 
-• Schedule — Run this delete automatically at set intervals, even when the app is closed. Useful for automated cleanup tasks.
+• Schedule — Run this delete automatically at set intervals, for as long as the server is running. Useful for automated cleanup tasks.
 
 3. USE TEMPLATES (Optional)
 Tap the folder icon in the bottom bar to load or save option presets. Templates let you quickly apply common filter configurations for recurring cleanup tasks.

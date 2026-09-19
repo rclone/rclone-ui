@@ -1,4 +1,4 @@
-// Transfers as the server records them (`src-shared/src/transfers/`): started by it, watched by
+// Transfers as the server records them (`src/transfers/`): started by it, watched by
 // it, written by it. The list, the details, starting and stopping all go through here; rclone is
 // asked for nothing but the live numbers of what is running (`lib/transfers/live.ts`).
 
@@ -17,7 +17,8 @@ export type TransferState =
 
 /**
  * Where a transfer came from: a schedule's run, an operation's page, the Commander. Only the
- * scheduled runner writes `schedule`; the server drops it from what a page sends.
+ * server writes `schedule`, for a run it started itself; it drops that tag from what a page
+ * sends.
  */
 export type TransferTag = 'schedule' | 'operation' | 'commander'
 

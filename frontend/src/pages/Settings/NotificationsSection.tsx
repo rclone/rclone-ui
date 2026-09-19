@@ -38,8 +38,8 @@ import { platform } from '../../../lib/api/os'
 const PROVIDER_ORDER: NotificationProvider[] = ['discord', 'slack', 'telegram', 'webhook', 'email']
 
 export default function NotificationsSection() {
-    // Targets live in a Rust-owned store (notifications/targets.json) shared with the headless
-    // runner — polled so runner-recorded lastSentAt/lastError show up here.
+    // Targets live in a Rust-owned store (notifications/targets.json) that the server writes
+    // back to as it delivers — polled so those lastSentAt/lastError land here.
     const targetsQuery = useNotificationTargets()
     const catalogQuery = useNotificationsCatalog()
     const [addingProvider, setAddingProvider] = useState<NotificationProvider | null>(null)
@@ -55,8 +55,6 @@ export default function NotificationsSection() {
     const drawerProvider = editingTarget?.provider ?? addingProvider
 
     const handleAddPress = async (provider: NotificationProvider) => {
-        // Creation-time gate only — the launch reconcile (lib/notifications.ts) is what
-        // disables over-limit targets when a license lapses.
         setAddingProvider(provider)
     }
 

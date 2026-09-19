@@ -23,6 +23,7 @@ import {
     XIcon,
 } from 'lucide-react'
 import { type ReactNode, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { formatBytes } from '../../lib/format'
 import { useIsPreview } from '../../lib/preview'
 import { notify } from '../../lib/notifications'
@@ -32,6 +33,7 @@ import { generalErrors, splitFiles } from '../../lib/transfers/details'
 import { isLive, liveJob } from '../../lib/transfers/live'
 import { rerunEffect, retryPlan } from '../../lib/transfers/retry'
 import { ENDED, type TransferRow } from '../../lib/transfers/rows'
+import { useHostStore } from '../../store/host'
 import TransferRetryDrawer from './TransferRetryDrawer'
 import { message } from '../../lib/api/dialog'
 import { OPERATIONS } from './OperationGrid'
@@ -40,9 +42,9 @@ import { openOperation } from './operation/useOperationPreset'
 /** A transfer's files by where they are: the first two only while it runs. */
 type SectionKey = 'checking' | 'transferring' | 'transferred' | 'failed'
 
-// What is in here comes from two places and never both. A transfer running on this client's
-// daemon is read live from rclone, once a second. Anything else — finished, stopped, interrupted,
-// a scheduled run — is read once from what the server kept, and rclone is not asked at all.
+// What is in here comes from two places and never both. A running transfer is read live from
+// rclone, once a second. One that has ended — finished, stopped, interrupted — is read once from
+// what the server kept, and rclone is not asked at all.
 export default function TransferDetailsDrawer({
     isOpen,
     onClose,
@@ -144,12 +146,20 @@ export default function TransferDetailsDrawer({
     }
 
     // What of it can be retried. Only of a transfer that is over (which inputs failed is not
-    // known before), that the app started itself (a scheduled run's request is not kept), and
-    // whose record has the request it was started with (one from before that has not).
+    // known before) and whose record has the request it was started with — which a run from
+    // before the server started them itself does not, nor does any transfer older than the
+    // record keeping it.
+    const navigate = useNavigate()
+    const scheduledTasks = useHostStore((state) => state.scheduledTasks)
+    // Whether the schedule that ran it is still there to open.
+    const scheduleExists = useMemo(
+        () => scheduledTasks.some((task) => task.id === transfer.scheduled?.taskId),
+        [scheduledTasks, transfer.scheduled]
+    )
+
     const retryable = useMemo(
-        () =>
-            transfer.state === 'running' || transfer.scheduled ? [] : retryPlan(detailQuery.data),
-        [transfer.state, transfer.scheduled, detailQuery.data]
+        () => (transfer.state === 'running' ? [] : retryPlan(detailQuery.data)),
+        [transfer.state, detailQuery.data]
     )
 
     const details = (
@@ -320,8 +330,29 @@ export default function TransferDetailsDrawer({
 
                     {transfer.scheduled && (
                         <Alert color="default" variant="faded">
-                            Started by the schedule “{transfer.scheduled.name ?? transfer.operation}
-                            ”, which no longer exists.
+                            <div className="flex flex-row items-center justify-between w-full gap-3">
+                                <span>
+                                    Started by the schedule “
+                                    {transfer.scheduled.name ?? transfer.operation}”
+                                    {scheduleExists ? '.' : ', which no longer exists.'}
+                                </span>
+                                {scheduleExists && (
+                                    <Button
+                                        size="sm"
+                                        variant="flat"
+                                        className="shrink-0"
+                                        onPress={() => {
+                                            onClose()
+                                            navigate(
+                                                `/schedules?task=${transfer.scheduled?.taskId}`
+                                            )
+                                        }}
+                                        data-focus-visible="false"
+                                    >
+                                        Open schedule
+                                    </Button>
+                                )}
+                            </div>
                         </Alert>
                     )}
 

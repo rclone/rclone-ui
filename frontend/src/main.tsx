@@ -34,7 +34,7 @@ import Transfers from './pages/Transfers'
 import Wizard from './pages/Wizard'
 
 // The platform layer, reachable from the devtools console (and the e2e suite).
-;(window as unknown as { __RCLONE_UI_API__: typeof api }).__RCLONE_UI_API__ = api
+;(window as unknown as { __RCLONE_CLOUD_API__: typeof api }).__RCLONE_CLOUD_API__ = api
 
 connect()
 

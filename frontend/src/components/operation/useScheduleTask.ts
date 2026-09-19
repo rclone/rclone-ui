@@ -7,25 +7,19 @@ import type { ScheduledTask } from '../../../types/schedules'
 import { prompt } from '../../../lib/api/dialog'
 
 /**
- * The schedule mutation shared by the operation pages: page-specific validation (path checks,
- * the Copy/Move multi-source license gate) → cron validation → name prompt → createScheduledTask,
- * which persists the task and registers it with the server's scheduler. The headless runner
- * replays the pre-serialized requests built from `buildArgs()` output.
+ * The schedule mutation shared by the operation pages: page-specific validation (path checks)
+ * → cron validation → name prompt → createScheduledTask,
+ * which persists the task and registers it with the server's scheduler. Each run replays the
+ * pre-serialized requests built from `buildArgs()` output.
  */
 export function useScheduleTask({
     operation,
     cronExpression,
-    configId,
-    binaryPath,
     buildArgs,
     validate,
 }: {
     operation: ScheduledTask['operation']
     cronExpression: string | null
-    /** From the page's Advanced section; omitted/null = active config. */
-    configId?: string | null
-    /** From the page's Advanced section; omitted = 'app-default'. */
-    binaryPath?: string
     /** The operation's arguments; the caller keeps them matched to `operation`. */
     buildArgs: () => ScheduledTask['args']
     validate?: () => void
@@ -53,8 +47,6 @@ export function useScheduleTask({
                 operation,
                 cron: cronExpression,
                 args: buildArgs(),
-                configId: configId ?? undefined,
-                binaryPath,
             })
         },
         onSuccess: async () => {

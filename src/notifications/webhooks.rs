@@ -1,7 +1,6 @@
-//! Webhook and email dispatch — the single engine behind both the GUI's `notifications_dispatch`
-//! command and the headless scheduler runner. Replaces the old TS dispatcher (lib/notifications)
-//! and its hand-synced Rust port (scheduler/notify.rs); payload shapes stay byte-compatible with
-//! what the TS dispatcher sent, so existing webhook consumers see no change. An email target is
+//! Webhook and email dispatch — the single engine behind the `notifications_dispatch` command,
+//! a transfer's end and a scheduled run alike. Payload shapes stay byte-compatible with what the
+//! old TS dispatcher sent, so existing webhook consumers see no change. An email target is
 //! one whose `url` is its recipients (comma-separated); it goes through the saved SMTP settings
 //! (`smtp.rs`), read once per dispatch.
 

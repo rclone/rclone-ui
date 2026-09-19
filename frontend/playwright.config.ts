@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test'
 import { SERVER_BIN } from './e2e/helpers'
 
 // Browser-mode smoke tests against a real rclone-ui-server (debug binary, so `npm run build`'s
-// src-frontend/dist/ is read from disk) and a real rclone daemon. Two servers: one open on loopback, one
+// frontend/dist/ is read from disk) and a real rclone daemon. Two servers: one open on loopback, one
 // password-protected. `npm run test:e2e`.
 const tmp = new URL('./e2e/.tmp/', import.meta.url).pathname
 // Fresh state every run: the lifecycle persists what it adopts (binary, config path, the owner
@@ -63,7 +63,7 @@ export default defineConfig({
             timeout: 20_000,
         },
         {
-            command: `${SERVER_BIN} serve --bind 127.0.0.1:5612 ${password} --rclone-path /usr/local/bin/rclone --no-automount --data-dir ${tmp}managed`,
+            command: `${SERVER_BIN} serve --bind 127.0.0.1:5612 ${password} --rclone-path /usr/local/bin/rclone --data-dir ${tmp}managed`,
             url: 'http://127.0.0.1:5612/api/status',
             reuseExistingServer: false,
             timeout: 20_000,

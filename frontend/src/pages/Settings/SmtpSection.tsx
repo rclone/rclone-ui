@@ -50,8 +50,8 @@ function draftOf(view: SmtpView): Draft {
     }
 }
 
-// The mail server every Email notification goes through (the server's own file, read at send
-// time by whatever dispatches, the scheduled runner included). The password is write-only: the
+// The mail server every Email notification goes through (the server's own file, read at the
+// moment of sending by whatever dispatches). The password is write-only: the
 // form never gets it back, only that one is saved.
 export default function SmtpSection() {
     const layout = 'web'

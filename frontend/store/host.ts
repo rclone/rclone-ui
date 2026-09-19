@@ -5,8 +5,8 @@ import type { ConfigFile } from '../types/config'
 import type { ScheduledTask } from '../types/schedules'
 
 // The host document (`<app_data>/state/hosts/local.json`, served as `/api/state/hosts/local`).
-// The path still carries a host id: it is what the runner, the ledger and the schedules file
-// themselves under, and this server serves exactly one of them.
+// The path still carries a host id: it is what the ledger and the schedules file themselves
+// under, and this server serves exactly one of them.
 const activeDoc = () => 'hosts/local'
 
 watchDoc(activeDoc, () => useHostStore.persist.rehydrate())
@@ -47,7 +47,6 @@ export interface RemoteConfig {
 
 interface HostState {
     remoteConfigs: Record<string, RemoteConfig>
-    setRemoteConfig: (remote: string, config: RemoteConfig) => void
     mergeRemoteConfig: (remote: string, config: RemoteConfig) => void
 
     proxy:
@@ -75,8 +74,6 @@ interface HostState {
     activeConfigId: string | null
     setActiveConfigFile: (id: string) => void
     updateConfigFile: (id: string, configFile: Partial<ConfigFile>) => void
-
-    lastSkippedVersion: string | undefined
 
     // Resolved-once location of the "default" rclone config for this host. Pinned so switching
     // the rclone binary never relocates where the user's remotes are read from.
@@ -109,7 +106,6 @@ type HostData = Pick<
     | 'scheduledTasks'
     | 'configFiles'
     | 'activeConfigId'
-    | 'lastSkippedVersion'
     | 'defaultConfigPath'
     | 'syncConfigToSystem'
     | 'syncConfigLinkTarget'
@@ -124,7 +120,6 @@ const HOST_DEFAULTS: HostData = {
     scheduledTasks: [],
     configFiles: [],
     activeConfigId: null,
-    lastSkippedVersion: undefined,
     defaultConfigPath: undefined,
     syncConfigToSystem: false,
     syncConfigLinkTarget: null,
@@ -134,10 +129,6 @@ export const useHostStore = create<HostState>()(
     persist(
         (set) => ({
             ...HOST_DEFAULTS,
-            setRemoteConfig: (remote: string, config: RemoteConfig) =>
-                set((state) => ({
-                    remoteConfigs: { ...state.remoteConfigs, [remote]: config },
-                })),
             mergeRemoteConfig: (remote: string, config: RemoteConfig) =>
                 set((state) => ({
                     remoteConfigs: {
@@ -224,10 +215,9 @@ export const useHostStore = create<HostState>()(
                 // - The full active ConfigFile object collapses to just its id. Also handles the
                 //   version-1 blob written by the persisted-store's legacy migration, whose
                 //   configFiles can be undefined.
-                // - Scheduling moved to the OS scheduler. Runtime fields (isRunning/currentRunId/
-                //   lastRun/lastRunError) now live in the scheduler's run history; tasks gain a
-                //   per-task binary. Pure reshape — OS registration happens in the startup
-                //   reconcile.
+                // - A task's runtime fields (isRunning/currentRunId/lastRun/lastRunError) moved
+                //   out of the store and into the scheduler's own run history. Pure reshape —
+                //   registering what the document lists happens in the startup reconcile.
                 if (version < 2) {
                     const { activeConfigFile, configFiles, ...rest } = state as {
                         activeConfigFile?: ConfigFile | null
@@ -243,14 +233,14 @@ export const useHostStore = create<HostState>()(
                         scheduledTasks: tasks.map(
                             ({ isRunning, currentRunId, lastRun, lastRunError, ...task }) => ({
                                 ...task,
-                                // The old scheduler silently skipped tasks whose config wasn't
-                                // the active one — those have effectively been dormant, and the
-                                // OS scheduler would resurrect them. Migrate them as paused so
-                                // re-enabling is an explicit user choice.
+                                // A task that used to be pinned to a config other than the
+                                // active one was dormant — the old scheduler silently skipped
+                                // it. Runs go to the server's daemon now, so it would suddenly
+                                // start firing: migrate it paused, and let re-enabling be a
+                                // choice somebody makes.
                                 isEnabled:
                                     (task.isEnabled ?? true) &&
                                     (!activeConfigId || task.configId === activeConfigId),
-                                binaryPath: 'app-default',
                             })
                         ),
                     }

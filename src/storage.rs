@@ -3,7 +3,8 @@
 //! to [`VERSION`] at startup, before anything reads or creates files under it. Steps run in order
 //! from the stored version, each idempotent, the marker written after each. Readers everywhere
 //! else know only the current layout: there are no lazy conversions and no fallbacks to what an
-//! older version wrote. The scheduled runner never migrates; it checks the version and stops.
+//! older version wrote. The server migrates at startup, before it serves or schedules anything,
+//! so nothing else ever has to ask what version the directory is at.
 //!
 //! Where an old layout is referenced, it is here and nowhere else.
 
@@ -43,21 +44,6 @@ pub fn version(root: &Path) -> Result<u32, String> {
         .as_u64()
         .map(|v| v as u32)
         .ok_or_else(|| format!("invalid storage marker {}: no version", path.display()))
-}
-
-/// The check a process that does not own the directory (the scheduled runner) makes before
-/// reading anything: the layout is the one this build reads. Otherwise the owning app has an
-/// update to apply first; nothing is read or written meanwhile.
-pub fn require_current(root: &Path) -> Result<(), String> {
-    match version(root)? {
-        v if v == VERSION => Ok(()),
-        v => Err(format!(
-            "{} is at storage version {} and this build reads {}; open Rclone UI once to bring it up to date",
-            root.display(),
-            v,
-            VERSION
-        )),
-    }
 }
 
 /// Brings `root` to [`VERSION`]. A marker above it is an error: the directory was written by a
@@ -481,21 +467,6 @@ mod tests {
                 notes: vec![]
             }
         );
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn require_current_accepts_only_the_current_version() {
-        let dir = scratch("require");
-        let root = dir.join("root");
-        assert!(require_current(&root).is_err(), "no marker");
-        write(&root.join(MARKER), r#"{"version": 2}"#);
-        assert!(require_current(&root).is_err(), "older");
-        write(
-            &root.join(MARKER),
-            &format!(r#"{{"version": {}}}"#, VERSION),
-        );
-        assert!(require_current(&root).is_ok());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

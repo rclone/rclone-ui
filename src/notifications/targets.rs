@@ -1,8 +1,9 @@
 //! The Rust-owned notification-target store: `<app_data>/notifications/targets.json`.
 //!
-//! Both the GUI (via commands) and the headless runner (recording delivery outcomes) write it,
-//! so every read-modify-write cycle runs under a cross-process lock. The lock file is separate
-//! from the data file so the atomic tmp+rename data writes never disturb the held lock fd.
+//! The pages write it through commands and dispatch records delivery outcomes into it, so every
+//! read-modify-write cycle runs under a lock. It is a cross-process one because a second server
+//! may be pointed at the same data directory. The lock file is separate from the data file so
+//! the atomic tmp+rename data writes never disturb the held lock fd.
 
 use std::path::PathBuf;
 

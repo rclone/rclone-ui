@@ -50,9 +50,8 @@ macro_rules! for_each_command {
             sync scheduler_register(spec: $crate::scheduler::jobfile::JobSpec, enabled: bool) -> () = $crate::scheduler::scheduler_register;
             sync scheduler_unregister(task_id: String) -> () = $crate::scheduler::scheduler_unregister;
             sync scheduler_set_enabled(task_id: String, enabled: bool) -> () = $crate::scheduler::scheduler_set_enabled;
-            sync scheduler_run_now(task_id: String) -> () = $crate::scheduler::scheduler_run_now;
             sync scheduler_status() -> Vec<$crate::scheduler::TaskStatus> = $crate::scheduler::scheduler_status;
-            sync scheduler_read_log(task_id: String, which: String) -> $crate::scheduler::LogContent = $crate::scheduler::scheduler_read_log;
+            sync scheduler_read_log(task_id: String) -> $crate::scheduler::LogContent = $crate::scheduler::scheduler_read_log;
             sync scheduler_read_history(task_id: String, limit: Option<usize>) -> Vec<::serde_json::Value> = $crate::scheduler::scheduler_read_history;
             sync scheduler_unregister_all() -> u32 = $crate::scheduler::scheduler_unregister_all;
             sync scheduler_sweep_orphans() -> u32 = $crate::scheduler::scheduler_sweep_orphans;

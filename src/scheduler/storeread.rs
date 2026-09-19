@@ -1,9 +1,8 @@
-//! Read-only access to the app's persisted stores for the headless runner and the scheduler
-//! commands.
+//! Read-only access to the app's persisted stores for the scheduler commands and the lifecycle:
+//! the documents as they are on disk, without going through the state store.
 //!
-//! Store files are written by tauri-plugin-store + zustand persist: each file is a JSON object
-//! whose single key holds a JSON *string* containing `{"state": {...}, "version": n}` — so the
-//! value must be parsed twice. Only the fields the scheduler needs are modeled; unknown fields
+//! A document is `{version, revision, state}` on disk, written by the state store. Only the
+//! fields the scheduler and the lifecycle need are modeled; unknown fields
 //! are ignored so unrelated store changes never break the runner.
 //!
 //! Path resolution lives in `datadir.rs` (and its note on why Flatpak paths are never rewritten).
@@ -15,11 +14,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub use crate::datadir::DataDir;
-
-/// Headless resolution of the data roots (see `DataDir::resolve`).
-pub fn app_dirs() -> Result<DataDir, String> {
-    DataDir::resolve()
-}
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -136,7 +130,7 @@ pub fn read_host(dirs: &DataDir) -> Result<HostState, String> {
     read_state_doc(&path)?.ok_or_else(|| format!("no host document at {}", path.display()))
 }
 
-/// Where a config entry's file is, for the lifecycle and the scheduled runner alike: a config
+/// Where a config entry's file is: a config
 /// synced from an external folder is that folder's `rclone.conf`; otherwise
 /// `configs/<id>/rclone.conf` under AppLocalData (lib/rclone/common.ts getConfigPath), except
 /// config id 'default' uses the host store's defaultConfigPath when set (so switching binaries
@@ -168,8 +162,8 @@ pub fn find_config<'a>(host: &'a HostState, config_id: &str) -> Option<&'a Confi
 }
 
 /// Mirrors lib/rclone/cli.ts buildRcloneEnv: proxy vars, config pinning, and encrypted-config
-/// credentials. Errors when the config is encrypted with nothing stored — the headless runner
-/// has no UI to prompt with.
+/// credentials. Errors when the config is encrypted with nothing stored — the server has nobody
+/// to prompt.
 pub fn build_run_env(
     host: &HostState,
     config: Option<&ConfigFileEntry>,
@@ -213,7 +207,7 @@ pub fn build_run_env(
             } else {
                 let label = cfg.label.clone().unwrap_or_else(|| "default".to_string());
                 return Err(format!(
-                    "Config '{}' is encrypted and no password is stored. Open Rclone UI and save the config password to enable scheduled runs.",
+                    "Config '{}' is encrypted and no password is stored. Save the config password in Settings › Config so rclone can be started with it.",
                     label
                 ));
             }

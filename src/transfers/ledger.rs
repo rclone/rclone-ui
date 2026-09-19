@@ -1,13 +1,17 @@
 //! The files: one append-only JSONL per writer, and one detail document per finished transfer.
 //!
 //! ```text
-//! transfers/hosts/<hostId>.jsonl    written by the server's transfers service
-//! transfers/tasks/<taskId>.jsonl    written by `run-task`, under the task's run lock
+//! transfers/hosts/<hostId>.jsonl    every transfer the server records, a scheduled run included
+//! transfers/tasks/<taskId>.jsonl    what scheduled runs wrote while each was a process of its
+//!                                   own: read for the history in them, and appended to exactly
+//!                                   once more, to close what a dead process left open
 //! transfers/details/<id>.json       the request from the start, the outcome at the end
 //! ```
 //!
-//! One writer per file, the rule the scheduler's history lives by: compaction reads, trims and
-//! rewrites, which a second appender would lose lines to. Everyone else only reads.
+//! One writer per file: compaction reads, trims and rewrites, which a second appender would lose
+//! lines to. The server is now the only writer there is — a scheduled run goes through the same
+//! service as a page's transfer — so it owns the task files too, and the end it writes into one
+//! on the first start after the upgrade is the last thing ever added to it.
 
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -74,7 +78,7 @@ pub struct Started {
     /// What the page had set, for Reuse settings and Run again.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preset: Option<Value>,
-    /// Set by the scheduled runner: the schedule that started it, its name then, and the run.
+    /// Set when a schedule started it: which schedule, its name then, and which run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub task_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -91,7 +95,8 @@ pub struct Started {
     pub tags: Vec<String>,
 }
 
-/// Started by a schedule: written by the scheduled runner and by nothing else.
+/// Started by a schedule. Only the transfer service writes it, and only for a start that came
+/// in through `StartRequest::scheduled`.
 pub const TAG_SCHEDULE: &str = "schedule";
 /// Started from an operation's page (Copy, Move, Sync, …).
 pub const TAG_OPERATION: &str = "operation";
@@ -240,8 +245,8 @@ pub fn open(path: &Path) -> Vec<Started> {
         .collect()
 }
 
-/// Writes how a transfer ended, and trims the file if that made it too long. The one way an
-/// end is written, by either writer, each to its own file.
+/// Writes how a transfer ended, and trims the file if that made it too long. The one way an end
+/// is written, whichever file it belongs in.
 pub fn finish(dirs: &DataDir, path: &Path, finished: Finished) -> Result<(), String> {
     let result = append(path, &Line::Finished(finished));
     compact_if_large(dirs, path);
@@ -251,6 +256,14 @@ pub fn finish(dirs: &DataDir, path: &Path, finished: Finished) -> Result<(), Str
 /// Every host's file: what the server looks through for transfers a previous process left open.
 pub fn host_files(dirs: &DataDir) -> Vec<PathBuf> {
     jsonl_in(root(dirs).join("hosts"))
+}
+
+/// The files scheduled runs used to write, back when a run was a process of its own. New runs go
+/// to the ledger with everything else, but these are still read, so a server that upgrades keeps
+/// what it already ran — and `recover` writes one last line into each, closing whatever the dead
+/// process left open ([`open`]).
+pub fn task_files(dirs: &DataDir) -> Vec<PathBuf> {
+    jsonl_in(root(dirs).join("tasks"))
 }
 
 fn jsonl_in(dir: PathBuf) -> Vec<PathBuf> {

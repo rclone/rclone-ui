@@ -751,8 +751,8 @@ const METADATA_INFO = {
 
 const WHEN_INFO = {
     default: [
-        '"Just once" means it runs when you start it, and that is all. The other choices set up a schedule on this machine that runs using the native scheduler.',
-        "On the Schedules page you can see the history, logs and change the schedule's paramers after it is created.",
+        '"Just once" means it runs when you start it, and that is all. The other choices set up a schedule the server runs, for as long as the server is up.',
+        "On the Schedules page you can see each run's history and change the schedule after it is created; the runs themselves are in Transfers, like everything else.",
     ],
     custom: [
         'Write the schedule as five fields: minute, hour, day of the month, month, day of the week.',

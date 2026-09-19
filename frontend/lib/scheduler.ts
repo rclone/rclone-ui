@@ -27,11 +27,7 @@ export interface SchedulerJobSpec {
     name: string
     operation: ScheduledTask['operation']
     cron: string
-    configId: string
-    binary: 'app-default' | string
     maxRunSeconds: number
-    verboseLogging: boolean
-    runMode: 'system' | 'user'
     /** What the task runs on, as the page shows it: each run's transfer is recorded with these. */
     sources: string[]
     destination?: string
@@ -54,13 +50,12 @@ export interface SchedulerTaskStatus {
         /** Synthesized: the run left a started event but no finished one (crash/power loss). */
         interrupted?: boolean
     }
-    /** Backend health warning — installed+enabled but the OS won't fire it (e.g. the macOS
-     * background item was toggled off in System Settings). */
+    /** Why the task's state could not be established — its registration could not be read. */
     warning?: string
 }
 
 export type SchedulerHistoryLine =
-    | { event: 'started'; runId: string; ts: string; pid: number }
+    | { event: 'started'; runId: string; ts: string }
     | {
           event: 'finished'
           runId: string
@@ -102,9 +97,9 @@ export function useSchedulerSupported() {
 }
 
 /**
- * Whether scheduling can actually work here: the current host is the local machine AND the OS
- * backend reports support. Unresolved support counts as unavailable. Shared by the operation
- * pages (to gate the Schedule section + footer Schedule button) and the footer.
+ * Whether scheduling can actually work here. The server is its own scheduler, so this is yes
+ * unless it could not read its registrations at all. Unresolved counts as unavailable. Shared by
+ * the operation pages (to gate the Schedule section + footer Schedule button) and the footer.
  */
 export function useSchedulingAvailable(): boolean {
     return useSchedulerSupported().data?.supported ?? false
@@ -113,8 +108,8 @@ export function useSchedulingAvailable(): boolean {
 export interface CronValidation {
     valid: boolean
     error?: string
-    /** Next local fire times (RFC3339), computed by the same Rust matcher the runner uses —
-     * the only preview source that can't disagree with what the OS schedule will do. */
+    /** Next local fire times (RFC3339), computed by the same Rust matcher the tick uses —
+     * the only preview that cannot disagree with what will actually fire. */
     nextRuns: string[]
 }
 
@@ -134,11 +129,9 @@ export async function schedulerRunNow(taskId: string) {
     return rpc('scheduler_run_now', { taskId })
 }
 
-export async function schedulerReadLog(taskId: string, which: 'runner' | 'daemon') {
-    return rpc<{ content: string; truncated: boolean }>('scheduler_read_log', {
-        taskId,
-        which,
-    })
+/** What the scheduler said about this task's runs. What each run moved is its transfer's. */
+export async function schedulerReadLog(taskId: string) {
+    return rpc<{ content: string; truncated: boolean }>('scheduler_read_log', { taskId })
 }
 
 function buildJobSpec(task: ScheduledTask): SchedulerJobSpec {
@@ -150,15 +143,11 @@ function buildJobSpec(task: ScheduledTask): SchedulerJobSpec {
         name: task.name ?? task.operation,
         operation: task.operation,
         cron: task.cron,
-        configId: task.configId,
-        binary: task.binaryPath,
         maxRunSeconds: clampMaxRunHours(task.maxRunHours) * 3600,
-        verboseLogging: task.verboseLogging ?? false,
-        runMode: task.runMode ?? 'user',
         sources: args.sources ?? (args.source ? [args.source] : []),
         destination: args.destination,
         // Pre-serialized here, at save time, by the exact same builders the live start* path
-        // uses — the runner just POSTs them. Throws when the args can't serialize. What the
+        // uses — a run just hands them over. Throws when the args can't serialize. What the
         // sources are (file or folder) is what rclone said when the task was saved
         // (`task.kinds`): a later rebuild (enable, a cron edit, a remote rename) may run under
         // another active config, so it is not asked again.
@@ -191,12 +180,6 @@ export async function createScheduledTask(input: {
     operation: ScheduledTask['operation']
     cron: string
     args: ScheduledTask['args']
-    /** Defaults to the active config when omitted. */
-    configId?: string
-    /** Defaults to 'app-default' when omitted. */
-    binaryPath?: string
-    /** Defaults to 'user' (only runs while logged in) when omitted. */
-    runMode?: 'system' | 'user'
 }): Promise<string> {
     await assertSupported()
 
@@ -206,18 +189,10 @@ export async function createScheduledTask(input: {
     }
 
     const hostState = useHostStore.getState()
-    const configId = input.configId ?? hostState.activeConfigId
-    if (!configId) {
-        throw new Error('No active config file')
-    }
-    if (!hostState.configFiles.some((config) => config.id === configId)) {
-        throw new Error('The selected config file no longer exists')
-    }
 
-    // What the sources are is rclone's answer, asked now, while the active config is the
-    // task's; it is saved with the task and never asked again. (Callers guarantee the
-    // operation/args correlation via useScheduleTask's generic; Omit<> flattens the
-    // discriminated union, hence the casts.)
+    // What the sources are is rclone's answer, asked now and saved with the task, never asked
+    // again. (Callers guarantee the operation/args correlation via useScheduleTask's generic;
+    // Omit<> flattens the discriminated union, hence the casts.)
     const request = { operation: input.operation, args: input.args } as TaskRequestInput
     const kinds = await describeSources(pathsFromArgs(input.args).sources ?? [], {
         configParam: configParamOf(request),
@@ -230,9 +205,6 @@ export async function createScheduledTask(input: {
         args: input.args,
         kinds,
         isEnabled: true,
-        configId,
-        binaryPath: input.binaryPath ?? 'app-default',
-        runMode: input.runMode ?? 'user',
     } as Omit<ScheduledTask, 'id'>
 
     // Serialization must succeed before anything persists.
@@ -250,7 +222,7 @@ export async function createScheduledTask(input: {
         const registrationError = error instanceof Error ? error.message : String(error)
         useHostStore.getState().updateScheduledTask(id, { registrationError })
         throw new Error(
-            `The schedule was saved but could not be registered with the system: ${registrationError}`
+            `The schedule was saved but could not be registered with the scheduler: ${registrationError}`
         )
     }
 
@@ -289,8 +261,8 @@ export async function updateScheduledTask(
 
 /**
  * Removes the task. Unregistering removes the job file even when the uninstall itself fails, so
- * a surviving registration self-heals on its next fire (the runner finds no job file, removes
- * the registration, and exits).
+ * a surviving registration self-heals on its next fire: the run finds no job file and takes the
+ * registration with it.
  */
 export async function removeScheduledTask(id: string): Promise<void> {
     {
@@ -328,8 +300,8 @@ export async function setScheduledTaskEnabled(id: string, enabled: boolean): Pro
         return
     }
 
-    // OS first, store second — a failed OS call must not leave the UI claiming a state the
-    // scheduler doesn't have.
+    // The scheduler first, the store second — a failed call must not leave the UI claiming a
+    // state the scheduler does not have.
     await rpc('scheduler_set_enabled', { taskId: id, enabled })
     useHostStore.getState().updateScheduledTask(id, { isEnabled: enabled })
 }

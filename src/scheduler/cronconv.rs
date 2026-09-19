@@ -300,8 +300,8 @@ pub fn matches(spec: &CronSpec, minute: u16, hour: u16, dom: u16, month: u16, do
 }
 
 /// The next `count` local wall-clock fire times after `from`, as RFC3339 strings with the local
-/// offset. THE preview source of truth: it runs on the exact `matches()` the runner itself uses,
-/// so the UI can never predict fires the native schedule won't perform (JS cron libraries
+/// offset. THE preview source of truth: it runs on the exact `matches()` the tick itself uses,
+/// so the UI can never predict a fire that will not happen (JS cron libraries
 /// classify the dom/dow star flag differently from Vixie cron). Bounded at 5 years — a schedule
 /// with no match in that window (e.g. `0 0 31 2 *`) returns what it found.
 pub fn next_fires(

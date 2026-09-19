@@ -1,5 +1,5 @@
 //! The frontend bundle (`frontend/dist/`, built by `npm run build`) with an SPA fallback,
-//! plus the boot script injected into index.html: `window.__RCLONE_UI__` carries the mode,
+//! plus the boot script injected into index.html: `window.__RCLONE_CLOUD__` carries the mode,
 //! capabilities, OS facts and well-known paths the page reads synchronously at import time, and
 //! the persisted theme so the first paint is right without localStorage. In debug builds
 //! rust-embed reads that folder from disk, so a fresh `npm run build` is picked up without
@@ -88,7 +88,7 @@ pub fn boot_payload(st: &Shared) -> Value {
 
 pub fn boot_script(st: &Shared) -> String {
     format!(
-        "<script>\nwindow.__RCLONE_UI__ = {};\n</script>",
+        "<script>\nwindow.__RCLONE_CLOUD__ = {};\n</script>",
         boot_payload(st)
     )
 }

@@ -1,4 +1,4 @@
-// What the server injects into index.html before any module runs (src-server/src/static_files.rs
+// What the server injects into index.html before any module runs (src/static_files.rs
 // `boot_payload`), read synchronously at import time by os.ts / paths.ts / host.ts.
 
 export interface Capabilities {
@@ -39,14 +39,9 @@ export interface BootPayload {
     authRequired: boolean
 }
 
-export interface WindowPayload {
-    label: string
-}
-
 declare global {
     interface Window {
-        __RCLONE_UI__?: BootPayload
-        __RCLONE_UI_WINDOW__?: WindowPayload
+        __RCLONE_CLOUD__?: BootPayload
     }
 }
 
@@ -80,8 +75,5 @@ const FALLBACK: BootPayload = {
 }
 
 export const boot: BootPayload =
-    typeof window !== 'undefined' && window.__RCLONE_UI__ ? window.__RCLONE_UI__ : FALLBACK
+    typeof window !== 'undefined' && window.__RCLONE_CLOUD__ ? window.__RCLONE_CLOUD__ : FALLBACK
 
-/** The desktop window this page runs in (`undefined` in a browser tab). */
-export const windowInfo: WindowPayload | undefined =
-    typeof window !== 'undefined' ? window.__RCLONE_UI_WINDOW__ : undefined

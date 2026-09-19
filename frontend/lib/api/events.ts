@@ -1,4 +1,4 @@
-// Bus events the server publishes to every page (src-shared: `Events::emit`). Typed names for
+// Bus events the server publishes to every page (`Events::emit`). Typed names for
 // the ones pages listen to; `on` accepts any name.
 
 import { onEvent } from './ws'
@@ -58,7 +58,7 @@ export interface EventPayloads {
     /** The template a deep link or a shared URL asks to add. */
     'deep-link.add-template': AddTemplatePayload
     /** The server wrote a line about a transfer: it started, or it ended. */
-    'transfers.changed': { hostId: string; id: string }
+    'transfers.changed': { id: string }
 }
 
 export function on<N extends keyof EventPayloads>(

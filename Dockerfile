@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 # Rclone UI in a browser: rclone-ui-server, no GTK/WebKit.
 #   docker build -t rclone-ui-server .
-#   docker run -d -p 5573:5573 -e RCLONE_UI_PASSWORD=change-me -v rclone-ui:/data rclone-ui-server
-# Sign in as admin@localhost (or RCLONE_UI_EMAIL) with that password; the pair seeds the owner
+#   docker run -d -p 5573:5573 -e RCLONE_CLOUD_PASSWORD=change-me -v rclone-ui:/data rclone-ui-server
+# Sign in as admin@localhost (or RCLONE_CLOUD_EMAIL) with that password; the pair seeds the owner
 # account on the first start and is ignored once accounts exist (Settings › Team).
 # Mounts need FUSE: add --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined
 # and a bind mount with `:rshared` propagation for the mount point to show up on the host.
@@ -32,9 +32,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=rclone/rclone:latest /usr/local/bin/rclone /usr/local/bin/rclone
 COPY --from=build /usr/local/bin/rclone-ui-server /usr/local/bin/rclone-ui-server
-ENV RCLONE_UI_BIND=0.0.0.0:5573 \
-    RCLONE_UI_DATA_DIR=/data \
-    RCLONE_UI_RCLONE_PATH=/usr/local/bin/rclone
+ENV RCLONE_CLOUD_BIND=0.0.0.0:5573 \
+    RCLONE_CLOUD_DATA_DIR=/data \
+    RCLONE_CLOUD_RCLONE_PATH=/usr/local/bin/rclone
 VOLUME /data
 EXPOSE 5573
 ENTRYPOINT ["tini", "--", "rclone-ui-server", "serve"]

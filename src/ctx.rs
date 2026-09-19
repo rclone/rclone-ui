@@ -24,10 +24,6 @@ impl Events {
         Events::new()
     }
 
-    pub fn from_bus(bus: Bus) -> Self {
-        Events { bus }
-    }
-
     pub fn bus(&self) -> &Bus {
         &self.bus
     }

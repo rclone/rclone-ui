@@ -1,26 +1,32 @@
-//! The scheduler backend: each registered task gets a small state file, and a tick loop in the
-//! server process fires the due ones at the top of every minute by spawning
-//! `<this binary> run-task …`. The server is already running when a task comes due, so nothing
-//! has to be registered with the operating system for it to fire.
+//! The scheduler backend: each registered task gets a small state file saying whether it is on,
+//! and a tick loop in the server process runs the due ones at the top of every minute. The
+//! server is already running when a task comes due, so nothing has to be registered with the
+//! operating system — and nothing has to be started, either: the run happens here
+//! ([`super::runner::run`]).
 
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
 use super::cronconv;
 use super::jobfile;
+use super::runner;
 use super::storeread::DataDir;
 use super::{InstallState, Registration, RenderedSchedule, SchedulerBackend, NOT_REGISTERED};
+use crate::ctx::Ctx;
+use crate::transfers::service::TransferService;
 
+/// What registering a task leaves on disk. The schedule itself is the job file's; this is only
+/// whether the tick should act on it, kept where the minute loop can read it without opening a
+/// state document. (Older installs also have the command line of the process a run used to be;
+/// serde steps over it, and the next registration writes it away.)
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Artifact {
     enabled: bool,
     installed_at: u64,
-    program: String,
-    args: Vec<String>,
 }
 
 pub struct TickerBackend {
@@ -60,29 +66,6 @@ fn write_artifact(dirs: &DataDir, task_id: &str, artifact: &Artifact) -> Result<
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
-fn spawn_child(program: &str, args: &[String]) -> Result<(), String> {
-    let mut cmd = Command::new(program);
-    cmd.args(args);
-    cmd.stdin(Stdio::null());
-    cmd.stdout(Stdio::null());
-    cmd.stderr(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("failed to start the task runner: {}", e))?;
-    let label = args.get(1).cloned().unwrap_or_default();
-    // Reap it off the loop so it never becomes a zombie; the runner records its own history.
-    crate::rt::spawn_blocking(move || match child.wait() {
-        Ok(status) => log::info!("[ticker] run-task {} exited with {}", label, status),
-        Err(e) => log::warn!("[ticker] run-task {} could not be awaited: {}", label, e),
-    });
-    Ok(())
-}
-
 impl TickerBackend {
     pub fn new(dirs: &DataDir) -> Self {
         TickerBackend { dirs: dirs.clone() }
@@ -100,8 +83,6 @@ impl SchedulerBackend for TickerBackend {
                     .duration_since(UNIX_EPOCH)
                     .map(|d| d.as_millis() as u64)
                     .unwrap_or(0),
-                program: rendered.program.to_string_lossy().into_owned(),
-                args: rendered.args.clone(),
             },
         )
     }
@@ -122,12 +103,6 @@ impl SchedulerBackend for TickerBackend {
             read_artifact(&self.dirs, task_id)?.ok_or_else(|| NOT_REGISTERED.to_string())?;
         artifact.enabled = enabled;
         write_artifact(&self.dirs, task_id, &artifact)
-    }
-
-    fn run_now(&self, task_id: &str) -> Result<(), String> {
-        let artifact =
-            read_artifact(&self.dirs, task_id)?.ok_or_else(|| NOT_REGISTERED.to_string())?;
-        spawn_child(&artifact.program, &artifact.args)
     }
 
     fn is_installed(&self, task_id: &str) -> Result<InstallState, String> {
@@ -162,10 +137,12 @@ impl SchedulerBackend for TickerBackend {
     }
 }
 
-/// Fires due tasks at the top of every minute. Overlapping fires of one task are rejected by
-/// the runner's own lock; missed minutes are not caught up (the same policy as macOS).
-pub async fn run_ticker(dirs: DataDir) {
+/// Runs due tasks at the top of every minute. A task whose previous run is still going is
+/// skipped by the runner itself; missed minutes are not caught up — a server that was down was
+/// not going to run them anyway.
+pub async fn run_ticker(ctx: Ctx, transfers: Arc<TransferService>) {
     use chrono::{Datelike, Timelike};
+    let dirs = ctx.dirs.clone();
     loop {
         let now = chrono::Local::now();
         let wait = 60 - now.second() as u64;
@@ -180,8 +157,8 @@ pub async fn run_ticker(dirs: DataDir) {
             now.weekday().num_days_from_sunday() as u16,
         );
         for spec in jobfile::list(&dirs) {
-            let artifact = match read_artifact(&dirs, &spec.task_id) {
-                Ok(Some(artifact)) if artifact.enabled => artifact,
+            match read_artifact(&dirs, &spec.task_id) {
+                Ok(Some(artifact)) if artifact.enabled => {}
                 Ok(_) => continue,
                 Err(e) => {
                     log::warn!("[ticker] {}", e);
@@ -195,9 +172,13 @@ pub async fn run_ticker(dirs: DataDir) {
                 continue;
             }
             log::info!("[ticker] firing {} ({})", spec.name, spec.task_id);
-            if let Err(e) = spawn_child(&artifact.program, &artifact.args) {
-                log::error!("[ticker] {}", e);
-            }
+            // Off the loop: a run lasts as long as its transfers do, and the next minute must
+            // arrive on time regardless.
+            tokio::spawn(runner::run(
+                ctx.clone(),
+                Arc::clone(&transfers),
+                spec.task_id.clone(),
+            ));
         }
     }
 }
@@ -212,12 +193,7 @@ mod tests {
         let root = std::env::temp_dir().join(format!("rcloneui-ticker-{}", std::process::id()));
         let dirs = DataDir { root: root.clone() };
         let backend = TickerBackend::new(&dirs);
-        let rendered = RenderedSchedule {
-            cron: cronconv::parse("*/5 * * * *").unwrap(),
-            program: PathBuf::from("/bin/true"),
-            args: vec!["run-task".into(), "t1".into()],
-            enabled: true,
-        };
+        let rendered = RenderedSchedule { enabled: true };
         assert_eq!(
             backend.is_installed("t1").unwrap(),
             InstallState::NotInstalled

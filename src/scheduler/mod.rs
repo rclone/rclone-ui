@@ -1,13 +1,10 @@
-//! Scheduled tasks, fired by the server itself.
+//! Scheduled tasks, run by the server itself.
 //!
 //! Registering a task writes a job file and an artifact for `ticker.rs`, the server's own minute
-//! ticker; when one is due the ticker spawns this same binary headlessly (`run-task <id>`), which
-//! executes the pre-serialized rclone requests stored in the job file. Nothing is registered with
-//! the operating system, so there is no cron entry or Task Scheduler job to keep in step, and a
-//! task fires whenever the server is running — which is what a server is for.
-//!
-//! `JobSpec.run_mode` survives as an ignored field: job files written by the desktop app carry
-//! it, and refusing to read them would lose the task.
+//! ticker; when one is due the ticker hands the job file's pre-serialized rclone requests to the
+//! transfer service ([`runner`]), which puts them on the daemon the server is already running.
+//! Nothing is registered with the operating system and nothing is spawned: a task runs whenever
+//! the server does — which is what a server is for — and its run is a transfer like any other.
 
 pub mod cronconv;
 pub mod history;
@@ -16,9 +13,7 @@ pub mod runner;
 pub mod storeread;
 pub mod ticker;
 
-
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
 
 use serde::Serialize;
 
@@ -38,13 +33,10 @@ pub enum InstallState {
     Installed { enabled: bool },
 }
 
-/// Everything the ticker needs to (re)create a task's registration: the schedule to match, the
-/// child to spawn, and whether it is armed. The run's own limits live in the job file, which the
-/// runner reads when it starts — nothing here has to carry them.
+/// What registering leaves for the ticker. Only whether the task is armed: the schedule itself
+/// stays in the job file, which the tick re-reads every minute, and the run's own limits are
+/// there too — nothing has to be copied out.
 pub struct RenderedSchedule {
-    pub cron: cronconv::CronSpec,
-    pub program: PathBuf,
-    pub args: Vec<String>,
     /// The state to install in, baked into the artifact so registration is one operation: a
     /// disabled task is never briefly armed between an install and a follow-up set_enabled, and a
     /// partial failure can't leave it running against the user's intent.
@@ -67,7 +59,6 @@ pub trait SchedulerBackend: Send + Sync {
     /// Remove the registration. Idempotent (a missing one is not an error).
     fn uninstall(&self, task_id: &str) -> Result<(), String>;
     fn set_enabled(&self, task_id: &str, enabled: bool) -> Result<(), String>;
-    fn run_now(&self, task_id: &str) -> Result<(), String>;
     fn is_installed(&self, task_id: &str) -> Result<InstallState, String>;
     /// Everything of ours it holds, in one read. An error means it could not be inspected, and
     /// nothing may be concluded from it.
@@ -83,7 +74,7 @@ pub fn backend(dirs: &DataDir) -> Result<Box<dyn SchedulerBackend>, String> {
 /// Serializes every scheduler mutation across the process. A registration is two writes — the
 /// job file and the ticker's artifact — and the startup reconcile, a settings page and the
 /// ticker's own sweep would otherwise interleave them, leaving a task with one and not the
-/// other. Each run is covered separately by its own file lock (history::acquire_lock).
+/// other. Runs are kept apart separately, by [`runner::is_running`].
 static MUTATION_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn mutation_guard() -> std::sync::MutexGuard<'static, ()> {
@@ -108,37 +99,11 @@ pub fn sanitize_id(task_id: &str) -> Result<String, String> {
     Ok(task_id.to_string())
 }
 
-/// The path a registration invokes — stable across restarts and updates.
-pub fn registered_invocation() -> Result<PathBuf, String> {
-    std::env::current_exe().map_err(|e| format!("cannot resolve app path: {}", e))
-}
-
-/// The GUI's resolved data directory, baked into every runner invocation (scheduled and "Run
-/// now"): schedulers hand the runner a bare environment, so re-deriving it there silently
-/// diverges when the session sets XDG_DATA_HOME (Linux) or the app runs with an overridden
-/// directory — the runner would look elsewhere, find no job file, and treat a valid task as an
-/// orphan.
-pub(crate) fn data_dir_args(dirs: &DataDir) -> [String; 2] {
-    [
-        "--data-dir".to_string(),
-        dirs.root.to_string_lossy().into_owned(),
-    ]
-}
-
-fn render(dirs: &DataDir, spec: &JobSpec, enabled: bool) -> Result<RenderedSchedule, String> {
-    let cron = cronconv::parse(&spec.cron)?;
-
-    let mut args = Vec::new();
-    let program = registered_invocation()?;
-    args.extend(["run-task".to_string(), spec.task_id.clone()]);
-    args.extend(data_dir_args(dirs));
-
-    Ok(RenderedSchedule {
-        cron,
-        program,
-        args,
-        enabled,
-    })
+/// Nothing of the cron survives into the registration — the tick reads it from the job file —
+/// but parsing it here is what refuses a schedule the ticker could never match.
+fn render(spec: &JobSpec, enabled: bool) -> Result<RenderedSchedule, String> {
+    cronconv::parse(&spec.cron)?;
+    Ok(RenderedSchedule { enabled })
 }
 
 // ---------------------------------------------------------------------------
@@ -152,8 +117,10 @@ pub struct SupportInfo {
     pub reason: Option<String>,
 }
 
+/// Whether schedules can run here. The server is its own scheduler, so the answer is yes as
+/// long as a backend can be built — the shape is kept because the pages ask, and because the
+/// desktop's answer genuinely varies.
 pub fn scheduler_supported(ctx: &Ctx) -> Result<SupportInfo, String> {
-    // On Flatpak, backend()→check_available() probes the host with a subprocess.
     Ok(match backend(&ctx.dirs) {
         Ok(_) => SupportInfo {
             supported: true,
@@ -172,9 +139,9 @@ pub struct CronValidation {
     pub valid: bool,
     pub error: Option<String>,
     /// The next few local fire times (RFC3339 with offset), computed by the SAME matcher the
-    /// runner uses. This is the UI's preview source — JS cron libraries disagree with Vixie
-    /// cron on the dom/dow star flag, so predicting fires anywhere else risks showing runs the
-    /// native schedule will never perform. Empty when invalid (or nothing fires within 5 years).
+    /// tick uses. This is the UI's preview source — JS cron libraries disagree with Vixie cron
+    /// on the dom/dow star flag, so predicting fires anywhere else risks showing runs that will
+    /// never happen. Empty when invalid (or nothing fires within 5 years).
     pub next_runs: Vec<String>,
 }
 
@@ -214,7 +181,7 @@ pub fn scheduler_register(ctx: &Ctx, spec: JobSpec, enabled: bool) -> Result<(),
 
     let _guard = mutation_guard();
     let backend = backend(&dirs)?;
-    let rendered = render(&dirs, &spec, enabled)?;
+    let rendered = render(&spec, enabled)?;
     jobfile::save(&dirs, &spec)?;
     if let Err(e) = backend.install(&spec.task_id, &rendered) {
         // Keep the reported state truthful: "not registered" must mean nothing fires. The
@@ -259,10 +226,16 @@ pub fn scheduler_set_enabled(ctx: &Ctx, task_id: String, enabled: bool) -> Resul
     result
 }
 
-pub fn scheduler_run_now(ctx: &Ctx, task_id: String) -> Result<(), String> {
-    let dirs = ctx.dirs.clone();
-    let task_id = sanitize_id(&task_id)?;
-    backend(&dirs)?.run_now(&task_id)
+/// A task that may be run outside its schedule, named. Starting the run is the server's —
+/// it needs the transfer service — so this is the half that is the scheduler's: the id is real
+/// and the task is registered. A disabled task still answers: running it by hand is a choice,
+/// not a fire.
+pub fn runnable_now(ctx: &Ctx, task_id: &str) -> Result<String, String> {
+    let task_id = sanitize_id(task_id)?;
+    match backend(&ctx.dirs)?.is_installed(&task_id)? {
+        InstallState::Installed { .. } => Ok(task_id),
+        InstallState::NotInstalled => Err(NOT_REGISTERED.to_string()),
+    }
 }
 
 #[derive(Serialize)]
@@ -315,7 +288,7 @@ pub fn scheduler_status(ctx: &Ctx) -> Result<Vec<TaskStatus>, String> {
         let inventory = taken.get_or_insert_with(|| take_inventory(&dirs));
         let (installed, enabled, warning) = install_state_of(inventory, &spec.task_id);
 
-        let running = history::is_running(&dirs, &spec.task_id);
+        let running = runner::is_running(&spec.task_id);
         let lines = history::read(&dirs, &spec.task_id, 20);
         let event_of = |line: &serde_json::Value| {
             line.get("event")
@@ -323,9 +296,9 @@ pub fn scheduler_status(ctx: &Ctx) -> Result<Vec<TaskStatus>, String> {
                 .map(str::to_owned)
         };
         // Newest-first: the latest started/finished event is the latest ATTEMPT. A started
-        // with no finished and no live lock is a run that died without writing its terminal
-        // record (crash, SIGKILL, power loss, the run's own time limit) — surfacing the
-        // older success (or "Never") instead would hide the interruption.
+        // with no finished and no run going on is one that died without writing its terminal
+        // record — the server was killed, or lost power, mid-run. Surfacing the older success
+        // (or "Never") instead would hide the interruption.
         let newest_attempt = lines.iter().find(|line| {
             matches!(
                 event_of(line).as_deref(),
@@ -367,18 +340,15 @@ pub struct LogContent {
     pub truncated: bool,
 }
 
-/// Tail of a task's log for the in-app viewer. `which`: "runner" (our runner's lines) or
-/// "daemon" (the transient rclone daemon's stderr).
-pub fn scheduler_read_log(ctx: &Ctx, task_id: String, which: String) -> Result<LogContent, String> {
+/// Tail of a task's log for the in-app viewer: what the runner itself had to say about each
+/// run. There is no second log — rclone's own output belongs to the daemon the whole server
+/// shares, and what a run moved is its transfer's, on the Transfers page.
+pub fn scheduler_read_log(ctx: &Ctx, task_id: String) -> Result<LogContent, String> {
     const MAX_TAIL_BYTES: usize = 64 * 1024;
 
     let dirs = ctx.dirs.clone();
     let task_id = sanitize_id(&task_id)?;
-    let path = match which.as_str() {
-        "runner" => history::log_path(&dirs, &task_id),
-        "daemon" => history::log_path(&dirs, &task_id).with_extension("daemon.log"),
-        other => return Err(format!("unknown log '{}'", other)),
-    };
+    let path = history::log_path(&dirs, &task_id);
 
     let Ok(bytes) = std::fs::read(&path) else {
         return Ok(LogContent {
@@ -527,9 +497,6 @@ mod inventory_tests {
                 Ok(())
             }
             fn set_enabled(&self, _: &str, _: bool) -> Result<(), String> {
-                Ok(())
-            }
-            fn run_now(&self, _: &str) -> Result<(), String> {
                 Ok(())
             }
             fn is_installed(&self, _: &str) -> Result<InstallState, String> {

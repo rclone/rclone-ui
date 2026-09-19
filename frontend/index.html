@@ -13,7 +13,7 @@
 		// turns their viewport-sized boxes into container-sized ones (src/global.css).
 		document.documentElement.classList.add('browser')
 		// The persisted theme rides on the boot payload; first paint matches it.
-		var boot = window.__RCLONE_UI__
+		var boot = window.__RCLONE_CLOUD__
 		var theme = boot && boot.theme
 		document.documentElement.classList.toggle(
 			"dark",

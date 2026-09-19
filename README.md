@@ -10,7 +10,7 @@ Licensed under Apache-2.0.
 ```sh
 docker run -d --name rclone-ui \
   -p 5573:5573 \
-  -e RCLONE_UI_PASSWORD=change-me \
+  -e RCLONE_CLOUD_PASSWORD=change-me \
   -v rclone-ui:/data \
   ghcr.io/rclone-ui/rclone-ui-server
 ```
@@ -25,7 +25,9 @@ Mounting needs FUSE in the container:
 --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined
 ```
 
-and a bind mount with `:rshared` propagation for the mount to appear on the host.
+and a bind mount with `:rshared` propagation for the mount to appear on the host. Without
+`/dev/fuse` the server reports that it cannot mount, hides the mount settings and skips any
+remote set to mount on start, with one line in the log saying so — everything else works.
 
 Without Docker, run the binary from the releases page: `rclone-ui-server serve`. Under systemd or
 launchd a self-update exits with code 3 and expects the supervisor to start it again.
@@ -36,15 +38,14 @@ Every flag has an environment variable.
 
 | Flag | Variable | Default |
 | --- | --- | --- |
-| `--bind` | `RCLONE_UI_BIND` | `127.0.0.1:5573` |
-| `--password` | `RCLONE_UI_PASSWORD` | required |
-| `--email` | `RCLONE_UI_EMAIL` | `admin@localhost` |
-| `--data-dir` | `RCLONE_UI_DATA_DIR` | the platform's local data dir + `com.rclone.cloud` |
-| `--rclone-path` | `RCLONE_UI_RCLONE_PATH` | the stored, system or downloaded binary |
-| `--rclone-url` | `RCLONE_UI_RCLONE_URL` | unset; manage the daemon instead |
-| `--no-automount` | `RCLONE_UI_NO_AUTOMOUNT` | off |
-| `--verbose-rclone` | `RCLONE_UI_VERBOSE_RCLONE` | off |
-| `--clear` | `RCLONE_UI_CLEAR` | off |
+| `--bind` | `RCLONE_CLOUD_BIND` | `127.0.0.1:5573` |
+| `--password` | `RCLONE_CLOUD_PASSWORD` | required |
+| `--email` | `RCLONE_CLOUD_EMAIL` | `admin@localhost` |
+| `--data-dir` | `RCLONE_CLOUD_DATA_DIR` | the platform's local data dir + `com.rclone.cloud` |
+| `--rclone-path` | `RCLONE_CLOUD_RCLONE_PATH` | the stored, system or downloaded binary |
+| `--rclone-url` | `RCLONE_CLOUD_RCLONE_URL` | unset; manage the daemon instead |
+| `--verbose-rclone` | `RCLONE_CLOUD_VERBOSE_RCLONE` | off |
+| `--clear` | `RCLONE_CLOUD_CLEAR` | off |
 
 Anything but loopback needs a password, and `--clear` empties the data directory before starting.
 
@@ -55,7 +56,8 @@ Everything persistent lives in the data directory: accounts (`state/team.json`),
 notification targets and SMTP settings, and the log file. Back up that directory.
 
 Scheduled tasks fire from the server's own minute ticker, so no cron or Task Scheduler entry is
-needed; a task runs as a short-lived `rclone-ui-server run-task` child with its own rclone daemon.
+needed; a task runs inside the server, on the rclone daemon it is already running, and each run
+shows up on the Transfers page like any other transfer.
 
 ## Development
 

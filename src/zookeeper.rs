@@ -576,24 +576,6 @@ pub fn managed_version_path(ctx: &Ctx, version: String) -> Result<Option<String>
     })
 }
 
-/// Removes stale `.tmp-*` staging dirs from an interrupted download. Called once at startup
-/// (before any webview) so it can never race a live download; failures are non-fatal.
-pub fn sweep_versions_tmp(dirs: &DataDir) {
-    let Ok(base) = versions_dir(dirs) else {
-        return;
-    };
-    if !base.exists() {
-        return;
-    }
-    if let Ok(entries) = std::fs::read_dir(&base) {
-        for entry in entries.flatten() {
-            if entry.file_name().to_string_lossy().starts_with(".tmp") {
-                let _ = std::fs::remove_dir_all(entry.path());
-            }
-        }
-    }
-}
-
 fn set_executable(path: &Path) {
     #[cfg(unix)]
     {

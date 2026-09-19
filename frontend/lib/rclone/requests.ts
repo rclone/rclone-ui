@@ -258,7 +258,7 @@ export type BatchInput = { _path: string } & Record<string, any>
 
 export interface RcRequest {
     endpoint: '/job/batch' | '/sync/sync' | '/sync/bisync'
-    // Always body-form with `_async: true`: the headless runner POSTs these verbatim (rclone's
+    // Always body-form with `_async: true`: a scheduled run hands these over verbatim (rclone's
     // RC treats body and query parameters identically). The live path converts back to the
     // query form its client uses.
     body: Record<string, any>

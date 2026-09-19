@@ -18,6 +18,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { format, formatDistance } from 'date-fns'
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { formatErrorMessage } from '../../lib/errors'
 import { buildReadablePath } from '../../lib/format'
 import { useNow } from '../../lib/hooks'
@@ -29,47 +30,34 @@ import {
     updateScheduledTask as schedulerUpdateTask,
     schedulerValidateCron,
 } from '../../lib/scheduler'
-import { useHostStore } from '../../store/host'
 import type { ScheduledTask } from '../../types/schedules'
-import BinarySelect from './BinarySelect'
-import ConfigSelect, { configPasswordMissing as isConfigPasswordMissing } from './ConfigSelect'
 import CronEditor from './CronEditor'
 
 export default function ScheduleEditDrawer({
     isOpen,
     onClose,
     selectedTask,
-    highlightedRunId,
 }: {
     isOpen: boolean
     onClose: () => void
     selectedTask: ScheduledTask
-    /** The run a Transfers row was opened from: marked in the history and brought into view. */
-    highlightedRunId?: string | null
 }) {
     const queryClient = useQueryClient()
-    const configFiles = useHostStore((state) => state.configFiles)
+    const navigate = useNavigate()
 
     const [name, setName] = useState(selectedTask.name ?? '')
     const [cronExpression, setCronExpression] = useState(selectedTask.cron)
-    const [configId, setConfigId] = useState(selectedTask.configId)
-    const [binaryPath, setBinaryPath] = useState(selectedTask.binaryPath)
     const [isEnabled, setIsEnabled] = useState(selectedTask.isEnabled)
-    const [verboseLogging, setVerboseLogging] = useState(selectedTask.verboseLogging ?? false)
     const [maxRunHours, setMaxRunHours] = useState(
         String(selectedTask.maxRunHours ?? DEFAULT_MAX_RUN_HOURS)
     )
-    const [logView, setLogView] = useState<'runner' | 'daemon'>('runner')
     const [saveError, setSaveError] = useState<string | null>(null)
 
     useEffect(() => {
         if (isOpen) {
             setName(selectedTask.name ?? '')
             setCronExpression(selectedTask.cron)
-            setConfigId(selectedTask.configId)
-            setBinaryPath(selectedTask.binaryPath)
             setIsEnabled(selectedTask.isEnabled)
-            setVerboseLogging(selectedTask.verboseLogging ?? false)
             setMaxRunHours(String(selectedTask.maxRunHours ?? DEFAULT_MAX_RUN_HOURS))
             setSaveError(null)
         }
@@ -122,14 +110,7 @@ export default function ScheduleEditDrawer({
         [historyQuery.data]
     )
 
-    const selectedConfig = useMemo(
-        () => configFiles.find((config) => config.id === configId) ?? null,
-        [configFiles, configId]
-    )
-    const configMissing = !selectedConfig
-    const configPasswordMissing = isConfigPasswordMissing(configFiles, configId)
-
-    // From the validation query, i.e. computed in Rust by the runner's own cron matcher — a JS
+    // From the validation query, i.e. computed in Rust by the tick's own cron matcher — a JS
     // library here can (and did) predict fires real cron never performs (dom/dow star flag).
     // The `now` filter keeps the list fresh between refetches of the 30s-anchored query.
     const upcomingRuns = useMemo(
@@ -144,26 +125,14 @@ export default function ScheduleEditDrawer({
         () =>
             name !== (selectedTask.name ?? '') ||
             cronExpression !== selectedTask.cron ||
-            configId !== selectedTask.configId ||
-            binaryPath !== selectedTask.binaryPath ||
             isEnabled !== selectedTask.isEnabled ||
-            verboseLogging !== (selectedTask.verboseLogging ?? false) ||
             maxRunHoursNumber !== (selectedTask.maxRunHours ?? DEFAULT_MAX_RUN_HOURS),
-        [
-            name,
-            cronExpression,
-            configId,
-            binaryPath,
-            isEnabled,
-            verboseLogging,
-            maxRunHoursNumber,
-            selectedTask,
-        ]
+        [name, cronExpression, isEnabled, maxRunHoursNumber, selectedTask]
     )
 
     const logQuery = useQuery({
-        queryKey: ['scheduler', 'log', selectedTask.id, logView],
-        queryFn: () => schedulerReadLog(selectedTask.id, logView),
+        queryKey: ['scheduler', 'log', selectedTask.id],
+        queryFn: () => schedulerReadLog(selectedTask.id),
         enabled: isOpen,
         refetchInterval: 5_000,
     })
@@ -174,10 +143,7 @@ export default function ScheduleEditDrawer({
             await schedulerUpdateTask(selectedTask.id, {
                 name: name.trim(),
                 cron: cronExpression,
-                configId,
-                binaryPath,
                 isEnabled,
-                verboseLogging,
                 maxRunHours: maxRunHoursNumber,
             })
         },
@@ -332,84 +298,6 @@ export default function ScheduleEditDrawer({
 
                                         <div className="flex flex-row justify-center w-full gap-8">
                                             <div className="flex flex-col items-end flex-1 gap-2">
-                                                <h4 className="font-medium">Config</h4>
-                                            </div>
-                                            <div className="flex flex-col w-3/5 gap-3">
-                                                <ConfigSelect
-                                                    configFiles={configFiles}
-                                                    value={configId}
-                                                    onChange={setConfigId}
-                                                    label=""
-                                                    placeholder={
-                                                        configMissing
-                                                            ? 'Config no longer exists'
-                                                            : undefined
-                                                    }
-                                                />
-                                                {configMissing && (
-                                                    <Alert color="danger" variant="faded" title="">
-                                                        The config this task used no longer exists —
-                                                        pick another one.
-                                                    </Alert>
-                                                )}
-                                                {configPasswordMissing && (
-                                                    <Alert
-                                                        color="warning"
-                                                        variant="faded"
-                                                        title="Encrypted config without a saved password"
-                                                    >
-                                                        This config is encrypted and has no saved
-                                                        password or password command. The scheduled
-                                                        runner cannot prompt for it, so runs will
-                                                        fail until you save the password in Settings
-                                                        → Config.
-                                                    </Alert>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-row justify-center w-full gap-8">
-                                            <div className="flex flex-col items-end flex-1 gap-2">
-                                                <h4 className="font-medium">Binary</h4>
-                                            </div>
-                                            <div className="flex flex-col w-3/5 gap-3">
-                                                <BinarySelect
-                                                    value={binaryPath}
-                                                    onChange={(path) => {
-                                                        setSaveError(null)
-                                                        setBinaryPath(path)
-                                                    }}
-                                                    onError={setSaveError}
-                                                    label=""
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-row justify-center w-full gap-8">
-                                            <div className="flex flex-col items-end flex-1 gap-2">
-                                                <h4 className="font-medium">Logging</h4>
-                                            </div>
-                                            <div className="flex flex-col w-3/5 gap-3">
-                                                <Switch
-                                                    size="sm"
-                                                    color="primary"
-                                                    isSelected={verboseLogging}
-                                                    onValueChange={setVerboseLogging}
-                                                    data-focus-visible="false"
-                                                >
-                                                    <div className="flex flex-col">
-                                                        <span className="text-small">Verbose</span>
-                                                        <span className="text-tiny text-default-400">
-                                                            Log individual transfers to the rclone
-                                                            log
-                                                        </span>
-                                                    </div>
-                                                </Switch>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-row justify-center w-full gap-8">
-                                            <div className="flex flex-col items-end flex-1 gap-2">
                                                 <h4 className="font-medium">Max run time</h4>
                                             </div>
                                             <div className="flex flex-col w-3/5 gap-2">
@@ -493,22 +381,7 @@ export default function ScheduleEditDrawer({
                                                     run.event === 'finished' ? (
                                                         <div
                                                             key={run.runId}
-                                                            // The logs sit right under the
-                                                            // history, so the run at the top
-                                                            // of the view brings them along.
-                                                            ref={
-                                                                run.runId === highlightedRunId
-                                                                    ? (row) =>
-                                                                          row?.scrollIntoView({
-                                                                              block: 'start',
-                                                                          })
-                                                                    : undefined
-                                                            }
-                                                            data-highlighted={
-                                                                run.runId === highlightedRunId ||
-                                                                undefined
-                                                            }
-                                                            className="flex items-center gap-3 text-sm rounded-small data-[highlighted]:bg-primary-50 data-[highlighted]:ring-1 data-[highlighted]:ring-primary-200 data-[highlighted]:px-2 data-[highlighted]:py-1"
+                                                            className="flex items-center gap-3 text-sm rounded-small"
                                                         >
                                                             <Chip
                                                                 size="sm"
@@ -551,46 +424,27 @@ export default function ScheduleEditDrawer({
 
                                     <div className="flex flex-col gap-3">
                                         <div className="flex items-center justify-between">
-                                            <h3 className="text-lg font-medium">Logs</h3>
-                                            <div className="flex gap-1">
-                                                <Button
-                                                    size="sm"
-                                                    variant={
-                                                        logView === 'runner' ? 'solid' : 'light'
-                                                    }
-                                                    color={
-                                                        logView === 'runner' ? 'primary' : 'default'
-                                                    }
-                                                    onPress={() => setLogView('runner')}
-                                                    data-focus-visible="false"
-                                                >
-                                                    Runner
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant={
-                                                        logView === 'daemon' ? 'solid' : 'light'
-                                                    }
-                                                    color={
-                                                        logView === 'daemon' ? 'primary' : 'default'
-                                                    }
-                                                    onPress={() => setLogView('daemon')}
-                                                    data-focus-visible="false"
-                                                >
-                                                    rclone
-                                                </Button>
-                                            </div>
+                                            <h3 className="text-lg font-medium">Log</h3>
+                                            <Button
+                                                size="sm"
+                                                variant="flat"
+                                                onPress={() => {
+                                                    onClose()
+                                                    navigate(`/transfers?task=${selectedTask.id}`)
+                                                }}
+                                                data-focus-visible="false"
+                                            >
+                                                See the runs in Transfers
+                                            </Button>
                                         </div>
-                                        {logQuery.data?.truncated && (
-                                            <p className="text-tiny text-default-400">
-                                                Showing the last 64 KB — older lines are on disk.
-                                            </p>
-                                        )}
+                                        <p className="text-tiny text-default-400">
+                                            What the scheduler did, run by run. What a run moved is
+                                            its transfer's, on the Transfers page.
+                                            {logQuery.data?.truncated &&
+                                                ' Showing the last 64 KB — older lines are on disk.'}
+                                        </p>
                                         <pre className="p-3 overflow-auto font-mono whitespace-pre-wrap rounded-medium bg-content2 text-tiny max-h-64">
-                                            {logQuery.data?.content ||
-                                                (logView === 'runner'
-                                                    ? 'No runner output yet.'
-                                                    : 'No rclone output yet.')}
+                                            {logQuery.data?.content || 'No runs yet.'}
                                         </pre>
                                     </div>
                                 </div>
@@ -607,12 +461,7 @@ export default function ScheduleEditDrawer({
                             </Button>
                             <Button
                                 color="primary"
-                                isDisabled={
-                                    !hasChanges ||
-                                    !!cronError ||
-                                    configMissing ||
-                                    maxRunHoursInvalid
-                                }
+                                isDisabled={!hasChanges || !!cronError || maxRunHoursInvalid}
                                 isLoading={saveMutation.isPending}
                                 onPress={() => saveMutation.mutate()}
                                 data-focus-visible="false"

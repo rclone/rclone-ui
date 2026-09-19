@@ -3,8 +3,8 @@ import type { SmtpInput, SmtpView } from '../types/smtp'
 import { rpc } from './api/rpc'
 
 // The SMTP settings screen and the Email notification target both read the same view; only
-// the screen writes. The file behind it is the server's (src-shared/src/notifications/smtp.rs),
-// read at send time by whatever dispatches, the headless runner included.
+// the screen writes. The file behind it is the server's (src/notifications/smtp.rs), read at
+// the moment of sending by whatever dispatches.
 
 export const SMTP_QUERY_KEY = ['smtp'] as const
 

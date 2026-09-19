@@ -429,7 +429,7 @@ async function startMountInner({ source, destination, options }: MountArgs) {
 // Every transfer starts here. The server submits the request to rclone and records the transfer
 // in one step (`transfers_start`), so there is no moment where rclone runs something the record
 // has not heard of; a launch that dies within its first second comes back as this call's error.
-// The request is the builders' own body form, the same the headless runner posts.
+// The request is the builders' own body form, the same one a scheduled run submits.
 async function submit(
     request: { endpoint: string; body: Record<string, any> },
     meta: Pick<TransferStart, 'operation' | 'sources' | 'destination'>,

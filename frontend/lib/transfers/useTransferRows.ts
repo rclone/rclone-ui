@@ -10,7 +10,7 @@ import { toRows } from './rows'
  *
  * The list is the server's record, not rclone's memory: a transfer is in it from the moment it
  * starts and stays after the daemon (or the server) restarts. The server says when it writes a
- * line; the slow refetch is for the lines another process writes (a scheduled run). rclone is
+ * line; the slow refetch is the net under a dropped frame. rclone is
  * asked for one thing, the live numbers of what is running here, and only while something is.
  */
 export function useTransferRows({

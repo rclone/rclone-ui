@@ -1,8 +1,10 @@
-//! The per-task job file: the static definition the headless runner executes.
+//! The per-task job file: the static definition a run executes.
 //!
 //! Written only by the `scheduler_register` command (atomic temp+rename); read by the runner and
-//! by `scheduler_status`. Dynamic state (passwords, proxy, webhook targets) is deliberately NOT
-//! stored here — the runner resolves it live from the app stores so it never goes stale.
+//! by `scheduler_status`. Nothing here says which rclone or which config: a run goes to the
+//! daemon the server is already running, and so uses whatever that one was started with. Nor is
+//! any other dynamic state stored (passwords, proxy, webhook targets) — it is resolved at the
+//! moment it is needed, so it never goes stale.
 
 use std::path::PathBuf;
 
@@ -16,7 +18,8 @@ pub const DEFAULT_MAX_RUN_SECONDS: u64 = 86_400;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RcRequest {
-    /// e.g. "/job/batch", "/sync/sync", "/sync/bisync" — POSTed to the transient daemon.
+    /// e.g. "/job/batch", "/sync/sync", "/sync/bisync" — what a run submits, through the
+    /// transfer service, to the daemon the server is running.
     pub endpoint: String,
     /// JSON body. The TS serializer folds what were query params into the body and always sets
     /// `_async: true`; rclone's RC treats query and body parameters identically.
@@ -31,22 +34,10 @@ pub struct JobSpec {
     pub name: String,
     pub operation: String,
     pub cron: String,
-    pub config_id: String,
-    /// "app-default" or an absolute path to a specific rclone binary.
-    pub binary: String,
     #[serde(default = "default_max_run_seconds")]
     pub max_run_seconds: u64,
-    /// Raise the transient daemon to INFO logging (per-transfer lines in the daemon log).
-    #[serde(default)]
-    pub verbose_logging: bool,
-    /// Read, never acted on. It told the desktop app whether to register a task that fires while
-    /// logged out; a server is already running when the task is due, so there is no such choice
-    /// to make. Kept because job files written by the desktop app carry it, and refusing to read
-    /// them would lose the task.
-    #[serde(default = "default_run_mode")]
-    pub run_mode: String,
     /// What the task runs on, as the page shows it, for the transfer each run records. Absent
-    /// in job files written before transfers were recorded; the runner then reads the paths
+    /// in job files written before transfers were recorded; a run then reads the paths
     /// off the requests.
     #[serde(default)]
     pub sources: Vec<String>,
@@ -59,13 +50,9 @@ fn default_max_run_seconds() -> u64 {
     DEFAULT_MAX_RUN_SECONDS
 }
 
-fn default_run_mode() -> String {
-    "user".to_string()
-}
-
-/// The directory job files have always been filed under. The server runs rclone on its own
-/// machine and nowhere else, so this is a fixed path segment, not a choice — but the layout is
-/// shared with the desktop app, which does have more than one, so the segment stays.
+/// The directory job files have always been filed under. There is one machine, so this is a
+/// fixed path segment rather than a choice; it stays because the layout on disk is older than
+/// that fact, and renaming it would strand every schedule already written.
 pub const JOBS_DIR: &str = "local";
 
 /// Job files under one directory of the jobs root. Only [`scheduler_unregister_all`] passes

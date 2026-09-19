@@ -60,7 +60,7 @@ function standing(row: TransferRow): string {
             ? ENDED[row.state].label
             : row.phase === 'preparing' && row.listed > 0
               ? `Preparing · ${row.listed.toLocaleString()} listed`
-              : row.phase === 'preparing' && !row.scheduled
+              : row.phase === 'preparing'
                 ? 'Preparing'
                 : row.phase === 'checking'
                   ? 'Checking'
@@ -564,8 +564,8 @@ export default function Dashboard() {
                                                     <Progress
                                                         aria-label={`${name} ${row.progress}%`}
                                                         value={row.progress}
-                                                        // Nothing to measure against until rclone has
-                                                        // sized it (for a scheduled run, at all).
+                                                        // Nothing to measure against until rclone
+                                                        // has sized it.
                                                         isIndeterminate={row.totalBytes === 0}
                                                         size="sm"
                                                         color="primary"

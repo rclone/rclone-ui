@@ -1,6 +1,6 @@
 //! The mail server the app sends through: `<app_data>/notifications/smtp.json`, saved by the
-//! SMTP settings screen and read at fire time by `webhooks::dispatch` for every email target,
-//! from the server or the headless runner alike. Pages get a view without the password.
+//! SMTP settings screen and read at fire time by `webhooks::dispatch` for every email target.
+//! Pages get a view without the password.
 
 use std::path::PathBuf;
 use std::time::Duration;
