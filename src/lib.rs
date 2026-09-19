@@ -31,6 +31,7 @@ pub mod port;
 pub mod proxy;
 pub mod rc;
 pub mod rc_proxy;
+pub mod resolve_link;
 pub mod rpc;
 pub mod rt;
 pub mod scheduler;

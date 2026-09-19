@@ -256,6 +256,15 @@ test('rpc round trip: the command table, the server RPCs and errors', async ({ r
     ).json()
     expect(logged.ok).toBe(true)
 
+    // An address of no platform the link service knows: answered here, with nothing asked of it.
+    const plain = await (
+        await request.post('/api/rpc/resolve_link', {
+            headers: SESSION,
+            data: { url: 'https://example.com/archive.zip?from=youtube.com' },
+        })
+    ).json()
+    expect(plain).toEqual({ ok: true, value: null })
+
     const unknown = await (
         await request.post('/api/rpc/nope', { headers: SESSION, data: {} })
     ).json()

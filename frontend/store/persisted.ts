@@ -38,6 +38,10 @@ interface PersistedState {
     completeOnboardingStep: (step: OnboardingStep) => void
     dismissOnboarding: () => void
 
+    /** The Download page sends no link to the outside service that resolves page addresses. */
+    disableLinkResolution: boolean
+    setDisableLinkResolution: (disabled: boolean) => void
+
     // Absolute path of the rclone executable the app runs. Managed downloads live under
     // <data dir>/rclone-versions/vX/, a system rclone is its PATH location, and a custom
     // binary is any other path. `undefined` until the server picks one at startup.
@@ -105,6 +109,10 @@ export const usePersistedStore = create<PersistedState>()(
                 ),
             dismissOnboarding: () =>
                 set((state) => ({ onboarding: { ...state.onboarding, dismissed: true } })),
+
+            disableLinkResolution: false,
+            setDisableLinkResolution: (disabled: boolean) =>
+                set((_) => ({ disableLinkResolution: disabled })),
 
             rclonePath: undefined,
             setRclonePath: (path: string | undefined) => set((_) => ({ rclonePath: path })),

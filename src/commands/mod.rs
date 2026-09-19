@@ -111,6 +111,9 @@ commands! {
 
     // --- proxy ---
     async test_proxy_connection(proxy_url: String) -> String = crate::commands::misc::test_proxy_connection;
+
+    // --- the Download page ---
+    async resolve_link(url: String) -> Option<crate::resolve_link::ResolvedLink> = crate::resolve_link::resolve_link;
 }
 
 #[cfg(test)]

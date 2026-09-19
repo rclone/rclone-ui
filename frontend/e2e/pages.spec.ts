@@ -1694,23 +1694,20 @@ test('an OAuth login is finished from another machine', async ({ page, request }
 })
 
 test('a failed metadata lookup downloads the URL in the field', async ({ page }) => {
-    // The metadata service answers for the first URL and fails for the second; the download
+    // The link lookup answers for the first URL and fails for the second; the download
     // must carry the URL in the field, never the previous one's resolved address.
     const submitted: string[] = []
-    await page.route('https://rcloneui.com/api/download**', async (route) => {
-        const asked = new URL(route.request().url()).searchParams.get('url') ?? ''
+    await page.route('**/api/rpc/resolve_link', async (route) => {
+        const asked = (JSON.parse(route.request().postData() || '{}') as { url: string }).url
         if (asked.startsWith('https://first.example')) {
             await route.fulfill({
-                headers: { 'access-control-allow-origin': '*' },
                 json: {
-                    data: [
-                        {
-                            url: 'https://cdn.example/first-resolved.mp4',
-                            title: 'First video',
-                            extension: 'mp4',
-                            type: 'file',
-                        },
-                    ],
+                    ok: true,
+                    value: {
+                        url: 'https://cdn.example/first-resolved.mp4',
+                        filename: 'First video.mp4',
+                        type: 'file',
+                    },
                 },
             })
         } else {
@@ -1745,6 +1742,63 @@ test('a failed metadata lookup downloads the URL in the field', async ({ page })
     await page.getByRole('button', { name: 'DOWNLOAD' }).click()
     await expect.poll(() => submitted.length).toBe(1)
     expect(submitted[0]).toBe('https://second.example/archive.zip')
+})
+
+test('external content resolution can be switched off, and stays off', async ({ page }) => {
+    const asked: string[] = []
+    await page.route('**/api/rpc/resolve_link', async (route) => {
+        asked.push((JSON.parse(route.request().postData() || '{}') as { url: string }).url)
+        await route.fulfill({
+            json: {
+                ok: true,
+                value: {
+                    url: 'https://cdn.example/clip.mp4',
+                    filename: 'A clip.mp4',
+                    type: 'file',
+                },
+            },
+        })
+    })
+    await page.goto('/download')
+    const url = page.getByLabel('URL', { exact: true })
+    const filename = page.getByLabel('Filename', { exact: true })
+    const off = page.getByRole('checkbox', { name: 'Disable external content resolution' })
+    await expect(off).not.toBeChecked()
+    // The old line under the field is gone; what it said, and more, is the checkbox's tooltip.
+    await expect(page.getByText('Supports Youtube')).toHaveCount(0)
+    const label = page.getByText('Disable external content resolution')
+    // A tooltip opens for a pointer that travels, not for one that lands.
+    const box = (await label.boundingBox()) as {
+        x: number
+        y: number
+        width: number
+        height: number
+    }
+    await expect(async () => {
+        await page.mouse.move(0, 0)
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 12 })
+        await expect(page.getByRole('tooltip')).toContainText('Google Drive', { timeout: 2000 })
+    }).toPass({ timeout: 15_000 })
+    await expect(page.getByRole('tooltip')).toContainText('Rednote (Xiaohongshu)')
+    await expect(page.getByRole('tooltip')).toContainText('Only links to these websites are sent')
+    try {
+        await url.fill('https://www.tiktok.com/@a/video/1')
+        await expect(filename).toHaveValue('A clip.mp4')
+        expect(asked).toEqual(['https://www.tiktok.com/@a/video/1'])
+        // Switched off: the name comes from the URL again, and nothing more is asked.
+        await off.click()
+        await expect(off).toBeChecked()
+        await expect(filename).toHaveValue('1')
+        // The choice is the server's, not this page's.
+        await page.reload()
+        await expect(off).toBeChecked()
+        await url.fill('https://www.tiktok.com/@a/video/2')
+        await expect(filename).toHaveValue('2')
+        expect(asked).toHaveLength(1)
+    } finally {
+        if (await off.isChecked()) await off.click()
+        await expect(off).not.toBeChecked()
+    }
 })
 
 test('a breadcrumb segment opens that folder', async ({ page }) => {

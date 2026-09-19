@@ -1,4 +1,4 @@
-import { Button, ButtonGroup, Image, Input, Spinner, Tooltip } from '@heroui/react'
+import { Button, ButtonGroup, Checkbox, Image, Input, Spinner, Tooltip } from '@heroui/react'
 import MuxPlayer from '@mux/mux-player-react'
 import { useMutation } from '@tanstack/react-query'
 
@@ -15,7 +15,37 @@ import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import { PathField } from '../components/PathFinder'
 import { message } from '../../lib/api/dialog'
+import { rpc } from '../../lib/api/rpc'
+import { usePersistedStore } from '../../store/persisted'
 import { openUrl } from '../../lib/api/shell'
+
+/** What the server's `resolve_link` found behind a page address (a TikTok video, a Drive file). */
+interface ResolvedLink {
+    url: string
+    filename: string
+    type: 'video' | 'audio' | 'file' | 'image'
+}
+
+/** The websites `resolve_link` knows (the hosts in `src/resolve_link.rs`), as the tooltip names them. */
+const RESOLVED_SITES = [
+    'Instagram',
+    'TikTok',
+    'Facebook',
+    'X (Twitter)',
+    'YouTube',
+    'MediaFire',
+    'CapCut',
+    'Google Drive',
+    'Pinterest',
+    'Douyin',
+    'Rednote (Xiaohongshu)',
+    'Threads',
+    'Kuaishou',
+    'SnackVideo',
+    'Cocofun',
+    'Spotify',
+    'SoundCloud',
+]
 
 function isValidUrl(url: string) {
     try {
@@ -58,13 +88,13 @@ export default function Download() {
               /** The URL in the field this was resolved for. */
               sourceUrl: string
               url: string
-              title: string
-              extension: string
-              type: 'video' | 'audio' | 'file' | 'image'
+              type: ResolvedLink['type']
           }
         | undefined
     >()
     const [isFetchingDownloadData, setIsFetchingDownloadData] = useState(false)
+    const disableLinkResolution = usePersistedStore((state) => state.disableLinkResolution)
+    const setDisableLinkResolution = usePersistedStore((state) => state.setDisableLinkResolution)
 
     const startDownloadMutation = useMutation({
         mutationFn: async () => {
@@ -134,9 +164,7 @@ export default function Download() {
             return
         }
 
-        console.log('[Download] Fetching download data for URL:', url)
-
-        const abortController = new AbortController()
+        let abandoned = false
         startTransition(() => {
             // The previous URL's metadata is no longer about this one.
             setDownloadData(undefined)
@@ -150,72 +178,32 @@ export default function Download() {
                 : `${getUrlDomain(url)} ${getDateFilename()}.txt`
         }
 
-        let parsedFilename: typeof filename
-        let parsedDownloadData: typeof downloadData
-
-        fetch(`https://rcloneui.com/api/download?url=${encodeURIComponent(url)}`, {
-            signal: abortController.signal,
-        })
-            .then(async (response) => {
-                if (response.ok) {
-                    const result = (await response.json()) as {
-                        data?: {
-                            url: string
-                            title: string
-                            extension: string
-                            type: 'video' | 'audio' | 'file' | 'image'
-                        }[]
-                    }
-
-                    if (result.data && Array.isArray(result.data) && result.data.length > 0) {
-                        console.log('[Download] Successfully fetched download data')
-                        const item = result.data[0]
-                        parsedDownloadData = {
-                            sourceUrl: url,
-                            url: item.url,
-                            title: item.title,
-                            extension: item.extension,
-                            type: item.type,
-                        }
-                        parsedFilename = `${item.title.substring(0, 42).trim()}.${item.extension || 'txt'}`
-                        console.log(parsedDownloadData)
-                        console.log(parsedFilename)
-                    }
-                }
-
-                if (abortController.signal.aborted) return
-                if (parsedFilename && parsedDownloadData) {
-                    console.log('[Download] Setting filename and download data')
-                    startTransition(() => {
-                        setFilename(parsedFilename)
-                        setDownloadData(parsedDownloadData)
-                    })
-                } else {
-                    parsedFilename = fallbackFilename()
-                    startTransition(() => {
-                        setFilename(parsedFilename)
-                        setDownloadData(undefined)
-                    })
-                }
-
-                startTransition(() => {
-                    setIsFetchingDownloadData(false)
-                })
+        // Once the typing stops: the server asks a link service about every URL it is sent.
+        const timer = setTimeout(async () => {
+            const resolved = disableLinkResolution
+                ? null
+                : await rpc<ResolvedLink | null>('resolve_link', { url }).catch((error) => {
+                      // The lookup failed: the URL is still downloadable as it is.
+                      console.warn('[Download] link lookup failed', error)
+                      return null
+                  })
+            if (abandoned) return
+            startTransition(() => {
+                setFilename(resolved?.filename ?? fallbackFilename())
+                setDownloadData(
+                    resolved
+                        ? { sourceUrl: url, url: resolved.url, type: resolved.type }
+                        : undefined
+                )
+                setIsFetchingDownloadData(false)
             })
-            .catch(() => {
-                // The lookup failed (or was abandoned): the URL is still downloadable as it is.
-                if (abortController.signal.aborted) return
-                startTransition(() => {
-                    setFilename(fallbackFilename())
-                    setDownloadData(undefined)
-                    setIsFetchingDownloadData(false)
-                })
-            })
+        }, 400)
 
         return () => {
-            abortController.abort()
+            abandoned = true
+            clearTimeout(timer)
         }
-    }, [url])
+    }, [url, disableLinkResolution])
 
     return (
         <div className="flex flex-col h-screen gap-2">
@@ -227,13 +215,44 @@ export default function Download() {
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     fullWidth={true}
-                    description="Supports Youtube, TikTok, SoundCloud, Google Drive, etc."
                     size="lg"
                     data-focus-visible="false"
                     autoComplete="off"
                     autoCorrect="off"
                     autoCapitalize="off"
                     spellCheck="false"
+                    description={
+                        <Tooltip
+                            placement="bottom-start"
+                            color="foreground"
+                            content={
+                                <div className="flex flex-col max-w-xs gap-2 py-1">
+                                    <p>
+                                        A link to one of these websites is a page, not a file. An
+                                        external provider resolves it to the downloadable file
+                                        behind it:
+                                    </p>
+                                    <p className="opacity-70">{RESOLVED_SITES.join(', ')}</p>
+                                    <p>
+                                        Only links to these websites are sent. Check this to send
+                                        none: downloading from these websites will stop working.
+                                    </p>
+                                </div>
+                            }
+                        >
+                            <span className="inline-flex">
+                                <Checkbox
+                                    size="sm"
+                                    radius="sm"
+                                    isSelected={disableLinkResolution}
+                                    onValueChange={setDisableLinkResolution}
+                                    classNames={{ label: 'text-tiny text-foreground-400' }}
+                                >
+                                    Disable external content resolution
+                                </Checkbox>
+                            </span>
+                        </Tooltip>
+                    }
                     endContent={
                         <Button
                             variant="faded"
