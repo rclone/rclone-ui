@@ -7,7 +7,7 @@ import {
     ModalFooter,
     ModalHeader,
 } from '@heroui/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { writeText } from '../../lib/api/clipboard'
 import { type DialogRequest, settle, subscribe } from '../../lib/api/dialogs'
 import PathSelector from './PathSelector'
@@ -17,30 +17,43 @@ import PathSelector from './PathSelector'
 export default function DialogHost() {
     const [queue, setQueue] = useState<DialogRequest[]>([])
     useEffect(() => subscribe(setQueue), [])
-    const request = queue[0]
-    if (!request) return null
+    const head = queue[0]
+    // Settling a request answers its promise at once, but the dialog has to stay on screen to
+    // animate shut — so what is shown outlives the queue entry, and `key` counts openings so a
+    // new dialog is a fresh mount while the leaving one is not remounted.
+    const [shown, setShown] = useState<{ request: DialogRequest; key: number } | null>(null)
+    const openings = useRef(0)
+    useEffect(() => {
+        if (!head) return
+        openings.current += 1
+        setShown({ request: head, key: openings.current })
+    }, [head])
+    if (!shown) return null
 
+    const { request, key } = shown
+    const isOpen = !!head
     const done = () => settle(request)
     switch (request.kind) {
         case 'message':
-            return <MessageDialog key={queue.length} request={request} done={done} />
+            return <MessageDialog key={key} isOpen={isOpen} request={request} done={done} />
         case 'prompt':
-            return <PromptDialog key={queue.length} request={request} done={done} />
+            return <PromptDialog key={key} isOpen={isOpen} request={request} done={done} />
         case 'handoff':
-            return <HandoffDialog key={queue.length} request={request} done={done} />
+            return <HandoffDialog key={key} isOpen={isOpen} request={request} done={done} />
         case 'open':
-            return <OpenDialog key={queue.length} request={request} done={done} />
+            return <OpenDialog key={key} isOpen={isOpen} request={request} done={done} />
         case 'save':
-            return <SaveDialog key={queue.length} request={request} done={done} />
+            return <SaveDialog key={key} isOpen={isOpen} request={request} done={done} />
     }
 }
 
 const LEVEL_COLOR = { info: 'primary', warning: 'warning', error: 'danger' } as const
 
 function MessageDialog({
+    isOpen,
     request,
     done,
-}: { request: Extract<DialogRequest, { kind: 'message' }>; done: () => void }) {
+}: { isOpen: boolean; request: Extract<DialogRequest, { kind: 'message' }>; done: () => void }) {
     const finish = (label: string) => {
         request.resolve(label)
         done()
@@ -48,7 +61,7 @@ function MessageDialog({
     const cancelLabel = request.buttons.cancel
     return (
         <Modal
-            isOpen={true}
+            isOpen={isOpen}
             onClose={() => finish(cancelLabel ?? request.buttons.ok)}
             // Four buttons do not fit the medium width: the last two lose their ends.
             size={request.buttons.second ? 'lg' : 'md'}
@@ -91,16 +104,17 @@ function MessageDialog({
 }
 
 function PromptDialog({
+    isOpen,
     request,
     done,
-}: { request: Extract<DialogRequest, { kind: 'prompt' }>; done: () => void }) {
+}: { isOpen: boolean; request: Extract<DialogRequest, { kind: 'prompt' }>; done: () => void }) {
     const [value, setValue] = useState(request.defaultValue)
     const finish = (result: string | null) => {
         request.resolve(result)
         done()
     }
     return (
-        <Modal isOpen={true} onClose={() => finish(null)} size="md" placement="center">
+        <Modal isOpen={isOpen} onClose={() => finish(null)} size="md" placement="center">
             <ModalContent>
                 <form
                     onSubmit={(e) => {
@@ -138,9 +152,10 @@ function PromptDialog({
 }
 
 function HandoffDialog({
+    isOpen,
     request,
     done,
-}: { request: Extract<DialogRequest, { kind: 'handoff' }>; done: () => void }) {
+}: { isOpen: boolean; request: Extract<DialogRequest, { kind: 'handoff' }>; done: () => void }) {
     const [value, setValue] = useState('')
     const [copied, setCopied] = useState(false)
     const finish = (result: string | null) => {
@@ -148,7 +163,7 @@ function HandoffDialog({
         done()
     }
     return (
-        <Modal isOpen={true} onClose={() => finish(null)} size="lg" placement="center">
+        <Modal isOpen={isOpen} onClose={() => finish(null)} size="lg" placement="center">
             <ModalContent>
                 <form
                     onSubmit={(e) => {
@@ -211,12 +226,13 @@ function HandoffDialog({
 }
 
 function OpenDialog({
+    isOpen,
     request,
     done,
-}: { request: Extract<DialogRequest, { kind: 'open' }>; done: () => void }) {
+}: { isOpen: boolean; request: Extract<DialogRequest, { kind: 'open' }>; done: () => void }) {
     return (
         <PathSelector
-            isOpen={true}
+            isOpen={isOpen}
             allowedKeys={['LOCAL_FS', 'LOCAL_FS_EXTRA']}
             mode={request.directory ? 'folders' : 'files'}
             allowMultiple={request.multiple}
@@ -235,16 +251,17 @@ function OpenDialog({
 }
 
 function SaveDialog({
+    isOpen,
     request,
     done,
-}: { request: Extract<DialogRequest, { kind: 'save' }>; done: () => void }) {
+}: { isOpen: boolean; request: Extract<DialogRequest, { kind: 'save' }>; done: () => void }) {
     const defaultName = request.defaultPath?.split(/[\\/]/).pop() ?? ''
     const [folder, setFolder] = useState<string | null>(null)
     const [name, setName] = useState(defaultName)
     if (!folder) {
         return (
             <PathSelector
-                isOpen={true}
+                isOpen={isOpen}
                 allowedKeys={['LOCAL_FS', 'LOCAL_FS_EXTRA']}
                 mode="folders"
                 allowMultiple={false}
@@ -262,7 +279,7 @@ function SaveDialog({
         done()
     }
     return (
-        <Modal isOpen={true} onClose={() => finish(null)} size="md" placement="center">
+        <Modal isOpen={isOpen} onClose={() => finish(null)} size="md" placement="center">
             <ModalContent>
                 <form
                     onSubmit={(e) => {

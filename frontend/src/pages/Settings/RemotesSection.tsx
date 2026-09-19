@@ -200,7 +200,12 @@ export default function RemotesSection() {
         }
     }, [virtualItems.length, setListAnimated])
 
-    const [pickedRemote, setPickedRemote] = useState<string | null>(null)
+    // A drawer stays mounted while it slides shut, so the remote it shows is not cleared on
+    // close. Each drawer keeps its own, or opening one would mount the other; `opening` counts
+    // openings and keys them, so every opening seeds a fresh form.
+    const [editRemote, setEditRemote] = useState<string | null>(null)
+    const [mountRemote, setMountRemote] = useState<string | null>(null)
+    const [opening, setOpening] = useState(0)
 
     const deleteRemoteMutation = useMutation({
         mutationFn: async (remote: string) => {
@@ -271,12 +276,14 @@ export default function RemotesSection() {
             })
         } else if (action === 'edit' && remote) {
             startTransition(() => {
-                setPickedRemote(remote)
+                setEditRemote(remote)
+                setOpening((n) => n + 1)
                 setEditingDrawerOpen(true)
             })
         } else if (action === 'auto-mount' && remote) {
             startTransition(() => {
-                setPickedRemote(remote)
+                setMountRemote(remote)
+                setOpening((n) => n + 1)
                 setAutoMountDrawerOpen(true)
             })
         }
@@ -394,13 +401,15 @@ export default function RemotesSection() {
                                             remote={remote}
                                             onAutoMountPress={() => {
                                                 startTransition(() => {
-                                                    setPickedRemote(remote)
+                                                    setMountRemote(remote)
+                                                    setOpening((n) => n + 1)
                                                     setAutoMountDrawerOpen(true)
                                                 })
                                             }}
                                             onConfigPress={() => {
                                                 startTransition(() => {
-                                                    setPickedRemote(remote)
+                                                    setEditRemote(remote)
+                                                    setOpening((n) => n + 1)
                                                     setEditingDrawerOpen(true)
                                                 })
                                             }}
@@ -433,17 +442,12 @@ export default function RemotesSection() {
                 onClose={() => setConfigDrawerOpen(false)}
             />
 
-            {pickedRemote && (
+            {editRemote && (
                 <RemoteEditDrawer
+                    key={`${editRemote}-${opening}`}
                     isOpen={editingDrawerOpen}
-                    onClose={() => {
-                        setEditingDrawerOpen(false)
-                        setTimeout(() => {
-                            // allow for drawer effect to happen
-                            setPickedRemote(null)
-                        }, 100)
-                    }}
-                    remoteName={pickedRemote}
+                    onClose={() => setEditingDrawerOpen(false)}
+                    remoteName={editRemote}
                 />
             )}
 
@@ -456,19 +460,16 @@ export default function RemotesSection() {
                 }}
             />
 
-            {pickedRemote && (
+            {mountRemote && (
                 <RemoteAutoMountDrawer
+                    key={`${mountRemote}-${opening}`}
                     isOpen={autoMountDrawerOpen}
                     onClose={() => {
                         startTransition(() => {
                             setAutoMountDrawerOpen(false)
-                            setTimeout(() => {
-                                // allow for drawer effect to happen
-                                setPickedRemote(null)
-                            }, 100)
                         })
                     }}
-                    remoteName={pickedRemote}
+                    remoteName={mountRemote}
                 />
             )}
         </BaseSection>
