@@ -49,6 +49,7 @@
         "zustand": "^5.0.15"
     },
     "devDependencies": {
+        "@biomejs/biome": "^1.9.4",
         "@playwright/test": "^1.62.1",
         "@total-typescript/ts-reset": "^0.6.1",
         "@types/node": "^22.10.7",
