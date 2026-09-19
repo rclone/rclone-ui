@@ -20,7 +20,7 @@ import PanelToolbar, { type ToolbarButtons } from './PanelToolbar'
 import PathBreadcrumb from './PathBreadcrumb'
 import RemoteSidebar from './RemoteSidebar'
 import PreviewDrawer from './preview/PreviewDrawer'
-import type { AllowedKey, ContextMenuItem, Entry, FilePanelHandle, SelectItem } from './types'
+import type { AllowedKey, Entry, FilePanelHandle, SelectItem } from './types'
 import useCreateFolder from './useCreateFolder'
 import useFileNavigation from './useFileNavigation'
 import { isRemote } from '../../../lib/paths'
@@ -110,7 +110,6 @@ const FilePanel = forwardRef<
         onShare?: (item: Entry) => void
         onRename?: (item: Entry) => void
         onDelete?: (item: Entry) => void
-        contextMenuItems?: ContextMenuItem[]
         allowedKeys?: AllowedKey[]
         renderToolbar?: (buttons: ToolbarButtons) => React.ReactNode[][]
         toolbarVisible?: boolean
@@ -135,7 +134,6 @@ const FilePanel = forwardRef<
         onShare,
         onRename,
         onDelete,
-        contextMenuItems,
         allowedKeys = ['REMOTES', 'LOCAL_FS', 'LOCAL_FS_EXTRA'],
         renderToolbar,
         toolbarVisible = true,
@@ -550,8 +548,6 @@ const FilePanel = forwardRef<
                                 onDelete={isFavorites ? undefined : onDelete}
                                 draggable={selectionMode === 'drag' || selectionMode === 'both'}
                                 onDragStart={handleDragStartInternal}
-                                // handled at the Browser level
-                                onContextMenu={contextMenuItems ? () => {} : undefined}
                                 showFullPath={isFavorites}
                                 favoritedKeys={nav.favoritedKeys}
                                 onToggleFavorite={handleToggleFavorite}

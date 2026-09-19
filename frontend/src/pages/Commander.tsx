@@ -1,10 +1,6 @@
 import {
     Button,
     Checkbox,
-    Dropdown,
-    DropdownItem,
-    DropdownMenu,
-    DropdownTrigger,
     Modal,
     ModalBody,
     ModalContent,
@@ -63,7 +59,6 @@ import {
 import type { Entry, SelectItem } from '../components/navigator/types'
 import { writeText } from '../../lib/api/clipboard'
 import { saveAs } from '../../lib/api/dialog'
-import { platform } from '../../lib/api/os'
 import { openWindow } from '../../lib/api/windows'
 import { usePersistedStore } from '../../store/persisted'
 
@@ -89,13 +84,6 @@ export default function Browser() {
     const [dropOperation, setDropOperation] = useState<{
         items: SelectItem[]
         destination: string
-    } | null>(null)
-
-    const [contextMenu, setContextMenu] = useState<{
-        entry: Entry
-        x: number
-        y: number
-        panelSide: 'left' | 'right'
     } | null>(null)
 
     // The transfers this page started, by the record's id for them (its bar shows these).
@@ -229,10 +217,6 @@ export default function Browser() {
         [handleJobStarted]
     )
 
-    const closeContextMenu = useCallback(() => {
-        setContextMenu(null)
-    }, [])
-
     // Rename and delete on a row, shared with the picker; both panels refresh afterwards.
     const { rename: handleRename, remove: handleDelete } = useEntryActions(refreshPanels)
 
@@ -275,14 +259,6 @@ export default function Browser() {
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [refreshPanels])
-
-    useEffect(() => {
-        if (contextMenu) {
-            const handleClick = () => closeContextMenu()
-            window.addEventListener('click', handleClick)
-            return () => window.removeEventListener('click', handleClick)
-        }
-    }, [contextMenu, closeContextMenu])
 
     return (
         <div className="flex flex-col w-screen h-screen overflow-hidden">
@@ -364,30 +340,6 @@ export default function Browser() {
                 onComplete={refreshPanels}
                 onJobStarted={handleJobStarted}
             />
-
-            {contextMenu && (
-                <div className="fixed z-50" style={{ top: contextMenu.y, left: contextMenu.x }}>
-                    <Dropdown
-                        isOpen={true}
-                        onClose={closeContextMenu}
-                        shadow={platform === 'windows' ? 'none' : undefined}
-                    >
-                        <DropdownTrigger>
-                            <span />
-                        </DropdownTrigger>
-                        <DropdownMenu
-                            onAction={(key) => {
-                                if (key === 'copy-path') {
-                                    navigator.clipboard.writeText(contextMenu.entry.fullPath)
-                                }
-                                closeContextMenu()
-                            }}
-                        >
-                            <DropdownItem key="copy-path">Copy Path</DropdownItem>
-                        </DropdownMenu>
-                    </Dropdown>
-                </div>
-            )}
         </div>
     )
 }

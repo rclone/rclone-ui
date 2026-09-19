@@ -33,7 +33,6 @@ export default function FileList({
     onPreviewClick,
     draggable = false,
     onDragStart,
-    onContextMenu,
     showFullPath = false,
     favoritedKeys,
     onToggleFavorite,
@@ -57,7 +56,6 @@ export default function FileList({
     onPreviewClick?: (entry: Entry) => void
     draggable?: boolean
     onDragStart?: (items: Entry[]) => void
-    onContextMenu?: (entry: Entry, event: React.MouseEvent) => void
     /** Put the row's whole path on a hover tooltip (the favourites list, whose labels are not paths). */
     showFullPath?: boolean
     favoritedKeys?: Record<string, boolean>
@@ -149,15 +147,6 @@ export default function FileList({
         dragStateRef.current = null
     }, [])
 
-    const handleContextMenu = useCallback(
-        (entry: VirtualizedEntry, event: React.MouseEvent) => {
-            if (!onContextMenu) return
-            event.preventDefault()
-            onContextMenu(entry, event)
-        },
-        [onContextMenu]
-    )
-
     if (isLoading) {
         return (
             <div className="flex items-center justify-center flex-1 w-full h-full">
@@ -246,7 +235,6 @@ export default function FileList({
                                 draggable={draggable}
                                 onDragStart={(e) => handleDragStart(entry, e)}
                                 onDragEnd={handleDragEnd}
-                                onContextMenu={(e) => handleContextMenu(entry, e)}
                             >
                                 {showCheckbox && (
                                     <div

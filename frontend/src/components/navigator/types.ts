@@ -27,14 +27,6 @@ export type VirtualizedEntry = Entry & { isSelected: boolean }
  */
 export type AllowedKey = 'REMOTES' | 'LOCAL_FS' | 'LOCAL_FS_EXTRA' | 'FAVORITES'
 
-export type ContextMenuItem = {
-    key: string
-    label: string
-    icon?: React.ReactNode
-    color?: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger'
-    onPress: (entry: Entry) => void
-}
-
 export type FilePanelHandle = {
     refresh: () => void
     getSelection: () => SelectItem[]
