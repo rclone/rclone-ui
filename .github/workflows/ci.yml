@@ -2,7 +2,9 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    # This product lives on `cloud` and never merges back, so `main` would never fire here.
+    # The native app runs its own copy of this file from its own branch.
+    branches: [cloud]
   pull_request:
 
 jobs:
