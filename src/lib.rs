@@ -1,4 +1,4 @@
-//! rclone-ui-server as a library: one HTTP + WebSocket server that serves the frontend bundle and
+//! rclone-cloud as a library: one HTTP + WebSocket server that serves the frontend bundle and
 //! answers its API, serving the pages to a browser
 //! and run standalone by `main.rs` for browser deployments. The host describes what it can do on
 //! top of the shared core through [`Hooks`] (native windows, an updater, boot-time questions,

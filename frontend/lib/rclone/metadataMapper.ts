@@ -21,8 +21,6 @@ export type MapperRule =
     | { kind: 'drop'; key: string }
 
 export interface MapperValue {
-    /** The binary the rules were written against — this install's, or an older one's. */
-    exe: string
     rules: MapperRule[]
     /** Whether fields no rule mentions are passed through (rclone's default here, and ours). */
     keepUnmapped: boolean
@@ -48,10 +46,13 @@ function splitPair(argument: string): [string, string] | null {
  * The rules behind a flag value, or `null` when it runs someone else's program — or ours with
  * arguments this editor did not write. Both are somebody's work: the drawer says so and asks
  * before replacing it. An empty flag is nobody's, so it comes back as an empty mapping.
+ *
+ * The program the value names is not returned: a saved value is always rewritten with the binary
+ * running right now (`buildMapperValue`), so there is nothing to carry over from the old one.
  */
 export function parseMapperValue(value: FlagValue): MapperValue | null {
     const argv = toArgv(value)
-    if (argv.length === 0) return { exe: '', rules: [], keepUnmapped: true }
+    if (argv.length === 0) return { rules: [], keepUnmapped: true }
     if (argv[1] !== MAPPER_SUBCOMMAND) return null
 
     const rules: MapperRule[] = []
@@ -75,7 +76,7 @@ export function parseMapperValue(value: FlagValue): MapperValue | null {
         else if (flag === '--set') rules.push({ kind: 'set', key: pair[0], value: pair[1] })
         else return null
     }
-    return { exe: argv[0], rules, keepUnmapped }
+    return { rules, keepUnmapped }
 }
 
 /** The flag value for a set of rules, always pointing at the binary running right now. */

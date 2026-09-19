@@ -517,8 +517,8 @@ mod tests {
         write(&old.join("notifications/targets.json"), "[]");
         // … and in Local, with a directory both had.
         write(&root.join("configs/default/rclone.conf"), "[r]\n");
-        write(&root.join("logs/rclone-ui-server.log"), "local\n");
-        write(&old.join("logs/rclone-ui-server.log"), "roaming\n");
+        write(&root.join("logs/rclone-cloud.log"), "local\n");
+        write(&old.join("logs/rclone-cloud.log"), "roaming\n");
         write(&old.join("logs/other.log"), "x\n");
 
         let legacy = Legacy {
@@ -534,19 +534,16 @@ mod tests {
         assert!(root.join("configs/default/rclone.conf").is_file());
         // Directories merged; the existing file won and the source copy stayed, reported.
         assert_eq!(
-            std::fs::read_to_string(root.join("logs/rclone-ui-server.log")).unwrap(),
+            std::fs::read_to_string(root.join("logs/rclone-cloud.log")).unwrap(),
             "local\n"
         );
         assert!(root.join("logs/other.log").is_file());
-        assert!(old.join("logs/rclone-ui-server.log").is_file());
+        assert!(old.join("logs/rclone-cloud.log").is_file());
         assert!(!old.join("state").exists());
         assert!(!old.join("scheduler").exists());
         assert!(old.exists(), "not empty, so it stays");
         assert!(
-            report
-                .notes
-                .iter()
-                .any(|n| n.contains("rclone-ui-server.log")),
+            report.notes.iter().any(|n| n.contains("rclone-cloud.log")),
             "{:?}",
             report.notes
         );

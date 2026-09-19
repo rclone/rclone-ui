@@ -2,9 +2,9 @@ name: release
 
 on:
   push:
-    # The two products release from two branches into one tag namespace: server-v3.8.0
+    # The two products release from two branches into one tag namespace: cloud-v3.8.0
     # here, v3.8.0 on the native branch.
-    tags: ['server-v*']
+    tags: ['cloud-v*']
   workflow_dispatch:
 
 permissions:
@@ -42,11 +42,11 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          mkdir -p out/server
+          mkdir -p out/cloud
           if [ "${{ runner.os }}" = "Windows" ]; then
-            cp target/release/rclone-ui-server.exe out/server/rclone-ui-server-${{ matrix.target }}.exe
+            cp target/release/rclone-cloud.exe out/cloud/rclone-cloud-${{ matrix.target }}.exe
           else
-            cp target/release/rclone-ui-server out/server/rclone-ui-server-${{ matrix.target }}
+            cp target/release/rclone-cloud out/cloud/rclone-cloud-${{ matrix.target }}
           fi
       # The server updates itself from these binaries: sign them with the desktop's updater key
       # (minisign, `tauri signer`) so src/updater.rs can verify what it downloads.
@@ -56,22 +56,22 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          for f in out/server/rclone-ui-server-*; do
+          for f in out/cloud/rclone-cloud-*; do
             npx --yes @tauri-apps/cli@2 signer sign "$f"
           done
-          ls -la out/server
+          ls -la out/cloud
       - uses: actions/upload-artifact@v4
         with:
-          name: rclone-ui-server-${{ matrix.target }}
-          path: out/server/*
+          name: rclone-cloud-${{ matrix.target }}
+          path: out/cloud/*
       - name: Attach to the release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: out/server/*
+          files: out/cloud/*
 
-  # `server-latest.json`: what `rclone-ui-server` polls to update itself. Same shape as Tauri's
-  # `latest.json`, with `server-<os>-<arch>` platform keys pointing at the signed binaries above.
+  # `cloud-latest.json`: what `rclone-cloud` polls to update itself. Same shape as Tauri's
+  # `latest.json`, with `cloud-<os>-<arch>` platform keys pointing at the signed binaries above.
   manifest:
     needs: binaries
     if: startsWith(github.ref, 'refs/tags/')
@@ -79,31 +79,31 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: rclone-ui-server-*
+          pattern: rclone-cloud-*
           path: artifacts
           merge-multiple: true
-      - name: Write server-latest.json
+      - name: Write cloud-latest.json
         shell: bash
         run: |
           tag="${GITHUB_REF_NAME}"
-          version="${tag#server-v}"
+          version="${tag#cloud-v}"
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}"
           platforms="{}"
           for sig in artifacts/*.sig; do
             bin="${sig%.sig}"
             name="$(basename "$bin")"
-            key="${name#rclone-ui-server-}"
-            key="server-${key%.exe}"
+            key="${name#rclone-cloud-}"
+            key="cloud-${key%.exe}"
             platforms="$(jq --arg k "$key" --arg u "${base}/${name}" --arg s "$(cat "$sig")" \
               '.[$k] = {url: $u, signature: $s}' <<<"$platforms")"
           done
           jq -n --arg v "$version" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson p "$platforms" \
             '{version: $v, notes: "See the release notes on GitHub.", pub_date: $d, platforms: $p}' \
-            > server-latest.json
-          cat server-latest.json
+            > cloud-latest.json
+          cat cloud-latest.json
       - uses: softprops/action-gh-release@v2
         with:
-          files: server-latest.json
+          files: cloud-latest.json
 
   image:
     runs-on: ubuntu-latest
@@ -119,7 +119,7 @@ jobs:
       - uses: docker/metadata-action@v5
         id: meta
         with:
-          images: ghcr.io/${{ github.repository }}-server
+          images: ghcr.io/${{ github.repository_owner }}/rclone-cloud
           tags: |
             type=semver,pattern={{version}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}

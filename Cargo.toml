@@ -1,7 +1,7 @@
 [workspace]
 
 [package]
-name = "rclone-ui-server"
+name = "rclone-cloud"
 description = "Rclone UI served to a browser: the core behind an HTTP/WebSocket API, serving the frontend it runs"
 version = "3.7.4"
 edition = "2021"

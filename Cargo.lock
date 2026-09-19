@@ -1745,7 +1745,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rclone-ui-server"
+name = "rclone-cloud"
 version = "3.7.4"
 dependencies = [
  "argon2",

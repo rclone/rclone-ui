@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { defineConfig } from '@playwright/test'
 import { SERVER_BIN } from './e2e/helpers'
 
-// Browser-mode smoke tests against a real rclone-ui-server (debug binary, so `npm run build`'s
+// Browser-mode smoke tests against a real rclone-cloud (debug binary, so `npm run build`'s
 // frontend/dist/ is read from disk) and a real rclone daemon. Two servers: one open on loopback, one
 // password-protected. `npm run test:e2e`.
 const tmp = new URL('./e2e/.tmp/', import.meta.url).pathname

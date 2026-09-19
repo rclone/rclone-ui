@@ -33,8 +33,8 @@ jobs:
       - run: cargo test
       - uses: actions/upload-artifact@v4
         with:
-          name: rclone-ui-server-linux-x86_64-ci
-          path: target/release/rclone-ui-server
+          name: rclone-cloud-linux-x86_64-ci
+          path: target/release/rclone-cloud
 
   e2e:
     runs-on: ubuntu-latest

@@ -808,7 +808,7 @@ test('the wizard hands its plan to the operation page', async ({ page }) => {
         .toMatchObject({
             metadata: true,
             metadata_mapper: [
-                expect.stringContaining('rclone-ui-server'),
+                expect.stringContaining('rclone-cloud'),
                 'metadata-map',
                 '--map',
                 'mtime=modified',
@@ -1859,7 +1859,7 @@ test('the metadata mapper writes a command line, and needs metadata beside it', 
     await written().toMatchObject({
         metadata: true,
         metadata_mapper: [
-            expect.stringContaining('rclone-ui-server'),
+            expect.stringContaining('rclone-cloud'),
             'metadata-map',
             '--map',
             'mtime=modified',

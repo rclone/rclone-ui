@@ -60,7 +60,7 @@ body {
 		user-select: none;
 } */
 
-/* Browser mode (rclone-ui-server): the pages were written for their own desktop window, so
+/* Browser mode (rclone-cloud): the pages were written for their own desktop window, so
    viewport-sized boxes must fit the Shell's content column instead. */
 html.browser .browser-outlet .w-screen {
     width: 100%;

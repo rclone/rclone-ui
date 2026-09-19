@@ -1,16 +1,16 @@
-//! `rclone-ui-server`: the shared Rclone UI core behind an HTTP + WebSocket API, serving the
+//! `rclone-cloud`: the shared Rclone UI core behind an HTTP + WebSocket API, serving the
 //! same frontend bundle the desktop app embeds. No Tauri, no GTK/WebKit — it runs in a
 //! container or on a headless box.
 
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
-use rclone_ui_server::{serve, Hooks, Owner, ServeOpts};
-use rclone_ui_server::lifecycle::Options as LifecycleOptions;
+use rclone_cloud::{serve, Hooks, Owner, ServeOpts};
+use rclone_cloud::lifecycle::Options as LifecycleOptions;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "rclone-ui-server",
+    name = "rclone-cloud",
     version,
     about = "Rclone UI served to a browser"
 )]
@@ -39,7 +39,7 @@ struct CliServe {
     #[arg(long, env = "RCLONE_CLOUD_PASSWORD")]
     password: Option<String>,
     /// The owner account's email, used with --password on the first start only.
-    #[arg(long, env = "RCLONE_CLOUD_EMAIL", default_value = rclone_ui_server::team::DEFAULT_OWNER_EMAIL)]
+    #[arg(long, env = "RCLONE_CLOUD_EMAIL", default_value = rclone_cloud::team::DEFAULT_OWNER_EMAIL)]
     email: String,
     /// The data directory: state, accounts, schedules, rclone configs and binaries, logs
     /// (defaults to this machine's local data directory, under com.rclone.cloud).
@@ -70,7 +70,7 @@ fn main() {
     // The metadata mapper (`--metadata-mapper`), which rclone spawns once per file and
     // directory copied: one JSON object in, one out, nothing started, nothing logged.
     if args.len() >= 2 && args[1] == "metadata-map" {
-        std::process::exit(rclone_ui_server::metadata_mapper::run(&args[2..]));
+        std::process::exit(rclone_cloud::metadata_mapper::run(&args[2..]));
     }
 
     let _ = fix_path_env::fix();
@@ -78,8 +78,8 @@ fn main() {
     let cli = Cli::parse();
     let opts = match cli.command {
         Some(Command::ListCommands) => {
-            let mut names: Vec<&str> = rclone_ui_server::commands::COMMAND_NAMES.to_vec();
-            names.extend(rclone_ui_server::server_rpcs::SERVER_RPCS);
+            let mut names: Vec<&str> = rclone_cloud::commands::COMMAND_NAMES.to_vec();
+            names.extend(rclone_cloud::server_rpcs::SERVER_RPCS);
             names.sort_unstable();
             for name in names {
                 println!("{}", name);
@@ -95,7 +95,7 @@ fn main() {
         .build()
         .expect("failed to build the tokio runtime");
     if let Err(e) = runtime.block_on(run(opts)) {
-        eprintln!("rclone-ui-server: {}", e);
+        eprintln!("rclone-cloud: {}", e);
         std::process::exit(1);
     }
 }
@@ -110,26 +110,26 @@ async fn run(cli: CliServe) -> Result<(), String> {
     })?;
 
     let dirs = match &cli.data_dir {
-        Some(d) => rclone_ui_server::DataDir { root: d.clone() },
-        None => rclone_ui_server::DataDir::from_env()?,
+        Some(d) => rclone_cloud::DataDir { root: d.clone() },
+        None => rclone_cloud::DataDir::from_env()?,
     };
     // Before anything is opened or written (the log file included): a clean slate, then the
     // layout this build reads.
     let cleared = if cli.clear { Some(dirs.clear()?) } else { None };
-    let migration = rclone_ui_server::storage::migrate(&dirs.root)?;
+    let migration = rclone_cloud::storage::migrate(&dirs.root)?;
     // An overridden data directory (development, tests, containers) keeps its logs with its
     // data; otherwise the platform's app-log directory, where the desktop's log plugin writes.
     let log_dir = if cli.data_dir.is_some() {
         dirs.root.join("logs")
     } else {
-        rclone_ui_server::static_files::log_dir_for(&dirs)
+        rclone_cloud::static_files::log_dir_for(&dirs)
     };
-    let log_file = rclone_ui_server::logging::init(&log_dir);
+    let log_file = rclone_cloud::logging::init(&log_dir);
     log::info!("logging to {}", log_file.display());
     // An upgrade from a build that shared the desktop app's directory: say where the accounts
     // went rather than starting empty and looking like data loss.
     if cli.data_dir.is_none() {
-        if let Some(former) = rclone_ui_server::datadir::former_data_dir(&dirs.root) {
+        if let Some(former) = rclone_cloud::datadir::former_data_dir(&dirs.root) {
             log::warn!(
                 "this server previously stored its data in {} and is now using {}. Nothing was \
                  moved: that directory may belong to the desktop app. To keep the old accounts \
@@ -163,7 +163,7 @@ async fn run(cli: CliServe) -> Result<(), String> {
 
     // After a relaunch the previous process may still hold the port for a moment.
     let listener =
-        rclone_ui_server::port::bind_with_retry(addr, 20, std::time::Duration::from_millis(500))
+        rclone_cloud::port::bind_with_retry(addr, 20, std::time::Duration::from_millis(500))
             .await?;
 
     let hooks = Hooks::standalone();

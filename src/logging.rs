@@ -1,6 +1,6 @@
 //! The standalone server's log file. The desktop's log plugin writes `<log dir>/Rclone UI.log`;
 //! the server has no plugin, so it keeps the same contract itself: every record goes to stderr
-//! (containers, journals) and to `<log dir>/rclone-ui-server.log`, which starts over once it
+//! (containers, journals) and to `<log dir>/rclone-cloud.log`, which starts over once it
 //! reaches 10 MB (the desktop plugin's `KeepOne`: the full file is deleted, no `.old` copy), so
 //! the About page's "last lines" and bug reports always have something recent to read.
 
@@ -9,7 +9,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-pub const FILE_NAME: &str = "rclone-ui-server.log";
+pub const FILE_NAME: &str = "rclone-cloud.log";
 /// The same cap as the desktop's log plugin (`src-tauri/src/lib.rs`).
 pub const MAX_BYTES: u64 = 10 * 1024 * 1024;
 
@@ -39,7 +39,7 @@ impl Tee {
             }
             Err(e) => {
                 eprintln!(
-                    "rclone-ui-server: cannot open the log file {}: {}",
+                    "rclone-cloud: cannot open the log file {}: {}",
                     path.display(),
                     e
                 );
@@ -100,7 +100,7 @@ impl Write for Shared {
 pub fn init(log_dir: &Path) -> PathBuf {
     if let Err(e) = std::fs::create_dir_all(log_dir) {
         eprintln!(
-            "rclone-ui-server: cannot create the log directory {}: {}",
+            "rclone-cloud: cannot create the log directory {}: {}",
             log_dir.display(),
             e
         );

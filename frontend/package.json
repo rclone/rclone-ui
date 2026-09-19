@@ -1,5 +1,5 @@
 {
-    "name": "rclone-ui-web",
+    "name": "rclone-cloud-web",
     "private": true,
     "type": "module",
     "scripts": {

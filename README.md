@@ -13,7 +13,7 @@ docker run -d --name rclone-ui \
   -e RCLONE_CLOUD_PASSWORD=change-me \
   -v rclone-ui:/data \
   -v rclone-ui-config:/config/rclone \
-  ghcr.io/rclone-ui/rclone-ui-server
+  ghcr.io/rclone-ui/rclone-cloud
 ```
 
 Open <http://localhost:5573> and sign in as `admin@localhost` with that password. The pair seeds
@@ -30,7 +30,7 @@ and a bind mount with `:rshared` propagation for the mount to appear on the host
 `/dev/fuse` the server reports that it cannot mount, hides the mount settings and skips any
 remote set to mount on start, with one line in the log saying so — everything else works.
 
-Without Docker, run the binary from the releases page: `rclone-ui-server serve`. Under systemd or
+Without Docker, run the binary from the releases page: `rclone-cloud serve`. Under systemd or
 launchd a self-update exits with code 3 and expects the supervisor to start it again.
 
 ## Configuration

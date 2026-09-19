@@ -33,12 +33,12 @@ test('rules survive a trip through the flag and back', () => {
         '--drop',
         'btime',
     ])
-    expect(parseMapperValue(value)).toEqual({ exe: EXE, rules, keepUnmapped: false })
+    expect(parseMapperValue(value)).toEqual({ rules, keepUnmapped: false })
 })
 
 test('an empty flag is ours to fill in', () => {
     for (const empty of ['', [], null, undefined as never]) {
-        expect(parseMapperValue(empty)).toEqual({ exe: '', rules: [], keepUnmapped: true })
+        expect(parseMapperValue(empty)).toEqual({ rules: [], keepUnmapped: true })
     }
 })
 
@@ -49,16 +49,6 @@ test('a program that is not ours is left alone', () => {
     expect(parseMapperValue([EXE, 'metadata-map', '--map', 'no-equals-sign'])).toBeNull()
 })
 
-test('a mapping written by an older install is adopted, path and all', () => {
-    const parsed = parseMapperValue(['/old/path/rclone-ui-server', 'metadata-map', '--map', 'a=b'])
-    expect(parsed).toEqual({
-        exe: '/old/path/rclone-ui-server',
-        rules: [{ kind: 'map', from: 'a', to: 'b' }],
-        keepUnmapped: true,
-    })
-    // Saving again moves it to wherever this install lives.
-    expect(buildMapperValue(EXE, parsed!.rules, parsed!.keepUnmapped)[0]).toBe(EXE)
-})
 
 test('the command line shown to the user quotes what a shell would', () => {
     expect(quoteArgv([EXE, 'metadata-map', '--map', 'a=b'])).toBe(`"${EXE}" metadata-map --map a=b`)

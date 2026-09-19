@@ -1,5 +1,5 @@
 //! Self-update of the standalone server from the same `latest.json` manifest the desktop's
-//! updater reads, under `server-<os>-<arch>` platform keys (published by the server release
+//! updater reads, under `cloud-<os>-<arch>` platform keys (published by the release
 //! workflow), with the same minisign signature check. The desktop shell installs its own
 //! [`Updater`] (the Tauri updater plugin).
 
@@ -11,10 +11,10 @@ use serde_json::{json, Value};
 
 use crate::{UpdateInfo, Updater};
 
-/// Written by release-server.yml: `platforms["server-<os>-<arch>"] = { url, signature }` for the
+/// Written by release.yml: `platforms["cloud-<os>-<arch>"] = { url, signature }` for the
 /// raw binaries, signed with the same minisign key as the desktop's installers.
 const MANIFEST: &str =
-    "https://github.com/rclone-ui/rclone-ui/releases/latest/download/server-latest.json";
+    "https://github.com/rclone-ui/rclone-ui/releases/latest/download/cloud-latest.json";
 /// tauri.conf.json `plugins.updater.pubkey` (base64 of the minisign public key file).
 const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIyNDFENEZGNjFDNTBGOEYKUldTUEQ4VmgvOVJCSWhVZmw0enhmcW1kWFk3TS9mMzBDRjVEZWdxKzQ5ZmRhTlYvT2gvdFNMbE8K";
 
@@ -30,7 +30,7 @@ pub struct SelfUpdater;
 static PENDING: Mutex<Option<Pending>> = Mutex::new(None);
 
 fn target() -> String {
-    format!("server-{}-{}", std::env::consts::OS, std::env::consts::ARCH)
+    format!("cloud-{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
 fn client() -> Result<reqwest::Client, String> {
@@ -158,7 +158,7 @@ impl Updater for SelfUpdater {
         verify(&bytes, &pending.signature)?;
         replace_current_exe(&bytes)?;
         log::info!(
-            "installed rclone-ui-server {}; restart to run it",
+            "installed rclone-cloud {}; restart to run it",
             pending.version
         );
         let _ = progress.send(json!({ "event": "Finished" }));

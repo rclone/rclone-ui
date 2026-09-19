@@ -7,12 +7,12 @@ import type { APIRequestContext } from '@playwright/test'
 export const OWNER = { email: 'admin@localhost', password: 'e2e-secret' }
 
 /**
- * The debug binary, from `cargo build -p rclone-ui-server`. Anchored to this file rather than to
+ * The debug binary, from `cargo build -p rclone-cloud`. Anchored to this file rather than to
  * the working directory: the Cargo target sits at the repo root while the suite runs from
  * frontend, and the specs that start a server of their own spawn it themselves.
  */
 export const SERVER_BIN = fileURLToPath(
-    new URL('../../target/debug/rclone-ui-server', import.meta.url)
+    new URL('../../target/debug/rclone-cloud', import.meta.url)
 )
 
 /** Signs a request context in (its pages share the cookie jar), as the owner unless told otherwise. */
