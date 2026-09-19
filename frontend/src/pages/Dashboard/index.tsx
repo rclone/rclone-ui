@@ -179,14 +179,14 @@ function Versions({ cloud, rclone }: { cloud?: string; rclone?: string }) {
 
 export default function Dashboard() {
     const phase = useLifecyclePhase()
-    const server = useQuery({
+    const serverStatus = useQuery({
         queryKey: ['server', 'status'],
         queryFn: fetchStatus,
         refetchInterval: 30_000,
     })
 
     // An external daemon publishes no lifecycle phase, so its version comes from rclone itself.
-    const daemonVersion = useQuery(daemonVersionQueryOptions())
+    const rcloneVersion = useQuery(daemonVersionQueryOptions())
 
     const stats = useQuery({
         queryKey: ['dashboard', 'stats'],
@@ -254,8 +254,6 @@ export default function Dashboard() {
     const speed = stats.data?.speed ?? 0
     const unreachable = stats.isError
     const chip = phase ? PHASE_CHIP[phase.phase] : undefined
-    const rcloneVersion =
-        (phase?.phase === 'ready' && phase.version) || daemonVersion.data
     const mountRows = useMemo(
         () => ((mounts.data ?? []) as { Fs: string; MountPoint: string }[]).slice(0, 4),
         [mounts.data]
@@ -278,13 +276,13 @@ export default function Dashboard() {
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
                 <div className="flex items-center gap-2">
-                    {server.data ? (
+                    {serverStatus.data ? (
                         <Chip
                             variant="flat"
                             size="sm"
                             className="font-medium uppercase tracking-wide"
                         >
-                            {formatUptime(server.data.uptimeSeconds)}
+                            {formatUptime(serverStatus.data.uptimeSeconds)}
                         </Chip>
                     ) : null}
                     {unreachable ? (
@@ -637,7 +635,10 @@ export default function Dashboard() {
                 />
             )}
 
-            <Versions cloud={server.data?.version} rclone={rcloneVersion} />
+            <Versions
+                cloud={serverStatus.data?.version}
+                rclone={(phase?.phase === 'ready' && phase.version) || rcloneVersion.data}
+            />
 
             <RemotesReconnectDrawer
                 isOpen={reconnectOpen}
