@@ -297,6 +297,21 @@ pub fn spawn_rclone_with(
 
     let mut cmd = Command::new(&path);
     cmd.args(&args);
+    // The rc port is this server's own channel to the daemon; an inherited RCLONE_RC_* would
+    // reconfigure it behind our back (RCLONE_RC_ADDR is a list: it adds a listener).
+    let theirs: Vec<String> = std::env::vars()
+        .map(|(key, _)| key)
+        .filter(|key| key.starts_with("RCLONE_RC_"))
+        .collect();
+    if !theirs.is_empty() {
+        log::warn!(
+            "[rclone] ignoring {} from the environment",
+            theirs.join(", ")
+        );
+        for key in &theirs {
+            cmd.env_remove(key);
+        }
+    }
     for (k, v) in &env {
         cmd.env(k, v);
     }

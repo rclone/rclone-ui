@@ -304,9 +304,7 @@ impl Supervisor {
         let port = rc::pick_port().map_err(StartError::Other)?;
         let user = rc::random_token();
         let pass = rc::random_token();
-        // The credentials go through the environment, not argv: a process list is readable by
-        // other local processes (on Linux `/proc/<pid>/cmdline` is world-readable), an
-        // environment is not. rclone reads `--rc-user`/`--rc-pass` from these names itself.
+        // Through the environment, not argv: a process list is readable by other local processes.
         env.insert("RCLONE_RC_USER".to_string(), user.clone());
         env.insert("RCLONE_RC_PASS".to_string(), pass.clone());
 
@@ -314,14 +312,10 @@ impl Supervisor {
             "rcd",
             "--rc-addr",
             &format!("127.0.0.1:{}", port),
-            // Serves a file's bytes at `[fs]/remote`. It is how the config editor reads
-            // rclone.conf, how a preview fetches a file and how `/api/dl` streams a download —
-            // without it those read 404, and the daemon can still hand out any file through
-            // `core/command` anyway.
             "--rc-serve",
             // The daemon's stdin is /dev/null, so an encrypted config with no password in the
             // environment would have rclone prompt into EOF and report a panic. This turns that
-            // into a plain error. Passing a password is done using `RCLONE_CONFIG_PASS`.
+            // Passing a password is done using `RCLONE_CONFIG_PASS`.
             "--ask-password=false",
         ]
         .iter()

@@ -21,9 +21,7 @@ pub fn pick_port() -> Result<u16, String> {
     Err("could not allocate a local port".to_string())
 }
 
-/// A random hex string, 122 bits from the system CSPRNG. Used for the daemon's throwaway
-/// credentials — where being unguessable is the whole point — and for the id suffixes that only
-/// need not to collide. It was once a hash of the clock and the pid, which is neither.
+/// A throwaway credential, and the id suffixes: 122 bits from the system CSPRNG.
 pub fn random_token() -> String {
     uuid::Uuid::new_v4().simple().to_string()
 }
