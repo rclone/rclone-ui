@@ -3,9 +3,9 @@ import { Button } from '@heroui/react'
 
 import { ArrowDownUp, FolderOpen, XIcon } from 'lucide-react'
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { pathProblem } from '../../lib/paths'
 import PathSelector from './PathSelector'
 import type { AllowedKey } from './navigator/types'
-import { pathProblem } from '../../lib/paths'
 
 export function PathFinder({
     sourcePath = '',
@@ -153,7 +153,7 @@ export function MultiPathFinder({
         if (sourcePaths.length > 1) {
             return 'Cannot swap when multiple sources are selected'
         }
-        return 'Swap sources'
+        return 'Swap paths'
     }, [sourcePaths])
 
     return (

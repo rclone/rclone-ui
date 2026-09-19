@@ -53,9 +53,8 @@ function RailTooltip({ content, children }: { content: string; children: ReactEl
             delay={0}
             closeDelay={0}
             offset={10}
-            size="sm"
             color="foreground"
-            classNames={{ content: 'max-w-56 text-xs' }}
+            classNames={{ content: 'max-w-56' }}
         >
             {children}
         </Tooltip>

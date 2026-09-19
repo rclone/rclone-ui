@@ -13,7 +13,7 @@ import { platform } from '../../../lib/api/os'
 function RowTooltip({ path, children }: { path?: string; children: ReactElement }) {
     if (!path) return children
     return (
-        <Tooltip content={path} size="sm" placement="top-start" delay={500} closeDelay={0}>
+        <Tooltip content={path} size="sm" placement="bottom" delay={500} closeDelay={0}>
             {children}
         </Tooltip>
     )
