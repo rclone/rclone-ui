@@ -34,6 +34,7 @@ import {
     toConfigParam,
     toFilterParam,
 } from './requests'
+import { forgetRemoteHealth } from './health'
 import { describeSources } from './kinds'
 import { attendLogin, loginParameters, presentSignIn, stopStrayOAuth } from './oauth'
 
@@ -655,6 +656,7 @@ export async function reconnectRemote(remoteName: string) {
         }
     )
     await rclone('/fscache/clear')
+    forgetRemoteHealth()
 }
 
 /* OTHERS */

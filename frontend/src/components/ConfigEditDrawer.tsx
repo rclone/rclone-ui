@@ -16,6 +16,7 @@ import { onErrorDialog } from '../../lib/errors'
 import queryClient from '../../lib/query'
 import rclone from '../../lib/rclone/client'
 import { daemonConfigPath, readDaemonConfig, writeDaemonConfig } from '../../lib/rclone/config-file'
+import { forgetRemoteHealth } from '../../lib/rclone/health'
 
 /**
  * The rclone configuration file, as text. There is exactly one, and where it lives is rclone's
@@ -44,6 +45,7 @@ export default function ConfigEditDrawer({
             queryClient.invalidateQueries({ queryKey: ['remotes'] })
             queryClient.invalidateQueries({ queryKey: ['remote'] })
             queryClient.invalidateQueries({ queryKey: ['dashboard', 'remotes'] })
+            forgetRemoteHealth()
             return true
         },
         onSuccess: () => {

@@ -12,32 +12,37 @@ import { useEffect, useState } from 'react'
 import { UserCancelledError, formatErrorMessage } from '../../lib/errors'
 import { reconnectRemote } from '../../lib/rclone/api'
 
-export interface StaleRemote {
+export interface FaultyRemote {
     name: string
     type: string
+    /** rclone's words. */
+    error: string
+    /** Its sign-in lapsed: the one fault this drawer can cure. */
+    canReconnect: boolean
 }
 
 type RowState = { status: 'idle' | 'working' | 'done' } | { status: 'failed'; message: string }
 
 /**
- * The remotes whose sign-in has to be done again, in one place. Each row runs the same flow the
- * prompt does, so the sign-in dialog opens over this drawer and the row settles when it closes.
+ * The remotes rclone could not open or list, in one place, each with rclone's reason. One whose
+ * sign-in lapsed has a Reconnect button, which runs the same flow the prompt does: the sign-in
+ * dialog opens over this drawer and the row settles when it closes.
  */
-export default function RemotesReconnectDrawer({
+export default function FaultyRemotesDrawer({
     isOpen,
     onClose,
     remotes,
 }: {
     isOpen: boolean
     onClose: () => void
-    remotes: StaleRemote[]
+    remotes: FaultyRemote[]
 }) {
     const queryClient = useQueryClient()
     const [rows, setRows] = useState<Record<string, RowState>>({})
     // The list is taken when the drawer opens and then held. Reconnecting one drops it from the
     // count that produced this list, and a row that disappeared at the moment it succeeded would
     // take its own confirmation with it. Opening again starts from what is wrong now.
-    const [shown, setShown] = useState<StaleRemote[]>(remotes)
+    const [shown, setShown] = useState<FaultyRemote[]>(remotes)
     // biome-ignore lint/correctness/useExhaustiveDependencies: `remotes` is read when the drawer opens, not followed while it is open — holding the list is the point
     useEffect(() => {
         if (!isOpen) return
@@ -51,8 +56,8 @@ export default function RemotesReconnectDrawer({
         try {
             await reconnectRemote(name)
             setRows((prev) => ({ ...prev, [name]: { status: 'done' } }))
-            // The badge counted this one and the file panel cached its failure; both re-ask now
-            // rather than waiting out the day-long cache.
+            // The file panel cached this remote's failure: it asks again now. (The health checks
+            // are dropped by `reconnectRemote` itself.)
             queryClient.invalidateQueries({ queryKey: ['remote', name] })
             queryClient.invalidateQueries({ queryKey: ['dashboard', 'remotes'] })
         } catch (error) {
@@ -74,14 +79,14 @@ export default function RemotesReconnectDrawer({
             onClose={onClose}
             placement="right"
             size="md"
-            aria-label="Remotes needing reconnection"
+            aria-label="Remotes with problems"
         >
             <DrawerContent>
                 <DrawerHeader className="flex flex-col gap-1">
-                    <span>Remotes needing reconnection</span>
+                    <span>Remotes with problems</span>
                     <span className="text-sm font-normal text-default-500">
-                        Their sign-in has expired and cannot be renewed on its own. Reconnecting
-                        opens the provider's sign-in again; nothing else about the remote changes.
+                        rclone could not open or list these. A sign-in that expired can be done
+                        again here; anything else is fixed in the remote's configuration.
                     </span>
                 </DrawerHeader>
                 <DrawerBody>
@@ -91,6 +96,7 @@ export default function RemotesReconnectDrawer({
                             return (
                                 <li
                                     key={remote.name}
+                                    data-remote={remote.name}
                                     className="flex items-center gap-3 p-3 rounded-large bg-default-100 dark:bg-white/5"
                                 >
                                     <img
@@ -105,9 +111,20 @@ export default function RemotesReconnectDrawer({
                                         <span className="text-sm font-medium truncate">
                                             {remote.name}
                                         </span>
-                                        <span className="text-xs truncate text-default-500">
-                                            {row.status === 'failed' ? row.message : remote.type}
-                                        </span>
+                                        {row.status !== 'done' && (
+                                            <span
+                                                title={
+                                                    row.status === 'failed'
+                                                        ? row.message
+                                                        : remote.error
+                                                }
+                                                className="text-xs text-danger line-clamp-2 [overflow-wrap:anywhere]"
+                                            >
+                                                {row.status === 'failed'
+                                                    ? row.message
+                                                    : remote.error}
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="ml-auto shrink-0">
                                         {row.status === 'done' ? (
@@ -115,7 +132,7 @@ export default function RemotesReconnectDrawer({
                                                 <CheckIcon className="size-4" />
                                                 Reconnected
                                             </span>
-                                        ) : (
+                                        ) : !remote.canReconnect ? null : (
                                             <Button
                                                 size="sm"
                                                 color="primary"

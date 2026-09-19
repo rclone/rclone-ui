@@ -1491,7 +1491,21 @@ test('a new OAuth login stops a stuck one, and cancelling stops its own', async 
 const STALE_TOKEN =
     '{"access_token":"expired-x","token_type":"Bearer","expiry":"2020-01-01T00:00:00Z"}'
 
-test('the Dashboard counts the remotes that need reconnecting and offers each one', async ({
+// The Dashboard's remotes card is behind the getting-started timeline until that is dismissed.
+async function dismissOnboarding(page: Page) {
+    const doc = await page.request.get('/api/state/app')
+    const { version, state } = (await doc.json()) as {
+        version: number
+        state: Record<string, unknown>
+    }
+    await page.request.put('/api/state/app', {
+        data: { version, state: { ...state, onboarding: { dismissed: true, completed: [] } } },
+    })
+}
+
+const PROBLEMS = /has a problem|have problems/
+
+test('the Dashboard lists the remotes that do not work, and reconnects only the one rclone names', async ({
     page,
     request,
 }) => {
@@ -1504,26 +1518,122 @@ test('the Dashboard counts the remotes that need reconnecting and offers each on
             parameters: { client_id: 'probe', client_secret: 'probe', token: STALE_TOKEN },
             opt: { nonInteractive: true },
         })
-        // The card is behind the getting-started timeline until that is dismissed.
-        const doc = await page.request.get('/api/state/app')
-        const { version, state } = (await doc.json()) as {
-            version: number
-            state: Record<string, unknown>
-        }
-        await page.request.put('/api/state/app', {
-            data: { version, state: { ...state, onboarding: { dismissed: true, completed: [] } } },
+        // A wrapper fails with its base's advice, and is not the one to sign in again.
+        await rc('config/create', {
+            name: 'e2e-over-stale',
+            type: 'alias',
+            parameters: { remote: 'e2e-stale:' },
+            opt: { nonInteractive: true },
         })
+        await dismissOnboarding(page)
 
         await page.goto('/')
-        const badge = page.getByRole('button', { name: /reconnect/i })
-        await expect(badge).toHaveText(/1 needs reconnecting/)
+        const badge = page.getByRole('button', { name: PROBLEMS })
+        await expect(badge).toHaveText(/2 have problems/, { timeout: 15_000 })
         await badge.click()
 
-        const drawer = page.getByRole('dialog', { name: 'Remotes needing reconnection' })
-        await expect(drawer.getByText('e2e-stale')).toBeVisible()
-        // The memory remote answers fine, so it is not in the list and not in the count.
-        await expect(drawer.getByText('e2e-memory')).toHaveCount(0)
+        const drawer = page.getByRole('dialog', { name: 'Remotes with problems' })
+        const row = (name: string) => drawer.locator(`li[data-remote="${name}"]`)
+        await expect(row('e2e-stale')).toContainText('rclone config reconnect e2e-stale:')
+        await expect(row('e2e-stale').getByRole('button', { name: 'Reconnect' })).toBeVisible()
+        await expect(row('e2e-over-stale')).toContainText('e2e-stale')
         await expect(drawer.getByRole('button', { name: 'Reconnect' })).toHaveCount(1)
+        // The memory remote answers fine, so it is not in the list and not in the count.
+        await expect(row('e2e-memory')).toHaveCount(0)
+    } finally {
+        await rc('config/delete', { name: 'e2e-over-stale' }).catch(() => null)
+        await rc('config/delete', { name: 'e2e-stale' }).catch(() => null)
+    }
+})
+
+test('a remote that cannot be opened or listed says why on its card and in its editor', async ({
+    page,
+    request,
+}) => {
+    const rc = (path: string, data: Record<string, unknown>) =>
+        request.post(`/api/rc/${path}`, { headers: SESSION, data })
+    const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-health-'))
+    try {
+        // Cannot be opened: the token is not the JSON rclone writes (a login token pasted in).
+        await rc('config/create', {
+            name: 'e2e-badtoken',
+            type: 'drive',
+            parameters: {
+                client_id: 'probe',
+                client_secret: 'probe',
+                token: 'eyJub3QiOiJqc29uIn0',
+            },
+            opt: { nonInteractive: true },
+        })
+        // Opens, and cannot be listed: the folder it points at is not there.
+        await rc('config/create', {
+            name: 'e2e-nolist',
+            type: 'alias',
+            parameters: { remote: join(dir, 'missing') },
+            opt: { nonInteractive: true },
+        })
+
+        await page.goto('/remotes')
+        const card = (name: string) => page.locator(`[data-remote="${name}"]`)
+        await expect(card('e2e-badtoken')).toContainText('invalid character', { timeout: 15_000 })
+        await expect(card('e2e-nolist')).toContainText(/Cannot list: .*directory not found/)
+        // The reason fits the card it is in (once the card has settled into place), and a remote
+        // that works has none.
+        await expect
+            .poll(async () => (await card('e2e-badtoken').boundingBox())?.height)
+            .toBeCloseTo(80, 0)
+        await expect(card('e2e-memory').locator('p.text-danger')).toHaveCount(0)
+
+        await card('e2e-nolist').locator('button:has(svg.lucide-settings)').click()
+        await page.getByRole('menuitem', { name: 'Edit Config' }).click()
+        const dialog = page.getByRole('dialog')
+        await expect(dialog.getByRole('alert')).toContainText('directory not found')
+        // Pointed at a folder that is there, it works, and the card says so without a reload.
+        await dialog.locator('#field-remote').fill(dir)
+        await dialog.getByRole('button', { name: 'Save Changes' }).click()
+        await expect(dialog).toHaveCount(0)
+        await expect(card('e2e-nolist').locator('p.text-danger')).toHaveCount(0)
+        await expect(card('e2e-badtoken')).toContainText('invalid character')
+    } finally {
+        await rc('config/delete', { name: 'e2e-badtoken' }).catch(() => null)
+        await rc('config/delete', { name: 'e2e-nolist' }).catch(() => null)
+        rmSync(dir, { recursive: true, force: true })
+    }
+})
+
+test('a check that could not be asked flags nothing', async ({ page, request }) => {
+    const rc = (path: string, data: Record<string, unknown>) =>
+        request.post(`/api/rc/${path}`, { headers: SESSION, data })
+    try {
+        await rc('config/create', {
+            name: 'e2e-stale',
+            type: 'drive',
+            parameters: { client_id: 'probe', client_secret: 'probe', token: STALE_TOKEN },
+            opt: { nonInteractive: true },
+        })
+        await dismissOnboarding(page)
+        // The proxy with no daemon behind it, then a session that lapsed. Both carry an `error`,
+        // and neither is rclone speaking about the remote.
+        const answers = [
+            { status: 503, json: { error: 'the rclone daemon is not running yet', status: 503 } },
+            { status: 401, json: { ok: false, error: 'unauthorized' } },
+        ]
+        for (const answer of answers) {
+            let asked = 0
+            await page.route('**/api/rc/operations/fsinfo', async (route) => {
+                asked += 1
+                await route.fulfill(answer)
+            })
+            await page.goto('/')
+            await expect.poll(() => asked).toBeGreaterThanOrEqual(2)
+            await expect(page.getByRole('button', { name: PROBLEMS })).toHaveCount(0)
+            await page.unroute('**/api/rc/operations/fsinfo')
+        }
+        // Asked for real, rclone says what is wrong with it.
+        await page.goto('/')
+        await expect(page.getByRole('button', { name: PROBLEMS })).toHaveText(/1 has a problem/, {
+            timeout: 15_000,
+        })
     } finally {
         await rc('config/delete', { name: 'e2e-stale' }).catch(() => null)
     }

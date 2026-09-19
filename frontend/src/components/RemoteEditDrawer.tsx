@@ -1,5 +1,5 @@
 import { Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader, cn } from '@heroui/react'
-import { Button, Input, Select, SelectItem } from '@heroui/react'
+import { Alert, Button, Input, Select, SelectItem } from '@heroui/react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { useMemo, useState } from 'react'
@@ -7,6 +7,7 @@ import { onErrorDialog } from '../../lib/errors'
 import { useRemoteConfig } from '../../lib/hooks'
 import queryClient from '../../lib/query'
 import rclone from '../../lib/rclone/client'
+import { forgetRemoteHealth, remoteHealthQueryOptions } from '../../lib/rclone/health'
 import { INTERACTIVE_CONFIG_TYPES } from '../../lib/rclone/overrides'
 import { checkRemoteName, renameRemote } from '../../lib/rclone/rename'
 import RemoteFields from './remote/RemoteFields'
@@ -38,6 +39,7 @@ export default function RemoteEditDrawer({
     const nameError = renaming ? checkRemoteName(name, remotesQuery.data ?? []) : undefined
 
     const remoteConfigQuery = useRemoteConfig(remoteName)
+    const health = useQuery(remoteHealthQueryOptions(remoteName)).data
 
     const remoteConfig = useMemo(() => remoteConfigQuery.data, [remoteConfigQuery.data])
 
@@ -108,6 +110,7 @@ export default function RemoteEditDrawer({
                 // wrapped backend's target), so drop the cached fsinfo probe and let consumers
                 // re-fetch.
                 queryClient.invalidateQueries({ queryKey: ['remote', remoteName, 'fsinfo'] })
+                forgetRemoteHealth()
             }
             onClose()
         },
@@ -135,6 +138,17 @@ export default function RemoteEditDrawer({
                         </DrawerHeader>
                         <DrawerBody>
                             <div className="flex flex-col gap-4">
+                                {health?.state === 'faulty' && (
+                                    <Alert
+                                        color="danger"
+                                        variant="faded"
+                                        title="This remote is not working"
+                                    >
+                                        <p className="text-small [overflow-wrap:anywhere]">
+                                            {health.error}
+                                        </p>
+                                    </Alert>
+                                )}
                                 <Input
                                     id="edit-remote-name"
                                     name="name"

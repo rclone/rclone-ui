@@ -6,6 +6,7 @@ import { updateScheduledTask } from '../scheduler'
 import rclone from './client'
 import { readDaemonConfig, writeDaemonConfig } from './config-file'
 import { renameConfigSection } from './config-text'
+import { forgetRemoteHealth } from './health'
 
 // rclone's own rule for a remote name: letters, digits, space and _ - . + @; not starting with
 // - or a space, not ending with a space. config/create enforces it too; this only says so first.
@@ -56,6 +57,7 @@ export async function renameRemote(from: string, to: string): Promise<void> {
     }
     await rclone('/fscache/clear').catch(() => null)
     carryHostState(from, to)
+    forgetRemoteHealth()
     queryClient.invalidateQueries({ queryKey: ['remotes'] })
     queryClient.invalidateQueries({ queryKey: ['dashboard', 'remotes'] })
     await carrySchedules(from, to)

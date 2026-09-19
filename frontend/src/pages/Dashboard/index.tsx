@@ -3,8 +3,8 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import cronstrue from 'cronstrue'
 import { ArrowRightIcon, TriangleAlertIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { reconnectCheckQueryOptions } from '../../../lib/rclone/reconnect'
-import RemotesReconnectDrawer from '../../components/RemotesReconnectDrawer'
+import { remoteHealthQueryOptions } from '../../../lib/rclone/health'
+import FaultyRemotesDrawer from '../../components/FaultyRemotesDrawer'
 import { Link } from 'react-router-dom'
 import { status as fetchStatus } from '../../../lib/api/app'
 import { useLifecyclePhase } from '../../../lib/api/lifecycle'
@@ -199,33 +199,25 @@ export default function Dashboard() {
     const remotes = useQuery({
         queryKey: ['dashboard', 'remotes'],
         queryFn: async () => {
-            const dump = (await rclone('/config/dump')) as Record<
-                string,
-                { type?: string; token?: string }
-            >
+            const dump = (await rclone('/config/dump')) as Record<string, { type?: string }>
             return Object.entries(dump ?? {})
-                .map(([name, config]) => ({
-                    name,
-                    type: config?.type ?? 'unknown',
-                    // Only a remote holding a token can have one that expired; checking an s3 or
-                    // an sftp costs a connection that could never answer with this.
-                    hasToken: !!config?.token,
-                }))
+                .map(([name, config]) => ({ name, type: config?.type ?? 'unknown' }))
                 .sort((a, b) => a.name.localeCompare(b.name))
         },
         retry: 1,
     })
-    // Asked quietly as the page opens, one per remote that holds a token and cached for the day:
-    // a remote whose sign-in has lapsed is invisible until something touches it, which is how it
-    // goes unnoticed for weeks.
-    const tokenRemotes = (remotes.data ?? []).filter((remote) => remote.hasToken)
+    // Asked quietly as the page opens, every remote: one that stopped working is invisible until
+    // something touches it, which is how it goes unnoticed for weeks.
     const checks = useQueries({
-        queries: tokenRemotes.map((remote) => reconnectCheckQueryOptions(remote.name)),
+        queries: (remotes.data ?? []).map((remote) => remoteHealthQueryOptions(remote.name)),
     })
-    const staleRemotes = tokenRemotes.filter(
-        (_, index) => checks[index]?.data === 'needs-reconnect'
-    )
-    const [reconnectOpen, setReconnectOpen] = useState(false)
+    const faultyRemotes = (remotes.data ?? []).flatMap((remote, index) => {
+        const health = checks[index]?.data
+        return health?.state === 'faulty'
+            ? [{ ...remote, error: health.error, canReconnect: health.canReconnect }]
+            : []
+    })
+    const [faultyOpen, setFaultyOpen] = useState(false)
 
     // The transfers panel is the record's newest few, the running ones with their live numbers:
     // there after a restart, there from the moment one starts, and never a download (which is
@@ -383,17 +375,17 @@ export default function Dashboard() {
                             {/* Its own row rather than the eyebrow: this card is a quarter of the
                                 grid, and a chip beside the label pushes the count onto a second
                                 line. Full width also suits a warning better than a chip does. */}
-                            {staleRemotes.length > 0 && (
+                            {faultyRemotes.length > 0 && (
                                 <button
                                     type="button"
-                                    onClick={() => setReconnectOpen(true)}
+                                    onClick={() => setFaultyOpen(true)}
                                     className="flex items-center w-full gap-2 px-2.5 py-2 mb-2.5 text-left rounded-lg outline-none transition-colors bg-warning-50 text-warning-700 hover:bg-warning-100 dark:bg-warning-500/10 dark:text-warning-400 dark:hover:bg-warning-500/20 focus-visible:ring-2 focus-visible:ring-warning"
                                 >
                                     <TriangleAlertIcon className="size-3.5 shrink-0" />
                                     <span className="text-xs font-medium">
-                                        {staleRemotes.length === 1
-                                            ? '1 needs reconnecting'
-                                            : `${staleRemotes.length} need reconnecting`}
+                                        {faultyRemotes.length === 1
+                                            ? '1 has a problem'
+                                            : `${faultyRemotes.length} have problems`}
                                     </span>
                                     <ArrowRightIcon className="w-3 h-3 ml-auto shrink-0" />
                                 </button>
@@ -642,10 +634,10 @@ export default function Dashboard() {
                 rclone={(phase?.phase === 'ready' && phase.version) || rcloneVersion.data}
             />
 
-            <RemotesReconnectDrawer
-                isOpen={reconnectOpen}
-                onClose={() => setReconnectOpen(false)}
-                remotes={staleRemotes}
+            <FaultyRemotesDrawer
+                isOpen={faultyOpen}
+                onClose={() => setFaultyOpen(false)}
+                remotes={faultyRemotes}
             />
         </div>
     )

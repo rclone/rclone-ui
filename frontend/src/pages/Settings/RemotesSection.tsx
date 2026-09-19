@@ -35,7 +35,8 @@ import {
 import { useSearchParams } from 'react-router-dom'
 import { onErrorDialog } from '../../../lib/errors'
 import { formatBytes } from '../../../lib/format'
-import { hasFeature, remoteConfigQueryOptions, useFsInfo } from '../../../lib/hooks'
+import { remoteConfigQueryOptions } from '../../../lib/hooks'
+import { forgetRemoteHealth, remoteHealthQueryOptions } from '../../../lib/rclone/health'
 import { mountSupportQueryOptions } from '../../../lib/rclone/mount'
 import rclone from '../../../lib/rclone/client'
 import ConfigEditDrawer from '../../components/ConfigEditDrawer'
@@ -220,6 +221,9 @@ export default function RemotesSection() {
             return remote
         },
         onSuccess: async (remote) => {
+            // A wrapper over the deleted remote keeps answering from rclone's cache until then.
+            await rclone('/fscache/clear').catch(() => null)
+            forgetRemoteHealth()
             queryClient.setQueryData(['remotes', 'list', 'all'], (old: string[] | undefined) => [
                 ...(old ?? []).filter((r) => r !== remote),
             ])
@@ -293,6 +297,9 @@ export default function RemotesSection() {
                         <Button
                             onPress={() => {
                                 setTimeout(async () => {
+                                    // The list unmounts while it reloads: the cards ask again as
+                                    // they return, so nothing is refetched here.
+                                    forgetRemoteHealth({ refetch: false })
                                     await remotesQuery.refetch()
                                 }, 100)
                             }}
@@ -475,8 +482,7 @@ function RemoteCard({
     const type = useMemo(() => remoteConfigData?.type ?? null, [remoteConfigData?.type])
     const provider = useMemo(() => remoteConfigData?.provider ?? null, [remoteConfigData?.provider])
 
-    const fsInfoQuery = useFsInfo(remote)
-    const supportsAbout = hasFeature(fsInfoQuery.data, 'About')
+    const health = useQuery(remoteHealthQueryOptions(remote)).data
     // Hidden only once the server has said it cannot mount, and asked again on every visit.
     const canMount = useQuery(mountSupportQueryOptions()).data?.supported !== false
 
@@ -491,7 +497,7 @@ function RemoteCard({
                 },
             })
         },
-        enabled: supportsAbout,
+        enabled: health?.state === 'ok' && health.about,
     })
 
     const imageUrl = useMemo(
@@ -514,11 +520,21 @@ function RemoteCard({
         >
             <CardBody>
                 <div className="flex items-center justify-between h-full">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 shrink-0">
                         <img src={imageUrl} className="object-contain ml-2 size-10" alt={remote} />
                         <p className="text-large">{remote}</p>
                     </div>
-                    <div className="flex items-center justify-end gap-4">
+                    <div className="flex items-center justify-end min-w-0 gap-4">
+                        {/* rclone's reason, where the storage boxes would be. A `title`, not a
+                            Tooltip: the whole card is a button. */}
+                        {health?.state === 'faulty' && (
+                            <p
+                                title={health.error}
+                                className="text-xs text-right text-danger line-clamp-2 [overflow-wrap:anywhere]"
+                            >
+                                {health.error}
+                            </p>
+                        )}
                         {/* Storage info boxes */}
                         {!!aboutData && (
                             <div className="flex items-center gap-2.5">

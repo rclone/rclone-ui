@@ -10,7 +10,7 @@ import type {
     RCDClient,
 } from 'rclone-sdk'
 import { claimReconnectDialog, releaseReconnectDialog } from '../api/app'
-import { reconnectTarget } from './reconnect'
+import { reconnectTarget } from './health'
 import { ask, message } from '../api/dialog'
 import { rcClient } from '../api/rc'
 import { platform } from '../api/os'

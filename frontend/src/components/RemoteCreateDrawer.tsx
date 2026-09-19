@@ -6,6 +6,7 @@ import { RefreshCcwIcon } from 'lucide-react'
 import { type Key, startTransition, useCallback, useRef, useState } from 'react'
 import { UserCancelledError } from '../../lib/errors'
 import rclone from '../../lib/rclone/client'
+import { forgetRemoteHealth } from '../../lib/rclone/health'
 import { createRemoteInteractive, safeDeleteRemote } from '../../lib/rclone/interactive'
 import { attendLogin, loginParameters, presentSignIn, stopStrayOAuth } from '../../lib/rclone/oauth'
 import { INTERACTIVE_CONFIG_TYPES } from '../../lib/rclone/overrides'
@@ -115,6 +116,8 @@ export default function RemoteCreateDrawer({
             setAuthUrl(null)
         },
         onSuccess: async (name) => {
+            // A wrapper that failed for want of this remote works now.
+            forgetRemoteHealth()
             queryClient.setQueryData(['remotes', 'list', 'all'], (old: string[] | undefined) => [
                 ...(old ?? []),
                 name,
