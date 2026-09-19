@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { findFlagOption, groupByCategory } from '../../../lib/flags'
+import { NOT_PER_OPERATION, findFlagOption, groupByCategory } from '../../../lib/flags'
 import { SERVE_TYPES } from '../../../lib/rclone/constants'
 import { parseFlagText } from '../../../lib/rclone/optionTypes'
 import type { BackendOption, FlagValue } from '../../../types/rclone'
@@ -72,6 +72,8 @@ export function optionsFromCommand(
         const equalsIndex = token.indexOf('=')
         const flag = equalsIndex === -1 ? token : token.slice(0, equalsIndex)
         const name = flag.replace(DASHES, '_')
+        // Not counted as imported either: the draft would drop it.
+        if (NOT_PER_OPERATION.has(name)) continue
         let value = equalsIndex === -1 ? undefined : token.slice(equalsIndex + 1)
         if (value === undefined && valueParts.length > 0) value = valueParts.join(' ')
         if (value !== undefined) value = value.replace(QUOTES, '')

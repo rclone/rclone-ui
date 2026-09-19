@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { RcloneFeatures, RcloneFsInfo } from '../types/rclone'
 import { UserCancelledError } from './errors'
-import { sortByName } from './flags'
+import { NOT_PER_OPERATION, sortByName } from './flags'
 import rclone from './rclone/client'
 import { SERVE_TYPES } from './rclone/constants'
 
@@ -115,11 +115,12 @@ export function useFlags() {
     const configFlags = allFlags?.main
         ?.filter(
             (flag) =>
-                flag.Groups?.includes('Performance') ||
-                flag.Groups?.includes('Listing') ||
-                flag.Groups?.includes('Networking') ||
-                flag.Groups?.includes('Check') ||
-                flag.Name === 'use_server_modtime'
+                !NOT_PER_OPERATION.has(flag.Name) &&
+                (flag.Groups?.includes('Performance') ||
+                    flag.Groups?.includes('Listing') ||
+                    flag.Groups?.includes('Networking') ||
+                    flag.Groups?.includes('Check') ||
+                    flag.Name === 'use_server_modtime')
         )
         .sort(sortByName)
 

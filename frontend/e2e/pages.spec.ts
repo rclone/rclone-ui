@@ -60,6 +60,23 @@ test('the Remotes option section only appears when a path names a remote', async
     await expect(page.getByRole('tab', { name: 'E2E-MEMORY' })).toBeVisible()
 })
 
+test('Config offers what rclone applies to a transfer, and nothing it would not', async ({
+    page,
+}) => {
+    await page.goto('/copy')
+    const nudge = page.getByText('Show more options')
+    if (await nudge.isVisible()) await nudge.dispatchEvent('click')
+    await page.locator('button:has(svg.lucide-wrench)').click()
+    const option = (name: string) => page.getByText(name, { exact: true })
+    for (const name of ['transfers', 'checkers', 'bwlimit_file']) {
+        await expect(option(name)).toBeVisible()
+    }
+    // The process's budgets (Settings › Rclone), and what belongs to a remote's first opening.
+    for (const name of ['bwlimit', 'tpslimit', 'tpslimit_burst', 'timeout', 'user_agent']) {
+        await expect(option(name)).toHaveCount(0)
+    }
+})
+
 test('the mount point picker only offers local folders', async ({ page }) => {
     await page.goto('/mount')
     // Source picker first, mount point picker second.

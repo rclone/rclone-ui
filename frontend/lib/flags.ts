@@ -3,6 +3,42 @@ import { SERVE_TYPES } from './rclone/constants'
 
 const RE_DASH = /-/g
 
+// Options rclone accepts in a job's `_config` and then does not apply to that job. `options/info`
+// lists the process's options and says nothing of this, so the list is ours, measured on rclone
+// 1.75.1. They are not offered on the operation pages, and a template or a pasted command
+// drops them.
+export const NOT_PER_OPERATION: ReadonlySet<string> = new Set([
+    // One budget for the whole process: Settings › Rclone.
+    'bwlimit',
+    'tpslimit',
+    'tpslimit_burst',
+    // Read once, when rclone starts.
+    'log_level',
+    'max_buffer_memory',
+    // The command line's retry loop: a job started over rc has none.
+    'retries',
+    'retries_sleep',
+    // A remote's HTTP client and pacer, built by whichever call opens the remote first and kept
+    // while it stays cached. Browsing opens it, so an operation's value is never the one used,
+    // and the first one given sticks to every later job.
+    'user_agent',
+    'timeout',
+    'contimeout',
+    'expect_continue_timeout',
+    'no_gzip_encoding',
+    'no_check_certificate',
+    'ca_cert',
+    'client_cert',
+    'client_key',
+    'client_pass',
+    'disable_http2',
+    'disable_http_keep_alives',
+    'http_proxy',
+    'use_cookies',
+    'low_level_retries',
+    'max_connections',
+])
+
 export const FLAG_CATEGORIES = [
     'copy',
     'sync',
@@ -41,6 +77,7 @@ export function getFlagCategory(
     const normalizedFlag = (flag.startsWith('--') ? flag.slice(2) : flag).replace(RE_DASH, '_')
 
     console.log('[getFlagCategory] normalized flag', normalizedFlag)
+    if (NOT_PER_OPERATION.has(normalizedFlag)) return null
     let foundFlag = null
 
     foundFlag = flags.main.find((f) => f.Name === normalizedFlag)
