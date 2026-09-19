@@ -93,7 +93,7 @@ export default function Shell() {
     }
 
     return (
-        <div className="flex flex-col w-full h-screen overflow-hidden bg-black text-white">
+        <div className="flex flex-col w-full h-screen overflow-hidden bg-neutral-100 text-foreground dark:bg-black">
             <SiteHeader collapsed={collapsed} onToggle={toggle} />
             <div className="relative flex flex-row flex-1 min-h-0">
                 <Sidebar collapsed={collapsed} />

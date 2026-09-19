@@ -5,7 +5,7 @@ import AppearanceMenu from './AppearanceMenu'
 import { breadcrumbFor } from './nav'
 
 const ICON_BUTTON =
-    'flex items-center justify-center w-8 h-8 rounded-lg text-neutral-400 outline-none transition-colors duration-150 hover:bg-white/[0.06] hover:text-white focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-black'
+    'flex items-center justify-center w-8 h-8 rounded-lg text-default-500 outline-none transition-colors duration-150 hover:bg-foreground/[0.06] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background'
 
 // Both glyphs stay in the DOM and cross-fade (opacity, scale, blur) so the hover can reverse
 // mid-way; reduced motion swaps them outright.
@@ -26,7 +26,7 @@ export default function SiteHeader({
     const crumbs = breadcrumbFor(location)
 
     return (
-        <header className="flex items-center h-14 gap-3 px-3 shrink-0 bg-black text-white select-none">
+        <header className="flex items-center h-14 gap-3 px-3 shrink-0 bg-neutral-100 text-foreground select-none dark:bg-black">
             <button
                 type="button"
                 onClick={onToggle}
@@ -38,7 +38,9 @@ export default function SiteHeader({
                     src="/icon.png"
                     alt=""
                     className={cn(
-                        'absolute w-5 h-5 rounded-[5px]',
+                        // The mark is white on transparency: it needs inverting on a light
+                        // surface, as the login page does.
+                        'absolute w-5 h-5 rounded-[5px] invert dark:invert-0',
                         SWAP,
                         'group-hover:opacity-0 group-hover:scale-[0.25] group-hover:blur-[4px] group-focus-visible:opacity-0 group-focus-visible:scale-[0.25] group-focus-visible:blur-[4px]'
                     )}
@@ -52,12 +54,12 @@ export default function SiteHeader({
                     strokeWidth={1.75}
                 />
             </button>
-            <span className="w-px h-4 bg-white/15" aria-hidden="true" />
+            <span className="w-px h-4 bg-divider" aria-hidden="true" />
             <Breadcrumbs
                 size="sm"
                 itemClasses={{
-                    item: 'text-[13px] text-neutral-400 data-[current=true]:text-white data-[current=true]:font-medium',
-                    separator: 'text-neutral-600 px-1',
+                    item: 'text-[13px] text-default-500 data-[current=true]:text-foreground data-[current=true]:font-medium',
+                    separator: 'text-default-400 px-1',
                 }}
             >
                 {crumbs.map((crumb, index) => (

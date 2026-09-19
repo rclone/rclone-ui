@@ -19,9 +19,9 @@ import {
 // 13px medium, ring on keyboard focus only. Collapsed,
 // a row is its icon alone, centred in the 32px rail, and its label moves into a tooltip.
 const ROW =
-    'flex items-center shrink-0 h-[30px] gap-2.5 px-2.5 rounded-lg text-[13px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-black'
-const ROW_IDLE = 'text-neutral-400 hover:bg-white/[0.06] hover:text-white'
-const ROW_ACTIVE = 'bg-primary/20 text-white'
+    'flex items-center shrink-0 h-[30px] gap-2.5 px-2.5 rounded-lg text-[13px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+const ROW_IDLE = 'text-default-500 hover:bg-foreground/[0.06] hover:text-foreground'
+const ROW_ACTIVE = 'bg-primary/20 text-foreground'
 const ROW_COLLAPSED = 'justify-center w-[30px] px-0 mx-auto'
 
 function LeafIcon({ leaf, active }: { leaf: NavLeaf; active: boolean }) {
@@ -31,7 +31,7 @@ function LeafIcon({ leaf, active }: { leaf: NavLeaf; active: boolean }) {
                 aria-hidden="true"
                 className={cn(
                     'flex items-center justify-center w-4 h-4 rounded-[4px] text-[10px] font-semibold leading-none shrink-0',
-                    active ? 'bg-primary-300 text-black' : 'bg-white/10 text-neutral-300'
+                    active ? 'bg-primary-300 text-black' : 'bg-foreground/10 text-default-600'
                 )}
             >
                 {leaf.tile}
@@ -76,7 +76,7 @@ function NavRow({ leaf, collapsed }: { leaf: NavLeaf; collapsed: boolean }) {
             <LeafIcon leaf={leaf} active={active} />
             {!collapsed && <span className="truncate">{leaf.label}</span>}
             {!collapsed && leaf.count !== undefined && (
-                <span className="ml-auto text-[11px] tabular-nums text-neutral-500">
+                <span className="ml-auto text-[11px] tabular-nums text-default-400">
                     {leaf.count}
                 </span>
             )}
@@ -96,13 +96,13 @@ function ZoneLabel({
 }) {
     if (collapsed) {
         return first ? null : (
-            <div className="h-px mx-2 my-2 shrink-0 bg-white/10" aria-hidden="true" />
+            <div className="h-px mx-2 my-2 shrink-0 bg-divider" aria-hidden="true" />
         )
     }
     return (
         <div
             className={cn(
-                'flex items-end shrink-0 h-6 px-2.5 pb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500',
+                'flex items-end shrink-0 h-6 px-2.5 pb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-default-400',
                 !first && 'mt-3'
             )}
         >
@@ -161,7 +161,7 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
             aria-label="Sidebar"
             data-state={collapsed ? 'collapsed' : 'expanded'}
             className={cn(
-                'flex flex-col h-full px-3 pt-3 pb-3 shrink-0 bg-black select-none transition-[width] duration-200 ease-out',
+                'flex flex-col h-full px-3 pt-3 pb-3 shrink-0 bg-neutral-100 select-none transition-[width] duration-200 ease-out dark:bg-black',
                 collapsed ? 'w-14' : 'w-64'
             )}
         >
