@@ -471,7 +471,7 @@ function LimitsSettings() {
                 description={
                     managed === false
                         ? 'This server does not run rclone itself (--rclone-url): start that rclone with --tpslimit.'
-                        : 'Requests per second, to stay under a provider’s quota. Changing it restarts rclone.'
+                        : 'Requests per second, to stay under a provider’s quota.'
                 }
                 value={tpsLimit}
                 onValueChange={setTpsLimit}
