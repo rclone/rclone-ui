@@ -16,7 +16,7 @@ import { OWNER, SERVER_BIN, SESSION, collectErrors, signIn, stopLeftoverJobs } f
 // What a test’s page left running on the shared daemon stops with the test (`stopLeftoverJobs`).
 test.afterEach(({ request }) => stopLeftoverJobs(request))
 
-// The server keeps two documents, and a live store sits on each, so the adapter's tests run
+// The server keeps one document, and the live store sits on it, so the adapter's tests run
 // against a stand-in. The server and the stand-in are held to this one contract.
 interface StateDoc {
     version: number

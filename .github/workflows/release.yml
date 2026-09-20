@@ -47,7 +47,9 @@ jobs:
             cp target/release/rclone-cloud out/cloud/rclone-cloud-${{ matrix.target }}
           fi
       # The server updates itself from these binaries: sign them (minisign) so src/updater.rs
-      # can verify what it downloads.
+      # can verify what it downloads. The key is a minisign key; the secret keeps the name it
+      # had when the desktop app and the cloud shared one signer, and renaming it is a change
+      # to the repository's settings, not to this file.
       - name: Sign
         shell: bash
         env:

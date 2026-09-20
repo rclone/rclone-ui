@@ -14,7 +14,7 @@ if (!process.env.TEST_WORKER_INDEX) {
     mkdirSync(`${tmp}open`, { recursive: true })
     mkdirSync(`${tmp}auth`, { recursive: true })
     mkdirSync(`${tmp}managed`, { recursive: true })
-    // The config is a symlink, as a desktop install's often is. rclone's local backend reports
+    // The config is a symlink, as a workstation's often is. rclone's local backend reports
     // a link's size as the length of its target, so a target shorter than the file is the case
     // that once read back as nothing.
     mkdirSync(`${tmp}conf`, { recursive: true })

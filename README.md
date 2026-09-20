@@ -53,8 +53,8 @@ Anything but loopback needs a password, and `--clear` empties the data directory
 ## Data
 
 Everything the server itself keeps lives in the data directory: accounts (`state/team.json`),
-settings (`state/`), schedules and their run history, the transfer ledger,
-notification targets and SMTP settings, and the log file.
+settings (`state/app.json`), schedules (`scheduler/tasks/`) and their run history, the transfer
+ledger, notification targets and SMTP settings, and the log file.
 
 ## rclone
 
