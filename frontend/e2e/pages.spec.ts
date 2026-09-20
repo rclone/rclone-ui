@@ -685,6 +685,41 @@ test('the serve address field and the addr flag are one value', async ({ page })
     await expect(page.getByRole('button', { name: 'START SERVE' })).toBeVisible()
 })
 
+test('a started serve offers the address rclone is really listening on', async ({
+    page,
+    request,
+}) => {
+    const rc = async (path: string, data: Record<string, unknown> = {}) =>
+        (await request.post(`/api/rc/${path}`, { headers: SESSION, data })).json()
+    const running = async () =>
+        ((await rc('serve/list')) as { list?: { id: string; addr: string }[] }).list ?? []
+    const before = (await running()).map((serve) => serve.id)
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    try {
+        await page.goto('/serve')
+        await page.getByRole('button', { name: 'Type' }).click()
+        await page.getByRole('option', { name: 'HTTP', exact: true }).click()
+        // Port 0: rclone picks one, so the field's text is not the address to hand out.
+        await page.getByLabel('Address', { exact: true }).fill('127.0.0.1:0')
+        await page.getByLabel('Source', { exact: true }).fill('e2e-memory:')
+        await page.getByRole('button', { name: 'START SERVE' }).click()
+
+        await expect(page.getByRole('button', { name: 'NEW SERVE' })).toBeVisible({
+            timeout: 15_000,
+        })
+        await page.getByRole('button', { name: 'COPY ADDRESS' }).click()
+        const started = (await running()).find((serve) => !before.includes(serve.id))
+        expect(started?.addr).toMatch(/^127\.0\.0\.1:[1-9]\d*$/)
+        await expect
+            .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+            .toBe(started?.addr)
+    } finally {
+        for (const serve of await running()) {
+            if (!before.includes(serve.id)) await rc('serve/stop', { id: serve.id })
+        }
+    }
+})
+
 test("an operation page links to rclone's documentation for its command", async ({ page }) => {
     const commands = {
         copy: 'copy',
@@ -1853,6 +1888,24 @@ test('a failed metadata lookup downloads the URL in the field', async ({ page })
     await page.getByRole('button', { name: 'DOWNLOAD' }).click()
     await expect.poll(() => submitted.length).toBe(1)
     expect(submitted[0]).toBe('https://second.example/archive.zip')
+})
+
+test('a started download leads to the Transfers page', async ({ page }) => {
+    // Nothing is downloaded: the start is answered here, and the URL is no page address.
+    await page.route('**/api/rpc/resolve_link', (route) =>
+        route.fulfill({ json: { ok: true, value: null } })
+    )
+    await page.route('**/api/rpc/transfers_start', (route) =>
+        route.fulfill({ json: { ok: true, value: { id: 't-98', jobid: 98 } } })
+    )
+    await page.goto('/download')
+    await page.getByLabel('URL', { exact: true }).fill('https://files.example/a.zip')
+    await page.getByLabel('Destination', { exact: true }).fill('e2e-memory:downloads')
+    await page.getByRole('button', { name: 'DOWNLOAD', exact: true }).click()
+    // Started is not finished: the file is not at its destination yet, its transfer is listed.
+    await expect(page.getByRole('button', { name: 'NEW DOWNLOAD' })).toBeVisible()
+    await page.getByRole('button', { name: 'VIEW TRANSFERS' }).click()
+    await expect(page).toHaveURL(/\/transfers$/)
 })
 
 test('external content resolution can be switched off, and stays off', async ({ page }) => {

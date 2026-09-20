@@ -15,6 +15,7 @@ import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import { PathField } from '../components/PathFinder'
 import { message } from '../../lib/api/dialog'
+import { navigate } from '../../lib/api/navigation'
 import { rpc } from '../../lib/api/rpc'
 import { usePersistedStore } from '../../store/persisted'
 import { openUrl } from '../../lib/api/shell'
@@ -353,6 +354,15 @@ export default function Download() {
                                 data-focus-visible="false"
                             >
                                 NEW DOWNLOAD
+                            </Button>
+                            <Button
+                                fullWidth={true}
+                                size="lg"
+                                color="secondary"
+                                onPress={() => navigate('/transfers')}
+                                data-focus-visible="false"
+                            >
+                                VIEW TRANSFERS
                             </Button>
                         </motion.div>
                     ) : (

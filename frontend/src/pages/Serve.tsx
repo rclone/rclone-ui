@@ -28,11 +28,13 @@ import {
     WrenchIcon,
 } from 'lucide-react'
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { writeText } from '../../lib/api/clipboard'
 import { message } from '../../lib/api/dialog'
 import { pathsProblem } from '../../lib/paths'
 import { platform } from '../../lib/api/os'
 import { openUrl } from '../../lib/api/shell'
 import { onErrorDialog } from '../../lib/errors'
+import { notify } from '../../lib/notifications'
 import { getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
 import { applyTemplatePaths, pathsFromArgs } from '../../lib/rclone/templatePaths'
@@ -93,7 +95,7 @@ export default function Serve() {
             const problem = pathsProblem([source])
             if (problem) throw new Error(problem)
 
-            await startServe({
+            const started = (await startServe({
                 type,
                 fs: source,
                 _filter: filterOptions as any,
@@ -101,7 +103,9 @@ export default function Serve() {
                 _metadata: metadataOptions as any,
                 ...(serveOptions as { addr: string } & Record<string, FlagValue>),
                 ...(vfsOptions as Record<string, FlagValue>),
-            })
+            })) as { addr?: string } | undefined
+            // Where rclone is really listening: asked for port 0, it says which one it took.
+            return started?.addr || (serveOptions as { addr: string }).addr
         },
         onSuccess: () => {
             onStarted(
@@ -561,6 +565,23 @@ export default function Serve() {
                                     </DropdownItem>
                                 </DropdownMenu>
                             </Dropdown>
+                            <Button
+                                fullWidth={true}
+                                size="lg"
+                                color="secondary"
+                                onPress={async () => {
+                                    const address = startServeMutation.data
+                                    if (!address) return
+                                    await writeText(address)
+                                    await notify({
+                                        title: 'Address Copied',
+                                        body: `${address} copied to clipboard`,
+                                    })
+                                }}
+                                data-focus-visible="false"
+                            >
+                                COPY ADDRESS
+                            </Button>
                         </motion.div>
                     ) : (
                         <motion.div
