@@ -1,7 +1,9 @@
 //! A small async client for rclone's RC API, plus the ephemeral-port and credential helpers
 //! the lifecycle uses to raise the daemon, and the retry ladder the server's own calls climb.
+//! One HTTP client underneath ([`shared_client`]): the reverse proxy uses it too.
 
 use std::future::Future;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use serde_json::{json, Value};
@@ -27,6 +29,29 @@ pub fn random_token() -> String {
     uuid::Uuid::new_v4().simple().to_string()
 }
 
+/// Everything this server sends to a daemon goes through one client, so the connections to
+/// rclone are pooled rather than opened per call (the transfer ticker alone asks every five
+/// seconds for every running transfer). No general timeout: [`RcClient`] bounds each request,
+/// and the reverse proxy streams for as long as a listing takes.
+pub fn shared_client() -> reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .connect_timeout(Duration::from_secs(10))
+                // rclone never redirects, and a page's proxied request must not be followed
+                // anywhere else.
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .unwrap_or_default()
+        })
+        .clone()
+}
+
+/// Listing a slow remote can legitimately take a while; rclone's own async endpoints return
+/// immediately.
+const GENERAL_TIMEOUT: Duration = Duration::from_secs(300);
+
 #[derive(Clone, Debug)]
 pub struct RcClient {
     pub base: String,
@@ -41,13 +66,7 @@ impl RcClient {
             base: base.into().trim_end_matches('/').to_string(),
             user,
             pass,
-            client: reqwest::Client::builder()
-                .connect_timeout(Duration::from_secs(10))
-                // Listing a slow remote can legitimately take a while; rclone's own async
-                // endpoints return immediately.
-                .timeout(Duration::from_secs(300))
-                .build()
-                .unwrap_or_default(),
+            client: shared_client(),
         }
     }
 
@@ -58,7 +77,7 @@ impl RcClient {
     }
 
     /// `call` with this one request bounded by `timeout` (readiness probes); `None` keeps the
-    /// client's general 300 s.
+    /// general 300 s.
     pub async fn call_with_timeout(
         &self,
         endpoint: &str,
@@ -68,10 +87,8 @@ impl RcClient {
         let mut request = self
             .client
             .post(format!("{}{}", self.base, endpoint))
-            .json(body);
-        if let Some(timeout) = timeout {
-            request = request.timeout(timeout);
-        }
+            .json(body)
+            .timeout(timeout.unwrap_or(GENERAL_TIMEOUT));
         if let Some(user) = &self.user {
             request = request.basic_auth(user, self.pass.as_deref());
         }

@@ -2,8 +2,6 @@
 //! with its credentials injected. Bodies stream both ways (multipart uploads, `--rc-serve`
 //! downloads with `Range`), there is no body limit and no total timeout.
 
-use std::time::Duration;
-
 use axum::body::Body;
 use axum::extract::{Path, Request, State};
 use axum::http::{header, HeaderName, HeaderValue, Method, StatusCode};
@@ -42,19 +40,6 @@ const SKIP_RESPONSE: &[&str] = &[
     "access-control-allow-credentials",
 ];
 
-fn client() -> reqwest::Client {
-    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
-    CLIENT
-        .get_or_init(|| {
-            reqwest::Client::builder()
-                .connect_timeout(Duration::from_secs(15))
-                .redirect(reqwest::redirect::Policy::none())
-                .build()
-                .unwrap_or_default()
-        })
-        .clone()
-}
-
 pub fn unavailable() -> Response {
     (
         StatusCode::SERVICE_UNAVAILABLE,
@@ -80,7 +65,7 @@ pub async fn forward(daemon: &DaemonTarget, req: Request, path: &str) -> Respons
     let reqwest_method =
         reqwest::Method::from_bytes(method.as_str().as_bytes()).unwrap_or(reqwest::Method::GET);
 
-    let mut builder = client().request(reqwest_method, &url);
+    let mut builder = crate::rc::shared_client().request(reqwest_method, &url);
     for (name, value) in req.headers() {
         if SKIP_REQUEST.contains(&name.as_str()) {
             continue;
