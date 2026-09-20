@@ -1204,12 +1204,12 @@ test('a favourite row shows its full path and carries the star alone', async ({
     }
 })
 
-test('a folder that disappeared shows the error, not its cached rows', async ({ page }) => {
-    // Remote and local listings now fail through one path in useFileNavigation. This pins what
-    // that path leaves on screen: the error, and no rows. The list renders its loading state
-    // ahead of any error, so the error being on screen is also the proof that the delayed
-    // spinner was settled. (The path drops the folder's cached rows too, but that only shows as
-    // a stale flash on the next visit, so there is nothing settled to assert about it.)
+test('a folder that disappeared shows its cached rows until a refresh, then the error and nothing else', async ({
+    page,
+}) => {
+    // A listing is served from memory for a while (`components/navigator/listing.ts`), so a
+    // folder removed behind the app's back still shows its rows on the next visit. The refresh
+    // asks rclone, which fails: the error, and no rows, on this visit and the next.
     const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-gone-'))
     writeFileSync(join(dir, 'kept.txt'), 'a')
     try {
@@ -1232,7 +1232,15 @@ test('a folder that disappeared shows the error, not its cached rows', async ({ 
         await expect(kept).toHaveCount(0)
         rmSync(dir, { recursive: true, force: true })
 
-        // Back to it: the listing fails, and the cached rows must not survive the failure.
+        // Back to it: the rows are the cached ones. Refresh: the listing fails, and the cached
+        // rows must not survive the failure.
+        await goTo(dir)
+        await expect(kept).toBeVisible()
+        await picker.locator('button:has(svg.lucide-refresh-cw)').click()
+        await expect(picker.getByText('No access or folder does not exist')).toBeVisible()
+        await expect(kept).toHaveCount(0)
+        // The next visit asks again, rather than showing what was there before the failure.
+        await goTo(tmpdir())
         await goTo(dir)
         await expect(picker.getByText('No access or folder does not exist')).toBeVisible()
         await expect(kept).toHaveCount(0)

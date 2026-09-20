@@ -41,8 +41,12 @@ const api = { dialog, state: { stateStorage, whenWritten } }
 ;(window as unknown as { __RCLONE_CLOUD_API__: typeof api }).__RCLONE_CLOUD_API__ = api
 
 // The socket itself is opened by the Shell once the session is confirmed (a sign-in screen has
-// nothing to hear). A socket that came back may have missed events: everything on screen asks again.
-onReconnect(() => queryClient.invalidateQueries())
+// nothing to hear). A socket that came back may have missed events: everything on screen asks
+// again, except the directory listings (`components/navigator/listing.ts`): those are rclone's
+// answer, not the server's, and their own freshness says when to ask.
+onReconnect(() =>
+    queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== 'listing' })
+)
 
 // Every page's console goes to the server's log file (rotated, so it can take all of it):
 // collected from here, sent once the Shell has a session.

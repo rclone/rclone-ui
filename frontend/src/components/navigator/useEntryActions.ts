@@ -4,14 +4,15 @@ import { reportError } from '@/lib/errors'
 import { getFsInfo } from '@/lib/format'
 import rclone from '@/lib/rclone/client'
 import type { Entry } from './types'
+import { invalidateEntry } from './listing'
 import { renamePath } from './utils'
 
 /**
  * Rename and delete for a file panel's rows, the Commander's and the picker's alike: a name
- * prompt or a confirm, one rclone call, and `afterChange` for the caller to refresh its panels
- * (a picker also drops the entry from its selection).
+ * prompt or a confirm, one rclone call, the folder's listing asked again (`listing.ts`), and
+ * `afterChange` for a picker to drop the entry from its selection.
  */
-export default function useEntryActions(afterChange: (entry: Entry) => void) {
+export default function useEntryActions(afterChange?: (entry: Entry) => void) {
     const rename = useCallback(
         async (entry: Entry) => {
             const newName = await prompt({
@@ -24,7 +25,8 @@ export default function useEntryActions(afterChange: (entry: Entry) => void) {
 
             try {
                 await renamePath(entry.fullPath, entry.isDir, newName)
-                afterChange(entry)
+                void invalidateEntry(entry.fullPath, entry.isDir)
+                afterChange?.(entry)
             } catch (error) {
                 await reportError(error, {
                     title: 'Error',
@@ -57,7 +59,8 @@ export default function useEntryActions(afterChange: (entry: Entry) => void) {
                     },
                 })
 
-                afterChange(entry)
+                void invalidateEntry(entry.fullPath, entry.isDir)
+                afterChange?.(entry)
             } catch (error) {
                 await reportError(error, {
                     title: 'Error',

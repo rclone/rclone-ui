@@ -9,6 +9,7 @@ import type { RemoteString } from './types'
 import { RE_TRAILING_SEPARATORS, serializeRemotePath } from './utils'
 import { prompt } from '@/dialog'
 import { rcFetch } from '@/server/rc'
+import { invalidateListing } from './listing'
 
 // Backends without empty folders get one by way of an empty file in it.
 async function uploadEmptyFile(fs: string, remote: string) {
@@ -25,7 +26,7 @@ async function uploadEmptyFile(fs: string, remote: string) {
     }
 }
 
-export default function useCreateFolder(remote: RemoteString, cwd: string, refresh: () => void) {
+export default function useCreateFolder(remote: RemoteString, cwd: string) {
     const canCreateFolder = !!remote && remote !== 'UI_FAVORITES'
 
     const createFolder = useCallback(async () => {
@@ -72,14 +73,14 @@ export default function useCreateFolder(remote: RemoteString, cwd: string, refre
                 await uploadEmptyFile(info.root, info.filePath)
             }
 
-            refresh()
+            void invalidateListing(remote, cwd)
         } catch (error) {
             await reportError(error, {
                 title: 'Error',
                 fallback: 'Create folder failed',
             })
         }
-    }, [remote, cwd, refresh])
+    }, [remote, cwd])
 
     return { canCreateFolder, createFolder }
 }

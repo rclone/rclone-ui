@@ -19,7 +19,12 @@ export type PaddingItem = {
     padding: true
 }
 
-export type VirtualizedEntry = Entry & { isSelected: boolean }
+/**
+ * A row as the list renders it. What can change while the listing stays the same travels on the
+ * row itself: the collection rebuilds only when these objects do, so a flag read from a prop
+ * instead would keep the value (and the handler) the row was first rendered with.
+ */
+export type VirtualizedEntry = Entry & { isSelected: boolean; isFavorited: boolean }
 
 /**
  * What the sidebar offers. `LOCAL_FS` is the local disk's roots and external volumes;

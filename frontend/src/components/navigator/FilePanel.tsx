@@ -166,11 +166,7 @@ const FilePanel = forwardRef<
     // the list to the real thing. Dropping the bookmark is all a row here does.
     const isFavorites = nav.selectedRemote === 'UI_FAVORITES'
 
-    const { canCreateFolder, createFolder } = useCreateFolder(
-        nav.selectedRemote,
-        nav.cwd,
-        nav.refresh
-    )
+    const { canCreateFolder, createFolder } = useCreateFolder(nav.selectedRemote, nav.cwd)
 
     const newFolderButton = useMemo(
         () =>
@@ -547,7 +543,6 @@ const FilePanel = forwardRef<
                                 draggable={selectionMode === 'drag' || selectionMode === 'both'}
                                 onDragStart={handleDragStartInternal}
                                 showFullPath={isFavorites}
-                                favoritedKeys={nav.favoritedKeys}
                                 onToggleFavorite={handleToggleFavorite}
                                 listHeight={listHeight}
                             />

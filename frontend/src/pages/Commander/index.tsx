@@ -1,3 +1,4 @@
+import { Spinner } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -11,7 +12,16 @@ import { startBatch } from '@/lib/rclone/start'
 import { UserCancelledError } from '@/lib/errors'
 import rclone from '@/lib/rclone/client'
 
-import { BatchRenameDrawer, CompareDrawer, FilePanel, type FilePanelHandle, type PanelLocation, useEntryActions } from '@/components/navigator'
+import {
+    BatchRenameDrawer,
+    CompareDrawer,
+    FilePanel,
+    type FilePanelHandle,
+    type PanelLocation,
+    invalidateEntry,
+    invalidateFolder,
+    useEntryActions,
+} from '@/components/navigator'
 import type { Entry, SelectItem } from '@/components/navigator/types'
 import { writeText } from '@/clipboard'
 import { saveAs } from '@/dialog'
@@ -50,6 +60,7 @@ export default function Browser() {
         setTrackedIds((prev) => new Set([...prev, id]))
     }, [])
 
+    // ⌘R: both panels ask rclone again for the folder they show.
     const refreshPanels = useCallback(() => {
         leftPanelRef.current?.refresh()
         rightPanelRef.current?.refresh()
@@ -90,13 +101,14 @@ export default function Browser() {
         setBatchRenameOpen(true)
     }, [renameSel])
 
-    // Renamed entries have new keys, so the old selection is stale either way.
+    // Renamed entries have new keys, so the old selection is stale either way; their folder's
+    // listing is asked again.
     const handleBatchRenameDone = useCallback(() => {
-        for (const ref of [leftPanelRef, rightPanelRef]) {
-            ref.current?.refresh()
-            ref.current?.clearSelection()
+        for (const item of batchRenameItems) {
+            void invalidateEntry(item.path, item.type === 'folder')
         }
-    }, [])
+        for (const ref of [leftPanelRef, rightPanelRef]) ref.current?.clearSelection()
+    }, [batchRenameItems])
 
     const remotesQuery = useQuery({
         queryKey: ['remotes', 'list', 'all'],
@@ -113,6 +125,10 @@ export default function Browser() {
     // The first target seeds the right panel; later ones (the browser sidebar's remotes while
     // the Commander is already open) move it.
     const initialRightTarget = useRef(rightPanelTarget)
+    // The right panel starts where the remotes list says (first remote, else local home), so it
+    // is not mounted before that list has answered: a cold load and a warm one land in the same
+    // place. A deep link needs no list.
+    const rightReady = !!initialRightTarget.current || !remotesQuery.isPending
     useEffect(() => {
         if (rightPanelTarget && rightPanelTarget !== initialRightTarget.current) {
             rightPanelRef.current?.navigate(rightPanelTarget.remote, rightPanelTarget.path)
@@ -123,6 +139,20 @@ export default function Browser() {
             setDropOperation({ items, destination })
         },
         []
+    )
+    // A drop's copy or move has started: the destination (and, for a move, where the items came
+    // from) is asked again now, and once more when the transfer ends (`listing.ts`).
+    const handleOperationComplete = useCallback(
+        (operation: 'copy' | 'move') => {
+            if (!dropOperation) return
+            void invalidateFolder(dropOperation.destination)
+            if (operation === 'move') {
+                for (const item of dropOperation.items) {
+                    void invalidateEntry(item.path, item.type === 'folder')
+                }
+            }
+        },
+        [dropOperation]
     )
 
     const handleDownload = useCallback(
@@ -173,8 +203,8 @@ export default function Browser() {
         [handleJobStarted]
     )
 
-    // Rename and delete on a row, shared with the picker; both panels refresh afterwards.
-    const { rename: handleRename, remove: handleDelete } = useEntryActions(refreshPanels)
+    // Rename and delete on a row, shared with the picker; the folder's listing is asked again.
+    const { rename: handleRename, remove: handleDelete } = useEntryActions()
 
     const handleShare = useCallback(async (entry: Entry) => {
         try {
@@ -242,27 +272,33 @@ export default function Browser() {
                 <Separator className="w-1 transition-colors bg-divider hover:bg-primary-200 active:bg-primary-300" />
 
                 <Panel defaultSize={50} minSize={25}>
-                    <FilePanel
-                        ref={rightPanelRef}
-                        sidebarPosition="right"
-                        initialRemote={
-                            initialRightTarget.current?.remote ?? firstRemote ?? 'UI_LOCAL_FS'
-                        }
-                        initialPath={initialRightTarget.current?.path}
-                        selectionMode="both"
-                        allowFiles={true}
-                        allowMultiple={true}
-                        showPreviewColumn={true}
-                        onSelectionChange={setRightSel}
-                        onNavigate={handleRightNavigate}
-                        onDrop={(items, dest) => handleDrop(items, dest, 'right')}
-                        onDownload={handleDownload}
-                        onShare={handleShare}
-                        onRename={handleRename}
-                        onDelete={handleDelete}
-                        allowedKeys={['REMOTES', 'LOCAL_FS', 'LOCAL_FS_EXTRA', 'FAVORITES']}
-                        isActive={true}
-                    />
+                    {rightReady ? (
+                        <FilePanel
+                            ref={rightPanelRef}
+                            sidebarPosition="right"
+                            initialRemote={
+                                initialRightTarget.current?.remote ?? firstRemote ?? 'UI_LOCAL_FS'
+                            }
+                            initialPath={initialRightTarget.current?.path}
+                            selectionMode="both"
+                            allowFiles={true}
+                            allowMultiple={true}
+                            showPreviewColumn={true}
+                            onSelectionChange={setRightSel}
+                            onNavigate={handleRightNavigate}
+                            onDrop={(items, dest) => handleDrop(items, dest, 'right')}
+                            onDownload={handleDownload}
+                            onShare={handleShare}
+                            onRename={handleRename}
+                            onDelete={handleDelete}
+                            allowedKeys={['REMOTES', 'LOCAL_FS', 'LOCAL_FS_EXTRA', 'FAVORITES']}
+                            isActive={true}
+                        />
+                    ) : (
+                        <div className="flex items-center justify-center w-full h-full">
+                            <Spinner />
+                        </div>
+                    )}
                 </Panel>
             </Group>
 
@@ -292,7 +328,7 @@ export default function Browser() {
                 items={dropOperation?.items ?? null}
                 destination={dropOperation?.destination ?? null}
                 onClose={() => setDropOperation(null)}
-                onComplete={refreshPanels}
+                onComplete={handleOperationComplete}
                 onJobStarted={handleJobStarted}
             />
         </div>

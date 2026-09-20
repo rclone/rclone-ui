@@ -59,7 +59,8 @@ export function dirname(path: string): string {
     const index = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
     if (index === -1) return '.'
     if (index === 0) return trimmed[0]!
-    if (hostSeparator() === '\\' && index === 2 && WINDOWS_DRIVE.test(trimmed)) return trimmed.slice(0, 3)
+    if (hostSeparator() === '\\' && index === 2 && WINDOWS_DRIVE.test(trimmed))
+        return trimmed.slice(0, 3)
     return trimmed.slice(0, index)
 }
 
@@ -118,10 +119,6 @@ export function getRemoteParent(path: string) {
 /** A remote location as one string, spelled as the user did: `remote:dir`, or `remote:/dir`. */
 export function serializeRemotePath(remote: string, dir: string) {
     return formatRemote(remote, dir)
-}
-
-export function cacheKey(remote: string | 'UI_LOCAL_FS' | null, dir: string) {
-    return `${remote ?? 'NONE'}::${dir || '/'}`
 }
 
 export function normalizeRemoteDir(path: string) {

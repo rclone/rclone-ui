@@ -33,7 +33,6 @@ export default function FileList({
     draggable = false,
     onDragStart,
     showFullPath = false,
-    favoritedKeys,
     onToggleFavorite,
     onDownload,
     onShare,
@@ -57,7 +56,6 @@ export default function FileList({
     onDragStart?: (items: Entry[]) => void
     /** Put the row's whole path on a hover tooltip (the favourites list, whose labels are not paths). */
     showFullPath?: boolean
-    favoritedKeys?: Record<string, boolean>
     onToggleFavorite?: (entry: Entry, isFavorited: boolean) => void
     onDownload?: (entry: Entry) => void
     onShare?: (entry: Entry) => void
@@ -209,7 +207,7 @@ export default function FileList({
                 const isDisabled =
                     (!allowMultiple && selectedKeys.size > 0 && !isSelected) ||
                     (!allowFolderSelection && entry.isDir)
-                const isFavorited = favoritedKeys?.[entry.key] ?? false
+                const isFavorited = entry.isFavorited
 
                 return (
                     <ListboxItem

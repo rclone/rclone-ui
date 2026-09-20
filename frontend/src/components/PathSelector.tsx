@@ -53,11 +53,10 @@ export default function PathSelector({
         setSelectedCount(selected.length)
     }, [])
 
-    // A renamed or deleted row leaves the selection before the listing is refreshed.
+    // A renamed or deleted row leaves the selection; its listing is asked again by itself.
     const { rename, remove } = useEntryActions(
         useCallback((entry: Entry) => {
             panelRef.current?.deselect([entry.key])
-            panelRef.current?.refresh()
         }, [])
     )
 

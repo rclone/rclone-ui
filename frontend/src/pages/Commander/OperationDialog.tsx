@@ -1,4 +1,15 @@
-import { Button, Checkbox, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, Radio, RadioGroup, ScrollShadow } from '@heroui/react'
+import {
+    Button,
+    Checkbox,
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    Radio,
+    RadioGroup,
+    ScrollShadow,
+} from '@heroui/react'
 import { useMutation } from '@tanstack/react-query'
 
 import { CopyIcon, MoveIcon } from 'lucide-react'
@@ -10,7 +21,6 @@ import { startCopy, startMove } from '@/lib/rclone/start'
 import { FileIcon } from '@/components/navigator'
 import type { Entry, SelectItem } from '@/components/navigator/types'
 
-
 export default function OperationDialog({
     items,
     destination,
@@ -21,7 +31,7 @@ export default function OperationDialog({
     items: SelectItem[] | null
     destination: string | null
     onClose: () => void
-    onComplete?: () => void
+    onComplete?: (operation: 'copy' | 'move') => void
     onJobStarted?: (id: string) => void
 }) {
     const [operation, setOperation] = useState<'copy' | 'move'>('copy')
@@ -50,7 +60,7 @@ export default function OperationDialog({
             onJobStarted?.(id)
         },
         onSuccess: () => {
-            onComplete?.()
+            onComplete?.('copy')
             onClose()
         },
         onError: onErrorDialog('Error', 'Copy operation failed'),
@@ -78,7 +88,7 @@ export default function OperationDialog({
             onJobStarted?.(id)
         },
         onSuccess: () => {
-            onComplete?.()
+            onComplete?.('move')
             onClose()
         },
         onError: onErrorDialog('Error', 'Move operation failed'),
