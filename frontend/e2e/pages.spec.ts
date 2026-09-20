@@ -2457,7 +2457,7 @@ test('a scheduled run opens where every other transfer does, and can be filtered
         await expect(drawer.getByText(/Started by the schedule .Nightly photos./)).toBeVisible()
         await expect(drawer.getByText(/no longer exists/)).toBeHidden()
         await drawer.getByRole('button', { name: 'Open schedule' }).click()
-        await expect(page).toHaveURL(new RegExp(`/schedules\\?task=${taskId}$`))
+        await expect(page).toHaveURL(new RegExp(`/schedules/${taskId}$`))
         await expect(page.getByRole('dialog').getByText('Edit Schedule')).toBeVisible()
         await expect(page.getByRole('dialog').getByLabel('Schedule name')).toHaveValue(
             'Nightly photos'
@@ -2569,6 +2569,25 @@ test('failed files are retried from a list of their own: one, then the rest', as
             .poll(() => existsSync(join(root, 'dst', 'sub', 'second.txt')), { timeout: 20_000 })
             .toBe(true)
         expect(readFileSync(join(root, 'dst', 'sub', 'second.txt'), 'utf8')).toBe('second')
+        // The retry ends on its own, and this waits for that: leaving while it runs would have
+        // the cleanup after this test stop it mid-flight, and the record then keeps a run with
+        // no end for a while, which the Dashboard test after this one would see as live.
+        await expect
+            .poll(
+                async () =>
+                    (
+                        (await (
+                            await request.post('/api/rpc/transfers_list', {
+                                headers: SESSION,
+                                data: {},
+                            })
+                        ).json()) as { value: { retryOf?: string; state: string }[] }
+                    ).value
+                        .filter((entry) => entry.retryOf)
+                        .every((entry) => entry.state !== 'running'),
+                { timeout: 20_000 }
+            )
+            .toBe(true)
     } finally {
         for (const file of locked) chmodSync(file, 0o644)
         rmSync(root, { recursive: true, force: true })

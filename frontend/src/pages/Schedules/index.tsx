@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader, Tooltip, useDisclosure } from '@heroui/react'
+import { Card, CardBody, CardHeader, Tooltip } from '@heroui/react'
 import { Button, Chip } from '@heroui/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
@@ -13,8 +13,8 @@ import {
     Trash2Icon,
     ZapIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useCallback, useMemo } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { onErrorDialog } from '@/lib/errors'
 import { buildReadablePath } from '@/lib/format'
 import { useNow } from '@/lib/hooks'
@@ -34,42 +34,17 @@ export default function Schedules() {
     const schedulesQuery = useSchedules()
     const schedules = useMemo(() => schedulesQuery.data ?? [], [schedulesQuery.data])
 
-    // By id: the list refreshes under the drawer (a run starts, the next fire times move), and
-    // the drawer follows the schedule, not a snapshot of it.
-    const [selectedId, setSelectedId] = useState<string | null>(null)
+    // The edit drawer is a route (`/schedules/<id>`: a run's transfer links here), read from the
+    // list as it refreshes (a run starts, the next fire times move), so the drawer follows the
+    // schedule and not a snapshot of it. Closing is going back to the list.
+    const navigate = useNavigate()
+    const { id: selectedId } = useParams<{ id?: string }>()
     const selectedTask = schedules.find((schedule) => schedule.id === selectedId) ?? null
-    const { isOpen, onOpen, onClose } = useDisclosure()
-
-    // A scheduled run's transfer links back here as `?task=<id>`: the schedule it came from.
-    // Answers whether the task was found, so the URL can wait for the tasks to load.
-    const openFromSearch = useCallback(
-        (search: URLSearchParams) => {
-            const task = schedules.find((candidate) => candidate.id === search.get('task'))
-            if (!task) return false
-            setSelectedId(task.id)
-            onOpen()
-            return true
-        },
-        [schedules, onOpen]
-    )
-
-    // Once per URL: the tasks change under this effect (an edit, a toggle), and a drawer the user
-    // closed must not come back because of it.
-    const [searchParams] = useSearchParams()
-    const followedSearch = useRef<string | null>(null)
-    useEffect(() => {
-        const search = searchParams.toString()
-        if (!searchParams.get('task') || followedSearch.current === search) return
-        if (openFromSearch(searchParams)) followedSearch.current = search
-    }, [searchParams, openFromSearch])
-
     const handleOpenDrawer = useCallback(
-        (task: Schedule) => {
-            setSelectedId(task.id)
-            onOpen()
-        },
-        [onOpen]
+        (task: Schedule) => navigate(`/schedules/${task.id}`),
+        [navigate]
     )
+    const onClose = useCallback(() => navigate('/schedules'), [navigate])
 
     // Nothing until the list has been read once: an empty state that flashes before it is a lie.
     if (schedulesQuery.isPending) return null
@@ -92,7 +67,7 @@ export default function Schedules() {
                 <TaskCard key={task.id} task={task} onOpenDrawer={handleOpenDrawer} />
             ))}
             {selectedTask && (
-                <ScheduleEditDrawer isOpen={isOpen} onClose={onClose} selectedTask={selectedTask} />
+                <ScheduleEditDrawer isOpen={true} onClose={onClose} selectedTask={selectedTask} />
             )}
         </div>
     )

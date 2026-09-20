@@ -24,7 +24,7 @@ const STEPS: Step[] = [
         description:
             'Connect a cloud account, a server or a disk. rclone speaks to more than seventy of them.',
         action: 'Add a remote',
-        to: '/remotes?action=create',
+        to: '/remotes/new',
     },
     {
         key: 'commander',

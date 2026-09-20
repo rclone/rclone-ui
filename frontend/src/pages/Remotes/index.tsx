@@ -32,7 +32,7 @@ import {
     useRef,
     useState,
 } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useMatch, useNavigate, useParams } from 'react-router-dom'
 import { onErrorDialog } from '@/lib/errors'
 import { formatBytes } from '@/lib/format'
 import { remoteConfigQueryOptions } from '@/lib/hooks'
@@ -95,9 +95,13 @@ function buildRemoteRows(remotes: string[]): RemoteRow[] {
 
 function RemotesList() {
     const queryClient = useQueryClient()
-    const [searchParams] = useSearchParams()
-    const [editingDrawerOpen, setEditingDrawerOpen] = useState(false)
-    const [creatingDrawerOpen, setCreatingDrawerOpen] = useState(false)
+    const navigate = useNavigate()
+    // The create and edit drawers are routes (`/remotes/new`, `/remotes/<name>/edit`): a deep
+    // link opens them over the list, and closing one is going back to it.
+    const creatingDrawerOpen = useMatch('/remotes/new') !== null
+    const editRemote = useParams<{ name?: string }>().name ?? null
+    const editingDrawerOpen = editRemote !== null
+    const toList = () => navigate('/remotes')
     // The editor on rclone's config file, read and written through the daemon.
     const [configDrawerOpen, setConfigDrawerOpen] = useState(false)
     const [autoMountDrawerOpen, setAutoMountDrawerOpen] = useState(false)
@@ -195,10 +199,9 @@ function RemotesList() {
         }
     }, [virtualItems.length, setListAnimated])
 
-    // A drawer stays mounted while it slides shut, so the remote it shows is not cleared on
-    // close. Each drawer keeps its own, or opening one would mount the other; `opening` counts
-    // openings and keys them, so every opening seeds a fresh form.
-    const [editRemote, setEditRemote] = useState<string | null>(null)
+    // The auto-mount drawer stays mounted while it slides shut, so the remote it shows is not
+    // cleared on close; `opening` counts openings and keys it, so every opening seeds a fresh
+    // form. (The edit drawer is a route: it is mounted for the remote in the URL and no other.)
     const [mountRemote, setMountRemote] = useState<string | null>(null)
     const [opening, setOpening] = useState(0)
 
@@ -245,7 +248,7 @@ function RemotesList() {
                 <div className="flex flex-col items-center justify-center gap-8">
                     <h1 className="text-2xl font-bold">Add your first remote!</h1>
                     <Button
-                        onPress={() => setCreatingDrawerOpen(true)}
+                        onPress={() => navigate('/remotes/new')}
                         color="primary"
                         data-focus-visible="false"
                         variant="shadow"
@@ -259,15 +262,6 @@ function RemotesList() {
 
         return null
     }, [remotesQuery.isLoading, remotesQuery.isRefetching, remotes.length, creatingDrawerOpen])
-
-    // `/remotes?action=create` (the Dashboard's getting-started step) opens the create drawer.
-    useEffect(() => {
-        if (searchParams.get('action') === 'create') {
-            startTransition(() => {
-                setCreatingDrawerOpen(true)
-            })
-        }
-    }, [searchParams])
 
     return (
         <BaseSection
@@ -304,7 +298,7 @@ function RemotesList() {
                             <RefreshCcwIcon className="w-4 h-4" />
                         </Button>
                         <Button
-                            onPress={() => setCreatingDrawerOpen(true)}
+                            onPress={() => navigate('/remotes/new')}
                             isIconOnly={true}
                             variant="faded"
                             color="primary"
@@ -383,13 +377,9 @@ function RemotesList() {
                                                     setAutoMountDrawerOpen(true)
                                                 })
                                             }}
-                                            onConfigPress={() => {
-                                                startTransition(() => {
-                                                    setEditRemote(remote)
-                                                    setOpening((n) => n + 1)
-                                                    setEditingDrawerOpen(true)
-                                                })
-                                            }}
+                                            onConfigPress={() =>
+                                                navigate(`/remotes/${encodeURIComponent(remote)}/edit`)
+                                            }
                                             onDeletePress={async () => {
                                                 const confirmation = await ask(
                                                     `Are you sure you want to remove ${remote}? This action cannot be reverted.`,
@@ -421,21 +411,14 @@ function RemotesList() {
 
             {editRemote && (
                 <RemoteEditDrawer
-                    key={`${editRemote}-${opening}`}
+                    key={editRemote}
                     isOpen={editingDrawerOpen}
-                    onClose={() => setEditingDrawerOpen(false)}
+                    onClose={toList}
                     remoteName={editRemote}
                 />
             )}
 
-            <RemoteCreateDrawer
-                isOpen={creatingDrawerOpen}
-                onClose={() => {
-                    startTransition(() => {
-                        setCreatingDrawerOpen(false)
-                    })
-                }}
-            />
+            <RemoteCreateDrawer isOpen={creatingDrawerOpen} onClose={toList} />
 
             {mountRemote && (
                 <RemoteAutoMountDrawer

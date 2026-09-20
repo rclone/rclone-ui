@@ -109,10 +109,15 @@ interface Where {
     search: string
 }
 
-/** Exact match on the path, and on the query when the entry carries one. */
+/** The path, or a drawer's route under it; and the query when the entry carries one. */
 export function isCurrent(to: string, where: Where): boolean {
     const [path, search = ''] = to.split('?')
-    return where.pathname === path && (search === '' || where.search === `?${search}`)
+    return under(where.pathname, path) && (search === '' || where.search === `?${search}`)
+}
+
+/** Whether `pathname` is `path` or a route under it (`/remotes/new` is under `/remotes`). */
+function under(pathname: string, path: string): boolean {
+    return pathname === path || (path !== '/' && pathname.startsWith(`${path}/`))
 }
 
 /** The header's trail: the zone that owns the route, then the page. */
@@ -123,13 +128,13 @@ export function breadcrumbFor(where: Where): string[] {
         const section = isSectionKey(key) ? SETTINGS_SECTIONS[key] : SETTINGS_SECTIONS.rclone
         return ['Settings', section.label]
     }
-    if (pathname === '/remotes') return ['Remotes']
+    if (under(pathname, '/remotes')) return ['Remotes']
     if (pathname === '/commander') {
         const target = new URLSearchParams(search).get('path')
         return target ? ['Commander', target] : ['Commander']
     }
     for (const zone of ZONES) {
-        const item = zone.items.find((entry) => entry.to === pathname)
+        const item = zone.items.find((entry) => under(pathname, entry.to))
         if (item) return zone.label === 'Overview' ? [item.label] : [zone.label, item.label]
     }
     return []

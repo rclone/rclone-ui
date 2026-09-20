@@ -1,4 +1,4 @@
-import { Card, CardBody, Progress, Tab, Tabs, Tooltip, useDisclosure } from '@heroui/react'
+import { Card, CardBody, Progress, Tab, Tabs, Tooltip } from '@heroui/react'
 import { Button, Chip, Spinner, cn } from '@heroui/react'
 
 import {
@@ -9,8 +9,8 @@ import {
     RefreshCcwIcon,
     SearchCheckIcon,
 } from 'lucide-react'
-import { startTransition, useCallback, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useCallback, useMemo } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { message } from '@/dialog'
 import { buildReadablePathMultiple, formatBytes } from '@/lib/format'
 import { ENDED, type TransferRow } from '@/lib/transfers/rows'
@@ -20,30 +20,32 @@ import EmptyState from '@/components/EmptyState'
 import TransferDetailsDrawer from './TransferDetailsDrawer'
 
 export default function Transfers() {
-    const { isOpen, onOpen, onClose } = useDisclosure({
-        onClose: () => {
-            setTimeout(() => {
-                startTransition(() => {
-                    setSelectedId(null)
-                })
-                if (!acknowledgements.includes('escToCloseJobDetails')) {
-                    message('You can close the transfer details panel by pressing the ESC key.', {
-                        title: 'Did you know?',
-                        buttons: {
-                            ok: 'Good to know',
-                        },
-                    }).then(() => {
-                        usePersistedStore.setState((prev) => ({
-                            acknowledgements: [...prev.acknowledgements, 'escToCloseJobDetails'],
-                        }))
-                    })
-                }
-            }, 500)
-        },
-    })
-    const [selectedId, setSelectedId] = useState<string | null>(null)
+    const navigate = useNavigate()
+    // The details drawer is a route (`/transfers/<id>`) and the schedule filter its query
+    // (`?task=<id>`): closing the drawer is going back to the list, filter kept.
+    const { id: selectedId = null } = useParams<{ id?: string }>()
     const acknowledgements = usePersistedStore((state) => state.acknowledgements)
     const [searchParams, setSearchParams] = useSearchParams()
+    const search = searchParams.toString() ? `?${searchParams}` : ''
+    const open = useCallback(
+        (id: string) => navigate({ pathname: `/transfers/${id}`, search }),
+        [navigate, search]
+    )
+    const onClose = useCallback(() => {
+        navigate({ pathname: '/transfers', search })
+        if (!acknowledgements.includes('escToCloseJobDetails')) {
+            message('You can close the transfer details panel by pressing the ESC key.', {
+                title: 'Did you know?',
+                buttons: {
+                    ok: 'Good to know',
+                },
+            }).then(() => {
+                usePersistedStore.setState((prev) => ({
+                    acknowledgements: [...prev.acknowledgements, 'escToCloseJobDetails'],
+                }))
+            })
+        }
+    }, [navigate, search, acknowledgements])
     const { rows: allRows, query: transfersQuery } = useTransferRows()
 
     // A schedule's own runs, when a schedule sent us here (`?task=<id>`). The name is the one
@@ -76,13 +78,7 @@ export default function Transfers() {
     )
 
     // A scheduled run is a transfer like any other now, so it opens where every other one does.
-    const handleSelect = useCallback(
-        (row: TransferRow) => {
-            setSelectedId(row.id)
-            onOpen()
-        },
-        [onOpen]
-    )
+    const handleSelect = useCallback((row: TransferRow) => open(row.id), [open])
 
     // A transfer and its retries point at each other: the record says which transfer a retry
     // retries, and the list in hand says which retries were made of one.
@@ -195,11 +191,11 @@ export default function Transfers() {
 
             {selected && (
                 <TransferDetailsDrawer
-                    isOpen={isOpen}
+                    isOpen={true}
                     onClose={onClose}
                     transfer={selected}
                     related={related}
-                    onSelectTransfer={setSelectedId}
+                    onSelectTransfer={open}
                 />
             )}
         </>

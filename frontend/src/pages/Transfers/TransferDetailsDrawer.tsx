@@ -335,7 +335,7 @@ export default function TransferDetailsDrawer({
                                         onPress={() => {
                                             onClose()
                                             navigate(
-                                                `/schedules?task=${transfer.scheduled?.taskId}`
+                                                `/schedules/${transfer.scheduled?.taskId}`
                                             )
                                         }}
                                         data-focus-visible="false"

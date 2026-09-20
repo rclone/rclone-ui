@@ -1,5 +1,5 @@
 import { Spinner, cn } from '@heroui/react'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { setNavigate } from '@/navigate'
 import { getSession } from '@/server/session'
@@ -104,7 +104,15 @@ export default function Shell() {
                 <Sidebar collapsed={collapsed} />
                 <SidebarRail collapsed={collapsed} onToggle={toggle} />
                 <div className="relative flex-1 h-full min-w-0 overflow-auto browser-outlet rounded-tl-2xl border-l border-t border-divider bg-white text-foreground dark:border-neutral-800 dark:bg-[#121212]">
-                    <Outlet />
+                    <Suspense
+                        fallback={
+                            <div className="flex items-center justify-center w-full h-full">
+                                <Spinner />
+                            </div>
+                        }
+                    >
+                        <Outlet />
+                    </Suspense>
                     {busy && <div className="absolute inset-0 z-40 bg-black/20" />}
                 </div>
             </div>

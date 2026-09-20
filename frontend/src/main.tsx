@@ -3,7 +3,7 @@
 import './global.css'
 import { HeroUIProvider, ToastProvider } from '@heroui/react'
 import { QueryClientProvider } from '@tanstack/react-query'
-import React, { useEffect } from 'react'
+import React, { Suspense, lazy, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider, createBrowserRouter } from 'react-router-dom'
 import { forwardConsole } from '@/server/log'
@@ -13,24 +13,27 @@ import * as dialog from '@/dialog'
 import queryClient from '@/lib/query'
 import { useTheme } from '@/lib/theme'
 import Shell from './layouts/shell/Shell'
-import Bisync from './pages/Bisync'
-import Commander from './pages/Commander'
-import Copy from './pages/Copy'
-import Dashboard from './pages/Dashboard'
-import Delete from './pages/Delete'
-import Download from './pages/Download'
-import Login from './pages/Login'
-import Mount from './pages/Mount'
-import Move from './pages/Move'
-import Purge from './pages/Purge'
-import Remotes from './pages/Remotes'
-import Schedules from './pages/Schedules'
-import Serve from './pages/Serve'
-import SectionPage from './pages/Settings/SectionPage'
-import Sync from './pages/Sync'
-import Templates from './pages/Templates'
-import Transfers from './pages/Transfers'
-import Wizard from './pages/Wizard'
+
+// Every page is its own chunk: the code a route needs arrives when the route does (the Shell's
+// Suspense shows a spinner meanwhile).
+const Bisync = lazy(() => import('./pages/Bisync'))
+const Commander = lazy(() => import('./pages/Commander'))
+const Copy = lazy(() => import('./pages/Copy'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Delete = lazy(() => import('./pages/Delete'))
+const Download = lazy(() => import('./pages/Download'))
+const Login = lazy(() => import('./pages/Login'))
+const Mount = lazy(() => import('./pages/Mount'))
+const Move = lazy(() => import('./pages/Move'))
+const Purge = lazy(() => import('./pages/Purge'))
+const Remotes = lazy(() => import('./pages/Remotes'))
+const Schedules = lazy(() => import('./pages/Schedules'))
+const Serve = lazy(() => import('./pages/Serve'))
+const SectionPage = lazy(() => import('./pages/Settings/SectionPage'))
+const Sync = lazy(() => import('./pages/Sync'))
+const Templates = lazy(() => import('./pages/Templates'))
+const Transfers = lazy(() => import('./pages/Transfers'))
+const Wizard = lazy(() => import('./pages/Wizard'))
 
 // What the e2e suite drives from the devtools console: the dialogs, and the state adapter.
 const api = { dialog, state: { stateStorage, whenWritten } }
@@ -54,20 +57,27 @@ const pageRoutes = [
     { path: '/bisync', element: <Bisync /> },
     { path: '/commander', element: <Commander /> },
     { path: '/mount', element: <Mount /> },
-    { path: '/transfers', element: <Transfers /> },
-    { path: '/schedules', element: <Schedules /> },
-    { path: '/templates', element: <Templates /> },
+    // A drawer with a deep link is a route the page reads: `/transfers/<id>` opens the transfer,
+    // `/schedules/<id>` the schedule, `/templates/new` (`?cmd=&name=` to start from) and
+    // `/templates/<id>` the template drawers, over their lists.
+    { path: '/transfers/:id?', element: <Transfers /> },
+    { path: '/schedules/:id?', element: <Schedules /> },
+    { path: '/templates/:id?', element: <Templates /> },
 ]
 
 // Every page is a route under the Shell layout (sidebar + header); the login screen is not.
 const router = createBrowserRouter([
-    { path: '/login', element: <Login /> },
+    { path: '/login', element: <Suspense fallback={null}><Login /></Suspense> },
     {
         element: <Shell />,
         children: [
             { path: '/', element: <Dashboard /> },
             { path: '/settings/:section?', element: <SectionPage /> },
+            // `/remotes/new` creates and `/remotes/<name>/edit` edits, over the list (a remote may be
+            // called `new`, so editing is not `/remotes/<name>`).
             { path: '/remotes', element: <Remotes /> },
+            { path: '/remotes/new', element: <Remotes /> },
+            { path: '/remotes/:name/edit', element: <Remotes /> },
             // Plain questions that lead to an operation.
             { path: '/wizard', element: <Wizard /> },
             ...pageRoutes,

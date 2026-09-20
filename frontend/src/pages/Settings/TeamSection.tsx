@@ -28,7 +28,7 @@ import {
     useTeam,
 } from '@/lib/team'
 import BaseSection from './BaseSection'
-import TeamMemberDrawer from './TeamMemberDrawer'
+import TeamMemberModal from './TeamMemberModal'
 
 const ROLE_COLOR: Record<Role, 'primary' | 'secondary' | 'default'> = {
     owner: 'primary',
@@ -95,7 +95,7 @@ export default function TeamSection() {
                     </p>
                 )}
             </div>
-            <TeamMemberDrawer isOpen={isDrawerOpen} onClose={() => setDrawerOpen(false)} />
+            <TeamMemberModal isOpen={isDrawerOpen} onClose={() => setDrawerOpen(false)} />
             <PasswordModal
                 member={passwordFor}
                 isOwn={passwordFor !== null && passwordFor.id === me?.id}

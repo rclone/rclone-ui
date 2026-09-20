@@ -1,16 +1,4 @@
-import {
-    Button,
-    Card,
-    CardBody,
-    CardHeader,
-    Checkbox,
-    Chip,
-    Input,
-    ScrollShadow,
-    Tooltip,
-    cn,
-    useDisclosure,
-} from '@heroui/react'
+import { Button, Card, CardBody, CardHeader, Checkbox, Chip, Input, ScrollShadow, Tooltip, cn } from '@heroui/react'
 import { useMutation } from '@tanstack/react-query'
 
 import {
@@ -23,12 +11,11 @@ import {
     TrashIcon,
     XIcon,
 } from 'lucide-react'
-import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { startTransition, useCallback, useMemo, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { describeTemplatePaths } from '@/lib/rclone/templatePaths'
 import { usePersistedStore } from '@/store'
-import type { Template } from '@/lib/rclone/templatePaths'
 import EmptyState from '@/components/EmptyState'
 import TemplateAddDrawer, { type TemplatePrefill } from './TemplateAddDrawer'
 import TemplateEditDrawer from './TemplateEditDrawer'
@@ -37,35 +24,29 @@ import { writeFile } from '@/lib/rclone/daemon-fs'
 import { openUrl } from '@/navigate'
 
 export default function Templates() {
+    const navigate = useNavigate()
     const [searchParams] = useSearchParams()
-
-    const { isOpen, onOpen, onClose: onAddClose } = useDisclosure()
-    // Prefill for the add drawer (`/templates?action=add&cmd=…`).
-    const [addPayload, setAddPayload] = useState<TemplatePrefill | null>(null)
-    const handleAddClose = useCallback(() => {
-        onAddClose()
-        setAddPayload(null)
-    }, [onAddClose])
-    const {
-        isOpen: isEditOpen,
-        onOpen: onEditOpen,
-        onOpenChange: onEditOpenChange,
-    } = useDisclosure({
-        onClose: () => {
-            setTimeout(() => {
-                startTransition(() => {
-                    setSelectedTemplate(null)
-                })
-            }, 500)
-        },
-    })
-
     const templates = usePersistedStore((state) => state.templates)
+
+    // The drawers are routes: `/templates/new` adds (`?cmd=&name=` says what to start from),
+    // `/templates/<id>` edits; closing either is going back to the list.
+    const { id } = useParams<{ id?: string }>()
+    const isOpen = id === 'new'
+    const onOpen = useCallback(() => navigate('/templates/new'), [navigate])
+    const toList = useCallback(() => navigate('/templates'), [navigate])
+    const addPayload = useMemo<TemplatePrefill | null>(() => {
+        if (!isOpen) return null
+        const cmd = searchParams.get('cmd')?.trim() || undefined
+        const name = searchParams.get('name')?.trim() || undefined
+        return cmd || name ? { cmd, name } : null
+    }, [isOpen, searchParams])
+    const selectedTemplate = useMemo(
+        () => (id && id !== 'new' ? (templates.find((t) => t.id === id) ?? null) : null),
+        [templates, id]
+    )
 
     const [isSelecting, setIsSelecting] = useState(false)
     const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([])
-
-    const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
 
     const [searchString, setSearchString] = useState('')
 
@@ -162,18 +143,6 @@ export default function Templates() {
             ),
         [templates, searchString]
     )
-
-    useEffect(() => {
-        const action = searchParams.get('action')
-        if (action === 'add') {
-            const cmd = searchParams.get('cmd')?.trim() || undefined
-            const name = searchParams.get('name')?.trim() || undefined
-            if (cmd || name) {
-                setAddPayload({ cmd, name })
-            }
-            onOpen()
-        }
-    }, [searchParams, onOpen])
 
     return (
         <div className={cn('flex flex-col h-full')}>
@@ -287,8 +256,7 @@ export default function Templates() {
                                     return
                                 }
                                 startTransition(() => {
-                                    setSelectedTemplate(template)
-                                    onEditOpen()
+                                    navigate(`/templates/${template.id}`)
                                 })
                             }}
                         >
@@ -410,15 +378,11 @@ export default function Templates() {
                 />
             </Tooltip>
 
-            <TemplateAddDrawer
-                isOpen={isOpen}
-                onClose={handleAddClose}
-                initialValues={addPayload}
-            />
+            <TemplateAddDrawer isOpen={isOpen} onClose={toList} initialValues={addPayload} />
             {selectedTemplate && (
                 <TemplateEditDrawer
-                    isOpen={isEditOpen}
-                    onClose={onEditOpenChange}
+                    isOpen={true}
+                    onClose={toList}
                     selectedTemplate={selectedTemplate}
                 />
             )}
