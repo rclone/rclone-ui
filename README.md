@@ -41,7 +41,7 @@ Every flag has an environment variable.
 | --- | --- | --- |
 | `--bind` | `RCLONE_CLOUD_BIND` | `127.0.0.1:5573` |
 | `--email` | `RCLONE_CLOUD_EMAIL` | unset; with `--password`, seeds the owner account |
-| `--password` | `RCLONE_CLOUD_PASSWORD` | unset; with `--email`, seeds the owner account |
+| `--password` | `RCLONE_CLOUD_PASSWORD` | unset; with `--email`, seeds the owner account (8 characters or more) |
 | `--data-dir` | `RCLONE_CLOUD_DATA_DIR` | the platform's local data dir + `com.rclone.cloud` |
 | `--rclone-path` | `RCLONE_CLOUD_RCLONE_PATH` | unset; the `rclone` on `PATH` |
 | `--rclone-url` | `RCLONE_CLOUD_RCLONE_URL` | unset; manage the daemon instead |
@@ -105,7 +105,7 @@ remotes. Because the config lives outside the data directory, `--clear` does not
 ```sh
 npm --prefix frontend ci
 npm --prefix frontend run dev          # Vite on :1420
-cargo run -- serve --dev-proxy http://localhost:1420 --email admin@localhost --password rclone
+cargo run -- serve --dev-proxy http://localhost:1420 --email admin@localhost --password rclone-dev
 ```
 
 `cargo test` covers the Rust side; `npm --prefix frontend run test:e2e` runs Playwright against a

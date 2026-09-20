@@ -186,26 +186,21 @@ impl Team {
             .map(|u| u.email.clone())
     }
 
-    /// The owner from the flags, created once: with accounts on disk this does nothing and
-    /// returns `false`. The seed password is taken as given (it is the deployment's own choice),
-    /// unlike the ones set through the pages.
+    /// The owner from the flags: whether this start created it (a later start's pair is ignored).
     pub fn seed(&self, email: &str, password: &str) -> Result<bool, String> {
         self.create_owner(email, password).map(|owner| owner.is_some())
     }
 
-    /// The owner from the first-launch screen: the pages' password rule applies. `None` once
-    /// any account exists (two tabs onboarding at once: the second is told so).
-    pub fn onboard(&self, email: &str, password: &str) -> Result<Option<AuthUser>, String> {
-        check_password(password)?;
-        self.create_owner(email, password)
-    }
-
-    fn create_owner(&self, email: &str, password: &str) -> Result<Option<AuthUser>, String> {
+    /// The owner, created once: `None` once any account exists (a later start's flags, or a
+    /// second tab onboarding at once). The pages' password rule holds here too: a seeded owner
+    /// is reachable like any other account.
+    pub fn create_owner(&self, email: &str, password: &str) -> Result<Option<AuthUser>, String> {
         let email = normalize_email(email)?;
         let mut users = self.users.lock().unwrap();
         if !users.is_empty() {
             return Ok(None);
         }
+        check_password(password)?;
         let owner = User {
             id: uuid::Uuid::new_v4().to_string(),
             email,
@@ -598,15 +593,19 @@ mod tests {
     }
 
     #[test]
-    fn onboarding_applies_the_password_rule_and_happens_once() {
+    fn the_password_rule_holds_for_the_owner_however_it_is_created() {
         let (team, dir) = fresh();
         assert!(team
-            .onboard("first@example.com", "short")
+            .create_owner("first@example.com", "short")
+            .unwrap_err()
+            .contains("at least 8 characters"));
+        assert!(team
+            .seed("first@example.com", "short")
             .unwrap_err()
             .contains("at least 8 characters"));
         assert_eq!(team.count(), 0);
         let owner = team
-            .onboard(" First@Example.com ", "long-enough-1")
+            .create_owner(" First@Example.com ", "long-enough-1")
             .unwrap()
             .expect("created");
         assert_eq!(
@@ -617,9 +616,12 @@ mod tests {
             team.get(&owner.id).map(|u| u.email),
             Some(owner.email.clone())
         );
-        // A second tab, and the flags on a later start: nothing to do.
-        assert!(team.onboard("second@example.com", "long-enough-2").unwrap().is_none());
-        assert!(!team.seed("third@example.com", "long-enough-3").unwrap());
+        // A second tab, and the flags on a later start (a short pair included): nothing to do.
+        assert!(team
+            .create_owner("second@example.com", "long-enough-2")
+            .unwrap()
+            .is_none());
+        assert!(!team.seed("third@example.com", "short").unwrap());
         assert_eq!(team.count(), 1);
         let _ = std::fs::remove_dir_all(dir);
     }

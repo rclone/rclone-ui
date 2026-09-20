@@ -108,7 +108,7 @@ test('once the owner exists, a fresh visitor gets the login and the account work
     }
 })
 
-test('--email or --password alone stops the server before it listens', async () => {
+test('a lone flag, or a short seed password, stops the server before it serves', async () => {
     const root = mkdtempSync(join(tmpdir(), 'rcui-e2e-pair-'))
     try {
         const alone = [
@@ -120,6 +120,21 @@ test('--email or --password alone stops the server before it listens', async () 
             expect(code).toBe(1)
             expect(stderr).toContain(`needs ${needs}`)
         }
+        // The pages' rule holds for the flags: a seeded owner is an account like any other.
+        const short = await runToExit([
+            '--email',
+            'short@example.com',
+            '--password',
+            'seven77',
+            '--bind',
+            '127.0.0.1:5619',
+            '--rclone-url',
+            'http://localhost:5572',
+            '--data-dir',
+            join(root, 'short'),
+        ])
+        expect(short.code).toBe(1)
+        expect(short.stderr).toContain('at least 8 characters')
     } finally {
         rmSync(root, { recursive: true, force: true })
     }

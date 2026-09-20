@@ -311,23 +311,28 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
     let bus = Bus::new();
     let store = Arc::new(StateStore::new(opts.dirs.clone(), bus.clone()));
     let team = Arc::new(team::Team::open(&opts.dirs.root.join("state"))?);
+    let listed = || {
+        format!(
+            "team: {} account(s), owner {}",
+            team.count(),
+            team.owner_email().unwrap_or_default()
+        )
+    };
     match &opts.owner {
-        Some(owner) if team.seed(&owner.email, &owner.password)? => {
-            log::info!("created the owner account {}", owner.email);
+        Some(owner) => {
+            let created = team
+                .seed(&owner.email, &owner.password)
+                .map_err(|e| format!("--email/--password: {}", e))?;
+            if created {
+                log::info!("created the owner account {}", owner.email);
+            } else {
+                log::info!("{}; --email/--password only seed the first one", listed());
+            }
         }
-        _ if team.count() == 0 => {
+        None if team.count() == 0 => {
             log::info!("no accounts yet: the first visitor creates the owner account");
         }
-        _ => log::info!(
-            "team: {} account(s), owner {}{}",
-            team.count(),
-            team.owner_email().unwrap_or_default(),
-            if opts.owner.is_some() {
-                "; --email/--password only seed the first one"
-            } else {
-                ""
-            }
-        ),
+        None => log::info!("{}", listed()),
     }
     let auth = auth::Auth::new(team.clone());
     let capabilities = capabilities();

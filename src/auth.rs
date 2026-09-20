@@ -240,7 +240,7 @@ pub async fn login(State(st): State<Shared>, Json(body): Json<LoginBody>) -> Res
 pub async fn onboard(State(st): State<Shared>, Json(body): Json<LoginBody>) -> Response {
     let state = st.clone();
     let created =
-        tokio::task::spawn_blocking(move || state.team.onboard(&body.email, &body.password))
+        tokio::task::spawn_blocking(move || state.team.create_owner(&body.email, &body.password))
             .await
             .unwrap_or_else(|e| Err(e.to_string()));
     match created {
