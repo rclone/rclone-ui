@@ -2,7 +2,7 @@
 # rclone-cloud: rclone in a browser.
 #   docker build -t rclone-cloud .
 #   docker run -d -p 5573:5573 -e RCLONE_CLOUD_PASSWORD=change-me \
-#     -v rclone-ui:/data -v rclone-ui-config:/config/rclone rclone-cloud
+#     -v rclone-cloud:/data -v rclone-cloud-config:/config/rclone rclone-cloud
 # Sign in as admin@localhost (or RCLONE_CLOUD_EMAIL) with that password; the pair seeds the owner
 # account on the first start and is ignored once accounts exist (Settings › Team).
 # Mounts need FUSE: add --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined

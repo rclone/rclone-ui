@@ -18,7 +18,7 @@ use crate::team::{AuthUser, Team};
 use crate::Shared;
 
 pub const COOKIE: &str = "rui_session";
-pub const SESSION_HEADER: &str = "x-rcloneui-session";
+pub const SESSION_HEADER: &str = "x-rclonecloud-session";
 
 /// The accounts, their live sessions, and a channel naming users whose sessions were just
 /// revoked: an open socket of theirs closes on it (a removed member must not keep receiving
@@ -189,7 +189,7 @@ pub async fn guard(State(st): State<Shared>, mut req: Request<Body>, next: Next)
         {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({ "ok": false, "error": "missing X-RcloneUI-Session header" })),
+                Json(json!({ "ok": false, "error": "missing X-RcloneCloud-Session header" })),
             )
                 .into_response();
         }

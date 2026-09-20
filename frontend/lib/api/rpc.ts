@@ -3,7 +3,7 @@
 
 import { newStreamId, registerStream, sessionId, setUnauthorizedHandler, whenReady } from './ws'
 
-const SESSION_HEADER = 'X-RcloneUI-Session'
+const SESSION_HEADER = 'X-RcloneCloud-Session'
 
 export class RpcError extends Error {
     constructor(

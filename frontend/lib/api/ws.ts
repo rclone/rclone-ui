@@ -1,6 +1,6 @@
 // The page's WebSocket to the server: stream events for RPCs the page started (`stream` ids)
 // and every bus event (`{type:'event', name, payload}`). Reconnects with backoff; a session id
-// identifies this page on every RPC (`X-RcloneUI-Session`) so the server knows which socket a
+// identifies this page on every RPC (`X-RcloneCloud-Session`) so the server knows which socket a
 // stream belongs to.
 
 export const sessionId: string =

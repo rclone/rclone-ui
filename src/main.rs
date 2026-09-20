@@ -11,7 +11,7 @@ use rclone_cloud::lifecycle::Options as LifecycleOptions;
 #[command(
     name = "rclone-cloud",
     version,
-    about = "Rclone UI served to a browser"
+    about = "Rclone Cloud served to a browser"
 )]
 struct Cli {
     #[command(subcommand)]

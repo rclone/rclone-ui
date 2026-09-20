@@ -22,7 +22,7 @@ import {
 // an fs string), and every expectation is rclone's semantics. The app used to tell remote from
 // local by the substring `:/`; that is what the Commander path bar got wrong on `remote:folder`.
 
-const SESSION = { 'X-RcloneUI-Session': 'e2e', 'Content-Type': 'application/json' }
+const SESSION = { 'X-RcloneCloud-Session': 'e2e', 'Content-Type': 'application/json' }
 
 type Kind = 'remote' | 'local' | 'invalid'
 interface Scenario {

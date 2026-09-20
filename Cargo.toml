@@ -2,7 +2,7 @@
 
 [package]
 name = "rclone-cloud"
-description = "Rclone UI served to a browser: the core behind an HTTP/WebSocket API, serving the frontend it runs"
+description = "Rclone Cloud served to a browser: the core behind an HTTP/WebSocket API, serving the frontend it runs"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.77.2"

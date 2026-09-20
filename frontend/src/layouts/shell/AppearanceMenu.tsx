@@ -54,7 +54,7 @@ export default function AppearanceMenu({ className }: { className?: string }) {
                         if (!key || key === 'en') return
                         const picked = LANGUAGES.find((language) => language.key === key)
                         message(
-                            `${picked?.label ?? 'That language'} is not available yet. Rclone UI stays in English until the translations are ready.`,
+                            `${picked?.label ?? 'That language'} is not available yet. Rclone Cloud stays in English until the translations are ready.`,
                             { title: 'Coming soon', kind: 'info' }
                         )
                     }}

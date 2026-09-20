@@ -48,7 +48,7 @@ fn build_request(
         "discord" => Ok(OutboundRequest {
             url: target.url.clone(),
             body: json!({
-                "username": "Rclone UI",
+                "username": "Rclone Cloud",
                 "embeds": [{
                     "title": title,
                     "description": body,
@@ -88,7 +88,7 @@ fn build_request(
         _ => Ok(OutboundRequest {
             url: target.url.clone(),
             body: json!({
-                "source": "rclone-ui",
+                "source": "rclone-cloud",
                 "version": env!("CARGO_PKG_VERSION"),
                 "event": event.id,
                 "label": event.label,
@@ -115,7 +115,7 @@ fn recipients_of(url: &str) -> Vec<String> {
 /// The mail's text: the event's body and a line saying what sent it. Plain text, as the
 /// webhooks carry plain fields; the subject is the event's title.
 fn mail_text(body: &str) -> String {
-    format!("{}\n\n— Rclone UI v{}", body, env!("CARGO_PKG_VERSION"))
+    format!("{}\n\n— Rclone Cloud v{}", body, env!("CARGO_PKG_VERSION"))
 }
 
 /// `settings` is the SMTP file as read at fire time: `None` when the screen has never saved a
@@ -158,7 +158,7 @@ fn send_once(
         let result = crate::rt::block_on(async {
             let mut req = client.post(&request.url).json(&request.body);
             if request.event_header {
-                req = req.header("X-RcloneUI-Event", event_id);
+                req = req.header("X-RcloneCloud-Event", event_id);
             }
             req.send().await
         });
@@ -269,9 +269,9 @@ pub fn send_test(
     let event = &catalog::TEST_EVENT;
     let body = match name {
         Some(n) if !n.is_empty() => {
-            format!("This is a test notification from Rclone UI for \"{}\".", n)
+            format!("This is a test notification from Rclone Cloud for \"{}\".", n)
         }
-        _ => "This is a test notification from Rclone UI.".to_string(),
+        _ => "This is a test notification from Rclone Cloud.".to_string(),
     };
     if provider == "email" {
         let result = smtp::load(dirs)
@@ -410,8 +410,8 @@ mod tests {
         let raw = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
         assert!(raw.contains("POST /hook"));
         assert!(
-            raw.contains("x-rcloneui-event: schedule.completed")
-                || raw.contains("X-RcloneUI-Event: schedule.completed")
+            raw.contains("x-rclonecloud-event: schedule.completed")
+                || raw.contains("X-RcloneCloud-Event: schedule.completed")
         );
         let body_json: Value = serde_json::from_str(raw.split("\r\n\r\n").nth(1).unwrap()).unwrap();
         assert_eq!(body_json["event"], "schedule.completed");
@@ -477,8 +477,8 @@ mod tests {
                 encryption: "none".into(),
                 username: String::new(),
                 password: None,
-                from_address: "rclone-ui@example.com".into(),
-                from_name: "Rclone UI".into(),
+                from_address: "rclone-cloud@example.com".into(),
+                from_name: "Rclone Cloud".into(),
             },
         )
         .unwrap();
@@ -507,7 +507,7 @@ mod tests {
 
         let session = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
         assert!(
-            session.contains("MAIL FROM:<rclone-ui@example.com>"),
+            session.contains("MAIL FROM:<rclone-cloud@example.com>"),
             "{}",
             session
         );
@@ -605,7 +605,7 @@ mod tests {
             ts,
         )
         .unwrap();
-        assert_eq!(discord.body["username"], "Rclone UI");
+        assert_eq!(discord.body["username"], "Rclone Cloud");
         assert_eq!(discord.body["embeds"][0]["color"], 0xe74c3c);
 
         let telegram = build_request(
@@ -635,7 +635,7 @@ mod tests {
         )
         .unwrap();
         assert!(generic.event_header);
-        assert_eq!(generic.body["source"], "rclone-ui");
+        assert_eq!(generic.body["source"], "rclone-cloud");
         assert_eq!(generic.body["event"], "schedule.failed");
         assert_eq!(generic.body["label"], "Scheduled task failed");
         assert_eq!(generic.body["severity"], "error");

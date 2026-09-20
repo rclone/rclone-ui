@@ -6,11 +6,11 @@ notifications, served to a browser. One binary runs the HTTP API, the pages and 
 ## Run it
 
 ```sh
-docker run -d --name rclone-ui \
+docker run -d --name rclone-cloud \
   -p 5573:5573 \
   -e RCLONE_CLOUD_PASSWORD=change-me \
-  -v rclone-ui:/data \
-  -v rclone-ui-config:/config/rclone \
+  -v rclone-cloud:/data \
+  -v rclone-cloud-config:/config/rclone \
   ghcr.io/rclone-ui/rclone-cloud
 ```
 

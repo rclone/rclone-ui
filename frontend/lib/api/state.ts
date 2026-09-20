@@ -36,7 +36,7 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
     const response = await fetch(path, {
         ...init,
         credentials: 'same-origin',
-        headers: { 'X-RcloneUI-Session': sessionId, ...(init.headers ?? {}) },
+        headers: { 'X-RcloneCloud-Session': sessionId, ...(init.headers ?? {}) },
     })
     if (response.status === 401 && window.location.pathname !== '/login') {
         window.location.assign('/login')

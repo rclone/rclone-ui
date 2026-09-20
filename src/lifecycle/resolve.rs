@@ -121,7 +121,7 @@ pub async fn available_releases(limit: usize) -> Result<Vec<serde_json::Value>, 
     let response = client
         .get("https://api.github.com/repos/rclone/rclone/releases?per_page=30")
         .header("accept", "application/vnd.github+json")
-        .header("user-agent", "rclone-ui")
+        .header("user-agent", "rclone-cloud")
         .send()
         .await
         .map_err(|e| e.to_string())?;

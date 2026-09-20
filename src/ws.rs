@@ -1,5 +1,5 @@
 //! One WebSocket per page. The page identifies itself with a uuid (`{type:'hello', session}`)
-//! and sends the same uuid as `X-RcloneUI-Session` on every RPC, so a streaming command started
+//! and sends the same uuid as `X-RcloneCloud-Session` on every RPC, so a streaming command started
 //! over HTTP knows which socket carries its events. Frames the server sends:
 //!
 //! - `{type:'ready'}` after hello, `{type:'pong'}` for `{type:'ping'}`

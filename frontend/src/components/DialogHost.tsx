@@ -68,7 +68,7 @@ function MessageDialog({
             placement="center"
         >
             <ModalContent>
-                <ModalHeader>{request.title ?? 'Rclone UI'}</ModalHeader>
+                <ModalHeader>{request.title ?? 'Rclone Cloud'}</ModalHeader>
                 <ModalBody>
                     <p className="whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">
                         {request.message}

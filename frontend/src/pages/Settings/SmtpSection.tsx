@@ -129,7 +129,7 @@ export default function SmtpSection() {
         >
             <SettingsGroup
                 title="Server"
-                description="The mail server this Rclone UI sends email notifications through."
+                description="The mail server this Rclone Cloud sends email notifications through."
             >
                 <Input
                     label="Host"
@@ -196,7 +196,7 @@ export default function SmtpSection() {
             >
                 <Input
                     label="From address"
-                    placeholder="rclone-ui@example.com"
+                    placeholder="rclone-cloud@example.com"
                     value={draft.fromAddress}
                     onValueChange={set('fromAddress')}
                     autoCapitalize="off"
@@ -206,7 +206,7 @@ export default function SmtpSection() {
                 />
                 <Input
                     label="From name"
-                    placeholder="Rclone UI"
+                    placeholder="Rclone Cloud"
                     value={draft.fromName}
                     onValueChange={set('fromName')}
                 />

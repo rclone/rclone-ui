@@ -138,7 +138,7 @@ pub fn save(dirs: &DataDir, input: SmtpInput) -> Result<SmtpView, String> {
     }
     let from_address = input.from_address.trim().to_string();
     if from_address.is_empty() {
-        return Err("Enter the from address, as in rclone-ui@example.com.".to_string());
+        return Err("Enter the from address, as in rclone-cloud@example.com.".to_string());
     }
     mailbox(&from_address, "")?;
 
@@ -309,8 +309,8 @@ pub(crate) mod tests {
             encryption: "none".into(),
             username: "postmaster".into(),
             password: Some("hunter2".into()),
-            from_address: "rclone-ui@example.com".into(),
-            from_name: "Rclone UI".into(),
+            from_address: "rclone-cloud@example.com".into(),
+            from_name: "Rclone Cloud".into(),
         }
     }
 
@@ -388,19 +388,19 @@ pub(crate) mod tests {
             encryption: "none".into(),
             username: String::new(),
             password: String::new(),
-            from_address: "rclone-ui@example.com".into(),
-            from_name: "Rclone UI".into(),
+            from_address: "rclone-cloud@example.com".into(),
+            from_name: "Rclone Cloud".into(),
         };
         send(
             &settings,
             &["ops@example.com".into(), "alice@example.com".into()],
             "Test notification",
-            "This is a test notification from Rclone UI.\n\n— Rclone UI v3",
+            "This is a test notification from Rclone Cloud.\n\n— Rclone Cloud v3",
         )
         .unwrap();
         let session = rx.recv_timeout(Duration::from_secs(5)).unwrap();
         assert!(
-            session.contains("MAIL FROM:<rclone-ui@example.com>"),
+            session.contains("MAIL FROM:<rclone-cloud@example.com>"),
             "{}",
             session
         );
@@ -415,7 +415,7 @@ pub(crate) mod tests {
             .find(|l| l.starts_with("From:"))
             .unwrap_or_else(|| panic!("no From header in {}", session));
         assert!(
-            from.contains("Rclone UI") && from.contains("<rclone-ui@example.com>"),
+            from.contains("Rclone Cloud") && from.contains("<rclone-cloud@example.com>"),
             "{}",
             from
         );
@@ -425,11 +425,11 @@ pub(crate) mod tests {
             session
         );
         assert!(
-            session.contains("This is a test notification from Rclone UI."),
+            session.contains("This is a test notification from Rclone Cloud."),
             "{}",
             session
         );
-        assert!(session.contains("Rclone UI v3"), "{}", session);
+        assert!(session.contains("Rclone Cloud v3"), "{}", session);
     }
 
     #[test]
@@ -438,7 +438,7 @@ pub(crate) mod tests {
             host: "127.0.0.1".into(),
             port: 9,
             encryption: "none".into(),
-            from_address: "rclone-ui@example.com".into(),
+            from_address: "rclone-cloud@example.com".into(),
             ..Default::default()
         };
         let err = send(&settings, &["nope".into()], "T", "B").unwrap_err();

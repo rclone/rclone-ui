@@ -440,7 +440,7 @@ impl TransferService {
                 if replaced {
                     self.give_up(&started.id, State::Interrupted, None);
                 } else {
-                    let error = "It ended while Rclone UI was not running, and rclone no longer remembers how.";
+                    let error = "It ended while Rclone Cloud was not running, and rclone no longer remembers how.";
                     self.give_up(&started.id, State::Unknown, Some(error.into()));
                 }
             }

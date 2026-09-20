@@ -30,7 +30,7 @@ const SKIP_REQUEST: &[&str] = &[
     "origin",
     "referer",
     "content-length",
-    "x-rcloneui-session",
+    "x-rclonecloud-session",
 ];
 const SKIP_RESPONSE: &[&str] = &[
     "connection",

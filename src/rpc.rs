@@ -33,7 +33,7 @@ pub fn reply(result: Result<Reply, String>) -> Response {
     }
 }
 
-/// The page's session id (`X-RcloneUI-Session`), which its WebSocket said hello with.
+/// The page's session id (`X-RcloneCloud-Session`), which its WebSocket said hello with.
 pub fn session_of(headers: &HeaderMap) -> String {
     headers
         .get(SESSION_HEADER)

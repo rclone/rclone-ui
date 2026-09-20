@@ -16,7 +16,7 @@ const queryClient = new QueryClient({
 
 const persister = createSyncStoragePersister({
     storage: window.localStorage,
-    key: 'rclone-ui-persisted-query-cache',
+    key: 'rclone-cloud-persisted-query-cache',
     throttleTime: 1000,
 })
 

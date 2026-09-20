@@ -44,7 +44,7 @@ function collectErrors(page: Page) {
     return errors
 }
 
-const SESSION = { 'X-RcloneUI-Session': 'e2e', 'Content-Type': 'application/json' }
+const SESSION = { 'X-RcloneCloud-Session': 'e2e', 'Content-Type': 'application/json' }
 const ACTIONS_MENU = /^Actions for/
 const ALL_REMOTES = /^All remotes/
 const SIDEBAR_REMOTE = /^sb-/
@@ -856,7 +856,7 @@ test('the rc proxy reaches the daemon and streams file bytes', async ({ request 
 
     // Upload through the proxy (multipart), then read it back with a Range through --rc-serve.
     const upload = await request.post('/api/rc/operations/uploadfile?fs=e2e-memory:&remote=dir', {
-        headers: { 'X-RcloneUI-Session': 'e2e' },
+        headers: { 'X-RcloneCloud-Session': 'e2e' },
         multipart: {
             file0: {
                 name: 'hello.txt',
@@ -867,7 +867,7 @@ test('the rc proxy reaches the daemon and streams file bytes', async ({ request 
     })
     expect(upload.ok()).toBe(true)
     const partial = await request.get('/api/rc/[e2e-memory:]/dir/hello.txt', {
-        headers: { 'X-RcloneUI-Session': 'e2e', Range: 'bytes=0-4' },
+        headers: { 'X-RcloneCloud-Session': 'e2e', Range: 'bytes=0-4' },
     })
     expect(partial.status()).toBe(206)
     expect(await partial.text()).toBe('hello')
@@ -941,7 +941,7 @@ test('the team: an admin adds a member, the member signs in, removal ends their 
             fetchStatus: 'idle',
         }
         localStorage.setItem(
-            'rclone-ui-persisted-query-cache',
+            'rclone-cloud-persisted-query-cache',
             JSON.stringify({
                 timestamp: Date.now(),
                 buster: '',
@@ -1029,7 +1029,7 @@ test('asset-like file names never bypass the API guard', async ({ request }) => 
     // ask the password-protected one for the file without a session. The proxy injects the
     // daemon's credentials, so it must refuse whatever the file is called.
     const upload = await request.post('/api/rc/operations/uploadfile?fs=e2e-memory:&remote=guard', {
-        headers: { 'X-RcloneUI-Session': 'e2e' },
+        headers: { 'X-RcloneCloud-Session': 'e2e' },
         multipart: {
             file0: {
                 name: 'secret.png',
@@ -1408,7 +1408,7 @@ test('the sidebar lists the five newest remotes, then all of them with a count',
     // daemon's answer, and let the sidebar record what it saw before moving on.
     const freshLoad = async () => {
         await page.goto('/')
-        await page.evaluate(() => localStorage.removeItem('rclone-ui-persisted-query-cache'))
+        await page.evaluate(() => localStorage.removeItem('rclone-cloud-persisted-query-cache'))
         const noted = page
             .waitForResponse(
                 (response) =>
@@ -2001,7 +2001,7 @@ test('saving a config file is not moving files, as far as getting started goes',
         const written = await context.request.post(
             `/api/rc/operations/uploadfile?fs=${encodeURIComponent(root)}&remote=`,
             {
-                headers: { 'X-RcloneUI-Session': 'e2e' },
+                headers: { 'X-RcloneCloud-Session': 'e2e' },
                 multipart: {
                     file0: {
                         name: 'rclone.conf',
@@ -2195,8 +2195,8 @@ test('an email notification goes out through the SMTP settings', async ({ page, 
         encryption: 'none',
         username: '',
         password: null,
-        fromAddress: 'rclone-ui@example.com',
-        fromName: 'Rclone UI e2e',
+        fromAddress: 'rclone-cloud@example.com',
+        fromName: 'Rclone Cloud e2e',
     })
     const saved = await rpc('smtp_set', { settings: settings(mail.host, mail.port) })
     expect(saved.error).toBeUndefined()
@@ -2222,13 +2222,13 @@ test('an email notification goes out through the SMTP settings', async ({ page, 
         await page.getByRole('button', { name: 'Ok', exact: true }).click()
         expect(mail.received).toHaveLength(1)
         const [sent] = mail.received
-        expect(sent.from).toBe('rclone-ui@example.com')
+        expect(sent.from).toBe('rclone-cloud@example.com')
         expect(sent.to).toEqual(['ops@example.com', 'alice@example.com'])
         expect(sent.message).toContain('Subject: Test notification')
-        expect(sent.message).toMatch(/^From: .*Rclone UI e2e.*<rclone-ui@example.com>/m)
-        expect(sent.message).toContain('This is a test notification from Rclone UI for "Ops".')
+        expect(sent.message).toMatch(/^From: .*Rclone Cloud e2e.*<rclone-cloud@example.com>/m)
+        expect(sent.message).toContain('This is a test notification from Rclone Cloud for "Ops".')
         // The footer's dash travels quoted-printable, as any mail client reads it back.
-        expect(sent.message).toContain('=E2=80=94 Rclone UI v')
+        expect(sent.message).toContain('=E2=80=94 Rclone Cloud v')
         await expect(card.locator('svg.text-warning')).toHaveCount(0)
 
         // A server that does not answer: the test says so, and the card wears the warning.

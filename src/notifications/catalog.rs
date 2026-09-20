@@ -104,7 +104,7 @@ pub const EVENTS: [EventMeta; 10] = [
     EventMeta {
         id: "app.update-available",
         label: "App update available",
-        description: "A new Rclone UI version is available",
+        description: "A new Rclone Cloud version is available",
         category: "system",
         severity: "info",
     },
