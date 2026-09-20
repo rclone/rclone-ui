@@ -20,7 +20,7 @@ pub struct UpdateInfo {
 /// raw binaries, each signed with minisign. Read from the rolling `cloud-latest` release and not
 /// from `releases/latest`, which in this repository is the desktop app's.
 const MANIFEST: &str =
-    "https://github.com/rclone-ui/rclone-ui/releases/download/cloud-latest/cloud-latest.json";
+    "https://github.com/rclone/rclone-ui/releases/download/cloud-latest/cloud-latest.json";
 /// Base64 of the minisign public key file.
 const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIyNDFENEZGNjFDNTBGOEYKUldTUEQ4VmgvOVJCSWhVZmw0enhmcW1kWFk3TS9mMzBDRjVEZWdxKzQ5ZmRhTlYvT2gvdFNMbE8K";
 

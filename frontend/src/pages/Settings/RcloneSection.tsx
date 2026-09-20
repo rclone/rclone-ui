@@ -6,7 +6,24 @@ import { startTransition, useEffect, useMemo, useState } from 'react'
 
 import { ask, message, pickPath } from '@/dialog'
 import { formatErrorMessage, reportError } from '@/lib/errors'
-import { RCLONE_RELEASES_STEP, RCLONE_RELEASES_SHOWN } from '@/lib/rclone/constants'
+import { RCLONE_RELEASES_SHOWN, RCLONE_RELEASES_STEP } from '@/lib/rclone/constants'
+import { openUrl } from '@/navigate'
+import {
+    type RcloneBinary,
+    type UpdateInfo,
+    daemonSettingsSet,
+    rcloneBinary,
+    rcloneSetCustom,
+    relaunch,
+    status,
+    testProxyConnection,
+    updateCheck,
+    updateInstall,
+} from '@/server/app'
+import { capabilities } from '@/server/boot'
+import { usePersistedStore } from '@/store'
+import BaseSection from './BaseSection'
+import SettingsGroup from './SettingsGroup'
 import {
     type DownloadProgress,
     confirmIfBusy,
@@ -14,23 +31,6 @@ import {
     installVersion,
     isRcloneBusy,
 } from './rcloneVersions'
-import {
-    type RcloneBinary,
-    type UpdateInfo,
-    daemonSettingsSet,
-    rcloneBinary,
-    testProxyConnection,
-    rcloneSetCustom,
-    relaunch,
-    status,
-    updateCheck,
-    updateInstall,
-} from '@/server/app'
-import { capabilities } from '@/server/boot'
-import { openUrl } from '@/navigate'
-import { usePersistedStore } from '@/store'
-import SettingsGroup from './SettingsGroup'
-import BaseSection from './BaseSection'
 
 // The one screen for the rclone the server runs: which binary, the limits every transfer shares,
 // the proxy it reaches the world through, and the server's own updates. There is no group for a
@@ -766,7 +766,7 @@ function UpdateSettings() {
                 // The repository's Latest is the desktop app's; the cloud's releases are tagged.
                 if (manual) {
                     await openUrl(
-                        `https://github.com/rclone-ui/rclone-ui/releases/tag/cloud-v${update.version}`
+                        `https://github.com/rclone/rclone-ui/releases/tag/cloud-v${update.version}`
                     )
                 }
                 return
