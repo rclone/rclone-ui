@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { defineConfig } from '@playwright/test'
 import { SERVER_BIN } from './e2e/helpers'
 
@@ -14,7 +14,12 @@ if (!process.env.TEST_WORKER_INDEX) {
     mkdirSync(`${tmp}open`, { recursive: true })
     mkdirSync(`${tmp}auth`, { recursive: true })
     mkdirSync(`${tmp}managed`, { recursive: true })
-    writeFileSync(`${tmp}rclone.conf`, '[e2e-memory]\ntype = memory\n')
+    // The config is a symlink, as a desktop install's often is. rclone's local backend reports
+    // a link's size as the length of its target, so a target shorter than the file is the case
+    // that once read back as nothing.
+    mkdirSync(`${tmp}conf`, { recursive: true })
+    writeFileSync(`${tmp}conf/rclone.conf`, '[e2e-memory]\ntype = memory\n')
+    symlinkSync('conf/rclone.conf', `${tmp}rclone.conf`)
 }
 
 // The external-daemon servers point at the shared `rclone rcd`; the managed one spawns its own.

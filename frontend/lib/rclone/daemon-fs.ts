@@ -18,9 +18,20 @@ function split(path: string): { dir: string; name: string } {
     return { dir: cut > 0 ? path.slice(0, cut) : path.slice(0, cut + 1), name: path.slice(cut + 1) }
 }
 
+/**
+ * The folder as a local backend that follows symlinks. rclone's own config file is often one,
+ * and the plain backend takes a link's size to be the length of its target: it then answers
+ * 200 with no body for a file longer than that, and cannot read back what it wrote through one.
+ */
+function throughLinks(dir: string): string {
+    return `:local,copy_links=true:${dir}`
+}
+
 export async function readFile(path: string): Promise<string> {
     const { dir, name } = split(path)
-    const response = await rcFetch(`[${encodeURIComponent(dir)}]/${encodeURIComponent(name)}`)
+    const response = await rcFetch(
+        `[${encodeURIComponent(throughLinks(dir))}]/${encodeURIComponent(name)}`
+    )
     if (!response.ok) {
         throw new Error(
             `rclone could not read ${path} (${response.status}). The daemon needs --rc-serve.`
@@ -33,7 +44,7 @@ export async function writeFile(path: string, text: string): Promise<void> {
     const { dir, name } = split(path)
     const body = new FormData()
     body.append('file0', new File([text], name))
-    const params = new URLSearchParams({ fs: dir, remote: '' })
+    const params = new URLSearchParams({ fs: throughLinks(dir), remote: '' })
     const response = await rcFetch(`operations/uploadfile?${params}`, {
         method: 'POST',
         body,

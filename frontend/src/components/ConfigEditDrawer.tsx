@@ -60,7 +60,14 @@ export default function ConfigEditDrawer({
 
     useEffect(() => {
         if (isOpen && configContent === null) {
-            readDaemonConfig().then(({ text }) => startTransition(() => setConfigContent(text)))
+            readDaemonConfig()
+                .then(({ text }) => startTransition(() => setConfigContent(text)))
+                .catch(
+                    onErrorDialog('Failed to read config', undefined, {
+                        capture: false,
+                        log: ['[ConfigEditDrawer] failed to read config'],
+                    })
+                )
         }
 
         if (!isOpen) {

@@ -2,6 +2,7 @@ import {
     appendFileSync,
     chmodSync,
     existsSync,
+    lstatSync,
     mkdirSync,
     mkdtempSync,
     readFileSync,
@@ -1991,6 +1992,10 @@ test('renaming a remote carries its settings along', async ({ page, request }) =
         // names the path the daemon reported, which is the only place that path comes from.
         await page.getByRole('button', { name: 'Edit config file' }).click()
         await expect(page.getByRole('dialog').getByText(configFile)).toBeVisible()
+        // The file is a symlink here. Its text is read through the link, not as the few bytes
+        // the link itself is, and the save above went into its target: it is a link still.
+        await expect(page.getByRole('dialog').getByRole('textbox')).toHaveValue(/\[sb-after\]/)
+        expect(lstatSync(configFile).isSymbolicLink()).toBe(true)
         await expect(page.getByRole('dialog').locator('textarea[name="content"]')).toHaveValue(
             /\[sb-after\]/
         )
