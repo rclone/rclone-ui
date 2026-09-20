@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import rclone from '../../../lib/rclone/client.ts'
-import { usePersistedStore } from '../../../store/persisted'
+import rclone from '@/lib/rclone/client'
+import { usePersistedStore } from '@/store'
 import type {
     AllowedKey,
     Entry,
@@ -28,10 +28,10 @@ import {
     searchPath,
     serializeRemotePath,
 } from './utils'
-import { isRemote as isRemotePath, joinRemoteDir, parsePath, pathProblem } from '../../../lib/paths'
-import { folderSize, localFs } from '../../../lib/rclone/daemon-fs'
-import { home } from '../../../lib/api/paths'
-import { hostSeparator } from '../../../lib/rclone/client'
+import { isRemote as isRemotePath, joinRemoteDir, parsePath, pathProblem } from '@/lib/paths'
+import { folderSize, localFs } from '@/lib/rclone/daemon-fs'
+import { home } from '@/server/boot'
+import { hostSeparator } from '@/lib/rclone/client'
 
 const nameCollator = new Intl.Collator(undefined, {
     numeric: true,

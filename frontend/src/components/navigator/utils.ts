@@ -8,12 +8,60 @@ import {
     UsbIcon,
 } from 'lucide-react'
 import { createRef } from 'react'
-import { getFsInfo } from '../../../lib/format.ts'
-import { formatRemote, parsePath, remoteParentDir } from '../../../lib/paths'
-import rclone from '../../../lib/rclone/client.ts'
+import { getFsInfo } from '@/lib/format'
+import { formatRemote, parsePath, remoteParentDir } from '@/lib/paths'
+import rclone from '@/lib/rclone/client'
 import type { AllowedKey, SelectItem } from './types'
-import { dirname, join } from '../../../lib/api/paths'
-import { hostSeparator } from '../../../lib/rclone/client'
+import { hostSeparator } from '@/lib/rclone/client'
+
+const WINDOWS_DRIVE = /^[a-zA-Z]:[\\/]/
+
+function isSeparator(ch: string): boolean {
+    return ch === '/' || ch === '\\'
+}
+
+/// Lexical normalization of a path on the daemon's machine (`.` / `..`, duplicate separators),
+/// no filesystem access.
+function normalize(path: string): string {
+    if (!path) return ''
+    const sep = hostSeparator()
+    const windows = sep === '\\'
+    let prefix = ''
+    let rest = path
+    if (windows && WINDOWS_DRIVE.test(path)) {
+        prefix = path.slice(0, 2) + sep
+        rest = path.slice(3)
+    } else if (isSeparator(path[0]!)) {
+        prefix = sep
+        rest = path.slice(1)
+    }
+    const out: string[] = []
+    for (const part of rest.split(/[\\/]+/)) {
+        if (!part || part === '.') continue
+        if (part === '..') {
+            if (out.length && out[out.length - 1] !== '..') out.pop()
+            else if (!prefix) out.push('..')
+            continue
+        }
+        out.push(part)
+    }
+    return prefix + out.join(sep)
+}
+
+export function join(...parts: string[]): string {
+    const filtered = parts.filter((p) => p !== undefined && p !== null && p !== '')
+    if (filtered.length === 0) return ''
+    return normalize(filtered.join(hostSeparator()))
+}
+
+export function dirname(path: string): string {
+    const trimmed = path.replace(/[\\/]+$/, '')
+    const index = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+    if (index === -1) return '.'
+    if (index === 0) return trimmed[0]!
+    if (hostSeparator() === '\\' && index === 2 && WINDOWS_DRIVE.test(trimmed)) return trimmed.slice(0, 3)
+    return trimmed.slice(0, index)
+}
 
 export const dragStateRef = createRef<SelectItem[] | null>() as { current: SelectItem[] | null }
 dragStateRef.current = null

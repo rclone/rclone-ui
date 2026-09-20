@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { SESSION, signIn, stopLeftoverJobs } from './helpers'
-import type { TransferDetail, TransferEntry } from '../lib/api/transfers'
+import type { TransferDetail, TransferEntry } from '../src/server/transfers'
 
 // Schedules: a scheduled run is a transfer on the daemon the server already runs.
 

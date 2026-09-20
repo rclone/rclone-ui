@@ -17,8 +17,8 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { MoreHorizontalIcon, PlusIcon } from 'lucide-react'
 import { useState } from 'react'
-import { ask, message, prompt } from '../../../lib/api/dialog'
-import { ROLE_LABEL, type Role, type SessionUser, useSession } from '../../../lib/api/session'
+import { ask, message, prompt } from '@/dialog'
+import { ROLE_LABEL, type Role, type SessionUser, useSession } from '@/server/session'
 import {
     type Member,
     removeMember,
@@ -26,7 +26,7 @@ import {
     setMemberPassword,
     setMemberRole,
     useTeam,
-} from '../../../lib/team'
+} from '@/lib/team'
 import BaseSection from './BaseSection'
 import TeamMemberDrawer from './TeamMemberDrawer'
 

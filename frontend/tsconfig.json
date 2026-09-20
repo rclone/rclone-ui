@@ -19,7 +19,11 @@
         "strict": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
-        "noFallthroughCasesInSwitch": true
+        "noFallthroughCasesInSwitch": true,
+
+        /* One tree: `@/` is `src/` (vite.config.ts aliases it the same way) */
+        "baseUrl": ".",
+        "paths": { "@/*": ["src/*"] }
     },
-    "include": ["src", "lib", "store", "types", "reset.d.ts"]
+    "include": ["src", "reset.d.ts"]
 }

@@ -3,7 +3,7 @@ import { Button } from '@heroui/react'
 
 import { ArrowDownUp, FolderOpen, XIcon } from 'lucide-react'
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { pathProblem } from '../../lib/paths'
+import { pathProblem } from '@/lib/paths'
 import PathSelector from './PathSelector'
 import type { AllowedKey } from './navigator/types'
 

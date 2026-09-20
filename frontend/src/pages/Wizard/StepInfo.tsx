@@ -1,6 +1,6 @@
 import { Button } from '@heroui/react'
 import { ExternalLinkIcon } from 'lucide-react'
-import { openUrl } from '../../../lib/api/shell'
+import { openUrl } from '@/navigate'
 import type { Info } from './flow'
 
 /**

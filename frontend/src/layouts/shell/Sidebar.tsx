@@ -2,8 +2,8 @@ import { Tooltip, cn } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { type ReactElement, useEffect, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import rclone from '../../../lib/rclone/client'
-import { usePersistedStore } from '../../../store/persisted'
+import rclone from '@/lib/rclone/client'
+import { usePersistedStore } from '@/store'
 import {
     REMOTES_SHOWN,
     allRemotesLeaf,

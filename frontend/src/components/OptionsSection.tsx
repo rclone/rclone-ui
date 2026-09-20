@@ -9,15 +9,15 @@ import {
 } from '@heroui/react'
 import { ChevronDownIcon, LockKeyholeIcon, LockOpenIcon } from 'lucide-react'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { replaceSmartQuotes } from '../../lib/format'
-import { metadataOptionsProblem } from '../../lib/rclone/metadataMapper'
+import { replaceSmartQuotes } from '@/lib/format'
+import { metadataOptionsProblem } from '@/lib/rclone/metadataMapper'
 import {
     optionChoices,
     parseBooleanString,
     parseTristateString,
     toOptionValue,
-} from '../../lib/rclone/optionTypes'
-import type { FlagValue } from '../../types/rclone'
+} from '@/lib/rclone/optionTypes'
+import type { FlagValue } from '@/lib/rclone/types'
 import MetadataMapper from './MetadataMapper'
 
 type AvailableOption = {

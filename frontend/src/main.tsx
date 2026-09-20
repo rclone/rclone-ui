@@ -1,19 +1,17 @@
-// The page's platform layer (lib/api) talks to the server that served it. Every page is a
-// route under the Shell.
+// The pages talk to the server that served them (src/server). Every page is a route under the
+// Shell.
 import './global.css'
 import { HeroUIProvider, ToastProvider } from '@heroui/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider, createBrowserRouter } from 'react-router-dom'
-import { CapabilitiesProvider } from '../lib/api/host'
-import { forwardConsole } from '../lib/api/log'
-import { connect, onReconnect } from '../lib/api/ws'
-import * as api from '../lib/api'
-import queryClient from '../lib/query'
-import { reconnectRemote } from '../lib/rclone/api'
-import { setReconnectHandler } from '../lib/rclone/client'
-import { useTheme } from '../lib/theme'
+import { forwardConsole } from '@/server/log'
+import { connect, onReconnect } from '@/server/ws'
+import { stateStorage, whenWritten } from '@/server/state'
+import * as dialog from '@/dialog'
+import queryClient from '@/lib/query'
+import { useTheme } from '@/lib/theme'
 import Shell from './layouts/shell/Shell'
 import Bisync from './pages/Bisync'
 import Commander from './pages/Commander'
@@ -25,6 +23,7 @@ import Login from './pages/Login'
 import Mount from './pages/Mount'
 import Move from './pages/Move'
 import Purge from './pages/Purge'
+import Remotes from './pages/Remotes'
 import Schedules from './pages/Schedules'
 import Serve from './pages/Serve'
 import SectionPage from './pages/Settings/SectionPage'
@@ -33,7 +32,8 @@ import Templates from './pages/Templates'
 import Transfers from './pages/Transfers'
 import Wizard from './pages/Wizard'
 
-// The platform layer, reachable from the devtools console (and the e2e suite).
+// What the e2e suite drives from the devtools console: the dialogs, and the state adapter.
+const api = { dialog, state: { stateStorage, whenWritten } }
 ;(window as unknown as { __RCLONE_CLOUD_API__: typeof api }).__RCLONE_CLOUD_API__ = api
 
 connect()
@@ -42,9 +42,6 @@ onReconnect(() => queryClient.invalidateQueries())
 
 // Every page's console goes to the server's log file (rotated, so it can take all of it).
 forwardConsole()
-
-// The client's reconnect flow needs the API layer, which imports the client: wired here.
-setReconnectHandler(reconnectRemote)
 
 const pageRoutes = [
     { path: '/sync', element: <Sync /> },
@@ -70,7 +67,7 @@ const router = createBrowserRouter([
         children: [
             { path: '/', element: <Dashboard /> },
             { path: '/settings/:section?', element: <SectionPage /> },
-            { path: '/remotes', element: <SectionPage section="remotes" /> },
+            { path: '/remotes', element: <Remotes /> },
             // Plain questions that lead to an operation.
             { path: '/wizard', element: <Wizard /> },
             ...pageRoutes,
@@ -105,12 +102,10 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <React.StrictMode>
         <QueryClientProvider client={queryClient}>
             <HeroUIProvider>
-                <CapabilitiesProvider>
-                    <ThemeProvider>
-                        <RouterProvider router={router} />
-                        <ToastProvider placement="bottom-right" />
-                    </ThemeProvider>
-                </CapabilitiesProvider>
+                <ThemeProvider>
+                    <RouterProvider router={router} />
+                    <ToastProvider placement="bottom-right" />
+                </ThemeProvider>
             </HeroUIProvider>
         </QueryClientProvider>
     </React.StrictMode>

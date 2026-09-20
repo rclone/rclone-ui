@@ -9,14 +9,14 @@ import {
 } from '@heroui/react'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { ClockIcon, EyeIcon } from 'lucide-react'
+import { BookOpenTextIcon, ClockIcon, EyeIcon } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback } from 'react'
-import { useSchedulingAvailable } from '../../../lib/scheduler'
+import { useSchedulingAvailable } from '@/lib/scheduler'
 
-import type { Template } from '../../../types/template'
-import CommandInfoButton from '../CommandInfoButton'
-import TemplatesDropdown from '../TemplatesDropdown'
-import { navigate } from '../../../lib/api/navigation'
+import type { Template } from '@/lib/rclone/templatePaths'
+import { rcloneDocsUrl } from '@/lib/rclone/constants'
+import TemplatesDropdown from '@/components/TemplatesDropdown'
+import { navigate } from '@/navigate'
 
 /**
  * The footer strip shared by the operation pages: TemplatesDropdown wiring, the AnimatePresence
@@ -209,5 +209,25 @@ export default function OperationFooter({
                 <CommandInfoButton command={operation} />
             </ButtonGroup>
         </>
+    )
+}
+
+/** A link to rclone's own documentation for the subcommand this page runs. */
+export function CommandInfoButton({ command }: { command: string }) {
+    return (
+        <Tooltip content="Rclone docs" placement="top" size="lg" color="foreground">
+            <Button
+                as="a"
+                href={rcloneDocsUrl(command)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Rclone docs"
+                size="lg"
+                color="primary"
+                isIconOnly={true}
+            >
+                <BookOpenTextIcon className="size-6" />
+            </Button>
+        </Tooltip>
     )
 }

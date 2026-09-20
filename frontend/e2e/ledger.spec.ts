@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, request as playwrightRequest, test } from '@playwright/test'
 import { SERVER_BIN, SESSION, signIn, stopLeftoverJobs } from './helpers'
-import type { TransferDetail } from '../lib/api/transfers'
-import { retryPlan, retryRequest } from '../lib/transfers/retry'
+import type { TransferDetail } from '../src/server/transfers'
+import { retryPlan, retryRequest } from '../src/lib/transfers/retry'
 
 // The transfer record: what the server writes about every start, and what survives a restart.
 

@@ -1,8 +1,10 @@
 import { Button, Input, Select, SelectItem } from '@heroui/react'
+import { useQuery } from '@tanstack/react-query'
 import cronstrue from 'cronstrue'
 import { ClockIcon, XIcon } from 'lucide-react'
 import type React from 'react'
 import { startTransition, useEffect, useMemo, useState } from 'react'
+import { schedulerValidateCron } from '@/lib/scheduler'
 
 interface CronEditorProps {
     expression: string | null
@@ -186,4 +188,28 @@ function CronField({ label, value, onChange, options }: CronFieldProps) {
 
 function generateOptions(start: number, end: number): string[] {
     return Array.from({ length: end - start + 1 }, (_, i) => (start + i).toString())
+}
+
+/**
+ * The Schedule section of the operation pages' options accordion: the editor plus live
+ * validation by the server's own matcher (scheduler_validate_cron).
+ */
+export function CronSection({
+    expression,
+    onChange,
+}: {
+    expression: string | null
+    onChange: (expr: string | null) => void
+}) {
+    const validation = useQuery({
+        queryKey: ['scheduler', 'validate-cron', expression],
+        queryFn: () => schedulerValidateCron(expression ?? ''),
+        enabled: !!expression,
+    })
+    const error =
+        expression && validation.data && !validation.data.valid
+            ? (validation.data.error ?? 'Invalid cron expression')
+            : null
+
+    return <CronEditor expression={expression} onChange={onChange} error={error} />
 }

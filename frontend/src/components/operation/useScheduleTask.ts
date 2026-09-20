@@ -1,10 +1,10 @@
 import { useMutation } from '@tanstack/react-query'
 
-import { onErrorDialog } from '../../../lib/errors'
-import { notify } from '../../../lib/notifications'
-import { createScheduledTask } from '../../../lib/scheduler'
-import type { ScheduledTask } from '../../../types/schedules'
-import { prompt } from '../../../lib/api/dialog'
+import { onErrorDialog } from '@/lib/errors'
+import { notify } from '@/lib/notifications'
+import { createScheduledTask } from '@/lib/scheduler'
+import type { ScheduledTask } from '@/lib/scheduler'
+import { prompt } from '@/dialog'
 
 /**
  * The schedule mutation shared by the operation pages: page-specific validation (path checks)

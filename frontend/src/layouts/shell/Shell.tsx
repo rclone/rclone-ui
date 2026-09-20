@@ -1,13 +1,29 @@
 import { Spinner, cn } from '@heroui/react'
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { onBusy, setNavigate } from '../../../lib/api/navigation'
-import { getSession } from '../../../lib/api/session'
-import { initStore } from '../../../store/persisted'
-import DialogHost from '../../components/DialogHost'
+import { setNavigate } from '@/navigate'
+import { getSession } from '@/server/session'
+import { initStore } from '@/store'
+import DialogHost from './DialogHost'
 import Sidebar from './Sidebar'
 import SiteHeader from './SiteHeader'
 import { useSidebarState } from './useSidebarState'
+
+// A busy overlay counter: the Shell dims the page while it is above zero. One writer, the
+// auto-mount drawer while it mounts.
+let busyCount = 0
+const busyListeners = new Set<(busy: boolean) => void>()
+
+export function setBusy(locked: boolean) {
+    busyCount = Math.max(0, busyCount + (locked ? 1 : -1))
+    for (const listener of busyListeners) listener(busyCount > 0)
+}
+
+function onBusy(listener: (busy: boolean) => void): () => void {
+    busyListeners.add(listener)
+    listener(busyCount > 0)
+    return () => busyListeners.delete(listener)
+}
 
 // The seam between the sidebar and the page: an invisible strip whose centre line lights up on
 // hover, with a resize cursor pointing the way the sidebar will move, and a click toggles it.
@@ -39,7 +55,7 @@ function SidebarRail({ collapsed, onToggle }: { collapsed: boolean; onToggle: ()
 export default function Shell() {
     const navigate = useNavigate()
     const location = useLocation()
-    const [busy, setBusy] = useState(false)
+    const [busy, setBusyState] = useState(false)
     const { collapsed, toggle } = useSidebarState(location.pathname)
     const [authState, setAuthState] = useState<'checking' | 'ok'>('checking')
 
@@ -48,7 +64,7 @@ export default function Shell() {
         return () => setNavigate(null)
     }, [navigate])
 
-    useEffect(() => onBusy(setBusy), [])
+    useEffect(() => onBusy(setBusyState), [])
 
     useEffect(() => {
         let cancelled = false

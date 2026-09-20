@@ -2,9 +2,9 @@ import { Chip, cn } from '@heroui/react'
 import { ArrowRightIcon, CheckIcon, XIcon } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useNotificationTargets } from '../../../lib/notifications'
-import { useTeam } from '../../../lib/team'
-import { type OnboardingStep, usePersistedStore } from '../../../store/persisted'
+import { useNotificationTargets } from '@/lib/notifications'
+import { useTeam } from '@/lib/team'
+import { type OnboardingStep, usePersistedStore } from '@/store'
 import { Eyebrow, Panel } from './primitives'
 
 interface Step {

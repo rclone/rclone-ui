@@ -2,7 +2,7 @@ import { Button, Checkbox, Listbox, ListboxItem, Tooltip, cn } from '@heroui/rea
 
 import { DownloadIcon, PencilIcon, Share2Icon, StarIcon, Trash2Icon } from 'lucide-react'
 import { type ReactElement, useCallback } from 'react'
-import { formatBytes } from '../../../lib/format.ts'
+import { formatBytes } from '@/lib/format'
 import FileIcon from './FileIcon'
 import type { Entry, PaddingItem, VirtualizedEntry } from './types'
 import { dragStateRef, dropTargetsRef, formatModTime } from './utils'

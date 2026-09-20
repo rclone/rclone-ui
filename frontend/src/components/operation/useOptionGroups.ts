@@ -7,7 +7,7 @@ import {
     useMemo,
     useState,
 } from 'react'
-import type { FlagValue } from '../../../types/rclone'
+import type { FlagValue } from '@/lib/rclone/types'
 
 export interface OptionGroupDef<K extends string = string> {
     // Group identity: the jsonError step name and the state key. Parse order = defs order.

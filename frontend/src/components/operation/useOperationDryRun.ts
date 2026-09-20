@@ -1,8 +1,8 @@
 import { useMutation } from '@tanstack/react-query'
 
-import { onErrorDialog } from '../../../lib/errors'
-import { ask } from '../../../lib/api/dialog'
-import { navigate } from '../../../lib/api/navigation'
+import { onErrorDialog } from '@/lib/errors'
+import { ask } from '@/dialog'
+import { navigate } from '@/navigate'
 
 /**
  * The dry-run mutation shared by the operation pages that offer one (Copy/Sync/Move/Delete).

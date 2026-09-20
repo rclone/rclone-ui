@@ -12,7 +12,7 @@ import {
     WrenchIcon,
 } from 'lucide-react'
 import { type ComponentType, type ReactNode, startTransition, useEffect, useMemo } from 'react'
-import { usePersistedStore } from '../../../store/persisted'
+import { usePersistedStore } from '@/store'
 
 // Avatar/indicator/title per option category — exactly what each page's accordion rendered.
 export const CATEGORY_META: Record<

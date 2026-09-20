@@ -11,12 +11,12 @@ import {
     ServerIcon,
     Trash2Icon,
 } from 'lucide-react'
-import { buildReadablePath } from '../../../lib/format'
-import type { SERVE_TYPES } from '../../../lib/rclone/constants'
-import type { OperationPreset } from '../../../lib/rclone/preset'
-import type { FlagValue } from '../../../types/rclone'
-import type { OperationId } from '../../components/OperationGrid'
-import type { AllowedKey } from '../../components/navigator/types'
+import { buildReadablePath } from '@/lib/format'
+import type { SERVE_TYPES } from '@/lib/rclone/constants'
+import type { OperationPreset } from '@/lib/rclone/preset'
+import type { FlagValue } from '@/lib/rclone/types'
+import type { OperationId } from '@/components/OperationGrid'
+import type { AllowedKey } from '@/components/navigator/types'
 
 // The Wizard's model, kept apart from the page: the questions, which of them a set of answers
 // walks through, the operation they resolve to, and the sentence that reads the plan back.

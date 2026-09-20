@@ -2,11 +2,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type APIRequestContext, expect, test } from '@playwright/test'
-import { WINDOWS } from '../lib/paths'
-import { CASES, type PathKind } from '../lib/paths.cases'
+import { WINDOWS } from '../src/lib/paths'
+import { CASES, type PathKind } from '../src/lib/paths.cases'
 import { SESSION } from './helpers'
 
-// The grammar's table (`lib/paths.cases.ts`, read by `lib/paths.test.ts`) against the real
+// The grammar's table (`src/lib/paths.cases.ts`, read by `src/lib/paths.test.ts`) against the real
 // daemon: `operations/fsinfo` says how rclone parsed an fs string, and every row must agree.
 
 /** How the daemon read an fs string: its backend name and root, or the error it gave. */

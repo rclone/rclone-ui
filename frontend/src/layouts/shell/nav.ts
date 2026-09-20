@@ -17,7 +17,7 @@ import {
     Trash2Icon,
     WandSparklesIcon,
 } from 'lucide-react'
-import { SETTINGS_SECTIONS, type SectionKey, isSectionKey } from '../../pages/Settings/sections'
+import { SETTINGS_SECTIONS, type SectionKey, isSectionKey } from '@/pages/Settings/sections'
 
 // The browser sidebar's model: labelled zones of links. Remotes is a zone built at runtime from
 // the daemon's remote list; Settings lists its sections directly.

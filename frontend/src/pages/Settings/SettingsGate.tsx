@@ -1,6 +1,6 @@
 import { Spinner } from '@heroui/react'
 import type { ReactNode } from 'react'
-import { useLifecyclePhase } from '../../../lib/api/lifecycle'
+import { useLifecyclePhase } from '@/server/lifecycle'
 
 // What stands between the user and any settings section: the daemon restarting.
 export default function SettingsGate({ children }: { children: ReactNode }) {

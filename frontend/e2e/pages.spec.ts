@@ -13,7 +13,7 @@ import {
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { type Page, expect, test } from '@playwright/test'
-import { encodePreset, presetRoute } from '../lib/rclone/preset'
+import { encodePreset, presetRoute } from '../src/lib/rclone/preset'
 import { stopLeftoverJobs } from './helpers'
 
 // Page flows against the open server (127.0.0.1:5610). Each test drives a real page through a

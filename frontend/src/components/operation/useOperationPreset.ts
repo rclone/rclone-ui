@@ -1,16 +1,16 @@
 import { useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { navigate } from '../../../lib/api/navigation'
+import { navigate } from '@/navigate'
 import {
     type OperationPreset,
     type PresetFor,
     type PresetOperation,
     decodePreset,
     presetRoute,
-} from '../../../lib/rclone/preset'
-import { usePersistedStore } from '../../../store/persisted'
-import type { FlagValue } from '../../../types/rclone'
-import type { TemplatePaths } from '../../../types/template'
+} from '@/lib/rclone/preset'
+import { usePersistedStore } from '@/store'
+import type { FlagValue } from '@/lib/rclone/types'
+import type { TemplatePaths } from '@/lib/rclone/templatePaths'
 
 /**
  * What an operation page opens with: the `preset` in its URL (the job drawer's Reuse settings,

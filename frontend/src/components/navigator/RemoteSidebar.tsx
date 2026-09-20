@@ -3,11 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 
 import { StarIcon } from 'lucide-react'
 import { useMemo } from 'react'
-import { useRemoteConfig } from '../../../lib/hooks'
-import rclone from '../../../lib/rclone/client.ts'
+import { useRemoteConfig } from '@/lib/hooks'
+import rclone from '@/lib/rclone/client'
 import type { AllowedKey, RemoteString } from './types'
 import { getDiskIcon, getDiskLabel, shouldShowDisk } from './utils'
-import { usePersistedStore } from '../../../store/persisted'
+import { usePersistedStore } from '@/store'
 
 function RemoteButton({
     remote,

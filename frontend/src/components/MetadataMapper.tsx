@@ -2,9 +2,9 @@ import { Autocomplete, AutocompleteItem, Button, Checkbox, Select, SelectItem } 
 import { useQuery } from '@tanstack/react-query'
 import { ArrowRightIcon, PlusIcon, TriangleAlertIcon, XIcon } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { exe } from '../../lib/api/paths'
-import { getFsInfo } from '../../lib/format'
-import { backendsQueryOptions, fsInfoQueryOptions, remoteConfigQueryOptions } from '../../lib/hooks'
+import { exe } from '@/server/boot'
+import { getFsInfo } from '@/lib/format'
+import { backendsQueryOptions, fsInfoQueryOptions, remoteConfigQueryOptions } from '@/lib/hooks'
 import {
     type MapperRule,
     type MapperValue,
@@ -12,8 +12,8 @@ import {
     gatedDestinations,
     parseMapperValue,
     quoteArgv,
-} from '../../lib/rclone/metadataMapper'
-import type { FlagValue, RcloneFsInfo } from '../../types/rclone'
+} from '@/lib/rclone/metadataMapper'
+import type { FlagValue, RcloneFsInfo } from '@/lib/rclone/types'
 
 type RuleKind = MapperRule['kind']
 

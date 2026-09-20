@@ -12,8 +12,8 @@ import {
 } from '@heroui/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { message } from '../../../lib/api/dialog'
-import { type MemberRole, addMember } from '../../../lib/team'
+import { message } from '@/dialog'
+import { type MemberRole, addMember } from '@/lib/team'
 
 interface Form {
     email: string

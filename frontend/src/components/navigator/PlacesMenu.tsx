@@ -11,8 +11,8 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { SettingsIcon } from 'lucide-react'
 import { useMemo } from 'react'
-import rclone from '../../../lib/rclone/client'
-import { usePersistedStore } from '../../../store/persisted'
+import rclone from '@/lib/rclone/client'
+import { usePersistedStore } from '@/store'
 import { getDiskIcon, getDiskLabel, shouldShowDisk } from './utils'
 
 // The shortcuts both file panels keep in their sidebars: the local disks and folders rclone

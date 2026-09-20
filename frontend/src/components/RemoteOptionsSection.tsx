@@ -1,9 +1,9 @@
 import { Tab, Tabs } from '@heroui/react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef } from 'react'
-import { getRemoteName } from '../../lib/format'
-import { backendsQueryOptions, remoteConfigQueryOptions } from '../../lib/hooks'
-import OptionsSection from '../components/OptionsSection'
+import { getRemoteName } from '@/lib/format'
+import { backendsQueryOptions, remoteConfigQueryOptions } from '@/lib/hooks'
+import OptionsSection from '@/components/OptionsSection'
 
 const IGNORED_OPTIONS = [
     'account',

@@ -9,7 +9,7 @@ import {
 } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertCircleIcon, XIcon } from 'lucide-react'
-import { formatBytes } from '../../../lib/format.ts'
+import { formatBytes } from '@/lib/format'
 import FileIcon from './FileIcon'
 import type { Entry, RemoteString } from './types'
 import { listPath, serializeRemotePath } from './utils'

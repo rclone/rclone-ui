@@ -1,7 +1,7 @@
 import { type LanguageName, loadLanguage } from '@uiw/codemirror-extensions-langs'
 import CodeMirror, { EditorView } from '@uiw/react-codemirror'
 import { useMemo } from 'react'
-import { getFileExtension } from '../utils'
+import { getFileExtension } from '@/components/navigator/utils'
 import { PreviewError, PreviewLoading, type PreviewViewerProps } from './previewStates'
 import usePreviewText from './usePreviewText'
 

@@ -1,7 +1,7 @@
 import { Popover, PopoverContent, PopoverTrigger, Select, SelectItem } from '@heroui/react'
 import { SettingsIcon } from 'lucide-react'
-import { message } from '../../../lib/api/dialog'
-import { type Theme, useTheme } from '../../../lib/theme'
+import { message } from '@/dialog'
+import { type Theme, useTheme } from '@/lib/theme'
 
 // English is the only language until the translations land; the list shows what is coming.
 const LANGUAGES = [

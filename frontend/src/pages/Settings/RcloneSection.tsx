@@ -4,32 +4,32 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FolderOpenIcon, HardDriveIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { startTransition, useEffect, useMemo, useState } from 'react'
 
-import { ask, message, pickPath } from '../../../lib/api/dialog'
-import { formatErrorMessage, reportError } from '../../../lib/errors'
-import { RCLONE_RELEASES_STEP, RCLONE_RELEASES_SHOWN } from '../../../lib/rclone/constants'
+import { ask, message, pickPath } from '@/dialog'
+import { formatErrorMessage, reportError } from '@/lib/errors'
+import { RCLONE_RELEASES_STEP, RCLONE_RELEASES_SHOWN } from '@/lib/rclone/constants'
 import {
     type DownloadProgress,
     confirmIfBusy,
     fetchAvailableVersions,
     installVersion,
     isRcloneBusy,
-} from '../../../lib/rclone/versions'
+} from './rcloneVersions'
 import {
     type RcloneBinary,
     type UpdateInfo,
     daemonSettingsSet,
     rcloneBinary,
+    testProxyConnection,
     rcloneSetCustom,
     relaunch,
     status,
     updateCheck,
     updateInstall,
-} from '../../../lib/api/app'
-import { useCapabilities } from '../../../lib/api/host'
-import { openUrl } from '../../../lib/api/shell'
-import { usePersistedStore } from '../../../store/persisted'
+} from '@/server/app'
+import { capabilities } from '@/server/boot'
+import { openUrl } from '@/navigate'
+import { usePersistedStore } from '@/store'
 import SettingsGroup from './SettingsGroup'
-import { rpc } from '../../../lib/api/rpc'
 import BaseSection from './BaseSection'
 
 // The one screen for the rclone the server runs: which binary, the limits every transfer shares,
@@ -568,7 +568,7 @@ function ProxySettings() {
         setIsTestingProxy(true)
 
         try {
-            await rpc<string>('test_proxy_connection', { proxyUrl: url })
+            await testProxyConnection(url)
 
             // If test successful, save the proxy URL
             await saveProxy({ url, ignoredHosts })
@@ -723,7 +723,7 @@ function ProxySettings() {
 
 /** The server's own update, where the machine lets it install one (not in a container). */
 function UpdateSettings() {
-    const caps = useCapabilities()
+    const caps = capabilities
     const [buttonText, setButtonText] = useState('Check for updates')
     const [update, setUpdate] = useState<UpdateInfo | null>(null)
 

@@ -10,13 +10,13 @@ import {
 
 import { FoldersIcon, PlusIcon } from 'lucide-react'
 import { useMemo } from 'react'
-import { groupByCategory } from '../../lib/flags'
-import { useFlags } from '../../lib/hooks'
-import { usePersistedStore } from '../../store/persisted'
-import type { FlagValue } from '../../types/rclone'
-import { extraSourcesNote, hasTemplatePaths } from '../../lib/rclone/templatePaths'
-import type { Template, TemplatePaths } from '../../types/template'
-import { ask, message, prompt } from '../../lib/api/dialog'
+import { groupByCategory } from '@/lib/flags'
+import { useFlags } from '@/lib/hooks'
+import { usePersistedStore } from '@/store'
+import type { FlagValue } from '@/lib/rclone/types'
+import { extraSourcesNote, hasTemplatePaths } from '@/lib/rclone/templatePaths'
+import type { Template, TemplatePaths } from '@/lib/rclone/templatePaths'
+import { ask, message, prompt } from '@/dialog'
 
 export default function TemplatesDropdown({
     onSelect,

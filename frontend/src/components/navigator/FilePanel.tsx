@@ -13,8 +13,8 @@ import {
     useRef,
     useState,
 } from 'react'
-import { fsInfoQueryOptions, hasFeature } from '../../../lib/hooks'
-import { usePersistedStore } from '../../../store/persisted'
+import { fsInfoQueryOptions, hasFeature } from '@/lib/hooks'
+import { usePersistedStore } from '@/store'
 import FileList from './FileList'
 import PanelToolbar, { type ToolbarButtons } from './PanelToolbar'
 import PathBreadcrumb from './PathBreadcrumb'

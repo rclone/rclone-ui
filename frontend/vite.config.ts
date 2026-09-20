@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
@@ -6,11 +7,14 @@ export default defineConfig(async () => ({
     // The pure-function tests sit beside their modules (`npm run test:unit`); Playwright's own
     // files are under e2e/, which its `testDir` keeps apart.
     test: {
-        include: ['{src,lib,store}/**/*.test.ts'],
+        include: ['src/**/*.test.ts'],
         environment: 'node',
     },
 
     plugins: [react()],
+
+    // One tree under src/: `@/x` is `src/x` (tsconfig.json says the same to the type checker).
+    resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
 
     // Some viewer libs (e.g. @extend-ai/react-xlsx) ship code-splitting Web Workers,
     // which require ES-module worker output rather than the default iife.

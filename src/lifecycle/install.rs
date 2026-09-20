@@ -12,7 +12,7 @@ use crate::bus::Bus;
 use crate::datadir::DataDir;
 use crate::state::ProxySettings;
 
-/// The bus event the pages draw the download bar from (`lib/api/ws.ts` `EventPayloads`).
+/// The bus event the pages draw the download bar from (`src/server/ws.ts` `EventPayloads`).
 pub const DOWNLOAD_PROGRESS_EVENT: &str = "rclone.download-progress";
 
 #[derive(Serialize, Clone)]
@@ -283,7 +283,7 @@ mod tests {
     use super::*;
 
     fn ws_ts() -> String {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/frontend/lib/api/ws.ts");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/frontend/src/server/ws.ts");
         std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {}", path, e))
     }
 
@@ -293,7 +293,7 @@ mod tests {
     fn download_events_are_declared_in_ws_ts() {
         assert!(
             ws_ts().contains(&format!("'{}':", DOWNLOAD_PROGRESS_EVENT)),
-            "{} is emitted but not declared in lib/api/ws.ts",
+            "{} is emitted but not declared in src/server/ws.ts",
             DOWNLOAD_PROGRESS_EVENT
         );
     }

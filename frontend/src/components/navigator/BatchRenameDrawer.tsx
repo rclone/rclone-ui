@@ -15,7 +15,7 @@ import {
 import { useMutation } from '@tanstack/react-query'
 import { AlertCircleIcon, ArrowRightIcon, XIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { getFsInfo } from '../../../lib/format.ts'
+import { getFsInfo } from '@/lib/format'
 import FileIcon from './FileIcon'
 import type { Entry, SelectItem } from './types'
 import { renamePath } from './utils'

@@ -15,13 +15,13 @@ import {
     useMemo,
     useState,
 } from 'react'
-import { formatBytes, getFsInfo } from '../../../../lib/format.ts'
-import { downloadLink } from '../../../../lib/api/app'
-import { rcUrl } from '../../../../lib/api/rc'
-import { openUrl } from '../../../../lib/api/shell'
-import FileIcon, { getFileType, isPreviewable } from '../FileIcon'
-import type { Entry } from '../types'
-import { getFileExtension } from '../utils'
+import { formatBytes, getFsInfo } from '@/lib/format'
+import { downloadLink } from '@/server/app'
+import { rcUrl } from '@/server/rc'
+import { openUrl } from '@/navigate'
+import FileIcon, { getFileType, isPreviewable } from '@/components/navigator/FileIcon'
+import type { Entry } from '@/components/navigator/types'
+import { getFileExtension } from '@/components/navigator/utils'
 import { PreviewLoading, type PreviewViewerProps } from './previewStates'
 
 // Lazy-loaded so each viewer's heavy WASM/WebGL bundle only loads when a matching

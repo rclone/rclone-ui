@@ -1,8 +1,8 @@
 import { useCallback } from 'react'
-import { ask, prompt } from '../../../lib/api/dialog'
-import { reportError } from '../../../lib/errors'
-import { getFsInfo } from '../../../lib/format'
-import rclone from '../../../lib/rclone/client'
+import { ask, prompt } from '@/dialog'
+import { reportError } from '@/lib/errors'
+import { getFsInfo } from '@/lib/format'
+import rclone from '@/lib/rclone/client'
 import type { Entry } from './types'
 import { renamePath } from './utils'
 

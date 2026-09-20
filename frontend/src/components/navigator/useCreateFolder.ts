@@ -1,14 +1,29 @@
 import { useCallback } from 'react'
-import { reportError } from '../../../lib/errors'
-import { getFsInfo } from '../../../lib/format'
-import { fsInfoQueryOptions, hasFeature } from '../../../lib/hooks'
-import queryClient from '../../../lib/query'
-import { uploadEmptyFile } from '../../../lib/rclone/api'
-import rclone from '../../../lib/rclone/client'
-import { joinRemoteDir } from '../../../lib/paths'
+import { reportError } from '@/lib/errors'
+import { getFsInfo } from '@/lib/format'
+import { fsInfoQueryOptions, hasFeature } from '@/lib/hooks'
+import queryClient from '@/lib/query'
+import rclone from '@/lib/rclone/client'
+import { joinRemoteDir } from '@/lib/paths'
 import type { RemoteString } from './types'
 import { RE_TRAILING_SEPARATORS, serializeRemotePath } from './utils'
-import { prompt } from '../../../lib/api/dialog'
+import { prompt } from '@/dialog'
+import { rcFetch } from '@/server/rc'
+
+// Backends without empty folders get one by way of an empty file in it.
+async function uploadEmptyFile(fs: string, remote: string) {
+    const body = new FormData()
+    body.append('file0', new File([], '.empty'))
+
+    const params = new URLSearchParams({ fs, remote })
+    const response = await rcFetch(`operations/uploadfile?${params}`, {
+        method: 'POST',
+        body,
+    })
+    if (!response.ok) {
+        throw new Error(` `)
+    }
+}
 
 export default function useCreateFolder(remote: RemoteString, cwd: string, refresh: () => void) {
     const canCreateFolder = !!remote && remote !== 'UI_FAVORITES'

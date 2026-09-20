@@ -12,19 +12,11 @@ import {
 
 import { MousePointerIcon, XIcon } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
-import {
-    type Entry,
-    type AllowedKey,
-    FilePanel,
-    type FilePanelHandle,
-    RE_PATH_SEPARATOR,
-    RE_TRAILING_SEPARATORS,
-    type SelectItem,
-    useEntryActions,
-    type ToolbarButtons,
-    serializeRemotePath,
-} from './navigator'
-import { parsePath } from '../../lib/paths'
+import { FilePanel, type FilePanelHandle, useEntryActions } from './navigator'
+import type { ToolbarButtons } from './navigator/PanelToolbar'
+import type { AllowedKey, Entry, SelectItem } from './navigator/types'
+import { RE_PATH_SEPARATOR, RE_TRAILING_SEPARATORS, serializeRemotePath } from './navigator/utils'
+import { parsePath } from '@/lib/paths'
 
 export type PickMode = 'both' | 'files' | 'folders'
 

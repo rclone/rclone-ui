@@ -2,12 +2,12 @@ import { Button, Input, Tooltip, cn } from '@heroui/react'
 
 import { CheckIcon, ChevronRightIcon, LaptopIcon, PencilIcon, StarIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { joinLocalSegments, localRootOf } from '../../../lib/format'
-import { useRemoteConfig } from '../../../lib/hooks'
+import { joinLocalSegments, localRootOf } from '@/lib/format'
+import { useRemoteConfig } from '@/lib/hooks'
 import type { RemoteString } from './types'
 import { getPathSegments } from './utils'
-import { formatRemote } from '../../../lib/paths'
-import { hostSeparator } from '../../../lib/rclone/client'
+import { formatRemote } from '@/lib/paths'
+import { hostSeparator } from '@/lib/rclone/client'
 
 export default function PathBreadcrumb({
     remote,
