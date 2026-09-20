@@ -1,17 +1,17 @@
-import { expect, test } from '@playwright/test'
-import { SERVE_TYPES } from '../lib/rclone/constants'
+import { expect, test } from 'vitest'
+import { SERVE_TYPES } from '../../../lib/rclone/constants'
 import {
     MULTI_SOURCE_OPERATIONS,
     applyTemplatePaths,
     extraSourcesNote,
-} from '../lib/rclone/templatePaths'
+} from '../../../lib/rclone/templatePaths'
 import {
     EMPTY_DRAFT,
     draftFromOptions,
     optionsFromCommand,
     optionsFromDraft,
     serveFlagsForTemplates,
-} from '../src/components/template/draft'
+} from './draft'
 
 // src/components/template/draft.ts is pure, so it runs in the test process itself. It is the
 // one place both template drawers turn a flat template into the eight option groups and back,

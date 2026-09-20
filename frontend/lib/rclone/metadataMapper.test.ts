@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from 'vitest'
 import {
     type MapperRule,
     buildMapperValue,
@@ -6,7 +6,7 @@ import {
     metadataOptionsProblem,
     parseMapperValue,
     quoteArgv,
-} from '../lib/rclone/metadataMapper'
+} from './metadataMapper'
 
 // lib/rclone/metadataMapper.ts is pure, so it runs in the test process itself. It is the codec
 // between the mapping drawer and the `metadata_mapper` flag: what it writes, rclone runs, and

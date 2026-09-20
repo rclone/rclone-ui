@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from 'vitest'
 import {
     buildReadablePath,
     getFsInfo,
@@ -10,9 +10,9 @@ import {
     renameRemoteIn,
     renameRemoteInArgs,
     toWrappedRemote,
-} from '../lib/format'
-import { POSIX, WINDOWS } from '../lib/paths'
-import { renameConfigSection } from '../lib/rclone/config-text'
+} from './format'
+import { POSIX, WINDOWS } from './paths'
+import { renameConfigSection } from './rclone/config-text'
 
 // lib/format.ts is pure, so it runs in the test process itself. getFsInfo splits every path the
 // pages send to rclone (`fs` + `remote`) on the one grammar (`lib/paths.ts`); a wrong split

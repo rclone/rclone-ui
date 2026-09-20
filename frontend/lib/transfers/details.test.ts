@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { generalErrors, splitFiles } from '../lib/transfers/details'
+import { expect, test } from 'vitest'
+import { generalErrors, splitFiles } from './details'
 
 // lib/transfers/details.ts is pure: what the transfer drawer's sections hold, and which errors
 // belong to no file and so go at its top. The shapes are rclone's own, read off a real daemon: a

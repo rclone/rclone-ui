@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { type OperationPreset, decodePreset, encodePreset, presetRoute } from '../lib/rclone/preset'
+import { expect, test } from 'vitest'
+import { type OperationPreset, decodePreset, encodePreset, presetRoute } from './preset'
 
 // lib/rclone/preset.ts is pure, so it runs in the test process itself. A preset is everything a
 // page can open with (paths, every option group, remote overrides, the schedule, a template to

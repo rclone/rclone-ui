@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from 'vitest'
 import {
     buildBisyncRequests,
     buildCopyRequests,
@@ -7,7 +7,8 @@ import {
     buildPurgeRequests,
     buildSyncRequests,
     configParamOf,
-} from '../lib/rclone/requests'
+    type Kinds,
+} from './requests'
 
 // lib/rclone/requests.ts is pure, so it runs in the test process itself. The requests the six
 // builders produce for one fixed set of arguments are pinned as snapshots: the live start path
@@ -15,9 +16,11 @@ import {
 
 const remotes = { gdrive: { chunk_size: '64M' } }
 const pin = (name: string, value: unknown) =>
-    expect(JSON.stringify(value, null, 2)).toMatchSnapshot(`${name}.json`)
+    expect(JSON.stringify(value, null, 2)).toMatchFileSnapshot(
+        `./__snapshots__/requests/${name}.json`
+    )
 
-test('copy and move: folders and a file, filters, overrides', () => {
+test('copy and move: folders and a file, filters, overrides', async () => {
     const args = {
         sources: ['/tmp/photos/', 'gdrive:albums/'],
         destination: 'e2e-memory:backup/',
@@ -29,8 +32,8 @@ test('copy and move: folders and a file, filters, overrides', () => {
             remotes,
         },
     }
-    pin('copy', buildCopyRequests(args))
-    pin(
+    await pin('copy', buildCopyRequests(args))
+    await pin(
         'move',
         buildMoveRequests({
             ...args,
@@ -38,7 +41,7 @@ test('copy and move: folders and a file, filters, overrides', () => {
         })
     )
     // A file source without filters takes the single-file endpoint.
-    pin(
+    await pin(
         'copy-file',
         buildCopyRequests({
             sources: ['/tmp/one.txt', '/tmp/photos/'],
@@ -49,7 +52,7 @@ test('copy and move: folders and a file, filters, overrides', () => {
     // The slash after the colon is the user's: kept on the fs (absolute on sftp, the machine's
     // `/var/www`), absent when absent (under the login directory). A bare root is a folder
     // either way, and is sent as the root, not as a file with no name.
-    pin(
+    await pin(
         'copy-slash',
         buildCopyRequests({
             sources: ['sftp:/var/www/', 'sftp:var/www/', 'sftp:', 'sftp:/'],
@@ -59,7 +62,7 @@ test('copy and move: folders and a file, filters, overrides', () => {
     )
 })
 
-test('sync and bisync: two paths, the outer switches', () => {
+test('sync and bisync: two paths, the outer switches', async () => {
     const options = {
         sync: { track_renames: true },
         config: { checkers: 2 },
@@ -67,11 +70,11 @@ test('sync and bisync: two paths, the outer switches', () => {
         metadata: {},
         remotes,
     }
-    pin(
+    await pin(
         'sync',
         buildSyncRequests({ source: '/tmp/photos/', destination: 'gdrive:backup', options })
     )
-    pin(
+    await pin(
         'bisync',
         buildBisyncRequests({
             source: '/tmp/photos/',
@@ -85,16 +88,19 @@ test('sync and bisync: two paths, the outer switches', () => {
     )
 })
 
-test('delete and purge: folders and a file, config only for purge', () => {
-    pin(
+test('delete and purge: folders and a file, config only for purge', async () => {
+    await pin(
         'delete',
         buildDeleteRequests({
             sources: ['/tmp/old/', 'gdrive:trash/'],
             options: { filter: { min_age: '7d' }, config: { dry_run: true }, remotes },
         })
     )
-    pin('delete-file', buildDeleteRequests({ sources: ['/tmp/one.txt'], options: { config: {} } }))
-    pin(
+    await pin(
+        'delete-file',
+        buildDeleteRequests({ sources: ['/tmp/one.txt'], options: { config: {} } })
+    )
+    await pin(
         'purge',
         buildPurgeRequests({
             sources: ['/tmp/old/'],
@@ -104,7 +110,7 @@ test('delete and purge: folders and a file, config only for purge', () => {
     expect(() => buildPurgeRequests({ sources: ['/tmp/one.txt'], options: {} })).toThrow(/folders/)
 })
 
-test('whether a source is a file or a folder is rclone’s answer, not the slash', () => {
+test('whether a source is a file or a folder is rclone’s answer, not the slash', async () => {
     // A trailing slash is one way of spelling a path, and the file panel used to add it to every
     // folder so the builders could tell. They cannot from a typed path: `gdrive:folder` is a
     // folder without it, `gdrive:file.txt/` a file with it, and rclone accepts both spellings.

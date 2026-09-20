@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test'
-import type { TransferDetail } from '../lib/api/transfers'
-import { errorReason, fsKey, retryPlan, retryRequest } from '../lib/transfers/retry'
+import { expect, test } from 'vitest'
+import type { TransferDetail } from '../api/transfers'
+import { errorReason, fsKey, retryPlan, retryRequest } from './retry'
 
 // lib/transfers/retry.ts is pure: what of an ended transfer can be retried, and the request that
 // retries a selection of it. The shapes below are rclone's own, read off a real daemon: a failed

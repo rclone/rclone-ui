@@ -6,6 +6,7 @@
         "dev": "vite",
         "build": "tsc && node --max-old-space-size=4096 ./node_modules/vite/bin/vite.js build",
         "preview": "vite preview",
+        "test:unit": "vitest run",
         "test:e2e": "playwright test",
         "lint": "biome check ."
     },
@@ -59,6 +60,7 @@
         "postcss": "^8.5.26",
         "tailwindcss": "^3.4.17",
         "typescript": "~5.9.3",
-        "vite": "^6.3.6"
+        "vite": "^6.3.6",
+        "vitest": "^5.0.1"
     }
 }

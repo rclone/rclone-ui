@@ -1,8 +1,15 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
+    // The pure-function tests sit beside their modules (`npm run test:unit`); Playwright's own
+    // files are under e2e/, which its `testDir` keeps apart.
+    test: {
+        include: ['{src,lib,store}/**/*.test.ts'],
+        environment: 'node',
+    },
+
     // plugins: [
     //     react({
     //         babel: {

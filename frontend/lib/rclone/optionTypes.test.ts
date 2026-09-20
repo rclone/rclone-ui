@@ -1,10 +1,5 @@
-import { expect, test } from '@playwright/test'
-import {
-    optionChoices,
-    optionDefaultText,
-    optionKind,
-    parseFlagText,
-} from '../lib/rclone/optionTypes'
+import { expect, test } from 'vitest'
+import { optionChoices, optionDefaultText, optionKind, parseFlagText } from './optionTypes'
 
 // lib/rclone/optionTypes.ts is pure, so it runs in the test process itself. It is the one place
 // that decides what an rclone option `Type` means for the remote form, the options editor's

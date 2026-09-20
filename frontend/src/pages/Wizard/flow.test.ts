@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from 'vitest'
 import {
     type Answers,
     metadataPhrase,
@@ -6,7 +6,7 @@ import {
     sentence,
     stepComplete,
     stepsFor,
-} from '../src/pages/Wizard/flow'
+} from './flow'
 
 // src/pages/Wizard/flow.ts is the Wizard's model and pure, so it runs in the test process itself:
 // which questions a set of answers walks through, what they amount to, and how the plan reads.

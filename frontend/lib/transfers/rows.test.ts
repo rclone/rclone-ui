@@ -1,8 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, test } from '@playwright/test'
-import type { TransferEntry } from '../lib/api/transfers'
-import { ENDED, type LiveStats, isScheduled, toRows, totalsOf } from '../lib/transfers/rows'
+import { expect, test } from 'vitest'
+import type { TransferEntry } from '../api/transfers'
+import { ENDED, type LiveStats, isScheduled, toRows, totalsOf } from './rows'
 
 // lib/transfers/rows.ts is pure: the record the server keeps, overlaid with rclone's live numbers
 // for whatever is still running. The list exists without rclone; only the numbers need it.
@@ -215,10 +215,10 @@ test('where a transfer came from is on its row, for the badge', () => {
 // job that is running, in one file, and nowhere is a list of transfers made from what it answers.
 // (Every start the app makes is recorded; the Download page's URL download included.)
 test('nothing but the live reads asks rclone about jobs', () => {
-    const root = new URL('..', import.meta.url).pathname
+    const root = new URL('../..', import.meta.url).pathname
     const sources = ['src', 'lib'].flatMap((dir) =>
         (readdirSync(join(root, dir), { recursive: true }) as string[])
-            .filter((file) => /\.tsx?$/.test(file))
+            .filter((file) => /\.tsx?$/.test(file) && !/\.test\.ts$/.test(file))
             .map((file) => join(dir, file))
     )
     const mentions = (pattern: RegExp) =>

@@ -41,7 +41,7 @@
                 "all": false
             }
         },
-        "ignore": ["node_modules/*", "dist/*", ".work/*", "*.js"]
+        "ignore": ["node_modules/*", "dist/*", "*.js"]
     },
     "formatter": {
         "enabled": true,
@@ -49,7 +49,7 @@
         "indentStyle": "space",
         "indentWidth": 4,
         "lineWidth": 100,
-        "ignore": ["node_modules/*", "dist/*", ".work/*", "e2e/.tmp/*"]
+        "ignore": ["node_modules/*", "dist/*", "e2e/.tmp/*"]
     },
     "javascript": {
         "formatter": {
@@ -57,7 +57,6 @@
             "quoteProperties": "preserve",
             "trailingCommas": "es5",
             "semicolons": "asNeeded"
-        },
-        "globals": ["it", "describe", "expect", "test"]
+        }
     }
 }

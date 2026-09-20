@@ -15,6 +15,7 @@ jobs:
         with:
           node-version: 22
       - run: npm --prefix frontend ci
+      - run: npm --prefix frontend run test:unit
       - run: npm --prefix frontend run build
       - uses: Swatinem/rust-cache@v2
         with:

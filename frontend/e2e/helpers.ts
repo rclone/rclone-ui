@@ -1,10 +1,26 @@
 import { createServer } from 'node:net'
 import { fileURLToPath } from 'node:url'
-import type { APIRequestContext } from '@playwright/test'
+import type { APIRequestContext, Page } from '@playwright/test'
 
 // Every server in playwright.config.ts starts with `--password e2e-secret`, which seeds the
 // owner account on the first start.
 export const OWNER = { email: 'admin@localhost', password: 'e2e-secret' }
+
+/** The headers a direct RPC call needs: the page's session header and a JSON body. */
+export const SESSION = { 'X-RcloneCloud-Session': 'e2e', 'Content-Type': 'application/json' }
+
+/** Page errors and error-level console lines, plus an RPC the server did not know. */
+export function collectErrors(page: Page) {
+    const errors: string[] = []
+    page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))
+    page.on('console', (m) => {
+        const text = m.text()
+        if (m.type() === 'error' || /no such command|unknown command/.test(text)) {
+            errors.push(`console.${m.type()}: ${text}`)
+        }
+    })
+    return errors
+}
 
 /**
  * The debug binary, from `cargo build -p rclone-cloud`. Anchored to this file rather than to
