@@ -12,6 +12,8 @@ export interface Session {
     authenticated: boolean
     /** The signed-in account; null without a session. */
     user: SessionUser | null
+    /** No account exists yet: the first visitor creates the owner's at /onboard. */
+    onboard: boolean
 }
 
 export const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', admin: 'Admin', member: 'Member' }

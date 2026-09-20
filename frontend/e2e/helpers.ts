@@ -1,9 +1,10 @@
+import { spawn } from 'node:child_process'
 import { createServer } from 'node:net'
 import { fileURLToPath } from 'node:url'
 import type { APIRequestContext, Page } from '@playwright/test'
 
-// Every server in playwright.config.ts starts with `--password e2e-secret`, which seeds the
-// owner account on the first start.
+// The seeded servers in playwright.config.ts start with `--email admin@localhost --password
+// e2e-secret`, the owner account of their first start.
 export const OWNER = { email: 'admin@localhost', password: 'e2e-secret' }
 
 /** The headers a direct RPC call needs: the page's session header and a JSON body. */
@@ -28,6 +29,24 @@ export function collectErrors(page: Page) {
  * frontend, and the specs that start a server of their own spawn it themselves.
  */
 export const SERVER_BIN = fileURLToPath(new URL('../../target/debug/rclone-cloud', import.meta.url))
+
+/** The server as a child that is expected to stop by itself: what it said, and how it left. */
+export function runToExit(args: string[]): Promise<{ code: number | null; stderr: string }> {
+    return new Promise((resolve) => {
+        const server = spawn(SERVER_BIN, ['serve', ...args], {
+            stdio: ['ignore', 'ignore', 'pipe'],
+        })
+        let stderr = ''
+        server.stderr.on('data', (chunk) => {
+            stderr += String(chunk)
+        })
+        const giveUp = setTimeout(() => server.kill('SIGKILL'), 20_000)
+        server.on('exit', (code) => {
+            clearTimeout(giveUp)
+            resolve({ code, stderr })
+        })
+    })
+}
 
 /** Signs a request context in (its pages share the cookie jar), as the owner unless told otherwise. */
 export async function signIn(

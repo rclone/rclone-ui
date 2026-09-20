@@ -7,7 +7,7 @@ import React, { Suspense, lazy, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider, createBrowserRouter } from 'react-router-dom'
 import { forwardConsole } from '@/server/log'
-import { connect, onReconnect } from '@/server/ws'
+import { onReconnect } from '@/server/ws'
 import { stateStorage, whenWritten } from '@/server/state'
 import * as dialog from '@/dialog'
 import queryClient from '@/lib/query'
@@ -23,6 +23,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Delete = lazy(() => import('./pages/Delete'))
 const Download = lazy(() => import('./pages/Download'))
 const Login = lazy(() => import('./pages/Login'))
+const Onboard = lazy(() => import('./pages/Login/Onboard'))
 const Mount = lazy(() => import('./pages/Mount'))
 const Move = lazy(() => import('./pages/Move'))
 const Purge = lazy(() => import('./pages/Purge'))
@@ -39,8 +40,8 @@ const Wizard = lazy(() => import('./pages/Wizard'))
 const api = { dialog, state: { stateStorage, whenWritten } }
 ;(window as unknown as { __RCLONE_CLOUD_API__: typeof api }).__RCLONE_CLOUD_API__ = api
 
-connect()
-// A socket that came back may have missed events: everything on screen asks again.
+// The socket itself is opened by the Shell once the session is confirmed (a sign-in screen has
+// nothing to hear). A socket that came back may have missed events: everything on screen asks again.
 onReconnect(() => queryClient.invalidateQueries())
 
 // Every page's console goes to the server's log file (rotated, so it can take all of it).
@@ -65,9 +66,25 @@ const pageRoutes = [
     { path: '/templates/:id?', element: <Templates /> },
 ]
 
-// Every page is a route under the Shell layout (sidebar + header); the login screen is not.
+// Every page is a route under the Shell layout (sidebar + header); the screens before the app
+// (sign-in, the first launch's owner) are not.
 const router = createBrowserRouter([
-    { path: '/login', element: <Suspense fallback={null}><Login /></Suspense> },
+    {
+        path: '/login',
+        element: (
+            <Suspense fallback={null}>
+                <Login />
+            </Suspense>
+        ),
+    },
+    {
+        path: '/onboard',
+        element: (
+            <Suspense fallback={null}>
+                <Onboard />
+            </Suspense>
+        ),
+    },
     {
         element: <Shell />,
         children: [

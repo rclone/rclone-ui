@@ -100,6 +100,8 @@ test('the state API keeps its contract, and knows its two documents only', async
             'serve',
             '--bind',
             '127.0.0.1:5617',
+            '--email',
+            OWNER.email,
             '--password',
             OWNER.password,
             '--rclone-url',

@@ -1,4 +1,6 @@
 //! One way in: an account (`team.rs`: `POST /api/login {email, password}` → session cookie).
+//! Before any account exists, `POST /api/onboard {email, password}` creates the owner and signs
+//! them in; the session says which of the two a page should show.
 //! Hashed assets and signed download links are public; everything else needs the session.
 //! Sessions live in memory: a restart signs everyone out.
 
@@ -21,6 +23,7 @@ pub const COOKIE: &str = "rui_session";
 /// Every RPC carries this header (`lib/api/rpc.ts`). The cookie is `SameSite=Strict`, and this is
 /// the second wall: a cross-site form cannot set a custom header, so it cannot post an RPC.
 pub const CLIENT_HEADER: &str = "x-rclonecloud-client";
+const SESSION_SECONDS: i64 = 30 * 24 * 3600;
 
 /// The accounts, their live sessions, and a channel naming users whose sessions were just
 /// revoked: an open socket of theirs closes on it (a removed member must not keep receiving
@@ -45,12 +48,16 @@ impl Auth {
 
     fn login(&self, email: &str, password: &str) -> Option<String> {
         let user = self.team.verify(email, password)?;
+        Some(self.open_session(user.id))
+    }
+
+    fn open_session(&self, user_id: String) -> String {
         let session = uuid::Uuid::new_v4().to_string();
         self.sessions
             .lock()
             .unwrap()
-            .insert(session.clone(), user.id);
-        Some(session)
+            .insert(session.clone(), user_id);
+        session
     }
 
     fn logout(&self, headers: &HeaderMap) {
@@ -167,6 +174,7 @@ fn is_public_asset(path: &str) -> bool {
 pub async fn guard(State(st): State<Shared>, mut req: Request<Body>, next: Next) -> Response {
     let path = req.uri().path();
     let public = path == "/api/login"
+        || path == "/api/onboard"
         || path == "/api/session"
         || path.starts_with("/api/dl/")
         || is_public_asset(path);
@@ -214,12 +222,7 @@ pub async fn login(State(st): State<Shared>, Json(body): Json<LoginBody>) -> Res
             .await
             .unwrap_or(None);
     match session {
-        Some(session) => {
-            let mut resp = Json(json!({ "ok": true })).into_response();
-            resp.headers_mut()
-                .insert(header::SET_COOKIE, session_cookie(&session, 30 * 24 * 3600));
-            resp
-        }
+        Some(session) => signed_in(&session),
         None => {
             // A flat delay on every miss; cheap brute-force protection on top of the hash cost.
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
@@ -230,6 +233,42 @@ pub async fn login(State(st): State<Shared>, Json(body): Json<LoginBody>) -> Res
                 .into_response()
         }
     }
+}
+
+/// The first launch: the owner account, created and signed in. Refused once any account exists,
+/// so it is only ever answered while there is nobody to sign in as.
+pub async fn onboard(State(st): State<Shared>, Json(body): Json<LoginBody>) -> Response {
+    let state = st.clone();
+    let created =
+        tokio::task::spawn_blocking(move || state.team.onboard(&body.email, &body.password))
+            .await
+            .unwrap_or_else(|e| Err(e.to_string()));
+    match created {
+        Ok(Some(owner)) => {
+            log::info!(
+                "created the owner account {} from the first-launch screen",
+                owner.email
+            );
+            signed_in(&st.auth.open_session(owner.id))
+        }
+        Ok(None) => (
+            StatusCode::CONFLICT,
+            Json(json!({ "ok": false, "error": "The owner account already exists." })),
+        )
+            .into_response(),
+        Err(error) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "ok": false, "error": error })),
+        )
+            .into_response(),
+    }
+}
+
+fn signed_in(session: &str) -> Response {
+    let mut resp = Json(json!({ "ok": true })).into_response();
+    resp.headers_mut()
+        .insert(header::SET_COOKIE, session_cookie(session, SESSION_SECONDS));
+    resp
 }
 
 pub async fn logout(State(st): State<Shared>, headers: HeaderMap) -> Response {
@@ -246,6 +285,8 @@ pub async fn session(State(st): State<Shared>, headers: HeaderMap) -> Response {
         "ok": true,
         "authenticated": user.is_some(),
         "user": user,
+        // No account yet: a page goes to /onboard rather than /login.
+        "onboard": st.team.count() == 0,
     }))
     .into_response()
 }

@@ -3,8 +3,8 @@ import { defineConfig } from '@playwright/test'
 import { SERVER_BIN } from './e2e/helpers'
 
 // Browser-mode smoke tests against a real rclone-cloud (debug binary, so `npm run build`'s
-// frontend/dist/ is read from disk) and a real rclone daemon. Two servers: one open on loopback, one
-// password-protected. `npm run test:e2e`.
+// frontend/dist/ is read from disk) and a real rclone daemon. Four servers: three with the owner
+// seeded from the flags, one left to its first visitor. `npm run test:e2e`.
 const tmp = new URL('./e2e/.tmp/', import.meta.url).pathname
 // Fresh state every run: the lifecycle persists what it adopts (the binary, the owner account).
 // Only the main process resets it — workers re-import this file after the servers are already
@@ -14,6 +14,7 @@ if (!process.env.TEST_WORKER_INDEX) {
     mkdirSync(`${tmp}open`, { recursive: true })
     mkdirSync(`${tmp}auth`, { recursive: true })
     mkdirSync(`${tmp}managed`, { recursive: true })
+    mkdirSync(`${tmp}onboard`, { recursive: true })
     // The config is a symlink, as a workstation's often is. rclone's local backend reports
     // a link's size as the length of its target, so a target shorter than the file is the case
     // that once read back as nothing.
@@ -24,8 +25,9 @@ if (!process.env.TEST_WORKER_INDEX) {
 
 // The external-daemon servers point at the shared `rclone rcd`; the managed one spawns its own.
 const external = '--rclone-url http://localhost:5572'
-// Every server needs a password; it becomes the owner account (admin@localhost) on first start.
-const password = '--password e2e-secret'
+// The owner account the seeded servers start with; the onboard server has none until a test
+// creates it.
+const owner = '--email admin@localhost --password e2e-secret'
 
 export default defineConfig({
     testDir: 'e2e',
@@ -56,19 +58,25 @@ export default defineConfig({
             timeout: 20_000,
         },
         {
-            command: `${SERVER_BIN} serve --bind 127.0.0.1:5610 ${password} ${external} --data-dir ${tmp}open`,
+            command: `${SERVER_BIN} serve --bind 127.0.0.1:5610 ${owner} ${external} --data-dir ${tmp}open`,
             url: 'http://127.0.0.1:5610/api/session',
             reuseExistingServer: false,
             timeout: 20_000,
         },
         {
-            command: `${SERVER_BIN} serve --bind 127.0.0.1:5611 ${password} ${external} --data-dir ${tmp}auth`,
+            command: `${SERVER_BIN} serve --bind 127.0.0.1:5611 ${owner} ${external} --data-dir ${tmp}auth`,
             url: 'http://127.0.0.1:5611/api/session',
             reuseExistingServer: false,
             timeout: 20_000,
         },
         {
-            command: `${SERVER_BIN} serve --bind 127.0.0.1:5612 ${password} --rclone-path /usr/local/bin/rclone --data-dir ${tmp}managed`,
+            command: `${SERVER_BIN} serve --bind 127.0.0.1:5618 ${external} --data-dir ${tmp}onboard`,
+            url: 'http://127.0.0.1:5618/api/session',
+            reuseExistingServer: false,
+            timeout: 20_000,
+        },
+        {
+            command: `${SERVER_BIN} serve --bind 127.0.0.1:5612 ${owner} --rclone-path /usr/local/bin/rclone --data-dir ${tmp}managed`,
             url: 'http://127.0.0.1:5612/api/status',
             reuseExistingServer: false,
             timeout: 20_000,

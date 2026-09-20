@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { setNavigate } from '@/navigate'
 import { getSession } from '@/server/session'
+import { connect } from '@/server/ws'
 import { initStore } from '@/store'
 import DialogHost from './DialogHost'
 import Sidebar from './Sidebar'
@@ -72,9 +73,12 @@ export default function Shell() {
             .then((session) => {
                 if (cancelled) return
                 if (!session.authenticated) {
-                    navigate('/login', { replace: true })
+                    navigate(session.onboard ? '/onboard' : '/login', { replace: true })
                     return
                 }
+                // The socket needs the session, so it is opened here rather than at load: the
+                // sign-in screens never knock on it.
+                connect()
                 // Pages must not render before the document has loaded: a first write would carry
                 // defaults over what is saved.
                 return initStore().then(() => {
@@ -82,6 +86,9 @@ export default function Shell() {
                 })
             })
             .catch(() => {
+                // The server did not answer: render anyway, and let the socket's own retries and
+                // its unauthorized handling decide what happens next.
+                connect()
                 if (!cancelled) setAuthState('ok')
             })
         return () => {

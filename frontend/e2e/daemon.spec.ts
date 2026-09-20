@@ -12,7 +12,15 @@ import {
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, request as playwrightRequest, test } from '@playwright/test'
-import { OWNER, SERVER_BIN, SESSION, collectErrors, signIn, stopLeftoverJobs } from './helpers'
+import {
+    OWNER,
+    SERVER_BIN,
+    SESSION,
+    collectErrors,
+    runToExit,
+    signIn,
+    stopLeftoverJobs,
+} from './helpers'
 
 // The managed rclone daemon: start, restart, limits, the version floor, --clear, the config file.
 
@@ -74,24 +82,6 @@ test('the managed daemon comes up, serves the pages and restarts on request', as
         .toBe(true)
 })
 
-// The server as a child that is expected to stop by itself: what it said, and how it left.
-function runToExit(args: string[]): Promise<{ code: number | null; stderr: string }> {
-    return new Promise((resolve) => {
-        const server = spawn(SERVER_BIN, ['serve', '--password', OWNER.password, ...args], {
-            stdio: ['ignore', 'ignore', 'pipe'],
-        })
-        let stderr = ''
-        server.stderr.on('data', (chunk) => {
-            stderr += String(chunk)
-        })
-        const giveUp = setTimeout(() => server.kill('SIGKILL'), 20_000)
-        server.on('exit', (code) => {
-            clearTimeout(giveUp)
-            resolve({ code, stderr })
-        })
-    })
-}
-
 test('an rclone older than the server needs stops it before it listens', async () => {
     const root = mkdtempSync(join(tmpdir(), 'rcui-e2e-old-'))
     // `rclone version` is all the server asks of a binary before it runs it.
@@ -100,6 +90,10 @@ test('an rclone older than the server needs stops it before it listens', async (
     chmodSync(old, 0o755)
     try {
         const { code, stderr } = await runToExit([
+            '--email',
+            OWNER.email,
+            '--password',
+            OWNER.password,
             '--bind',
             '127.0.0.1:5616',
             '--rclone-path',
@@ -125,6 +119,10 @@ test('an external daemon older than the server needs stops it too', async () => 
     const { port } = daemon.address() as { port: number }
     try {
         const { code, stderr } = await runToExit([
+            '--email',
+            OWNER.email,
+            '--password',
+            OWNER.password,
             '--bind',
             '127.0.0.1:5616',
             '--rclone-url',

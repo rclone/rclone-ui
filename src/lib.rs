@@ -6,6 +6,7 @@
 //!
 //! | Route | What |
 //! |---|---|
+//! | `POST /api/login`, `POST /api/onboard` | sign in; the first launch's owner (`auth.rs`) |
 //! | `GET /api/status` | version, lifecycle phase, daemon |
 //! | `POST /api/rpc/{name}` | every RPC (`rpc.rs`) |
 //! | `GET/PATCH/PUT /api/state/{doc}` | revisioned state documents |
@@ -65,9 +66,9 @@ pub struct Owner {
 }
 
 pub struct ServeOpts {
-    /// Accounts (`team.rs`): `POST /api/login {email, password}` → session cookie. The pair
-    /// seeds the owner account on the first start and is ignored once accounts exist.
-    pub owner: Owner,
+    /// Seeds the owner account on the first start (`--email`/`--password`); ignored once accounts
+    /// exist. Without it the first visitor creates the owner (`POST /api/onboard`).
+    pub owner: Option<Owner>,
     pub dirs: DataDir,
     /// Use an already-running RC daemon instead of managing one.
     pub rclone_url: Option<String>,
@@ -310,14 +311,23 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
     let bus = Bus::new();
     let store = Arc::new(StateStore::new(opts.dirs.clone(), bus.clone()));
     let team = Arc::new(team::Team::open(&opts.dirs.root.join("state"))?);
-    if team.seed(&opts.owner.email, &opts.owner.password)? {
-        log::info!("created the owner account {}", opts.owner.email);
-    } else {
-        log::info!(
-            "team: {} account(s), owner {}; --password only seeds the first one",
+    match &opts.owner {
+        Some(owner) if team.seed(&owner.email, &owner.password)? => {
+            log::info!("created the owner account {}", owner.email);
+        }
+        _ if team.count() == 0 => {
+            log::info!("no accounts yet: the first visitor creates the owner account");
+        }
+        _ => log::info!(
+            "team: {} account(s), owner {}{}",
             team.count(),
-            team.owner_email().unwrap_or_default()
-        );
+            team.owner_email().unwrap_or_default(),
+            if opts.owner.is_some() {
+                "; --email/--password only seed the first one"
+            } else {
+                ""
+            }
+        ),
     }
     let auth = auth::Auth::new(team.clone());
     let capabilities = capabilities();
@@ -373,6 +383,7 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
 
     let app = Router::new()
         .route("/api/login", post(auth::login))
+        .route("/api/onboard", post(auth::onboard))
         .route("/api/logout", post(auth::logout))
         .route("/api/session", get(auth::session))
         .route("/api/status", get(rpc::status))

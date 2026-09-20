@@ -8,15 +8,14 @@ notifications, served to a browser. One binary runs the HTTP API, the pages and 
 ```sh
 docker run -d --name rclone-cloud \
   -p 5573:5573 \
-  -e RCLONE_CLOUD_PASSWORD=change-me \
   -v rclone-cloud:/data \
   -v rclone-cloud-config:/config/rclone \
-  ghcr.io/rclone-ui/rclone-cloud
+  ghcr.io/rclone/rclone-cloud
 ```
 
-Open <http://localhost:5573> and sign in as `admin@localhost` with that password. The pair seeds
-the owner account on the first start and is ignored once accounts exist; more accounts are added
-under Settings › Team.
+Open <http://localhost:5573>: the first visit creates the owner account. To seed it instead, set
+`RCLONE_CLOUD_EMAIL` and `RCLONE_CLOUD_PASSWORD` together; the pair is ignored once accounts
+exist. More accounts are added under Settings › Team.
 
 Mounting needs FUSE in the container:
 
@@ -41,8 +40,8 @@ Every flag has an environment variable.
 | Flag | Variable | Default |
 | --- | --- | --- |
 | `--bind` | `RCLONE_CLOUD_BIND` | `127.0.0.1:5573` |
-| `--password` | `RCLONE_CLOUD_PASSWORD` | required |
-| `--email` | `RCLONE_CLOUD_EMAIL` | `admin@localhost` |
+| `--email` | `RCLONE_CLOUD_EMAIL` | unset; with `--password`, seeds the owner account |
+| `--password` | `RCLONE_CLOUD_PASSWORD` | unset; with `--email`, seeds the owner account |
 | `--data-dir` | `RCLONE_CLOUD_DATA_DIR` | the platform's local data dir + `com.rclone.cloud` |
 | `--rclone-path` | `RCLONE_CLOUD_RCLONE_PATH` | unset; the `rclone` on `PATH` |
 | `--rclone-url` | `RCLONE_CLOUD_RCLONE_URL` | unset; manage the daemon instead |
@@ -106,7 +105,7 @@ remotes. Because the config lives outside the data directory, `--clear` does not
 ```sh
 npm --prefix frontend ci
 npm --prefix frontend run dev          # Vite on :1420
-cargo run -- serve --dev-proxy http://localhost:1420 --password rclone
+cargo run -- serve --dev-proxy http://localhost:1420 --email admin@localhost --password rclone
 ```
 
 `cargo test` covers the Rust side; `npm --prefix frontend run test:e2e` runs Playwright against a

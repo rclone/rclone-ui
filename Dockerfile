@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
 # rclone-cloud: rclone in a browser.
 #   docker build -t rclone-cloud .
-#   docker run -d -p 5573:5573 -e RCLONE_CLOUD_PASSWORD=change-me \
+#   docker run -d -p 5573:5573 \
 #     -v rclone-cloud:/data -v rclone-cloud-config:/config/rclone rclone-cloud
-# Sign in as admin@localhost (or RCLONE_CLOUD_EMAIL) with that password; the pair seeds the owner
-# account on the first start and is ignored once accounts exist (Settings › Team).
+# The first visit creates the owner account. RCLONE_CLOUD_EMAIL and RCLONE_CLOUD_PASSWORD together
+# seed it instead; the pair is ignored once accounts exist (Settings › Team).
 # Mounts need FUSE: add --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined
 # and a bind mount with `:rshared` propagation for the mount point to show up on the host.
 

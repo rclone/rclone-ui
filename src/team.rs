@@ -1,8 +1,8 @@
 //! Accounts for the browser server: who may sign in and what they may change. Owned by the
 //! server and never a state document (`/api/state` cannot read it), kept as
-//! `<app_data>/state/team.json` with argon2id password hashes. The first start seeds the owner
-//! from `--password` / `--email`; the owner is the one account nobody else can remove, demote or
-//! reset.
+//! `<app_data>/state/team.json` with argon2id password hashes. The owner is created once, from
+//! `--email`/`--password` on the first start or by the first visitor (`POST /api/onboard`), and
+//! is the one account nobody else can remove, demote or reset.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -12,7 +12,6 @@ use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, Salt
 use argon2::Argon2;
 use serde::{Deserialize, Serialize};
 
-pub const DEFAULT_OWNER_EMAIL: &str = "admin@localhost";
 pub const MIN_PASSWORD_LEN: usize = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -187,24 +186,37 @@ impl Team {
             .map(|u| u.email.clone())
     }
 
-    /// The owner, created once: with accounts on disk this does nothing and returns `false`.
-    /// The seed password is taken as given (it is the deployment's own choice), unlike the
-    /// ones set through the pages.
+    /// The owner from the flags, created once: with accounts on disk this does nothing and
+    /// returns `false`. The seed password is taken as given (it is the deployment's own choice),
+    /// unlike the ones set through the pages.
     pub fn seed(&self, email: &str, password: &str) -> Result<bool, String> {
+        self.create_owner(email, password).map(|owner| owner.is_some())
+    }
+
+    /// The owner from the first-launch screen: the pages' password rule applies. `None` once
+    /// any account exists (two tabs onboarding at once: the second is told so).
+    pub fn onboard(&self, email: &str, password: &str) -> Result<Option<AuthUser>, String> {
+        check_password(password)?;
+        self.create_owner(email, password)
+    }
+
+    fn create_owner(&self, email: &str, password: &str) -> Result<Option<AuthUser>, String> {
         let email = normalize_email(email)?;
         let mut users = self.users.lock().unwrap();
         if !users.is_empty() {
-            return Ok(false);
+            return Ok(None);
         }
-        users.push(User {
+        let owner = User {
             id: uuid::Uuid::new_v4().to_string(),
             email,
             role: Role::Owner,
             password_hash: hash(password)?,
             created_at: now(),
-        });
+        };
+        let auth = owner.auth();
+        users.push(owner);
         Self::save(&self.path, &users)?;
-        Ok(true)
+        Ok(Some(auth))
     }
 
     /// The account behind an email + password, or nothing. The hash check runs outside the lock.
@@ -405,6 +417,8 @@ impl Team {
 mod tests {
     use super::*;
 
+    const DEFAULT_OWNER_EMAIL: &str = "admin@localhost";
+
     fn fresh() -> (Team, PathBuf) {
         let dir = std::env::temp_dir().join(format!("rclone-cloud-team-{}", uuid::Uuid::new_v4()));
         (Team::open(&dir).unwrap(), dir)
@@ -580,6 +594,33 @@ mod tests {
             .set_email(&pat, &pat.id, "not-an-email")
             .unwrap_err()
             .contains("not an email"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn onboarding_applies_the_password_rule_and_happens_once() {
+        let (team, dir) = fresh();
+        assert!(team
+            .onboard("first@example.com", "short")
+            .unwrap_err()
+            .contains("at least 8 characters"));
+        assert_eq!(team.count(), 0);
+        let owner = team
+            .onboard(" First@Example.com ", "long-enough-1")
+            .unwrap()
+            .expect("created");
+        assert_eq!(
+            (owner.email.as_str(), owner.role),
+            ("first@example.com", Role::Owner)
+        );
+        assert_eq!(
+            team.get(&owner.id).map(|u| u.email),
+            Some(owner.email.clone())
+        );
+        // A second tab, and the flags on a later start: nothing to do.
+        assert!(team.onboard("second@example.com", "long-enough-2").unwrap().is_none());
+        assert!(!team.seed("third@example.com", "long-enough-3").unwrap());
+        assert_eq!(team.count(), 1);
         let _ = std::fs::remove_dir_all(dir);
     }
 }

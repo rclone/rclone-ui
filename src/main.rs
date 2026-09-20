@@ -32,13 +32,14 @@ struct CliServe {
     /// Address to listen on.
     #[arg(long, env = "RCLONE_CLOUD_BIND", default_value = "127.0.0.1:5573")]
     bind: String,
-    /// The owner account's password. Required. It seeds the owner on the first start and is
-    /// ignored once accounts exist (Settings › Team; delete state/team.json to start over).
+    /// With --email: the owner account's password, seeded on the first start and ignored once
+    /// accounts exist (Settings › Team; delete state/team.json to start over). Without the
+    /// pair, the first visitor creates the owner account.
     #[arg(long, env = "RCLONE_CLOUD_PASSWORD")]
     password: Option<String>,
-    /// The owner account's email, used with --password on the first start only.
-    #[arg(long, env = "RCLONE_CLOUD_EMAIL", default_value = rclone_cloud::team::DEFAULT_OWNER_EMAIL)]
-    email: String,
+    /// With --password: the owner account's email.
+    #[arg(long, env = "RCLONE_CLOUD_EMAIL")]
+    email: Option<String>,
     /// The data directory: state, accounts, schedules, logs
     /// (defaults to this machine's local data directory, under com.rclone.cloud).
     #[arg(long, env = "RCLONE_CLOUD_DATA_DIR")]
@@ -54,7 +55,8 @@ struct CliServe {
     #[arg(long, env = "RCLONE_CLOUD_DEV_PROXY")]
     dev_proxy: Option<String>,
     /// Delete everything in the data directory before starting: accounts, settings, schedules,
-    /// and notification targets. The owner is seeded again from --password.
+    /// and notification targets. The owner is seeded again from --email/--password, or created
+    /// again by the first visitor.
     #[arg(long, env = "RCLONE_CLOUD_CLEAR")]
     clear: bool,
 }
@@ -153,9 +155,7 @@ async fn run(cli: CliServe) -> Result<(), String> {
         .bind
         .parse()
         .map_err(|e| format!("invalid --bind '{}': {}", cli.bind, e))?;
-    let password = cli.password.clone().filter(|p| !p.is_empty()).ok_or_else(|| {
-        "a password is required: set --password or RCLONE_CLOUD_PASSWORD (it becomes the owner account's password on the first start)".to_string()
-    })?;
+    let owner = owner_from(cli.email.clone(), cli.password.clone())?;
 
     let dirs = match &cli.data_dir {
         Some(d) => rclone_cloud::DataDir { root: d.clone() },
@@ -200,10 +200,7 @@ async fn run(cli: CliServe) -> Result<(), String> {
     let handle = serve(
         listener,
         ServeOpts {
-            owner: Owner {
-                email: cli.email.clone(),
-                password,
-            },
+            owner,
             dirs,
             rclone_url: cli.rclone_url.clone(),
             dev_proxy: cli.dev_proxy,
@@ -246,4 +243,46 @@ async fn shutdown_signal() {
         _ = terminate => {},
     }
     log::info!("shutting down");
+}
+
+/// The owner comes as a pair or not at all: one flag without the other is a mistake worth
+/// stopping for, not a server that quietly leaves the account to the first visitor.
+fn owner_from(email: Option<String>, password: Option<String>) -> Result<Option<Owner>, String> {
+    const PAIR: &str = "the pair seeds the owner account on the first start; leave both out to create it from the first-launch screen";
+    let email = email.filter(|e| !e.trim().is_empty());
+    let password = password.filter(|p| !p.is_empty());
+    match (email, password) {
+        (Some(email), Some(password)) => Ok(Some(Owner { email, password })),
+        (None, None) => Ok(None),
+        (Some(_), None) => Err(format!(
+            "--email needs --password (or RCLONE_CLOUD_PASSWORD): {}",
+            PAIR
+        )),
+        (None, Some(_)) => Err(format!(
+            "--password needs --email (or RCLONE_CLOUD_EMAIL): {}",
+            PAIR
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_owner_flags_come_as_a_pair_or_not_at_all() {
+        let some = |s: &str| Some(s.to_string());
+        let owner = owner_from(some("a@b.c"), some("secret")).unwrap().unwrap();
+        assert_eq!(
+            (owner.email.as_str(), owner.password.as_str()),
+            ("a@b.c", "secret")
+        );
+        assert!(owner_from(None, None).unwrap().is_none());
+        // Empty is absent: an unset variable read as "" must not count as a flag.
+        assert!(owner_from(some(" "), some("")).unwrap().is_none());
+        assert!(
+            matches!(owner_from(some("a@b.c"), None), Err(e) if e.contains("needs --password"))
+        );
+        assert!(matches!(owner_from(None, some("secret")), Err(e) if e.contains("needs --email")));
+    }
 }
