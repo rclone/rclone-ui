@@ -1730,7 +1730,7 @@ dependencies = [
 
 [[package]]
 name = "rclone-cloud"
-version = "3.7.4"
+version = "0.1.0"
 dependencies = [
  "argon2",
  "axum",
