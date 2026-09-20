@@ -25,7 +25,7 @@ use crate::notifications::webhooks;
 use crate::rc::{self, RcClient};
 use crate::rt;
 use crate::scheduler::storeread;
-use crate::state_files::{StateStore, APP_DOC, HOST_DOC};
+use crate::state_files::{StateStore, HOST_DOC};
 use crate::transfers::service::TransferService;
 use crate::zookeeper::{self, RcloneEvent};
 
@@ -44,7 +44,7 @@ pub enum Phase {
     Downloading {
         version: String,
     },
-    /// A managed rclone is being auto-updated.
+    /// The server's own rclone is being auto-updated.
     Updating {
         from: String,
         to: String,
@@ -86,7 +86,6 @@ impl RcTarget {
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RestartOverrides {
-    pub rclone_path: Option<String>,
     pub proxy: Option<Value>,
     pub limits: Option<Value>,
 }
@@ -150,6 +149,11 @@ impl Supervisor {
         self.target.read().unwrap().clone()
     }
 
+    /// The binary `--rclone-path` names: never replaced by a custom one, never auto-updated.
+    pub fn pinned(&self) -> Option<&std::path::Path> {
+        self.options.rclone_path_override.as_deref()
+    }
+
     pub fn request_restart(&self, overrides: Option<RestartOverrides>) {
         let _ = self.restart_tx.send(overrides);
     }
@@ -183,13 +187,6 @@ impl Supervisor {
     }
 
     fn apply_overrides(&self, overrides: RestartOverrides) {
-        if let Some(path) = overrides.rclone_path {
-            if let Err(e) = self.store.update(APP_DOC, |s| {
-                s.insert("rclonePath".into(), Value::String(path));
-            }) {
-                log::warn!("[lifecycle] could not persist rclonePath: {}", e);
-            }
-        }
         if overrides.proxy.is_some() || overrides.limits.is_some() {
             if let Err(e) = self.store.update(HOST_DOC, |s| {
                 if let Some(proxy) = overrides.proxy {
@@ -206,28 +203,19 @@ impl Supervisor {
 
     async fn start_once(&self) -> Result<mpsc::UnboundedReceiver<RcloneEvent>, String> {
         self.set_phase(Phase::Resolving);
-        let path = resolve::resolve_binary(
+        let found = resolve::resolve_binary(
             &self.ctx,
-            &self.store,
             self.options.rclone_path_override.as_deref(),
             |version| self.set_phase(Phase::Downloading { version }),
         )
+        .await?;
+        // It is replaced where it lives, so the path to run does not change.
+        let updated = resolve::maybe_auto_update(&self.ctx, &self.store, &found, |from, to| {
+            self.set_phase(Phase::Updating { from, to })
+        })
         .await
-        ?;
-
-        // A managed binary may be auto-updated; either way keep the PATH pointer on it.
-        let (path, updated) =
-            if self.options.rclone_path_override.is_none() {
-                resolve::maybe_auto_update(&self.ctx, &self.store, path, |from, to| {
-                    self.set_phase(Phase::Updating { from, to })
-                })
-                .await
-            } else {
-                (path, false)
-            };
-        if let Err(e) = zookeeper::update_path_pointer(&self.ctx, path.clone()) {
-            log::warn!("[lifecycle] update_path_pointer failed: {}", e);
-        }
+        .is_some();
+        let path = found.path;
 
         // The only thing the daemon is told about its environment is the proxy. Its config file
         // is rclone's business: whatever `RCLONE_CONFIG`/`XDG_CONFIG_HOME` this process was given

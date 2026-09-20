@@ -1,44 +1,20 @@
-import { Button, Checkbox, Chip, Divider, Input, Progress, Spinner, Tooltip } from '@heroui/react'
+import { Button, Checkbox, Chip, Divider, Input, Progress, Spinner } from '@heroui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import {
-    DownloadIcon,
-    FolderOpenIcon,
-    HardDriveIcon,
-    PlusIcon,
-    RefreshCwIcon,
-    Trash2Icon,
-} from 'lucide-react'
+import { FolderOpenIcon, HardDriveIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { startTransition, useEffect, useMemo, useState } from 'react'
 
 import { ask, message, pickPath } from '../../../lib/api/dialog'
 import { formatErrorMessage, reportError } from '../../../lib/errors'
-import { formatBytes } from '../../../lib/format'
-import {
-    classifyRclonePath,
-    compareVersions,
-    findSystemRclone,
-    probeRcloneBinaryOrThrow,
-    validateRcloneBinary,
-} from '../../../lib/rclone/common'
-import {
-    MIN_RCLONE_VERSION,
-    RCLONE_RELEASES_STEP,
-    RCLONE_RELEASES_SHOWN,
-} from '../../../lib/rclone/constants'
+import { RCLONE_RELEASES_STEP, RCLONE_RELEASES_SHOWN } from '../../../lib/rclone/constants'
 import {
     type DownloadProgress,
-    type DownloadedVersion,
-    activateRclonePath,
-    deleteVersion,
-    downloadVersion,
+    confirmIfBusy,
     fetchAvailableVersions,
-    getPathIntegration,
+    installVersion,
     isRcloneBusy,
-    listDownloadedVersions,
-    setPathIntegration,
 } from '../../../lib/rclone/versions'
-import { status } from '../../../lib/api/app'
+import { type RcloneBinary, rcloneBinary, rcloneSetCustom, status } from '../../../lib/api/app'
 import { restartActiveRclone } from '../../../lib/rclone/cli'
 import rclone from '../../../lib/rclone/client'
 import { usePersistedStore } from '../../../store/persisted'
@@ -64,201 +40,130 @@ export default function RcloneSection() {
 }
 
 /** Warning for binaries below the version floor the app's Serve feature needs. */
-function subFloorWarning(version: string | null | undefined): string | null {
-    if (!version) return null
-    return compareVersions(version, MIN_RCLONE_VERSION) < 0
-        ? `Serve requires rclone ≥ ${MIN_RCLONE_VERSION.split('.').slice(0, 2).join('.')}`
-        : null
-}
+const KIND_LABEL = {
+    pinned: 'Pinned by --rclone-path',
+    custom: 'Custom binary',
+    system: 'On PATH',
+} as const
 
-// The binary settings, beside the proxy settings below.
+/**
+ * Which rclone the server runs, a custom one in its place, its updates, and the installer. There
+ * is one rclone: a version installed here replaces the server's own where it lives.
+ */
 function BinarySettings() {
     const queryClient = useQueryClient()
-    const rclonePath = usePersistedStore((state) => state.rclonePath)
-    const [progress, setProgress] = useState<Record<string, DownloadProgress>>({})
+    const [progress, setProgress] = useState<DownloadProgress | null>(null)
     // How many releases the list is currently asking for; Load more asks for ten more.
     const [releaseLimit, setReleaseLimit] = useState(RCLONE_RELEASES_SHOWN)
 
-    const downloadedQuery = useQuery({
-        queryKey: ['rclone', 'downloaded'],
-        queryFn: listDownloadedVersions,
-    })
+    const binary = useQuery({ queryKey: ['rclone', 'binary'], queryFn: rcloneBinary }).data
+    // Somebody else's daemon (`--rclone-url`): there is no binary here to show or replace.
+    const external = binary?.kind === 'external'
     const releasesQuery = useQuery({
         queryKey: ['rclone', 'releases', releaseLimit],
         queryFn: () => fetchAvailableVersions(releaseLimit),
         staleTime: 60 * 60 * 1000,
         retry: 1,
         placeholderData: (previous) => previous,
+        enabled: !!binary && !external,
     })
-    const systemQuery = useQuery({
-        queryKey: ['rclone', 'system'],
-        queryFn: findSystemRclone,
-    })
-    const systemVersionQuery = useQuery({
-        queryKey: ['rclone', 'system-version', systemQuery.data],
-        queryFn: () => validateRcloneBinary(systemQuery.data!),
-        enabled: !!systemQuery.data,
-    })
-    const classificationQuery = useQuery({
-        queryKey: ['rclone', 'classify', rclonePath],
-        queryFn: () => (rclonePath ? classifyRclonePath(rclonePath) : null),
-        enabled: !!rclonePath,
+    const refresh = () => queryClient.invalidateQueries({ queryKey: ['rclone'] })
+
+    const installMutation = useMutation({
+        mutationFn: async (version: string) => {
+            if (binary?.kind === 'custom') {
+                const proceed = await ask(
+                    `This installs rclone v${version} at ${binary.installTarget} and stops using the custom binary. The custom binary itself is not touched.`,
+                    { title: 'Install rclone', okLabel: 'Install', cancelLabel: 'Cancel' }
+                )
+                if (!proceed) return
+            }
+            if (!(await confirmIfBusy())) return
+            await installVersion(version, setProgress)
+        },
+        onSettled: () => {
+            setProgress(null)
+            refresh()
+        },
+        onError: async (e) => {
+            await message(`Install failed: ${formatErrorMessage(e, String(e))}`, {
+                title: 'Error',
+                kind: 'error',
+            })
+        },
     })
 
-    const active = classificationQuery.data
-
-    const invalidateActive = () => {
-        queryClient.invalidateQueries({ queryKey: ['rclone'] })
+    if (!binary) return null
+    if (binary.kind === 'external') {
+        return (
+            <SettingsGroup title="Binary">
+                <span className="text-sm text-neutral-500">
+                    This server does not run rclone itself (--rclone-url). Update that rclone on its
+                    own machine.
+                </span>
+            </SettingsGroup>
+        )
     }
 
-    const downloadMutation = useMutation({
-        mutationFn: async (version: string) => {
-            return await downloadVersion(version, (p) =>
-                setProgress((prev) => ({ ...prev, [version]: p }))
-            )
-        },
-        onSettled: (_data, _err, version) => {
-            setProgress((prev) => {
-                const next = { ...prev }
-                delete next[version]
-                return next
-            })
-            queryClient.invalidateQueries({ queryKey: ['rclone', 'downloaded'] })
-        },
-        onError: async (e) => {
-            await message(`Download failed: ${formatErrorMessage(e, String(e))}`, {
-                title: 'Error',
-                kind: 'error',
-            })
-        },
-    })
-
-    const activateMutation = useMutation({
-        mutationFn: async (opts: { path: string; isSystem?: boolean }) => {
-            return await activateRclonePath(opts.path)
-        },
-        onSuccess: () => invalidateActive(),
-    })
-
-    const deleteMutation = useMutation({
-        mutationFn: deleteVersion,
-        onSettled: () => queryClient.invalidateQueries({ queryKey: ['rclone', 'downloaded'] }),
-        onError: async (e) => {
-            await message(`Could not delete: ${formatErrorMessage(e, String(e))}`, {
-                title: 'Error',
-                kind: 'error',
-            })
-        },
-    })
-
-    // Only the active version is in use: nothing else picks a binary of its own any more — a
-    // scheduled run goes to the daemon the server is running, like everything else — and the
-    // active one has no delete button to begin with.
-    const handleDeleteVersion = (v: DownloadedVersion) => deleteMutation.mutate(v.version)
-
-    const downloadedVersions = downloadedQuery.data ?? []
-    const downloadedSet = useMemo(
-        () => new Set(downloadedVersions.map((v) => v.version)),
-        [downloadedVersions]
-    )
-    const availableToDownload = (releasesQuery.data ?? []).filter(
-        (r) => !downloadedSet.has(r.version)
-    )
-
-    // A full page came back, so the list was cut off and there may be more behind it. A short one
-    // is the end of what GitHub has above the version floor. While a bigger page is on its way the
-    // rows are still the previous one, so the button stays and spins rather than blinking out.
-    const mayHaveMore =
-        releasesQuery.isPlaceholderData || (releasesQuery.data?.length ?? 0) >= releaseLimit
-    const latestVersion = releasesQuery.data?.[0]?.version
-    const updateAvailable =
-        active?.kind === 'managed' &&
-        active.version &&
-        latestVersion &&
-        !downloadedSet.has(latestVersion) &&
-        active.version !== latestVersion
+    const releases = releasesQuery.data ?? []
+    const mayHaveMore = releases.length >= releaseLimit
+    const installed = binary.kind === 'custom' ? null : binary.version
+    const latest = releases[0]?.version
+    const percent = progress?.total
+        ? Math.min(100, Math.round((progress.downloaded / progress.total) * 100))
+        : undefined
 
     return (
         <>
-            <SettingsGroup title="Custom binary">
-                <CustomBinaryRow
-                    active={active}
-                    systemPath={systemQuery.data ?? null}
-                    rclonePath={rclonePath}
-                    onActivated={invalidateActive}
-                />
+            <SettingsGroup title="Binary">
+                <div className="flex items-center gap-3">
+                    <HardDriveIcon className="w-5 h-5 shrink-0 text-neutral-400" />
+                    <div className="flex flex-col flex-1 min-w-0">
+                        <span className="text-sm">
+                            {binary.version ? `rclone v${binary.version}` : 'No rclone found'}
+                        </span>
+                        <span className="text-xs truncate text-neutral-500">{binary.path}</span>
+                    </div>
+                    {binary.kind && (
+                        <Chip size="sm" variant="flat">
+                            {KIND_LABEL[binary.kind]}
+                        </Chip>
+                    )}
+                </div>
             </SettingsGroup>
 
-            <SettingsGroup title="Integration" contentClassName="gap-6">
-                <PathIntegrationRow
-                    rclonePath={rclonePath}
-                    isSystemActive={active?.kind === 'system'}
-                />
+            <SettingsGroup title="Custom binary">
+                <CustomBinaryRow binary={binary} onChanged={refresh} />
             </SettingsGroup>
 
             <SettingsGroup title="Updates">
-                <AutoUpdateRow />
+                <AutoUpdateRow installTarget={binary.installTarget} />
             </SettingsGroup>
 
             <SettingsGroup title="Versions">
-                <div className="flex flex-col overflow-hidden border divide-y rounded-large border-divider divide-divider">
-                    {/* System */}
-                    {systemQuery.data && (
-                        <VersionRow
-                            label={
-                                systemVersionQuery.data
-                                    ? `System — v${systemVersionQuery.data}`
-                                    : 'System'
-                            }
-                            sublabel={systemQuery.data}
-                            warning={subFloorWarning(systemVersionQuery.data)}
-                            isActive={active?.kind === 'system'}
-                            actionLabel="Use"
-                            isActivating={activateMutation.isPending}
-                            onActivate={() =>
-                                activateMutation.mutate({
-                                    path: systemQuery.data!,
-                                    isSystem: true,
-                                })
-                            }
-                        />
-                    )}
-
-                    {/* Downloaded (managed) */}
-                    {downloadedVersions.map((v) => {
-                        const isActive = active?.kind === 'managed' && active.version === v.version
+                {binary.installBlocked ? (
+                    <span className="text-xs text-warning">
+                        {binary.installBlocked} Run <code>rclone selfupdate</code> on the server
+                        instead.
+                    </span>
+                ) : (
+                    <span className="text-xs text-neutral-500">
+                        Installing a version replaces {binary.installTarget}.
+                    </span>
+                )}
+                <div className="flex flex-col overflow-hidden border divide-y rounded-medium border-divider divide-divider">
+                    {releases.map((release) => {
+                        const isInstalling =
+                            installMutation.isPending &&
+                            installMutation.variables === release.version
                         return (
-                            <VersionRow
-                                key={v.path}
-                                label={`v${v.version}`}
-                                sublabel={formatBytes(v.sizeBytes)}
-                                warning={subFloorWarning(v.version)}
-                                isActive={isActive}
-                                actionLabel="Use"
-                                isActivating={activateMutation.isPending}
-                                onActivate={() => activateMutation.mutate({ path: v.path })}
-                                onDelete={isActive ? undefined : () => handleDeleteVersion(v)}
-                                isDeleting={
-                                    deleteMutation.isPending &&
-                                    deleteMutation.variables === v.version
-                                }
-                            />
-                        )
-                    })}
-
-                    {/* Available to download */}
-                    {availableToDownload.map((r) => {
-                        const prog = progress[r.version]
-                        const percent = prog?.total
-                            ? Math.min(100, Math.round((prog.downloaded / prog.total) * 100))
-                            : undefined
-                        const isDownloading =
-                            downloadMutation.isPending && downloadMutation.variables === r.version
-                        return (
-                            <div key={r.version} className="flex items-center gap-3 px-4 py-3">
+                            <div
+                                key={release.version}
+                                className="flex items-center gap-3 px-4 py-3"
+                            >
                                 <div className="flex flex-col flex-1 min-w-0">
-                                    <span className="text-sm text-neutral-500">v{r.version}</span>
-                                    {isDownloading && (
+                                    <span className="text-sm">v{release.version}</span>
+                                    {isInstalling && (
                                         <Progress
                                             aria-label="download progress"
                                             size="sm"
@@ -268,40 +173,49 @@ function BinarySettings() {
                                         />
                                     )}
                                 </div>
-                                <Button
-                                    size="sm"
-                                    variant="light"
-                                    isIconOnly={true}
-                                    isLoading={isDownloading}
-                                    onPress={() => downloadMutation.mutate(r.version)}
-                                    data-focus-visible="false"
-                                >
-                                    <DownloadIcon className="w-4 h-4" />
-                                </Button>
+                                {release.version === installed ? (
+                                    <Chip size="sm" color="success" variant="flat">
+                                        INSTALLED
+                                    </Chip>
+                                ) : (
+                                    <Button
+                                        size="sm"
+                                        variant="flat"
+                                        color={release.version === latest ? 'primary' : 'default'}
+                                        isLoading={isInstalling}
+                                        isDisabled={
+                                            !!binary.installBlocked || installMutation.isPending
+                                        }
+                                        onPress={() => installMutation.mutate(release.version)}
+                                        data-focus-visible="false"
+                                    >
+                                        {release.version === latest && installed
+                                            ? 'Update'
+                                            : 'Install'}
+                                    </Button>
+                                )}
                             </div>
                         )
                     })}
 
-                    {(downloadedVersions.length > 0 || systemQuery.data) &&
-                        availableToDownload.length === 0 &&
-                        releasesQuery.isError && (
-                            <div className="flex items-center justify-between gap-2 px-4 py-3">
-                                <span className="text-xs text-warning">
-                                    Couldn't load available versions (offline or rate-limited).
-                                </span>
-                                <Button
-                                    size="sm"
-                                    variant="light"
-                                    onPress={() => releasesQuery.refetch()}
-                                    startContent={<RefreshCwIcon className="w-3.5 h-3.5" />}
-                                    data-focus-visible="false"
-                                >
-                                    Retry
-                                </Button>
-                            </div>
-                        )}
+                    {releases.length === 0 && releasesQuery.isError && (
+                        <div className="flex items-center justify-between gap-2 px-4 py-3">
+                            <span className="text-xs text-warning">
+                                Couldn't load available versions (offline or rate-limited).
+                            </span>
+                            <Button
+                                size="sm"
+                                variant="light"
+                                onPress={() => releasesQuery.refetch()}
+                                startContent={<RefreshCwIcon className="w-3.5 h-3.5" />}
+                                data-focus-visible="false"
+                            >
+                                Retry
+                            </Button>
+                        </div>
+                    )}
 
-                    {releasesQuery.isLoading && downloadedVersions.length === 0 && (
+                    {releasesQuery.isLoading && (
                         <div className="flex items-center justify-center py-6">
                             <Spinner size="sm" />
                         </div>
@@ -319,137 +233,30 @@ function BinarySettings() {
                         Load more
                     </Button>
                 )}
-
-                {updateAvailable && (
-                    <div className="flex items-center gap-2">
-                        <Chip size="sm" color="primary" variant="flat">
-                            Update available: v{latestVersion}
-                        </Chip>
-                        <Button
-                            size="sm"
-                            color="primary"
-                            variant="flat"
-                            isLoading={
-                                downloadMutation.isPending &&
-                                downloadMutation.variables === latestVersion
-                            }
-                            onPress={async () => {
-                                const path = await downloadMutation.mutateAsync(latestVersion!)
-                                activateMutation.mutate({ path })
-                            }}
-                            data-focus-visible="false"
-                        >
-                            Update &amp; use
-                        </Button>
-                    </div>
-                )}
             </SettingsGroup>
         </>
     )
 }
 
-function VersionRow({
-    label,
-    sublabel,
-    warning,
-    isActive,
-    actionLabel,
-    onActivate,
-    isActivating,
-    onDelete,
-    isDeleting,
-}: {
-    label: string
-    sublabel: string
-    warning?: string | null
-    isActive: boolean
-    actionLabel: string
-    onActivate: () => void
-    isActivating?: boolean
-    onDelete?: () => void
-    isDeleting?: boolean
-}) {
-    return (
-        <div className="flex items-center gap-3 px-4 py-3">
-            <HardDriveIcon className="w-4 h-4 text-neutral-500 shrink-0" />
-            <div className="flex flex-col flex-1 min-w-0">
-                <span className="text-sm font-medium">{label}</span>
-                <span className="text-xs truncate text-neutral-500">{sublabel}</span>
-                {warning && <span className="text-xs text-warning">{warning}</span>}
-            </div>
-            {isActive ? (
-                <Chip size="sm" color="success" variant="flat">
-                    ACTIVE
-                </Chip>
-            ) : (
-                <Button
-                    size="sm"
-                    variant="flat"
-                    isLoading={isActivating}
-                    onPress={onActivate}
-                    data-focus-visible="false"
-                >
-                    {actionLabel}
-                </Button>
-            )}
-            {onDelete ? (
-                <Button
-                    size="sm"
-                    variant="light"
-                    isIconOnly={true}
-                    color="danger"
-                    isLoading={isDeleting}
-                    onPress={onDelete}
-                    data-focus-visible="false"
-                >
-                    <Trash2Icon className="w-4 h-4" />
-                </Button>
-            ) : (
-                <Tooltip content="Can't delete the active version" isDisabled={!isActive}>
-                    <span className="inline-flex">
-                        <Button size="sm" variant="light" isIconOnly={true} isDisabled={true}>
-                            <Trash2Icon className="w-4 h-4" />
-                        </Button>
-                    </span>
-                </Tooltip>
-            )}
-        </div>
-    )
-}
-
+/** A binary that runs instead of the server's own. It is never updated or replaced. */
 function CustomBinaryRow({
-    active,
-    systemPath,
-    rclonePath,
-    onActivated,
+    binary,
+    onChanged,
 }: {
-    active: { kind: string; version: string | null } | null | undefined
-    systemPath: string | null
-    rclonePath: string | undefined
-    onActivated: () => void
+    binary: RcloneBinary
+    onChanged: () => void
 }) {
-    const isCustomActive = active?.kind === 'custom'
-    const [value, setValue] = useState('')
+    const pinned = binary.kind === 'pinned'
+    const [value, setValue] = useState(binary.custom ?? '')
+    useEffect(() => setValue(binary.custom ?? ''), [binary.custom])
 
-    // Seed with the current custom path, else the detected system rclone.
-    useEffect(() => {
-        setValue(isCustomActive && rclonePath ? rclonePath : (systemPath ?? ''))
-    }, [isCustomActive, rclonePath, systemPath])
-
-    const customVersionQuery = useQuery({
-        queryKey: ['rclone', 'custom-version', rclonePath],
-        queryFn: () => validateRcloneBinary(rclonePath!),
-        enabled: isCustomActive && !!rclonePath,
-    })
-    const customWarning = isCustomActive ? subFloorWarning(customVersionQuery.data) : null
-
-    const useMutationState = useMutation({
-        mutationFn: async (path: string) => {
-            const version = await probeRcloneBinaryOrThrow(path)
-            const ok = await activateRclonePath(path)
-            return { version, ok }
+    // The server probes the binary, refuses one older than it can run, and restarts on it.
+    const setMutation = useMutation({
+        mutationFn: async (path: string | null) => {
+            if (!(await confirmIfBusy())) return
+            await rcloneSetCustom(path)
         },
-        onSuccess: () => onActivated(),
+        onSuccess: () => onChanged(),
         onError: async (e) => {
             await reportError(e, { title: 'Invalid binary', fallback: String(e), capture: false })
         },
@@ -463,8 +270,8 @@ function CustomBinaryRow({
         })
         if (typeof selected === 'string') {
             setValue(selected)
-            // Picking a binary implies using it — activate immediately, no separate button.
-            useMutationState.mutate(selected)
+            // Picking a binary implies using it — no separate button.
+            setMutation.mutate(selected)
         }
     }
 
@@ -475,19 +282,21 @@ function CustomBinaryRow({
                 onValueChange={setValue}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' && value) {
-                        useMutationState.mutate(value)
+                        setMutation.mutate(value)
                     }
                 }}
                 size="lg"
                 placeholder="Point to an rclone binary on your machine (/path/to/rclone)"
                 autoComplete="off"
+                isDisabled={pinned}
                 endContent={
-                    useMutationState.isPending ? (
+                    setMutation.isPending ? (
                         <Spinner size="sm" />
                     ) : (
                         <button
                             type="button"
                             onClick={browse}
+                            disabled={pinned}
                             className="transition-colors text-neutral-400 hover:text-neutral-200"
                         >
                             <FolderOpenIcon className="w-5 h-5" />
@@ -495,18 +304,40 @@ function CustomBinaryRow({
                     )
                 }
             />
-            {isCustomActive && (
-                <span className="text-xs text-success">
-                    Currently using a custom binary
-                    {customVersionQuery.data ? ` (v${customVersionQuery.data})` : ''}.
-                </span>
+            <span className="text-xs text-neutral-500">
+                {pinned
+                    ? 'The server was started with --rclone-path, which decides the binary.'
+                    : 'Runs instead of the rclone on PATH. It is never updated or replaced.'}
+            </span>
+            {binary.custom && (
+                <div className="flex items-center gap-3">
+                    <span
+                        className={
+                            binary.kind === 'custom'
+                                ? 'text-xs text-success'
+                                : 'text-xs text-warning'
+                        }
+                    >
+                        {binary.kind === 'custom'
+                            ? 'Currently using this custom binary.'
+                            : 'This custom binary does not run, so it is not the one in use.'}
+                    </span>
+                    <Button
+                        size="sm"
+                        variant="light"
+                        isLoading={setMutation.isPending}
+                        onPress={() => setMutation.mutate(null)}
+                        data-focus-visible="false"
+                    >
+                        Stop using it
+                    </Button>
+                </div>
             )}
-            {customWarning && <span className="text-xs text-warning">{customWarning}</span>}
         </div>
     )
 }
 
-function AutoUpdateRow() {
+function AutoUpdateRow({ installTarget }: { installTarget?: string | null }) {
     const autoUpdate = usePersistedStore((state) => state.autoUpdateRclone)
 
     return (
@@ -520,66 +351,10 @@ function AutoUpdateRow() {
                 Automatically update rclone
             </Checkbox>
             <span className="text-xs text-neutral-500">
-                Applies to versions installed by the app. When off, you'll be notified when a new
-                version is available.
+                At startup a newer stable release replaces{' '}
+                {installTarget ?? "the server's own rclone"}. When off, or when the server cannot
+                write there, you are notified instead. A custom or pinned binary is never touched.
             </span>
-        </div>
-    )
-}
-
-function PathIntegrationRow({
-    rclonePath,
-    isSystemActive,
-}: {
-    rclonePath: string | undefined
-    isSystemActive: boolean
-}) {
-    const queryClient = useQueryClient()
-    const statusQuery = useQuery({
-        queryKey: ['rclone', 'path-integration'],
-        queryFn: getPathIntegration,
-    })
-
-    const toggleMutation = useMutation({
-        mutationFn: async (enable: boolean) => {
-            if (!rclonePath) throw new Error('No active rclone to link.')
-            return await setPathIntegration(enable, rclonePath)
-        },
-        onSuccess: () =>
-            queryClient.invalidateQueries({ queryKey: ['rclone', 'path-integration'] }),
-        onError: async (e) => {
-            await reportError(e, { title: 'PATH integration', fallback: String(e), capture: false })
-            queryClient.invalidateQueries({ queryKey: ['rclone', 'path-integration'] })
-        },
-    })
-
-    const status = statusQuery.data
-
-    return (
-        <div className="flex flex-col gap-2">
-            <Checkbox
-                isSelected={status?.enabled ?? false}
-                isDisabled={
-                    toggleMutation.isPending ||
-                    statusQuery.isLoading ||
-                    isSystemActive ||
-                    !rclonePath
-                }
-                onValueChange={(checked) => toggleMutation.mutate(checked)}
-            >
-                Add rclone to PATH
-            </Checkbox>
-            <span className="text-xs text-neutral-500">
-                Lets you call rclone from your terminal.
-            </span>
-            {isSystemActive && (
-                <span className="text-xs text-neutral-500">
-                    The system rclone is already on your PATH.
-                </span>
-            )}
-            {status?.warning && !isSystemActive && (
-                <span className="text-xs text-warning">{status.warning}</span>
-            )}
         </div>
     )
 }

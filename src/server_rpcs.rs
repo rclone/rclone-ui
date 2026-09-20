@@ -369,11 +369,88 @@ server_rpcs! {
             st.http.get(url).send().await.map_err(|e| e.to_string())?;
             ok(true)
         },
-        "rclone_latest_version" => ok(resolve::latest_version().await?),
         "rclone_releases" => {
-            let min = args["minVersion"].as_str().unwrap_or("1.70.0");
             let limit = args["limit"].as_u64().unwrap_or(20) as usize;
-            ok(resolve::available_releases(min, limit).await?)
+            ok(resolve::available_releases(limit).await?)
+        },
+
+        // --- the rclone binary (Settings › Rclone) ------------------------------------------
+        // Which rclone runs, and whether a version can be installed over it. `installBlocked` is
+        // the reason when it cannot.
+        "rclone_binary" => match st.supervisor() {
+            None => ok(json!({ "kind": "external" })),
+            Some(supervisor) => {
+                let pinned = supervisor.pinned().map(std::path::Path::to_path_buf);
+                let (dirs, named) = (st.ctx.dirs.clone(), pinned.clone());
+                let found = crate::rt::spawn_blocking(move || {
+                    resolve::find_binary(&dirs, named.as_deref())
+                })
+                .await
+                .map_err(|e| e.to_string())?
+                .unwrap_or(None);
+                let custom = crate::scheduler::storeread::read_root(&st.ctx.dirs)
+                    .ok()
+                    .and_then(|root| root.rclone_path)
+                    .filter(|path| !path.is_empty());
+                let target = crate::zookeeper::install_target(pinned.as_deref());
+                ok(json!({
+                    "path": found.as_ref().map(|f| &f.path),
+                    "version": found.as_ref().map(|f| &f.version),
+                    "kind": found.as_ref().map(|f| f.kind),
+                    "custom": custom,
+                    "installTarget": target.as_ref().ok().map(|t| t.to_string_lossy()),
+                    "installBlocked": target.as_ref().err(),
+                }))
+            }
+        },
+        // Replaces the server's own rclone where it lives. A custom binary is never written to:
+        // the setting is cleared, so what was installed is what runs.
+        "rclone_install" => {
+            let supervisor = st.supervisor().ok_or(
+                "the rclone daemon is external (--rclone-url): update it on its own machine",
+            )?;
+            let version = str_arg(&args, "version")?;
+            let target = crate::zookeeper::install_target(supervisor.pinned()).map_err(|reason| {
+                format!(
+                    "{} Run `rclone selfupdate --version {}` on the server instead.",
+                    reason, version
+                )
+            })?;
+            let proxy = resolve::host_proxy(&st.ctx.dirs);
+            crate::zookeeper::install_rclone(&st.ctx, &version, &target, proxy).await?;
+            st.store.update(crate::state_files::APP_DOC, |s| {
+                s.remove("rclonePath");
+            })?;
+            supervisor.request_restart(None);
+            ok(target.to_string_lossy())
+        },
+        // `path: null` goes back to the server's own rclone. One older than the minimum is
+        // refused here, so it cannot be what stops the next start.
+        "rclone_set_custom" => {
+            let supervisor = st.supervisor().ok_or("the rclone daemon is external (--rclone-url)")?;
+            if supervisor.pinned().is_some() {
+                return Err("rclone is pinned by --rclone-path.".to_string());
+            }
+            let custom = args["path"].as_str().map(str::trim).filter(|p| !p.is_empty());
+            if let Some(path) = custom {
+                let binary = std::path::PathBuf::from(path);
+                let version = crate::rt::spawn_blocking(move || {
+                    crate::zookeeper::probe_rclone_version(&binary)
+                })
+                .await
+                .map_err(|e| e.to_string())??;
+                crate::zookeeper::check_minimum(&version, path)?;
+            }
+            st.store.update(crate::state_files::APP_DOC, |s| match custom {
+                Some(path) => {
+                    s.insert("rclonePath".into(), Value::String(path.to_string()));
+                }
+                None => {
+                    s.remove("rclonePath");
+                }
+            })?;
+            supervisor.request_restart(None);
+            ok(Value::Null)
         },
     }
 }

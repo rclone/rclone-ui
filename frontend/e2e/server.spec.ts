@@ -1110,6 +1110,114 @@ test('the managed daemon comes up, serves the pages and restarts on request', as
         .toBe(true)
 })
 
+// The server as a child that is expected to stop by itself: what it said, and how it left.
+function runToExit(args: string[]): Promise<{ code: number | null; stderr: string }> {
+    return new Promise((resolve) => {
+        const server = spawn(SERVER_BIN, ['serve', '--password', OWNER.password, ...args], {
+            stdio: ['ignore', 'ignore', 'pipe'],
+        })
+        let stderr = ''
+        server.stderr.on('data', (chunk) => {
+            stderr += String(chunk)
+        })
+        const giveUp = setTimeout(() => server.kill('SIGKILL'), 20_000)
+        server.on('exit', (code) => {
+            clearTimeout(giveUp)
+            resolve({ code, stderr })
+        })
+    })
+}
+
+test('an rclone older than the server needs stops it before it listens', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'rcui-e2e-old-'))
+    // `rclone version` is all the server asks of a binary before it runs it.
+    const old = join(root, 'rclone')
+    writeFileSync(old, '#!/bin/sh\necho "rclone v1.60.0"\n')
+    chmodSync(old, 0o755)
+    try {
+        const { code, stderr } = await runToExit([
+            '--bind',
+            '127.0.0.1:5616',
+            '--rclone-path',
+            old,
+            '--data-dir',
+            join(root, 'data'),
+        ])
+        expect(code).toBe(1)
+        expect(stderr).toContain(`rclone 1.60.0 (${old}) is older than`)
+        expect(stderr).toContain('rclone selfupdate')
+    } finally {
+        rmSync(root, { recursive: true, force: true })
+    }
+})
+
+test('an external daemon older than the server needs stops it too', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'rcui-e2e-old-daemon-'))
+    const daemon = createServer((_, response) => {
+        response.setHeader('content-type', 'application/json')
+        response.end(JSON.stringify({ version: 'v1.60.0' }))
+    })
+    await new Promise<void>((resolve) => daemon.listen(0, '127.0.0.1', resolve))
+    const { port } = daemon.address() as { port: number }
+    try {
+        const { code, stderr } = await runToExit([
+            '--bind',
+            '127.0.0.1:5616',
+            '--rclone-url',
+            `http://127.0.0.1:${port}`,
+            '--data-dir',
+            join(root, 'data'),
+        ])
+        expect(code).toBe(1)
+        expect(stderr).toContain(`rclone 1.60.0 (the daemon at http://127.0.0.1:${port}) is older`)
+        expect(stderr).toContain('rclone selfupdate')
+    } finally {
+        daemon.close()
+        rmSync(root, { recursive: true, force: true })
+    }
+})
+
+test('Settings › Rclone shows the one rclone there is, and nothing about PATH', async ({
+    browser,
+}) => {
+    const base = 'http://127.0.0.1:5612'
+    const context = await browser.newContext({ baseURL: base })
+    await signIn(context.request, base)
+    const binary = (await (
+        await context.request.post(`${base}/api/rpc/rclone_binary`, { headers: SESSION, data: {} })
+    ).json()) as {
+        value: { kind: string; path: string; version: string; installTarget: string | null }
+    }
+    // Started with --rclone-path, so that is the binary, whatever a page asks for.
+    expect(binary.value).toMatchObject({ kind: 'pinned', path: '/usr/local/bin/rclone' })
+    expect(binary.value.version).toMatch(/^\d+\.\d+/)
+    const refused = (await (
+        await context.request.post(`${base}/api/rpc/rclone_set_custom`, {
+            headers: SESSION,
+            data: { path: '/tmp/some-rclone' },
+        })
+    ).json()) as { ok: boolean; error?: string }
+    expect(refused).toMatchObject({ ok: false, error: 'rclone is pinned by --rclone-path.' })
+
+    const page = await context.newPage()
+    const errors = collectErrors(page)
+    await page.goto('/settings/rclone')
+    await expect(page.getByText(`rclone v${binary.value.version}`)).toBeVisible()
+    await expect(page.getByText('/usr/local/bin/rclone').first()).toBeVisible()
+    await expect(page.getByText('Pinned by --rclone-path')).toBeVisible()
+    // The custom binary input stays, and is the pin's to overrule.
+    await expect(
+        page.getByPlaceholder('Point to an rclone binary on your machine (/path/to/rclone)')
+    ).toBeDisabled()
+    await expect(page.getByText('Automatically update rclone')).toBeVisible()
+    // One rclone: no PATH switch, and nothing that was downloaded to keep or delete.
+    await expect(page.getByText('Add rclone to PATH')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Integration' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Versions' })).toBeVisible()
+    expect(errors, errors.join('\n')).toEqual([])
+    await context.close()
+})
+
 test('limits: bandwidth applies at once, the transaction limits through a restart', async ({
     browser,
 }) => {

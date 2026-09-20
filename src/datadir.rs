@@ -3,12 +3,12 @@ use std::path::{Path, PathBuf};
 pub const APP_IDENTIFIER: &str = "com.rclone.cloud";
 
 /// The one directory every persistent thing lives under: state documents, accounts, schedules
-/// and their history, notification targets, rclone binaries, the server's log.
+/// and their history, notification targets, the server's log.
 /// `storage::migrate` brings it to the current layout at startup.
 ///
 /// It is the platform's *local* data directory (`~/Library/Application Support`,
 /// `$XDG_DATA_HOME`, `%LOCALAPPDATA%`) joined with the identifier: what is here is bound to this
-/// machine (mount points, downloaded binaries, scheduled tasks), so it must never roam.
+/// machine (mount points, scheduled tasks), so it must never roam.
 #[derive(Debug, Clone)]
 pub struct DataDir {
     pub root: PathBuf,
@@ -34,7 +34,7 @@ impl DataDir {
     }
 
     /// Empties the root and keeps the directory itself: state documents, accounts, schedules,
-    /// notification targets and downloaded binaries all go (the server's `--clear`). Returns how many top-level entries were removed; a root that does not exist
+    /// and notification targets all go (the server's `--clear`). Returns how many top-level entries were removed; a root that does not exist
     /// is skipped. A filesystem root or the home directory is refused before anything is
     /// touched: what is inside those is not ours.
     pub fn clear(&self) -> Result<usize, String> {

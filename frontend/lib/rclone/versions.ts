@@ -1,30 +1,14 @@
-import { useHostStore } from '../../store/host'
-import { usePersistedStore } from '../../store/persisted'
-import { restartActiveRclone } from './cli'
 import rcloneClient from './client'
-import { MIN_RCLONE_VERSION, RCLONE_RELEASES_SHOWN } from './constants'
-import { rcloneReleases } from '../api/app'
+import { RCLONE_RELEASES_SHOWN } from './constants'
+import { rcloneInstall, rcloneReleases } from '../api/app'
 import { on as onAppEvent } from '../api/events'
 import { ask } from '../api/dialog'
-import { rpc } from '../api/rpc'
 import { transfersList } from '../api/transfers'
 import { isMoving } from '../transfers/live'
-
-export interface DownloadedVersion {
-    version: string
-    path: string
-    sizeBytes: number
-}
 
 export interface AvailableRelease {
     version: string
     publishedAt: string
-}
-
-export interface PathStatus {
-    enabled: boolean
-    target: string | null
-    warning: string | null
 }
 
 export interface DownloadProgress {
@@ -33,25 +17,21 @@ export interface DownloadProgress {
     total: number | null
 }
 
-export async function listDownloadedVersions(): Promise<DownloadedVersion[]> {
-    return await rpc<DownloadedVersion[]>('list_downloaded_rclone_versions')
-}
-
 /**
- * Fetches stable rclone releases at or above the minimum supported version (best-effort). The
+ * The stable rclone releases this server can run (best-effort: the list comes from GitHub). The
  * default is this product's page size; the settings raise it when the user asks for more.
  */
 export async function fetchAvailableVersions(
     limit: number = RCLONE_RELEASES_SHOWN
 ): Promise<AvailableRelease[]> {
-    return await rcloneReleases(MIN_RCLONE_VERSION, limit)
+    return await rcloneReleases(limit)
 }
 
 /**
- * Downloads a version into the managed library, forwarding progress events for the given version.
- * Returns the absolute path of the installed binary.
+ * Installs a version over the server's own rclone, forwarding its download progress. The server
+ * restarts the daemon on it.
  */
-export async function downloadVersion(
+export async function installVersion(
     version: string,
     onProgress?: (progress: DownloadProgress) => void
 ): Promise<string> {
@@ -61,16 +41,10 @@ export async function downloadVersion(
         }
     })
     try {
-        const proxyUrl = useHostStore.getState().proxy?.url ?? null
-        return await rpc<string>('download_rclone_version', { version, proxyUrl })
+        return await rcloneInstall(version)
     } finally {
         unlisten()
     }
-}
-
-export async function deleteVersion(version: string): Promise<void> {
-    const activePath = usePersistedStore.getState().rclonePath ?? null
-    await rpc('delete_rclone_version', { version, activePath })
 }
 
 /**
@@ -99,44 +73,16 @@ export async function isRcloneBusy(): Promise<boolean> {
     return false
 }
 
-/**
- * Points the app at `path` and restarts the daemon on it. Confirms first when transfers/mounts
- * are active. Returns false if the user cancelled.
- */
-export async function activateRclonePath(path: string): Promise<boolean> {
-    if (await isRcloneBusy()) {
-        const proceed = await ask(
-            'Transfers or mounts are in progress and will be interrupted by switching rclone. Continue?',
-            {
-                title: 'Rclone is busy',
-                kind: 'warning',
-                okLabel: 'Switch anyway',
-                cancelLabel: 'Cancel',
-            }
-        )
-        if (!proceed) {
-            return false
+/** Changing the binary restarts rclone: asks first when that would interrupt something. */
+export async function confirmIfBusy(): Promise<boolean> {
+    if (!(await isRcloneBusy())) return true
+    return await ask(
+        'Transfers or mounts are in progress and will be interrupted by switching rclone. Continue?',
+        {
+            title: 'Rclone is busy',
+            kind: 'warning',
+            okLabel: 'Switch anyway',
+            cancelLabel: 'Cancel',
         }
-    }
-
-    usePersistedStore.getState().setRclonePath(path)
-
-    try {
-        await rpc('update_path_pointer', { targetPath: path })
-    } catch (error) {
-        console.warn('[activateRclonePath] update_path_pointer failed', error)
-    }
-    await restartActiveRclone()
-    return true
-}
-
-export async function getPathIntegration(): Promise<PathStatus> {
-    return await rpc<PathStatus>('get_rclone_path_integration')
-}
-
-export async function setPathIntegration(enable: boolean, targetPath: string): Promise<PathStatus> {
-    return await rpc<PathStatus>('set_rclone_path_integration', {
-        enable,
-        targetPath,
-    })
+    )
 }

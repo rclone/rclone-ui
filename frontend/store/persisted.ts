@@ -42,14 +42,15 @@ interface PersistedState {
     disableLinkResolution: boolean
     setDisableLinkResolution: (disabled: boolean) => void
 
-    // Absolute path of the rclone executable the app runs. Managed downloads live under
-    // <data dir>/rclone-versions/vX/, a system rclone is its PATH location, and a custom
-    // binary is any other path. `undefined` until the server picks one at startup.
+    /**
+     * The custom rclone binary of Settings › Rclone, when there is one. Only the server writes
+     * it (`rclone_set_custom`, `rclone_install`); it is declared so a page's next write does not
+     * drop it from the document.
+     */
     rclonePath: string | undefined
-    setRclonePath: (path: string | undefined) => void
 
-    // Download + switch to new stable rclone releases at startup (managed binaries only).
-    // When off, the app still checks and notifies once per new version.
+    // At startup a newer stable release replaces the server's own rclone. When off, or when the
+    // server may not write there, it notifies once per new version instead.
     autoUpdateRclone: boolean
     setAutoUpdateRclone: (enabled: boolean) => void
     /**
@@ -115,7 +116,6 @@ export const usePersistedStore = create<PersistedState>()(
                 set((_) => ({ disableLinkResolution: disabled })),
 
             rclonePath: undefined,
-            setRclonePath: (path: string | undefined) => set((_) => ({ rclonePath: path })),
 
             autoUpdateRclone: true,
             setAutoUpdateRclone: (enabled: boolean) => set((_) => ({ autoUpdateRclone: enabled })),

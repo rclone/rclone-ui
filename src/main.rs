@@ -40,11 +40,12 @@ struct CliServe {
     /// The owner account's email, used with --password on the first start only.
     #[arg(long, env = "RCLONE_CLOUD_EMAIL", default_value = rclone_cloud::team::DEFAULT_OWNER_EMAIL)]
     email: String,
-    /// The data directory: state, accounts, schedules, rclone binaries, logs
+    /// The data directory: state, accounts, schedules, logs
     /// (defaults to this machine's local data directory, under com.rclone.cloud).
     #[arg(long, env = "RCLONE_CLOUD_DATA_DIR")]
     data_dir: Option<PathBuf>,
-    /// rclone binary to run instead of the stored / system / downloaded one.
+    /// rclone binary to run instead of the one on PATH. Settings cannot change it, and it is
+    /// never auto-updated.
     #[arg(long, env = "RCLONE_CLOUD_RCLONE_PATH")]
     rclone_path: Option<PathBuf>,
     /// Use an already-running rclone RC daemon at this URL instead of managing one.
@@ -54,7 +55,7 @@ struct CliServe {
     #[arg(long, env = "RCLONE_CLOUD_DEV_PROXY")]
     dev_proxy: Option<String>,
     /// Delete everything in the data directory before starting: accounts, settings, schedules,
-    /// notification targets and downloaded binaries. The owner is seeded again from --password.
+    /// and notification targets. The owner is seeded again from --password.
     #[arg(long, env = "RCLONE_CLOUD_CLEAR")]
     clear: bool,
 }
@@ -92,6 +93,60 @@ fn main() {
     if let Err(e) = runtime.block_on(run(opts)) {
         eprintln!("rclone-cloud: {}", e);
         std::process::exit(1);
+    }
+}
+
+/// What stops the server before it listens: an rclone older than the pages need, here or behind
+/// `--rclone-url`, and a machine with no rclone where this server may not install one.
+async fn preflight(cli: &CliServe, dirs: &rclone_cloud::DataDir) -> Result<(), String> {
+    use rclone_cloud::zookeeper;
+    const AGAIN: &str = " Then start the server again.";
+
+    if let Some(url) = &cli.rclone_url {
+        let client = rclone_cloud::rc::RcClient::new(url.clone(), None, None);
+        let timeout = Some(std::time::Duration::from_secs(5));
+        let answer = client
+            .call_with_timeout("/core/version", &serde_json::json!({}), timeout)
+            .await;
+        return match answer.as_ref().map(|answer| answer["version"].as_str()) {
+            Ok(Some(version)) => {
+                let version = version.trim_start_matches('v');
+                zookeeper::check_minimum(version, &format!("the daemon at {}", url))
+                    .map_err(|e| e + AGAIN)
+            }
+            // It may simply not be up yet. The pages say so when they ask it something.
+            _ => {
+                log::warn!(
+                    "the rclone daemon at {} did not say which version it is",
+                    url
+                );
+                Ok(())
+            }
+        };
+    }
+
+    let (dirs, pinned) = (dirs.clone(), cli.rclone_path.clone());
+    let found = rclone_cloud::rt::spawn_blocking(move || {
+        rclone_cloud::lifecycle::resolve::find_binary(&dirs, pinned.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    match found {
+        Ok(Some(found)) => {
+            zookeeper::check_minimum(&found.version, &found.path).map_err(|e| e + AGAIN)
+        }
+        Ok(None) => zookeeper::install_target(None)
+            .map(|_| ())
+            .map_err(|reason| {
+                format!(
+                    "rclone is not installed. {} Install it: {}{}",
+                    reason,
+                    zookeeper::install_hint(),
+                    AGAIN
+                )
+            }),
+        // A pinned binary that does not run is the lifecycle's to report, as it was.
+        Err(_) => Ok(()),
     }
 }
 
@@ -136,6 +191,8 @@ async fn run(cli: CliServe) -> Result<(), String> {
     }
 
     log::info!("data dir {}", dirs.root.display());
+
+    preflight(&cli, &dirs).await?;
 
     // After a relaunch the previous process may still hold the port for a moment.
     let listener =

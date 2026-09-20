@@ -36,7 +36,6 @@ export const releaseReconnectDialog = (remote: string) =>
 // --- lifecycle ---------------------------------------------------------------------------
 
 export interface RestartOverrides {
-    rclonePath?: string
     proxy?: { url: string; ignoredHosts: string[] } | undefined
     limits?: { bwLimit: string; tpsLimit: number; tpsLimitBurst: number } | undefined
 }
@@ -67,9 +66,29 @@ export const downloadLink = (fs: string, remote: string) =>
 
 // --- third-party fetches the server makes on the page's behalf ---------------------------
 
-export const rcloneLatestVersion = () => rpc<string>('rclone_latest_version')
-export const rcloneReleases = (minVersion: string, limit: number) =>
-    rpc<{ version: string; publishedAt: string }[]>('rclone_releases', { minVersion, limit })
+/** The stable releases this server can run (at or above its minimum), newest first. */
+export const rcloneReleases = (limit: number) =>
+    rpc<{ version: string; publishedAt: string }[]>('rclone_releases', { limit })
+
+// --- the rclone binary (Settings › Rclone) ------------------------------------------------
+
+export interface RcloneBinary {
+    /** `external`: the daemon is somebody else's (`--rclone-url`), and nothing else is known. */
+    kind: 'pinned' | 'custom' | 'system' | 'external' | null
+    path?: string | null
+    version?: string | null
+    /** The custom binary in the settings, in use or not. */
+    custom?: string | null
+    /** The file an install replaces, or why there is none. */
+    installTarget?: string | null
+    installBlocked?: string | null
+}
+
+export const rcloneBinary = () => rpc<RcloneBinary>('rclone_binary')
+/** Replaces the server's own rclone and restarts on it. Resolves to the path it wrote. */
+export const rcloneInstall = (version: string) => rpc<string>('rclone_install', { version })
+/** `null` goes back to the server's own rclone. One older than the minimum is refused. */
+export const rcloneSetCustom = (path: string | null) => rpc<null>('rclone_set_custom', { path })
 
 // --- mounting -----------------------------------------------------------------------------
 

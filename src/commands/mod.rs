@@ -69,17 +69,6 @@ macro_rules! commands {
 }
 
 commands! {
-    // --- rclone binary management (zookeeper) ---
-    sync validate_rclone_binary(path: String) -> String = crate::zookeeper::validate_rclone_binary;
-    sync find_system_rclone() -> Option<String> = crate::zookeeper::find_system_rclone;
-    sync classify_rclone_path(path: String) -> crate::zookeeper::RcloneClassification = crate::zookeeper::classify_rclone_path;
-    sync list_downloaded_rclone_versions() -> Vec<crate::zookeeper::DownloadedVersion> = crate::zookeeper::list_downloaded_rclone_versions;
-    sync delete_rclone_version(version: String, active_path: Option<String>) -> () = crate::zookeeper::delete_rclone_version;
-    async download_rclone_version(version: String, proxy_url: Option<String>) -> String = crate::zookeeper::download_rclone_version;
-    sync update_path_pointer(target_path: String) -> () = crate::zookeeper::update_path_pointer;
-    sync get_rclone_path_integration() -> crate::zookeeper::PathStatus = crate::zookeeper::get_rclone_path_integration;
-    sync set_rclone_path_integration(enable: bool, target_path: String) -> crate::zookeeper::PathStatus = crate::zookeeper::set_rclone_path_integration;
-
     // --- scheduler ---
     sync scheduler_supported() -> crate::scheduler::SupportInfo = crate::scheduler::scheduler_supported;
     sync scheduler_validate_cron(cron: String) -> crate::scheduler::CronValidation = crate::scheduler::scheduler_validate_cron;

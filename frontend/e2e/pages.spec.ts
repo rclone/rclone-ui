@@ -22,8 +22,6 @@ import { stopLeftoverJobs } from './helpers'
 
 const SESSION = { 'X-RcloneUI-Session': 'e2e', 'Content-Type': 'application/json' }
 
-const RCLONE_BINARY_PLACEHOLDER = 'Point to an rclone binary on your machine (/path/to/rclone)'
-
 // What a test's page left running on the shared daemon stops with the test (`stopLeftoverJobs`).
 test.afterEach(({ request }) => stopLeftoverJobs(request))
 

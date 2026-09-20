@@ -40,13 +40,6 @@ fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
-[target.'cfg(target_os = "windows")'.dependencies]
-winreg = "0.52"
-windows-sys = { version = "0.59", features = [
-    "Win32_Foundation",
-    "Win32_UI_WindowsAndMessaging",
-] }
-
 [features]
 # A debug build reads the bundle from the checkout at runtime; a debug binary meant
 # for another machine (cargo zigbuild / cargo xwin) needs the bundle inside it like a release build.

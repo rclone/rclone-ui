@@ -44,7 +44,7 @@ Every flag has an environment variable.
 | `--password` | `RCLONE_CLOUD_PASSWORD` | required |
 | `--email` | `RCLONE_CLOUD_EMAIL` | `admin@localhost` |
 | `--data-dir` | `RCLONE_CLOUD_DATA_DIR` | the platform's local data dir + `com.rclone.cloud` |
-| `--rclone-path` | `RCLONE_CLOUD_RCLONE_PATH` | the stored, system or downloaded binary |
+| `--rclone-path` | `RCLONE_CLOUD_RCLONE_PATH` | unset; the `rclone` on `PATH` |
 | `--rclone-url` | `RCLONE_CLOUD_RCLONE_URL` | unset; manage the daemon instead |
 | `--clear` | `RCLONE_CLOUD_CLEAR` | off |
 
@@ -53,8 +53,25 @@ Anything but loopback needs a password, and `--clear` empties the data directory
 ## Data
 
 Everything the server itself keeps lives in the data directory: accounts (`state/team.json`),
-settings (`state/`), rclone binaries, schedules and their run history, the transfer ledger,
+settings (`state/`), schedules and their run history, the transfer ledger,
 notification targets and SMTP settings, and the log file.
+
+## rclone
+
+The server runs the `rclone` on `PATH`, or the one `--rclone-path` names, and needs version
+1.75.0 or newer. With an older one, or an older daemon behind `--rclone-url`, it stops before it
+listens and says so: update with `rclone selfupdate`, then start it again.
+
+A machine with no rclone gets the latest release installed at `/usr/local/bin/rclone`
+(`%LOCALAPPDATA%\Microsoft\WindowsApps` on Windows), so it is on `PATH` for everybody. If the
+server may not write there, it stops with the command to install rclone yourself.
+
+There is one rclone. Installing a version from Settings › Rclone replaces it where it lives, and
+automatic updates do the same at startup. Nothing is written through a link into another
+installation (Homebrew, snap), where the server may not write, or where a custom binary from
+Settings runs: that binary is never updated or replaced, and an install switches back from it.
+With `--rclone-path` the binary is the operator's: Settings cannot change it and it is never
+updated automatically.
 
 ## The rclone config
 
