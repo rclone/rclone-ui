@@ -2766,7 +2766,9 @@ test('the Dashboard’s transfers are the record’s: there after rclone forgets
         await expect(page.getByText('Transfers · recent')).toBeVisible()
         const finished = page.getByRole('listitem').filter({ hasText: done.split('/').pop()! })
         await expect(finished).toBeVisible()
-        await expect(finished).toContainText('Finished')
+        // The record learns of the end at the next tick: up to five seconds after the launch
+        // grace, so more than an assertion's default five.
+        await expect(finished).toContainText('Finished', { timeout: 10_000 })
 
         // One that is running is a row at once, with its progress, under "live".
         await rc('core/bwlimit', { rate: '256k' })

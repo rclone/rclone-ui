@@ -120,6 +120,28 @@ export async function smtpReceiver(): Promise<{
  * every test that followed, which is where this suite's "fails only in a full run" came from.
  */
 export async function stopLeftoverJobs(api: APIRequestContext): Promise<void> {
+    // Through the server first: its record ends a transfer as it stops it. A job stopped behind
+    // its back stays "running" in the record until the next tick notices, up to five seconds
+    // later, and the next test's Dashboard would open on "Transfers · live".
+    try {
+        const listed = (await (
+            await api.post('/api/rpc/transfers_list', { headers: SESSION, data: { limit: 50 } })
+        ).json()) as { value?: { id: string; state: string }[] }
+        await Promise.all(
+            (listed.value ?? [])
+                .filter((entry) => entry.state.toLowerCase() === 'running')
+                .map((entry) =>
+                    api
+                        .post('/api/rpc/transfers_stop', {
+                            headers: SESSION,
+                            data: { id: entry.id },
+                        })
+                        .catch(() => null)
+                )
+        )
+    } catch {
+        // Not signed in to the default server (or it is not there): nothing of its to stop.
+    }
     const daemon = 'http://localhost:5572'
     try {
         const list = (await (await api.post(`${daemon}/job/list`, { data: {} })).json()) as {
