@@ -2,44 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Hide scrollbar for Chrome, Safari and Opera */
-::-webkit-scrollbar {
-    display: none;
-}
-
-/* Hide scrollbar for IE, Edge and Firefox */
-* {
-    -ms-overflow-style: none; /* IE and Edge */
-    scrollbar-width: none; /* Firefox */
-    cursor: default !important;
-}
-
-@layer utilities {
-    .show-scrollbar {
-        -ms-overflow-style: auto !important;
-        scrollbar-width: thin !important;
-    }
-
-    .show-scrollbar::-webkit-scrollbar {
-        display: block;
-        width: 8px;
-        height: 8px;
-    }
-
-    .show-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    .show-scrollbar::-webkit-scrollbar-thumb {
-        background: hsl(var(--heroui-default-300));
-        border-radius: 4px;
-    }
-
-    .show-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: hsl(var(--heroui-default-400));
-    }
-}
-
 html[data-dragging="true"],
 html[data-dragging="true"] * {
     cursor: grabbing !important;
@@ -49,19 +11,6 @@ html {
     overscroll-behavior: none;
 }
 
-/* Pages render inside the Shell's content column: their viewport-sized boxes fit it instead. */
-.browser-outlet .w-screen {
-    width: 100%;
-}
-.browser-outlet .h-screen {
-    height: 100%;
-}
-.browser-outlet .max-h-screen {
-    max-height: 100%;
-}
-.browser-outlet .max-w-screen {
-    max-width: 100%;
-}
 body {
     background-color: white;
 }

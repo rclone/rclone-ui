@@ -70,14 +70,13 @@ export const ZONES: NavZone[] = [
 function settingsLeaf(key: SectionKey): NavLeaf {
     const section = SETTINGS_SECTIONS[key]
     return {
-        to: key === 'general' ? '/settings' : `/settings/${key}`,
+        to: `/settings/${key}`,
         label: section.label,
         icon: section.icon,
     }
 }
 
-// Only these sections are listed. General and Remotes keep their routes for deep links; the
-// binary and proxy settings are both on the Rclone screen.
+// Only these sections are listed; Remotes has its own zone and route.
 const SETTINGS_KEYS: SectionKey[] = ['notifications', 'smtp', 'rclone', 'team']
 
 export const SETTINGS_ZONE: NavZone = { label: 'Settings', items: SETTINGS_KEYS.map(settingsLeaf) }
@@ -121,7 +120,7 @@ export function breadcrumbFor(where: Where): string[] {
     const { pathname, search } = where
     if (pathname === '/settings' || pathname.startsWith('/settings/')) {
         const key = pathname.slice('/settings/'.length)
-        const section = isSectionKey(key) ? SETTINGS_SECTIONS[key] : SETTINGS_SECTIONS.general
+        const section = isSectionKey(key) ? SETTINGS_SECTIONS[key] : SETTINGS_SECTIONS.rclone
         return ['Settings', section.label]
     }
     if (pathname === '/remotes') return ['Remotes']

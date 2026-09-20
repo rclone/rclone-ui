@@ -25,10 +25,6 @@ interface PersistedState {
 
     acknowledgements: string[]
 
-    appearance: {
-        app: 'light' | 'dark' | 'system'
-    }
-
     /** Local disks and folders the Commander's sidebar leaves out (Settings › Interface). */
     hiddenLocalPaths: string[]
     setLocalPathHidden: (path: string, hidden: boolean) => void
@@ -81,10 +77,6 @@ export const usePersistedStore = create<PersistedState>()(
                 })),
 
             acknowledgements: [],
-
-            appearance: {
-                app: 'dark',
-            },
 
             hiddenLocalPaths: [],
             setLocalPathHidden: (path: string, hidden: boolean) =>

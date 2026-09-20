@@ -313,38 +313,38 @@ test('a page writes what it changed, never what it merely holds', async ({ page,
 })
 
 test('a state change by another writer rehydrates an open page', async ({ page, request }) => {
-    await page.goto('/settings')
-    await expect(page.getByRole('heading', { name: 'Theme' })).toBeVisible()
-    await expect
-        .poll(() => page.evaluate(() => document.documentElement.classList.contains('dark')))
-        .toBe(true)
-
-    // Another writer (a second page, the lifecycle) patches the app document: the open page gets
-    // `state.changed`, reloads the document and re-applies the theme.
-    const doc = (await (await request.get('/api/state/app', { headers: SESSION })).json()) as {
-        revision: number
-        state: { appearance?: { app: string } }
-    }
-    const setTheme = async (revision: number, app: string) => {
+    // The Dashboard's getting-started region is on screen while `onboarding.dismissed` is false.
+    const onboarding = page.getByRole('region', { name: 'Getting started' })
+    const doc = async () =>
+        (await (await request.get('/api/state/app', { headers: SESSION })).json()) as {
+            revision: number
+            state: { onboarding?: { dismissed: boolean; completed: string[] } }
+        }
+    const setDismissed = async (dismissed: boolean) => {
+        const current = await doc()
         const response = await request.patch('/api/state/app', {
-            headers: { ...SESSION, 'If-Match': String(revision) },
-            data: { set: { appearance: { ...doc.state.appearance, app } } },
+            headers: { ...SESSION, 'If-Match': String(current.revision) },
+            data: {
+                set: {
+                    onboarding: {
+                        completed: current.state.onboarding?.completed ?? [],
+                        dismissed,
+                    },
+                },
+            },
         })
         expect(response.ok()).toBe(true)
-        return ((await response.json()) as { revision: number }).revision
     }
-    const next = await setTheme(doc.revision, 'light')
-    await expect
-        .poll(() => page.evaluate(() => document.documentElement.classList.contains('dark')), {
-            timeout: 10_000,
-        })
-        .toBe(false)
-    await setTheme(next, 'dark')
-    await expect
-        .poll(() => page.evaluate(() => document.documentElement.classList.contains('dark')), {
-            timeout: 10_000,
-        })
-        .toBe(true)
+    await setDismissed(false)
+    await page.goto('/')
+    await expect(onboarding).toBeVisible()
+
+    // Another writer (a second page, the lifecycle) patches the app document: the open page gets
+    // `state.changed`, reloads the document and redraws from it.
+    await setDismissed(true)
+    await expect(onboarding).toHaveCount(0, { timeout: 10_000 })
+    await setDismissed(false)
+    await expect(onboarding).toBeVisible({ timeout: 10_000 })
 })
 
 test('a page that has not heard of another writer leaves that writer’s keys alone, then catches up', async ({
@@ -359,7 +359,7 @@ test('a page that has not heard of another writer leaves that writer’s keys al
     }
     type AppDoc = {
         revision: number
-        state: { templates?: Template[]; appearance?: { app: string } }
+        state: { templates?: Template[]; hiddenLocalPaths?: string[] }
     }
     const app = async () =>
         (await (await request.get('/api/state/app', { headers: SESSION })).json()) as AppDoc
@@ -393,17 +393,13 @@ test('a page that has not heard of another writer leaves that writer’s keys al
         })
         toPage = (message) => socket.send(message)
     })
-    const isDark = () => page.evaluate(() => document.documentElement.classList.contains('dark'))
-    // The header's cog, opened once: while it is open the rest of the page is hidden from roles.
-    const panel = page.getByRole('dialog', { name: 'Settings' })
-    const pickTheme = async (name: 'Light' | 'Dark') => {
-        await panel.getByRole('button', { name: 'App Theme' }).click()
-        await page.getByRole('option', { name }).click()
-    }
+    // The Commander's shortcuts cog: a switch per local disk, written to `hiddenLocalPaths`.
+    const cog = page.getByRole('button', { name: 'Shortcuts' })
+    const panel = page.getByRole('dialog', { name: 'Shortcuts' })
+    const hidden = async () => (await app()).state.hiddenLocalPaths ?? []
     try {
-        await page.goto('/')
-        // The Dashboard's heading is the host's name, which the page itself never writes.
-        await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+        await page.goto('/commander')
+        await expect(page.getByRole('navigation', { name: 'Places' }).first()).toBeVisible()
 
         // Another writer adds a template. This page does not hear of it.
         holding = true
@@ -413,24 +409,23 @@ test('a page that has not heard of another writer leaves that writer’s keys al
         // and re-applied on top. By the second the adapter knows the newer document while the
         // store still holds the old `templates`: measured against the server's document that would
         // read as this page's change, and be written back over the other writer's.
-        await page
-            .locator('header', { has: page.getByRole('button', { name: 'Toggle sidebar' }) })
-            .getByRole('button', { name: 'Settings' })
-            .click()
-        await pickTheme('Light')
-        await expect.poll(async () => (await app()).state.appearance?.app).toBe('light')
-        await pickTheme('Dark')
-        await expect.poll(async () => (await app()).state.appearance?.app).toBe('dark')
+        await cog.click()
+        const first = panel.getByRole('switch').first()
+        // HeroUI's switch input is a hidden overlay; a dispatched click toggles it like a real one.
+        await first.dispatchEvent('click')
+        await expect.poll(async () => (await hidden()).length).toBe(1)
+        await first.dispatchEvent('click')
+        await expect.poll(async () => (await hidden()).length).toBe(0)
         // The other writer's key is untouched: this page held an older copy of it and wrote
         // only what it changed.
         expect(await templateName()).toBe('Far Template')
 
         // The announcements arrive, none of them newer than what the adapter has adopted. The
-        // store is what is behind, and it catches up all the same — the theme it wrote is still
+        // store is what is behind, and it catches up all the same — the switch it wrote is still
         // its own, and the other writer's template is still there.
         holding = false
         for (const message of held) toPage(message)
-        await expect.poll(isDark).toBe(true)
+        await expect(first).toBeChecked()
         expect(await templateName()).toBe('Far Template')
     } finally {
         holding = false

@@ -96,7 +96,7 @@ export default function Schedules() {
     if (scheduledTasks.length === 0) {
         const available = schedulingAvailable || supportQuery.isLoading
         return (
-            <div className="w-full h-screen overflow-y-auto">
+            <div className="w-full h-full overflow-y-auto">
                 <EmptyState
                     icon={ClockIcon}
                     title={available ? 'Nothing scheduled yet' : 'Scheduling is not available here'}
@@ -111,7 +111,7 @@ export default function Schedules() {
     }
 
     return (
-        <div className="flex flex-col h-screen overflow-scroll">
+        <div className="flex flex-col h-full overflow-scroll">
             {!schedulingAvailable && !supportQuery.isLoading && (
                 <Alert
                     color="warning"
@@ -204,7 +204,7 @@ function TaskCard({
     const runNowMutation = useMutation({
         mutationFn: () => schedulerRunNow(task.id),
         onSuccess: invalidateScheduler,
-        onError: onErrorDialog('Run now', 'Failed to start the task', { capture: false }),
+        onError: onErrorDialog('Run now', 'Failed to start the task'),
     })
 
     const toggleMutation = useMutation({
@@ -220,7 +220,7 @@ function TaskCard({
             }
         },
         onSuccess: invalidateScheduler,
-        onError: onErrorDialog('Schedule', 'Failed to update the task', { capture: false }),
+        onError: onErrorDialog('Schedule', 'Failed to update the task'),
     })
 
     const removeMutation = useMutation({
@@ -232,7 +232,7 @@ function TaskCard({
             await schedulerRemoveTask(task.id)
         },
         onSuccess: invalidateScheduler,
-        onError: onErrorDialog('Schedule', 'Failed to remove the task', { capture: false }),
+        onError: onErrorDialog('Schedule', 'Failed to remove the task'),
     })
 
     const errorLine = task.registrationError

@@ -60,7 +60,7 @@ fn skipped(dirs: &DataDir, task_id: &str, reason: &str) {
         dirs,
         task_id,
         &HistoryLine::Skipped {
-            ts: history::now_iso(),
+            ts: crate::time::now_iso(),
             reason: reason.to_string(),
         },
     );
@@ -138,7 +138,7 @@ pub async fn run(ctx: Ctx, transfers: Arc<TransferService>, task_id: String) {
         &task_id,
         &HistoryLine::Started {
             run_id: run_id.clone(),
-            ts: history::now_iso(),
+            ts: crate::time::now_iso(),
         },
     );
 
@@ -174,7 +174,7 @@ pub async fn run(ctx: Ctx, transfers: Arc<TransferService>, task_id: String) {
         &task_id,
         &HistoryLine::Finished {
             run_id,
-            ts: history::now_iso(),
+            ts: crate::time::now_iso(),
             success: error.is_none(),
             error: error.clone(),
             duration_ms,

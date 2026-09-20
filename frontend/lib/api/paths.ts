@@ -1,15 +1,12 @@
-// Well-known directories and lexical path helpers, all synchronous (from the boot script).
+// The server's home folder and separator (from the boot script), and lexical helpers for paths
+// on the server's disk.
 
 import { boot } from './boot'
 
 export const sep = boot.paths.sep
-export const delimiter = boot.paths.delimiter
 export const home = boot.paths.home ?? ''
-export const temp = boot.paths.temp
 /** The UI's own binary, which rclone runs as the metadata mapper (`lib/rclone/metadataMapper.ts`). */
 export const exe = boot.paths.exe ?? ''
-export const download = boot.paths.download ?? ''
-export const desktop = boot.paths.desktop ?? ''
 
 const WINDOWS_DRIVE = /^[a-zA-Z]:[\\/]/
 
@@ -18,7 +15,7 @@ function isSeparator(ch: string): boolean {
 }
 
 /** Lexical normalization (`.` / `..`, duplicate separators), no filesystem access. */
-export function normalize(path: string): string {
+function normalize(path: string): string {
     if (!path) return ''
     const windows = sep === '\\'
     let prefix = ''
@@ -56,22 +53,4 @@ export function dirname(path: string): string {
     if (index === 0) return trimmed[0]!
     if (sep === '\\' && index === 2 && WINDOWS_DRIVE.test(trimmed)) return trimmed.slice(0, 3)
     return trimmed.slice(0, index)
-}
-
-export function basename(path: string, ext?: string): string {
-    const trimmed = path.replace(/[\\/]+$/, '')
-    const index = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
-    let base = index === -1 ? trimmed : trimmed.slice(index + 1)
-    if (ext && base.endsWith(ext)) base = base.slice(0, -ext.length)
-    return base
-}
-
-export function extname(path: string): string {
-    const base = basename(path)
-    const dot = base.lastIndexOf('.')
-    return dot <= 0 ? '' : base.slice(dot)
-}
-
-export function isAbsolute(path: string): boolean {
-    return isSeparator(path[0] ?? '') || WINDOWS_DRIVE.test(path)
 }

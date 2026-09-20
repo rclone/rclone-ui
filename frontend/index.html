@@ -9,9 +9,8 @@
     <title>Rclone Cloud</title>
     <!-- rclone-cloud:boot -->
 	<script>
-		// The persisted theme rides on the boot payload; first paint matches it.
-		var boot = window.__RCLONE_CLOUD__
-		var theme = boot && boot.theme
+		// The tab's theme (lib/theme.ts keeps it under this key); first paint matches it.
+		var theme = localStorage.getItem("shell.theme")
 		document.documentElement.classList.toggle(
 			"dark",
 			theme === "dark" ||

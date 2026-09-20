@@ -188,7 +188,6 @@ export default function RemoteAutoMountDrawer({
             }, 1200)
         },
         onError: onErrorDialog('Could not update remote', 'Unknown error occurred', {
-            capture: false,
             log: ['Failed to update remote:'],
         }),
     })
@@ -363,7 +362,7 @@ export default function RemoteAutoMountDrawer({
                                 color="primary"
                                 isDisabled={saveDefaultsMutation.isPending}
                                 onPress={() => {
-                                    setTimeout(() => saveDefaultsMutation.mutate(), 100)
+                                    saveDefaultsMutation.mutate()
                                 }}
                                 data-focus-visible="false"
                             >

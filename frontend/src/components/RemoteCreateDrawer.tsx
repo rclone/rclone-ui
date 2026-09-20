@@ -137,7 +137,7 @@ export default function RemoteCreateDrawer({
 
             if (errorMessage.includes('address already in use')) {
                 await message(
-                    'Rclone Oauth Client is stuck, please restart the UI to add new remotes',
+                    'The rclone OAuth client is stuck. Restart rclone (Settings › Rclone) to add new remotes.',
                     {
                         title: 'Busy',
                         kind: 'error',

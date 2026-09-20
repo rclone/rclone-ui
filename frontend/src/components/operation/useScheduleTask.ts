@@ -56,7 +56,6 @@ export function useScheduleTask({
             })
         },
         onError: onErrorDialog('Schedule', 'Failed to schedule task', {
-            capture: false,
             log: ['Error scheduling task:'],
         }),
     })

@@ -13,7 +13,6 @@ import { startTransition, useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { message } from '../../lib/api/dialog'
 import { buildReadablePathMultiple, formatBytes } from '../../lib/format'
-import { useIsPreview } from '../../lib/preview'
 import { ENDED, type TransferRow } from '../../lib/transfers/rows'
 import { useTransferRows } from '../../lib/transfers/useTransferRows'
 import { usePersistedStore } from '../../store/persisted'
@@ -97,7 +96,7 @@ export default function Transfers() {
 
     if (transfersQuery.isLoading) {
         return (
-            <div className="flex flex-col items-center justify-center h-screen">
+            <div className="flex flex-col items-center justify-center h-full">
                 <Spinner size="lg" />
             </div>
         )
@@ -105,7 +104,7 @@ export default function Transfers() {
 
     if (taskFilter && transfers.active.length === 0 && transfers.inactive.length === 0) {
         return (
-            <div className="w-full h-screen overflow-y-auto">
+            <div className="w-full h-full overflow-y-auto">
                 <EmptyState
                     icon={ClockIcon}
                     title="This schedule has not run yet"
@@ -122,7 +121,7 @@ export default function Transfers() {
 
     if (!allRows || (allRows.active.length === 0 && allRows.inactive.length === 0)) {
         return (
-            <div className="w-full h-screen overflow-y-auto">
+            <div className="w-full h-full overflow-y-auto">
                 <EmptyState
                     icon={ActivityIcon}
                     title="Nothing has moved yet"
@@ -254,7 +253,6 @@ function TransferCard({
     row,
     onSelect,
 }: { row: TransferRow; onSelect: (row: TransferRow) => void }) {
-    const isPreview = useIsPreview()
     const isActive = row.type === 'active'
     // Nothing to measure against until rclone has sized the transfer.
     const isIndeterminate = isActive && row.totalBytes === 0
@@ -346,7 +344,6 @@ function TransferCard({
                                         <Progress
                                             aria-label="Progress"
                                             value={row.progress}
-                                            disableAnimation={isPreview}
                                             isStriped={!isIndeterminate}
                                             isIndeterminate={isIndeterminate}
                                         />
@@ -386,11 +383,7 @@ function RefreshButton({
             radius="full"
             color="primary"
             className="absolute bottom-5 right-6"
-            onPress={() => {
-                setTimeout(async () => {
-                    onRefresh()
-                }, 100)
-            }}
+            onPress={onRefresh}
             startContent={
                 <RefreshCcwIcon size={28} className={isRefreshing ? 'animate-spin' : ''} />
             }

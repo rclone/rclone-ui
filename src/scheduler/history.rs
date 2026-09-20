@@ -9,7 +9,6 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -31,42 +30,6 @@ pub fn log_path(dirs: &DataDir, task_id: &str) -> PathBuf {
         .join("scheduler")
         .join("logs")
         .join(format!("{}.log", task_id))
-}
-
-pub fn now_iso() -> String {
-    // RFC3339 UTC with millisecond precision, no chrono dependency.
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = now.as_secs();
-    let millis = now.subsec_millis();
-    let days = secs / 86_400;
-    let (year, month, day) = civil_from_days(days as i64);
-    let rem = secs % 86_400;
-    format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
-        year,
-        month,
-        day,
-        rem / 3600,
-        (rem % 3600) / 60,
-        rem % 60,
-        millis
-    )
-}
-
-// Howard Hinnant's civil-from-days algorithm.
-fn civil_from_days(z: i64) -> (i64, u32, u32) {
-    let z = z + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = (z - era * 146_097) as u64;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe as i64 + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,7 +132,7 @@ impl RunLog {
 
     pub fn line(&mut self, message: &str) {
         if let Some(file) = &mut self.file {
-            let _ = writeln!(file, "[{}] {}", now_iso(), message);
+            let _ = writeln!(file, "[{}] {}", crate::time::now_iso(), message);
         }
     }
 }

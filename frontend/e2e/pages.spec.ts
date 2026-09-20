@@ -625,11 +625,11 @@ test('the SMTP screen keeps its settings and never hands the password back', asy
 })
 
 test('the notifications page offers Email where Telegram (botless) was', async ({ page }) => {
-    // The placeholder card that only said "coming in v4" is gone; in its place a provider that
-    // works like the others, mailing through the SMTP settings.
+    // Every card is a provider that works, mailing through the SMTP settings in Email's case;
+    // there is no placeholder for one that does not exist yet.
     await page.goto('/settings/notifications')
     await expect(page.getByText('Telegram (botless)')).toHaveCount(0)
-    await expect(page.getByText('WhatsApp', { exact: true })).toBeVisible()
+    await expect(page.getByText('WhatsApp', { exact: true })).toHaveCount(0)
     await page.locator('[data-provider="email"]').click()
     await expect(page.getByRole('dialog', { name: 'Add Email' })).toBeVisible()
     await expect(page.getByLabel('Send to', { exact: true })).toBeVisible()

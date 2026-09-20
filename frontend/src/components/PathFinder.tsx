@@ -360,11 +360,9 @@ export function MultiPathField({
                                                 size="sm"
                                                 color="danger"
                                                 className="absolute top-0 left-0 items-center justify-center min-w-0 transition-opacity duration-100 rounded-full opacity-0 -p-2 group-hover/pathItem:opacity-100 size-5"
-                                                onPress={() => {
-                                                    setTimeout(() => {
-                                                        setPaths(paths.filter((p) => p !== path))
-                                                    }, 100)
-                                                }}
+                                                onPress={() =>
+                                                    setPaths(paths.filter((p) => p !== path))
+                                                }
                                             >
                                                 <XIcon className="size-4" />
                                             </Button>{' '}

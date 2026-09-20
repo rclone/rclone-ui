@@ -34,7 +34,6 @@ import { useDebounce } from 'use-debounce'
 import { formatErrorMessage } from '../../lib/errors'
 
 import { message } from '../../lib/api/dialog'
-import type { AddTemplatePayload } from '../../lib/api/events'
 import { TEMPLATE_TAG_OPTIONS, getJsonKeyCount, getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
 import { metadataOptionsProblem } from '../../lib/rclone/metadataMapper'
@@ -51,9 +50,12 @@ import {
     useTemplateDraft,
 } from './template/draft'
 
-// Strips one layer of matched surrounding quotes from an imported flag value: a pasted shell-style
-// `--filter "+ *.jpg"` reaches the parser as `"+ *.jpg"`, which would otherwise become an invalid
-// filter rule. Unmatched or absent quotes pass through unchanged.
+/** What `/templates?action=add&cmd=…&name=…` asks the drawer to start from. */
+export interface TemplatePrefill {
+    cmd?: string
+    name?: string
+}
+
 export default function TemplateAddDrawer({
     isOpen,
     onClose,
@@ -61,9 +63,8 @@ export default function TemplateAddDrawer({
 }: {
     isOpen: boolean
     onClose: () => void
-    // Deep-link prefill (rclone://add-template?cmd=…). A fresh object arrives per link, so a
-    // repeated identical link still re-applies.
-    initialValues?: AddTemplatePayload | null
+    // A fresh object arrives per link, so a repeated identical link still re-applies.
+    initialValues?: TemplatePrefill | null
 }) {
     const {
         globalFlags,
@@ -181,12 +182,7 @@ export default function TemplateAddDrawer({
         try {
             replace(draftFromOptions(imported, allFlags))
         } catch {
-            setTimeout(async () => {
-                await message('Error parsing command', {
-                    title: 'Error',
-                    kind: 'error',
-                })
-            }, 0)
+            void message('Error parsing command', { title: 'Error', kind: 'error' })
             return
         }
         const count = Object.keys(imported).length
@@ -253,13 +249,11 @@ export default function TemplateAddDrawer({
                                                         color="primary"
                                                         size="sm"
                                                         onPress={() => {
-                                                            setTimeout(() => {
-                                                                navigator.clipboard
-                                                                    .readText()
-                                                                    .then((text) => {
-                                                                        setImportString(text)
-                                                                    })
-                                                            }, 10)
+                                                            navigator.clipboard
+                                                                .readText()
+                                                                .then((text) => {
+                                                                    setImportString(text)
+                                                                })
                                                         }}
                                                     >
                                                         PASTE
@@ -554,7 +548,7 @@ export default function TemplateAddDrawer({
                             <Button
                                 color="primary"
                                 isLoading={addTemplateMutation.isPending}
-                                onPress={() => setTimeout(() => addTemplateMutation.mutate(), 100)}
+                                onPress={() => addTemplateMutation.mutate()}
                                 data-focus-visible="false"
                             >
                                 {addTemplateMutation.isPending ? 'Saving...' : 'Add Template'}

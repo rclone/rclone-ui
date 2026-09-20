@@ -111,7 +111,7 @@ export default function Purge() {
     )
 
     return (
-        <div className="flex flex-col h-screen gap-10">
+        <div className="flex flex-col h-full gap-10">
             {/* Main Content */}
             <OperationWindowContent>
                 {/* Path Display */}

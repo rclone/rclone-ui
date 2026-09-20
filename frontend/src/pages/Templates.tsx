@@ -30,10 +30,9 @@ import { describeTemplatePaths } from '../../lib/rclone/templatePaths'
 import { usePersistedStore } from '../../store/persisted'
 import type { Template } from '../../types/template'
 import EmptyState from '../components/EmptyState'
-import TemplateAddDrawer from '../components/TemplateAddDrawer'
+import TemplateAddDrawer, { type TemplatePrefill } from '../components/TemplateAddDrawer'
 import TemplateEditDrawer from '../components/TemplateEditDrawer'
 import { ask, saveAs } from '../../lib/api/dialog'
-import type { AddTemplatePayload } from '../../lib/api/events'
 import { writeFile } from '../../lib/rclone/daemon-fs'
 import { openUrl, revealItem } from '../../lib/api/shell'
 
@@ -41,8 +40,8 @@ export default function Templates() {
     const [searchParams] = useSearchParams()
 
     const { isOpen, onOpen, onClose: onAddClose } = useDisclosure()
-    // Deep-link prefill for the add drawer (rclone://add-template?cmd=…), opened by the shell.
-    const [addPayload, setAddPayload] = useState<AddTemplatePayload | null>(null)
+    // Prefill for the add drawer (`/templates?action=add&cmd=…`).
+    const [addPayload, setAddPayload] = useState<TemplatePrefill | null>(null)
     const handleAddClose = useCallback(() => {
         onAddClose()
         setAddPayload(null)
@@ -177,7 +176,7 @@ export default function Templates() {
     }, [searchParams, onOpen])
 
     return (
-        <div className={cn('flex flex-col h-screen')}>
+        <div className={cn('flex flex-col h-full')}>
             {/* Nothing to search or select until the first template; the empty state adds it. */}
             {templates.length > 0 && (
                 <div className="flex flex-row items-center justify-between w-full px-6 py-4">
@@ -274,27 +273,23 @@ export default function Templates() {
                             isPressable={true}
                             isHoverable={true}
                             onPress={() => {
-                                setTimeout(() => {
-                                    if (isSelecting) {
-                                        if (selectedTemplateIds.includes(template.id)) {
-                                            setSelectedTemplateIds(
-                                                selectedTemplateIds.filter(
-                                                    (id) => id !== template.id
-                                                )
-                                            )
-                                        } else {
-                                            setSelectedTemplateIds([
-                                                ...selectedTemplateIds,
-                                                template.id,
-                                            ])
-                                        }
-                                        return
+                                if (isSelecting) {
+                                    if (selectedTemplateIds.includes(template.id)) {
+                                        setSelectedTemplateIds(
+                                            selectedTemplateIds.filter((id) => id !== template.id)
+                                        )
+                                    } else {
+                                        setSelectedTemplateIds([
+                                            ...selectedTemplateIds,
+                                            template.id,
+                                        ])
                                     }
-                                    startTransition(() => {
-                                        setSelectedTemplate(template)
-                                        onEditOpen()
-                                    })
-                                }, 100)
+                                    return
+                                }
+                                startTransition(() => {
+                                    setSelectedTemplate(template)
+                                    onEditOpen()
+                                })
                             }}
                         >
                             <CardHeader>
@@ -370,11 +365,7 @@ export default function Templates() {
                         radius="full"
                         className="gap-1.5"
                         startContent={<FileBoxIcon className="size-4" />}
-                        onPress={() =>
-                            setTimeout(() => {
-                                exportTemplatesMutation.mutate(selectedTemplateIds)
-                            }, 10)
-                        }
+                        onPress={() => exportTemplatesMutation.mutate(selectedTemplateIds)}
                     >
                         EXPORT
                     </Button>
@@ -385,11 +376,7 @@ export default function Templates() {
                         radius="full"
                         className="gap-1.5"
                         startContent={<TrashIcon className="size-4" />}
-                        onPress={() =>
-                            setTimeout(() => {
-                                removeTemplatesMutation.mutate(selectedTemplateIds)
-                            }, 10)
-                        }
+                        onPress={() => removeTemplatesMutation.mutate(selectedTemplateIds)}
                     >
                         REMOVE
                     </Button>
@@ -400,12 +387,10 @@ export default function Templates() {
                         startContent={<XIcon className="size-4" />}
                         className="gap-1.5"
                         onPress={() =>
-                            setTimeout(() => {
-                                startTransition(() => {
-                                    setIsSelecting(false)
-                                    setSelectedTemplateIds([])
-                                })
-                            }, 10)
+                            startTransition(() => {
+                                setIsSelecting(false)
+                                setSelectedTemplateIds([])
+                            })
                         }
                     >
                         CANCEL
@@ -420,11 +405,7 @@ export default function Templates() {
                     radius="full"
                     color="primary"
                     className="absolute bottom-6 right-6"
-                    onPress={() => {
-                        setTimeout(async () => {
-                            await openUrl('https://rcloneui.com/templates')
-                        }, 100)
-                    }}
+                    onPress={() => openUrl('https://rcloneui.com/templates')}
                     startContent={<StoreIcon size={28} />}
                 />
             </Tooltip>

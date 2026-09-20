@@ -441,9 +441,7 @@ export default function TemplateEditDrawer({
                             <Button
                                 color="primary"
                                 isLoading={updateTemplateMutation.isPending}
-                                onPress={() =>
-                                    setTimeout(() => updateTemplateMutation.mutate(), 100)
-                                }
+                                onPress={() => updateTemplateMutation.mutate()}
                                 data-focus-visible="false"
                             >
                                 SAVE CHANGES

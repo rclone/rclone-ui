@@ -474,9 +474,8 @@ fn set_executable(path: &Path) {
 // Download
 // ---------------------------------------------------------------------------
 
-/// Bus event names the pages subscribe to (`lib/api/events.ts` `EventPayloads`).
+/// The bus event the pages draw the download bar from (`lib/api/events.ts` `EventPayloads`).
 pub const DOWNLOAD_PROGRESS_EVENT: &str = "rclone.download-progress";
-pub const DOWNLOAD_FINISHED_EVENT: &str = "rclone.download-finished";
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -563,17 +562,7 @@ pub async fn install_rclone(
         Err(e) => Err(e),
     };
     let _ = std::fs::remove_dir_all(&tmp);
-    result?;
-
-    ctx.events.emit(
-        DOWNLOAD_FINISHED_EVENT,
-        DownloadProgress {
-            version: version.to_string(),
-            downloaded: 0,
-            total: None,
-        },
-    );
-    Ok(())
+    result
 }
 
 /// Puts `staged` where `target` is, by rename. A running rclone keeps the file it started from,
@@ -755,18 +744,15 @@ mod download_event_tests {
         std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {}", path, e))
     }
 
-    /// The Rclone settings section renders the download bar from these events: an emitted name the
+    /// The Rclone settings section renders the download bar from this event: an emitted name the
     /// page never subscribed to leaves the bar indeterminate for the whole download.
     #[test]
     fn download_events_are_declared_in_events_ts() {
-        let events_ts = events_ts();
-        for name in [DOWNLOAD_PROGRESS_EVENT, DOWNLOAD_FINISHED_EVENT] {
-            assert!(
-                events_ts.contains(&format!("'{}':", name)),
-                "{} is emitted but not declared in lib/api/events.ts",
-                name
-            );
-        }
+        assert!(
+            events_ts().contains(&format!("'{}':", DOWNLOAD_PROGRESS_EVENT)),
+            "{} is emitted but not declared in lib/api/events.ts",
+            DOWNLOAD_PROGRESS_EVENT
+        );
     }
 }
 

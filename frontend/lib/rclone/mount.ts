@@ -1,9 +1,8 @@
 import { mountSupport } from '../api/app'
 import { ask } from '../api/dialog'
-import { platform } from '../api/os'
 import { openUrl } from '../api/shell'
 import { getFsInfo } from '../format'
-import rclone from './client'
+import rclone, { currentHostOs } from './client'
 
 // Whether the machine can mount is the server's to say (WinFsp on Windows, /dev/fuse on Linux),
 // and it looks every time it is asked: either can turn up while the server runs. Setting it up
@@ -25,7 +24,7 @@ export async function explainMountFailure(): Promise<boolean> {
         {
             title: 'This server cannot mount',
             kind: 'warning',
-            okLabel: platform === 'windows' ? 'WinFsp on GitHub' : 'Open the docs',
+            okLabel: currentHostOs() === 'windows' ? 'WinFsp on GitHub' : 'Open the docs',
             cancelLabel: 'Close',
         }
     )

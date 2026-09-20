@@ -28,7 +28,6 @@ export function useOperationDryRun(mutationFn: () => Promise<unknown>) {
             }
         },
         onError: onErrorDialog('Dry Run', 'Failed to start dry run', {
-            capture: false,
             log: ['Error starting dry run:'],
         }),
     })

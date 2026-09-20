@@ -37,7 +37,7 @@ function SidebarRail({ collapsed, onToggle }: { collapsed: boolean; onToggle: ()
                 'after:pointer-events-none after:absolute after:inset-y-0 after:left-1/2 after:w-4 after:rounded-tl-2xl after:border-l-2 after:border-t-2 after:border-transparent after:transition-colors after:duration-150 hover:after:border-primary',
                 // The app forces the default cursor everywhere (global.css); the rail is the one place
                 // that should not.
-                collapsed ? 'left-14 !cursor-e-resize' : 'left-64 !cursor-w-resize'
+                collapsed ? 'left-14 cursor-e-resize' : 'left-64 cursor-w-resize'
             )}
         />
     )

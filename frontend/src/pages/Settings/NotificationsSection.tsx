@@ -14,7 +14,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { PencilIcon, SendIcon, SettingsIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react'
-import { type ReactNode, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
     NOTIFICATION_PROVIDERS,
     removeNotificationTarget,
@@ -30,10 +30,9 @@ import type {
     NotificationTarget,
 } from '../../../types/notifications'
 import NotificationTargetDrawer from '../../components/NotificationTargetDrawer'
-import ProviderIcon, { WhatsAppIcon } from '../../components/icons/ProviderIcon'
+import ProviderIcon from '../../components/icons/ProviderIcon'
 import BaseSection from './BaseSection'
 import { ask, message } from '../../../lib/api/dialog'
-import { platform } from '../../../lib/api/os'
 
 const PROVIDER_ORDER: NotificationProvider[] = ['discord', 'slack', 'telegram', 'webhook', 'email']
 
@@ -86,17 +85,6 @@ export default function NotificationsSection() {
                                 onPress={() => handleAddPress(provider)}
                             />
                         ))}
-                        <DummyProviderCard
-                            label="WhatsApp"
-                            description="Get messages on WhatsApp"
-                            icon={<WhatsAppIcon className="text-green-500 size-8 shrink-0" />}
-                            onPress={() =>
-                                message(
-                                    'WhatsApp notifications are coming in v4. Upgrade to v4 to use them.',
-                                    { title: 'Coming in v4', kind: 'info' }
-                                )
-                            }
-                        />
                     </div>
                 </section>
 
@@ -157,39 +145,6 @@ function ProviderCard({
                 <div className="flex flex-col gap-0.5 text-left">
                     <p className="font-medium">{providerMeta.label}</p>
                     <p className="text-small text-default-500">{providerMeta.description}</p>
-                </div>
-            </CardBody>
-        </Card>
-    )
-}
-
-// The placeholder card for a provider that doesn't exist yet — tapping explains it's coming in v4.
-function DummyProviderCard({
-    label,
-    description,
-    icon,
-    onPress,
-}: {
-    label: string
-    description: string
-    icon: ReactNode
-    onPress: () => void
-}) {
-    return (
-        <Card
-            shadow="sm"
-            isPressable={true}
-            onPress={onPress}
-            className="h-24 bg-content2"
-            data-focus-visible="false"
-        >
-            <CardBody className="relative flex flex-row items-center gap-3 px-4">
-                {icon}
-                <div className="flex flex-col gap-0.5 text-left">
-                    <div className="flex items-center gap-2">
-                        <p className="font-medium">{label}</p>
-                    </div>
-                    <p className="text-small text-default-500">{description}</p>
                 </div>
             </CardBody>
         </Card>
@@ -325,7 +280,7 @@ function NotificationTargetCard({
                             aria-label={`Enable ${target.name}`}
                             data-focus-visible="false"
                         />
-                        <Dropdown shadow={platform === 'windows' ? 'none' : undefined}>
+                        <Dropdown>
                             <DropdownTrigger>
                                 <Button
                                     type="button"

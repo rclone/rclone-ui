@@ -141,10 +141,6 @@ impl Supervisor {
         self.phase.borrow().clone()
     }
 
-    pub fn subscribe(&self) -> watch::Receiver<Phase> {
-        self.phase.subscribe()
-    }
-
     pub fn target(&self) -> Option<RcTarget> {
         self.target.read().unwrap().clone()
     }
@@ -163,11 +159,6 @@ impl Supervisor {
         self.shutting_down.store(true, Ordering::SeqCst);
         self.stop_daemon().await;
         self.set_phase(Phase::Stopped);
-    }
-
-    /// Stops the daemon but keeps the loop alive: it comes back on the next restart request.
-    pub async fn stop(&self) {
-        self.stop_daemon().await;
     }
 
     fn set_phase(&self, phase: Phase) {

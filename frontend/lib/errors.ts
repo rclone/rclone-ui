@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/browser'
 import { message } from './api/dialog'
 
 // Signals that the user explicitly stopped a call (e.g. dismissed the reconnect prompt), so retry
@@ -21,22 +20,17 @@ interface ReportErrorOptions {
     title: string
     fallback?: string
     okLabel?: string
-    // Defaults to capturing. Pass `false` for sites that did not call Sentry.captureException.
-    capture?: boolean
     // When provided, forwarded to console.error before the dialog, with the error appended
     // (so `['[switchConfig] failed']` -> console.error('[switchConfig] failed', error)). Omit to
     // suppress console.error entirely for sites that never logged.
     log?: unknown[]
 }
 
-// console.error (optional) + Sentry.captureException (unless capture === false) + error dialog.
+// console.error (optional) + error dialog.
 export async function reportError(error: unknown, options: ReportErrorOptions): Promise<void> {
-    const { title, fallback, okLabel, capture, log } = options
+    const { title, fallback, okLabel, log } = options
     if (log) {
         console.error(...log, error)
-    }
-    if (capture !== false) {
-        Sentry.captureException(error)
     }
     await message(formatErrorMessage(error, fallback), {
         title,

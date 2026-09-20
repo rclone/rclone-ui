@@ -24,7 +24,6 @@ import {
     type ToolbarButtons,
     serializeRemotePath,
 } from './navigator'
-import { platform } from '../../lib/api/os'
 import { parsePath } from '../../lib/paths'
 
 export type PickMode = 'both' | 'files' | 'folders'
@@ -139,7 +138,7 @@ export default function PathSelector({
                               color="foreground"
                           >
                               <div>
-                                  <Dropdown shadow={platform === 'windows' ? 'none' : undefined}>
+                                  <Dropdown>
                                       <DropdownTrigger>
                                           <Button
                                               color="primary"

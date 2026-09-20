@@ -29,7 +29,6 @@ export default function useEntryActions(afterChange: (entry: Entry) => void) {
                 await reportError(error, {
                     title: 'Error',
                     fallback: 'Rename failed',
-                    capture: false,
                 })
             }
         },
@@ -63,7 +62,6 @@ export default function useEntryActions(afterChange: (entry: Entry) => void) {
                 await reportError(error, {
                     title: 'Error',
                     fallback: 'Delete failed',
-                    capture: false,
                 })
             }
         },

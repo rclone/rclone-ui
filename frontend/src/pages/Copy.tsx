@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { getOptionsSubtitle } from '../../lib/flags'
 import { pathsWithRemote } from '../../lib/format'
 import { useFlags } from '../../lib/hooks'
@@ -96,7 +96,6 @@ export default function Copy() {
         error: {
             title: 'Copy',
             message: 'Failed to start copy',
-            capture: false,
             log: ['Error starting copy:'],
         },
         reset: {
@@ -230,13 +229,8 @@ export default function Copy() {
         ]
     )
 
-    useEffect(() => {
-        console.log('[Copy] remoteOptions', remotesGroup.options)
-        console.log('[Copy] remoteOptionsJson', remotesGroup.json)
-    }, [remotesGroup.json, remotesGroup.options])
-
     return (
-        <div className="flex flex-col h-screen gap-10">
+        <div className="flex flex-col h-full gap-10">
             {/* Main Content */}
             <OperationWindowContent>
                 {/* Paths Display */}

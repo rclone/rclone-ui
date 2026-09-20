@@ -1,11 +1,10 @@
 //! The Rust-owned notification-target store: `<app_data>/notifications/targets.json`.
 //!
 //! The pages write it through commands and dispatch records delivery outcomes into it, so every
-//! read-modify-write cycle runs under a lock. It is a cross-process one because a second server
-//! may be pointed at the same data directory. The lock file is separate from the data file so
-//! the atomic tmp+rename data writes never disturb the held lock fd.
+//! read-modify-write cycle runs under one in-process lock: this server is the only writer.
 
 use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 
@@ -60,10 +59,6 @@ fn targets_path(dirs: &DataDir) -> PathBuf {
     notifications_dir(dirs).join("targets.json")
 }
 
-fn lock_file_path(dirs: &DataDir) -> PathBuf {
-    notifications_dir(dirs).join("targets.lock")
-}
-
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -71,98 +66,13 @@ fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
-/// Cross-process mutual exclusion for targets.json read-modify-write cycles. Held for
-/// milliseconds (never across HTTP sends). Unix: kernel flock — released on crash; release
-/// truncates but never unlinks (an unlink/recreate race
-/// would let two processes lock two inodes of the same path). Windows: create_new existence
-/// with a stale break well above any real hold time.
-pub struct StoreLock {
-    #[cfg(unix)]
-    _file: std::fs::File,
-    #[cfg(not(unix))]
-    path: PathBuf,
-}
+/// Held for milliseconds around each read-modify-write, never across a send.
+static STORE_LOCK: Mutex<()> = Mutex::new(());
 
-#[cfg(not(unix))]
-impl Drop for StoreLock {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
-    }
-}
-
-const LOCK_ATTEMPTS: u32 = 40;
-const LOCK_RETRY_MS: u64 = 250;
-#[cfg(not(unix))]
-const LOCK_STALE_MS: u64 = 30_000;
-
-#[cfg(unix)]
-fn acquire_store_lock(dirs: &DataDir) -> Result<StoreLock, String> {
-    use std::os::unix::io::AsRawFd;
-
-    let path = lock_file_path(dirs);
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let file = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(&path)
-        .map_err(|e| format!("failed to open notifications lock: {}", e))?;
-    for attempt in 0..LOCK_ATTEMPTS {
-        let locked = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0;
-        if locked {
-            return Ok(StoreLock { _file: file });
-        }
-        let err = std::io::Error::last_os_error();
-        if err.raw_os_error() != Some(libc::EWOULDBLOCK) {
-            return Err(format!("failed to lock {}: {}", path.display(), err));
-        }
-        if attempt + 1 < LOCK_ATTEMPTS {
-            std::thread::sleep(std::time::Duration::from_millis(LOCK_RETRY_MS));
-        }
-    }
-    Err("another notifications operation is still in progress".to_string())
-}
-
-#[cfg(not(unix))]
-fn acquire_store_lock(dirs: &DataDir) -> Result<StoreLock, String> {
-    let path = lock_file_path(dirs);
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    for attempt in 0..LOCK_ATTEMPTS {
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-        {
-            Ok(mut file) => {
-                use std::io::Write;
-                let _ = write!(file, "{}", now_ms());
-                return Ok(StoreLock { path });
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-                // Holds are milliseconds; anything older than the stale window is a crashed
-                // process that never got to its Drop.
-                let stale = std::fs::read_to_string(&path)
-                    .ok()
-                    .and_then(|raw| raw.trim().parse::<u64>().ok())
-                    .map(|written| now_ms().saturating_sub(written) > LOCK_STALE_MS)
-                    .unwrap_or(true);
-                if stale {
-                    let _ = std::fs::remove_file(&path);
-                    continue;
-                }
-                if attempt + 1 < LOCK_ATTEMPTS {
-                    std::thread::sleep(std::time::Duration::from_millis(LOCK_RETRY_MS));
-                }
-            }
-            Err(e) => return Err(format!("failed to create notifications lock: {}", e)),
-        }
-    }
-    Err("another notifications operation is still in progress".to_string())
+fn lock() -> MutexGuard<'static, ()> {
+    STORE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn write_targets(dirs: &DataDir, targets: &[NotificationTarget]) -> Result<(), String> {
@@ -196,7 +106,7 @@ fn load_locked(dirs: &DataDir) -> Result<Vec<NotificationTarget>, String> {
 }
 
 pub fn load(dirs: &DataDir) -> Result<Vec<NotificationTarget>, String> {
-    let _lock = acquire_store_lock(dirs)?;
+    let _lock = lock();
     load_locked(dirs)
 }
 
@@ -211,7 +121,7 @@ fn duplicate_error(provider: &str) -> String {
 }
 
 pub fn add(dirs: &DataDir, new: NewTarget) -> Result<NotificationTarget, String> {
-    let _lock = acquire_store_lock(dirs)?;
+    let _lock = lock();
     let mut targets = load_locked(dirs)?;
     // Re-checked here under the lock: the drawer's duplicate check reads a snapshot that
     // another window (or a concurrent add) may have outdated.
@@ -239,7 +149,7 @@ pub fn add(dirs: &DataDir, new: NewTarget) -> Result<NotificationTarget, String>
 }
 
 pub fn update(dirs: &DataDir, id: &str, patch: TargetPatch) -> Result<(), String> {
-    let _lock = acquire_store_lock(dirs)?;
+    let _lock = lock();
     let mut targets = load_locked(dirs)?;
     if let Some(new_url) = &patch.url {
         let normalized = new_url.trim().to_lowercase();
@@ -276,7 +186,7 @@ pub fn update(dirs: &DataDir, id: &str, patch: TargetPatch) -> Result<(), String
 
 /// Idempotent: removing an id that's already gone is a success, not an error.
 pub fn remove(dirs: &DataDir, id: &str) -> Result<(), String> {
-    let _lock = acquire_store_lock(dirs)?;
+    let _lock = lock();
     let mut targets = load_locked(dirs)?;
     let before = targets.len();
     targets.retain(|t| t.id != id);
@@ -292,9 +202,7 @@ pub fn record_outcomes(dirs: &DataDir, outcomes: &[(String, Option<String>)]) {
     if outcomes.is_empty() {
         return;
     }
-    let Ok(_lock) = acquire_store_lock(dirs) else {
-        return;
-    };
+    let _lock = lock();
     let Ok(mut targets) = load_locked(dirs) else {
         return;
     };

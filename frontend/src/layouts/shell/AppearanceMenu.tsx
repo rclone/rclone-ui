@@ -1,7 +1,7 @@
 import { Popover, PopoverContent, PopoverTrigger, Select, SelectItem } from '@heroui/react'
 import { SettingsIcon } from 'lucide-react'
 import { message } from '../../../lib/api/dialog'
-import { usePersistedStore } from '../../../store/persisted'
+import { type Theme, useTheme } from '../../../lib/theme'
 
 // English is the only language until the translations land; the list shows what is coming.
 const LANGUAGES = [
@@ -17,7 +17,7 @@ const LANGUAGES = [
 
 // The header's cog: the two settings that belong to the tab itself rather than to the server.
 export default function AppearanceMenu({ className }: { className?: string }) {
-    const appearance = usePersistedStore((state) => state.appearance)
+    const [theme, setTheme] = useTheme()
 
     return (
         <Popover placement="bottom-end" offset={8}>
@@ -29,14 +29,9 @@ export default function AppearanceMenu({ className }: { className?: string }) {
             <PopoverContent aria-label="Settings" className="items-stretch w-64 gap-3 p-3">
                 <Select
                     label="App Theme"
-                    selectedKeys={[appearance.app]}
+                    selectedKeys={[theme]}
                     disallowEmptySelection={true}
-                    onSelectionChange={(keys) => {
-                        const value = Array.from(keys)[0] as 'light' | 'dark' | 'system'
-                        usePersistedStore.setState((state) => ({
-                            appearance: { ...state.appearance, app: value },
-                        }))
-                    }}
+                    onSelectionChange={(keys) => setTheme(Array.from(keys)[0] as Theme)}
                     size="sm"
                     data-focus-visible="false"
                 >

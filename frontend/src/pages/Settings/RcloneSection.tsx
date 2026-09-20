@@ -14,7 +14,18 @@ import {
     installVersion,
     isRcloneBusy,
 } from '../../../lib/rclone/versions'
-import { type RcloneBinary, rcloneBinary, rcloneSetCustom, status } from '../../../lib/api/app'
+import {
+    type RcloneBinary,
+    type UpdateInfo,
+    rcloneBinary,
+    rcloneSetCustom,
+    relaunch,
+    status,
+    updateCheck,
+    updateInstall,
+} from '../../../lib/api/app'
+import { useCapabilities } from '../../../lib/api/host'
+import { openUrl } from '../../../lib/api/shell'
 import { restartActiveRclone } from '../../../lib/rclone/cli'
 import rclone from '../../../lib/rclone/client'
 import { usePersistedStore } from '../../../store/persisted'
@@ -24,8 +35,8 @@ import { rpc } from '../../../lib/api/rpc'
 import BaseSection from './BaseSection'
 
 // The one screen for the rclone the server runs: which binary, the limits every transfer shares,
-// and the proxy it reaches the world through. There is no group for a config file — rclone
-// resolves its own, and the file itself is edited from the remotes list.
+// the proxy it reaches the world through, and the server's own updates. There is no group for a
+// config file — rclone resolves its own, and the file itself is edited from the remotes list.
 export default function RcloneSection() {
     return (
         <BaseSection
@@ -35,6 +46,7 @@ export default function RcloneSection() {
             <BinarySettings />
             <LimitsSettings />
             <ProxySettings />
+            <UpdateSettings />
         </BaseSection>
     )
 }
@@ -258,7 +270,7 @@ function CustomBinaryRow({
         },
         onSuccess: () => onChanged(),
         onError: async (e) => {
-            await reportError(e, { title: 'Invalid binary', fallback: String(e), capture: false })
+            await reportError(e, { title: 'Invalid binary', fallback: String(e) })
         },
     })
 
@@ -578,7 +590,7 @@ function ProxySettings() {
                 },
             }))
 
-            await message('The proxy has been saved!\n\nRestart the app to apply the changes.', {
+            await message('The proxy has been saved!\n\nRestart rclone to apply the changes.', {
                 title: 'Proxy Saved',
                 kind: 'info',
             })
@@ -601,13 +613,10 @@ function ProxySettings() {
                     },
                 }))
 
-                await message(
-                    'The proxy has been saved!\n\nRestart the app to apply the changes.',
-                    {
-                        title: 'Proxy Saved',
-                        kind: 'info',
-                    }
-                )
+                await message('The proxy has been saved!\n\nRestart rclone to apply the changes.', {
+                    title: 'Proxy Saved',
+                    kind: 'info',
+                })
             }
         }
         setIsTestingProxy(false)
@@ -732,6 +741,84 @@ function ProxySettings() {
                 <p className="text-xs text-default-500">{IGNORED_HINT}</p>
             </div>
             {ignoredHostControls}
+        </SettingsGroup>
+    )
+}
+
+/** The server's own update, where the machine lets it install one (not in a container). */
+function UpdateSettings() {
+    const caps = useCapabilities()
+    const [buttonText, setButtonText] = useState('Check for updates')
+    const [update, setUpdate] = useState<UpdateInfo | null>(null)
+
+    const updateMutation = useMutation({
+        mutationFn: async () => {
+            if (!update) {
+                setButtonText('Checking...')
+                let found: UpdateInfo | null = null
+                try {
+                    found = await updateCheck()
+                } catch (e) {
+                    console.error('[update] check failed', e)
+                    setButtonText('Failed to check')
+                    return
+                }
+                if (!found) {
+                    setButtonText('Up to date')
+                    return
+                }
+                setUpdate(found)
+                setButtonText(`Install v${found.version}`)
+                return
+            }
+
+            setButtonText('Downloading...')
+            try {
+                await updateInstall()
+            } catch (error) {
+                console.error('[update] install failed', error)
+                setButtonText('Tap to retry')
+                const manual = await ask(
+                    'The update could not be installed. Try again, or download it yourself.',
+                    {
+                        title: 'Update Error',
+                        kind: 'error',
+                        okLabel: 'Download',
+                        cancelLabel: 'Cancel',
+                    }
+                )
+                // The repository's Latest is the desktop app's; the cloud's releases are tagged.
+                if (manual) {
+                    await openUrl(
+                        `https://github.com/rclone-ui/rclone-ui/releases/tag/cloud-v${update.version}`
+                    )
+                }
+                return
+            }
+
+            const restart = await ask('Update installed. Ready to restart?', {
+                title: 'Update',
+                kind: 'info',
+                okLabel: 'Restart',
+                cancelLabel: 'Later',
+            })
+            if (restart) await relaunch()
+        },
+    })
+
+    if (!caps.updater) return null
+    return (
+        <SettingsGroup
+            title="Server"
+            description={update ? `Version ${update.version} is available.` : undefined}
+        >
+            <Button
+                className="self-start"
+                isLoading={updateMutation.isPending}
+                onPress={() => updateMutation.mutate()}
+            >
+                {buttonText}
+            </Button>
         </SettingsGroup>
     )
 }

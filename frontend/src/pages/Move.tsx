@@ -96,7 +96,6 @@ export default function Move() {
         error: {
             title: 'Move',
             message: 'Failed to start move',
-            capture: false,
             log: ['Error starting move:'],
         },
         reset: {
@@ -231,7 +230,7 @@ export default function Move() {
     )
 
     return (
-        <div className="flex flex-col h-screen gap-10">
+        <div className="flex flex-col h-full gap-10">
             {/* Main Content */}
             <OperationWindowContent>
                 {/* Paths Display */}

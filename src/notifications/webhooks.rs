@@ -8,7 +8,6 @@ use serde_json::{json, Value};
 use super::catalog::{self, EventMeta};
 use super::smtp::{self, SmtpSettings};
 use super::targets::{self, NotificationTarget};
-use crate::scheduler::history;
 use crate::scheduler::storeread::DataDir;
 
 fn discord_color(severity: &str) -> u32 {
@@ -204,7 +203,7 @@ pub fn dispatch(
         Err(e) => return vec![format!("failed to load notification targets: {}", e)],
     };
 
-    let timestamp = history::now_iso();
+    let timestamp = crate::time::now_iso();
     let mut log_lines = Vec::new();
     let mut outcomes: Vec<(String, Option<String>)> = Vec::new();
     // The SMTP file is read once, and only when an email target is in the round.
@@ -293,7 +292,7 @@ pub fn send_test(
         last_sent_at: None,
         last_error: None,
     };
-    let timestamp = history::now_iso();
+    let timestamp = crate::time::now_iso();
     let request = build_request(
         &probe,
         event,

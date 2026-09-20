@@ -63,7 +63,7 @@ export function useOperationSubmission<O extends Operation, A extends Args>({
     getMergedOptions: () => Record<string, FlagValue>
     /** A notice after the start (Delete says so), before any scheduling. */
     afterStart?: () => Promise<void>
-    error: { title: string; message: string; log: string[]; capture?: boolean }
+    error: { title: string; message: string; log: string[] }
     reset: { paths: () => void; extras?: () => void }
     groups: {
         setJsonError: (error: null) => void
@@ -108,10 +108,7 @@ export function useOperationSubmission<O extends Operation, A extends Args>({
             await afterStart?.()
             if (cron) scheduleMutation.mutate()
         },
-        onError: onErrorDialog(error.title, error.message, {
-            capture: error.capture,
-            log: error.log,
-        }),
+        onError: onErrorDialog(error.title, error.message, { log: error.log }),
     })
 
     const dryRunMutation = useOperationDryRun(async () => {

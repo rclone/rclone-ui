@@ -6,7 +6,6 @@ import { formatBytes } from '../../../lib/format.ts'
 import FileIcon from './FileIcon'
 import type { Entry, PaddingItem, VirtualizedEntry } from './types'
 import { dragStateRef, dropTargetsRef, formatModTime } from './utils'
-import { platform } from '../../../lib/api/os'
 
 // A favourite row is labelled "(remote) name" and sits in a list with no path bar above it, so
 // it says where it points on hover. Every other listing already has its path on screen.
@@ -186,10 +185,6 @@ export default function FileList({
                 base: 'w-full p-0 m-0',
                 list: 'w-full p-0 m-0 gap-0',
             }}
-            // @ts-ignore — scrollShadowProps exists on VirtualizedListbox but not on ListboxProps (HeroUI typing gap)
-            scrollShadowProps={{
-                className: platform !== 'macos' ? 'show-scrollbar' : undefined,
-            }}
             selectionMode="none"
             hideSelectedIcon={true}
             selectedKeys={[]}
@@ -263,7 +258,7 @@ export default function FileList({
                                 >
                                     <FileIcon entry={entry} size="md" />
                                     <span
-                                        className="truncate !cursor-pointer"
+                                        className="truncate cursor-pointer"
                                         title={showFullPath ? undefined : entry.fullPath}
                                     >
                                         {entry.displayName ?? entry.name}

@@ -11,7 +11,6 @@
 //! | `GET/PATCH/PUT /api/state/{doc}` | revisioned state documents |
 //! | `ANY /api/rc/{*path}` | streaming reverse proxy to the rclone daemon |
 //! | `GET /api/dl/{token}` | short-lived signed download link |
-//! | `POST /api/proxy` | allow-listed third-party fetch |
 //! | `GET /api/ws` | stream events + bus events |
 //! | everything else | `frontend/dist/` with the boot script injected into index.html |
 
@@ -28,7 +27,6 @@ pub mod metadata_mapper;
 pub mod notifications;
 pub mod platform;
 pub mod port;
-pub mod proxy;
 pub mod rc;
 pub mod rc_proxy;
 pub mod resolve_link;
@@ -42,6 +40,7 @@ pub mod state_files;
 pub mod static_files;
 pub mod storage;
 pub mod team;
+pub mod time;
 pub mod transfers;
 pub mod updater;
 pub mod version;
@@ -385,7 +384,6 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
         .route("/api/login", post(auth::login))
         .route("/api/logout", post(auth::logout))
         .route("/api/session", get(auth::session))
-        .route("/api/capabilities", get(server_rpcs::capabilities))
         .route("/api/status", get(server_rpcs::status))
         .route(
             "/api/rpc/{name}",
@@ -402,7 +400,6 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
             any(rc_proxy::handle).layer(axum::extract::DefaultBodyLimit::disable()),
         )
         .route("/api/dl/{token}", get(download::handle))
-        .route("/api/proxy", post(proxy::handle))
         .route("/api/ws", get(ws::upgrade))
         .fallback(static_files::serve)
         .layer(axum::middleware::from_fn_with_state(

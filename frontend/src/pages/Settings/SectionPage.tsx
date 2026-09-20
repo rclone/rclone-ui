@@ -6,7 +6,7 @@ import { SETTINGS_SECTIONS, type SectionKey, isSectionKey } from './sections'
 export default function SectionPage({ section: fixed }: { section?: SectionKey }) {
     const params = useParams<{ section?: string }>()
 
-    const key: SectionKey = fixed ?? (isSectionKey(params.section) ? params.section : 'general')
+    const key: SectionKey = fixed ?? (isSectionKey(params.section) ? params.section : 'rclone')
     const Section = SETTINGS_SECTIONS[key].component
 
     return (

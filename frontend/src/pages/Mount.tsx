@@ -8,14 +8,12 @@ import {
     DropdownItem,
     DropdownMenu,
     DropdownTrigger,
-    Tooltip,
 } from '@heroui/react'
 import { useMutation } from '@tanstack/react-query'
 
 import { AnimatePresence, motion } from 'framer-motion'
 import {
     AlertOctagonIcon,
-    ClockIcon,
     FilterIcon,
     FoldersIcon,
     HardDriveIcon,
@@ -27,7 +25,6 @@ import {
 import { startTransition, useEffect, useMemo, useState } from 'react'
 import { message } from '../../lib/api/dialog'
 import { pathsProblem } from '../../lib/paths'
-import { platform } from '../../lib/api/os'
 import { openPath } from '../../lib/api/shell'
 import { navigate } from '../../lib/api/navigation'
 import { reportError } from '../../lib/errors'
@@ -194,7 +191,6 @@ export default function Mount() {
             await reportError(error, {
                 title: 'Mount Error',
                 fallback: 'Failed to start mount operation',
-                capture: false,
             })
         },
     })
@@ -229,7 +225,7 @@ export default function Mount() {
     }, [startMountMutation.isPending, startMountMutation.isSuccess, source, dest, jsonError])
 
     return (
-        <div className="flex flex-col h-screen gap-10">
+        <div className="flex flex-col h-full gap-10">
             {/* Main Content */}
             <OperationWindowContent>
                 {/* Paths Display */}
@@ -461,7 +457,7 @@ export default function Mount() {
                             transition={{ duration: 0.2, ease: 'easeOut' }}
                             className="flex flex-1 gap-2"
                         >
-                            <Dropdown shadow={platform === 'windows' ? 'none' : undefined}>
+                            <Dropdown>
                                 <DropdownTrigger>
                                     <Button fullWidth={true} size="lg" data-focus-visible="false">
                                         NEW MOUNT
@@ -593,25 +589,6 @@ export default function Mount() {
                     )}
                 </AnimatePresence>
                 <ButtonGroup variant="flat">
-                    <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
-                        <Button
-                            size="lg"
-                            type="button"
-                            color="primary"
-                            isIconOnly={true}
-                            onPress={async () => {
-                                await message(
-                                    'You can auto mount remotes by going to Settings > Remotes > Config',
-                                    {
-                                        title: 'Auto Mount',
-                                        kind: 'info',
-                                    }
-                                )
-                            }}
-                        >
-                            <ClockIcon className="size-6" />
-                        </Button>
-                    </Tooltip>
                     <CommandInfoButton command="mount" />
                 </ButtonGroup>
             </OperationWindowFooter>

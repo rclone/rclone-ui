@@ -69,8 +69,6 @@ fn main() {
         std::process::exit(rclone_cloud::metadata_mapper::run(&args[2..]));
     }
 
-    let _ = fix_path_env::fix();
-
     let cli = Cli::parse();
     let opts = match cli.command {
         Some(Command::ListCommands) => {

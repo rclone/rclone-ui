@@ -776,7 +776,6 @@ export default function OptionsSection({
                         description="Some lines show presets if you hover over them."
                         value={optionsJson}
                         onValueChange={(value) => {
-                            console.log(value)
                             //weird curly apostrophe alternatives on macos, replace to normal apostrophe
                             const cleanedJson = replaceSmartQuotes(value)
                             setOptionsJson(cleanedJson)
@@ -908,12 +907,12 @@ export default function OptionsSection({
                                 >
                                     {isLocked ? (
                                         <LockKeyholeIcon
-                                            className="size-3 !ring-0 !outline-none !cursor-pointer"
+                                            className="size-3 !ring-0 !outline-none cursor-pointer"
                                             onClick={() => setIsLocked(false)}
                                         />
                                     ) : (
                                         <LockOpenIcon
-                                            className="size-3 !ring-0 !outline-none !cursor-pointer"
+                                            className="size-3 !ring-0 !outline-none cursor-pointer"
                                             onClick={() => setIsLocked(true)}
                                         />
                                     )}
@@ -1071,7 +1070,7 @@ export default function OptionsSection({
                                         base: alreadyAdded
                                             ? 'border-primary border-1 text-primary-900'
                                             : undefined,
-                                        content: '!cursor-pointer',
+                                        content: 'cursor-pointer',
                                     }}
                                     size="sm"
                                     as={'button'}

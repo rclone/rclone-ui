@@ -45,7 +45,6 @@ import RemoteCreateDrawer from '../../components/RemoteCreateDrawer'
 import RemoteEditDrawer from '../../components/RemoteEditDrawer'
 import BaseSection from './BaseSection'
 import { ask } from '../../../lib/api/dialog'
-import { platform } from '../../../lib/api/os'
 
 const REMOTE_ROW_SIZE = 90
 const SECTION_HEADER_SIZE = 36
@@ -104,13 +103,7 @@ export default function RemotesSection() {
 
     const remotesQuery = useQuery({
         queryKey: ['remotes', 'list', 'all'],
-        queryFn: async () => {
-            const [remotes] = await Promise.all([
-                rclone('/config/listremotes').then((r) => r?.remotes),
-                new Promise((resolve) => setTimeout(resolve, 1400)),
-            ])
-            return remotes
-        },
+        queryFn: async () => await rclone('/config/listremotes').then((r) => r?.remotes),
         staleTime: 1000 * 60, // 1 minute
         enabled: !editingDrawerOpen && !creatingDrawerOpen && !autoMountDrawerOpen,
     })
@@ -229,7 +222,6 @@ export default function RemotesSection() {
             ])
         },
         onError: onErrorDialog('Could not delete remote', 'Unknown error occurred', {
-            capture: false,
             log: ['Failed to delete remote:'],
         }),
     })
@@ -296,12 +288,10 @@ export default function RemotesSection() {
                         </Button>
                         <Button
                             onPress={() => {
-                                setTimeout(async () => {
-                                    // The list unmounts while it reloads: the cards ask again as
-                                    // they return, so nothing is refetched here.
-                                    forgetRemoteHealth({ refetch: false })
-                                    await remotesQuery.refetch()
-                                }, 100)
+                                // The list unmounts while it reloads: the cards ask again as
+                                // they return, so nothing is refetched here.
+                                forgetRemoteHealth({ refetch: false })
+                                void remotesQuery.refetch()
                             }}
                             isIconOnly={true}
                             variant="faded"
@@ -313,11 +303,7 @@ export default function RemotesSection() {
                             <RefreshCcwIcon className="w-4 h-4" />
                         </Button>
                         <Button
-                            onPress={() => {
-                                setTimeout(async () => {
-                                    setCreatingDrawerOpen(true)
-                                }, 100)
-                            }}
+                            onPress={() => setCreatingDrawerOpen(true)}
                             isIconOnly={true}
                             variant="faded"
                             color="primary"
@@ -562,7 +548,7 @@ function RemoteCard({
                             </div>
                         )}
 
-                        <Dropdown shadow={platform === 'windows' ? 'none' : undefined}>
+                        <Dropdown>
                             <DropdownTrigger>
                                 <Button
                                     type="button"

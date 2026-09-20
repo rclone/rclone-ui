@@ -115,7 +115,6 @@ export default function RemoteEditDrawer({
             onClose()
         },
         onError: onErrorDialog('Could not update remote', 'Unknown error occurred', {
-            capture: false,
             log: ['Failed to update remote:'],
         }),
     })

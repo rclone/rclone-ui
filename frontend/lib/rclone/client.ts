@@ -13,7 +13,7 @@ import { claimReconnectDialog, releaseReconnectDialog } from '../api/app'
 import { reconnectTarget } from './health'
 import { ask, message } from '../api/dialog'
 import { rcClient } from '../api/rc'
-import { platform } from '../api/os'
+import { boot } from '../api/boot'
 import { UserCancelledError } from '../errors'
 
 type ReconnectHandler = (remoteName: string) => Promise<void>
@@ -95,10 +95,11 @@ export function clearClient() {
 
 /**
  * The OS of the machine the daemon runs on, which is what paths are built for. It is the machine
- * serving the page — the server runs rclone beside itself — but `platform` is wider than these
- * three (ios/android/freebsd/…), so anything else reads as linux.
+ * serving the page — the server runs rclone beside itself — never the browser's. Rust's OS name
+ * is wider than these three (freebsd, …), so anything else reads as linux.
  */
 export function currentHostOs(): 'windows' | 'macos' | 'linux' {
+    const platform = boot.os.platform
     return platform === 'windows' || platform === 'macos' ? platform : 'linux'
 }
 

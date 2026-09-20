@@ -1,16 +1,14 @@
 //! The frontend bundle (`frontend/dist/`, built by `npm run build`) with an SPA fallback,
-//! plus the boot script injected into index.html: `window.__RCLONE_CLOUD__` carries the mode,
-//! capabilities, OS facts and well-known paths the page reads synchronously at import time, and
-//! the persisted theme so the first paint is right without localStorage. In debug builds
-//! rust-embed reads that folder from disk, so a fresh `npm run build` is picked up without
-//! recompiling. `dev_proxy` forwards to a Vite dev server instead (the boot script is still
-//! injected).
+//! plus the boot script injected into index.html: `window.__RCLONE_CLOUD__` carries the
+//! version, the capabilities, the server's OS and the few paths the page reads synchronously at
+//! import time. In debug builds rust-embed reads that folder from disk, so a fresh `npm run
+//! build` is picked up without recompiling. `dev_proxy` forwards to a Vite dev server instead
+//! (the boot script is still injected).
 
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{header, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
-use crate::state_files::APP_DOC;
 use serde_json::{json, Value};
 
 use crate::Shared;
@@ -27,36 +25,19 @@ fn path_string(path: Option<std::path::PathBuf>) -> Value {
 }
 
 pub fn boot_payload(st: &Shared) -> Value {
-    let app_state = st.store.state_or_default(APP_DOC);
-    let theme = app_state
-        .get("appearance")
-        .and_then(|a| a.get("app"))
-        .and_then(Value::as_str)
-        .unwrap_or("system");
     json!({
         "version": env!("CARGO_PKG_VERSION"),
         "capabilities": st.capabilities,
-        "os": {
-            "platform": std::env::consts::OS,
-            "family": std::env::consts::FAMILY,
-            "arch": std::env::consts::ARCH,
-            "version": sysinfo::System::os_version().unwrap_or_default(),
-            "eol": if cfg!(windows) { "\r\n" } else { "\n" },
-        },
+        // The machine rclone runs on: what paths are built for, never the browser's OS.
+        "os": { "platform": std::env::consts::OS },
         "paths": {
             "sep": std::path::MAIN_SEPARATOR_STR,
-            "delimiter": if cfg!(windows) { ";" } else { ":" },
             "home": path_string(dirs::home_dir()),
-            "appData": st.ctx.dirs.root,
-            "temp": std::env::temp_dir(),
             // This binary. rclone's `--metadata-mapper` needs a program to run, and the app's
             // mapping editor points it back here (`metadata-map`), so the page has to be able
             // to write the path down.
             "exe": path_string(std::env::current_exe().ok()),
-            "download": path_string(dirs::download_dir()),
-            "desktop": path_string(dirs::desktop_dir()),
         },
-        "theme": theme,
     })
 }
 

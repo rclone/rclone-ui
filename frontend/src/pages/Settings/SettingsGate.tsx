@@ -13,7 +13,7 @@ export default function SettingsGate({ children }: { children: ReactNode }) {
 
     if (isRestartingRclone) {
         return (
-            <div className="flex flex-col items-center justify-center w-screen h-screen gap-10 overflow-hidden animate-fade-in">
+            <div className="flex flex-col items-center justify-center w-full h-full gap-10 overflow-hidden animate-fade-in">
                 <Spinner size="lg" className="scale-150" />
                 <p className="text-lg text-center">Restarting rclone...</p>
             </div>

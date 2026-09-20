@@ -14,10 +14,6 @@ use crate::rpc::{ok, Reply};
 use crate::team::{AuthUser, Role};
 use crate::{QuitKind, Shared};
 
-pub async fn capabilities(State(st): State<Shared>) -> Response {
-    Json(st.capabilities.clone()).into_response()
-}
-
 pub async fn status(State(st): State<Shared>) -> Response {
     Json(st.status()).into_response()
 }
@@ -225,18 +221,13 @@ server_rpcs! {
             }
             ok(Value::Null)
         },
-        "app_quit" | "app_relaunch" => {
+        "app_relaunch" => {
             if !cap(st, "processExit") {
                 return Err(
                     "The process is managed by its container; restart it from there.".into(),
                 );
             }
-            let kind = if name == "app_relaunch" {
-                QuitKind::Relaunch
-            } else {
-                QuitKind::Exit
-            };
-            request_quit(st, kind);
+            request_quit(st, QuitKind::Relaunch);
             ok(Value::Null)
         },
         "app_update_check" => {
@@ -289,11 +280,6 @@ server_rpcs! {
                 _ => None,
             };
             supervisor.request_restart(overrides);
-            ok(Value::Null)
-        },
-        "rclone_stop" => {
-            let supervisor = st.supervisor().ok_or("the rclone daemon is external")?;
-            supervisor.stop().await;
             ok(Value::Null)
         },
         // --- transfers ---------------------------------------------------------------------
@@ -372,6 +358,33 @@ server_rpcs! {
         "rclone_releases" => {
             let limit = args["limit"].as_u64().unwrap_or(20) as usize;
             ok(resolve::available_releases(limit).await?)
+        },
+        // The Filen gateway sends no CORS headers, so the remote form's API-key field cannot post
+        // to it; the server posts in its place the way @filen/sdk's client does: anonymous
+        // bearer auth and a SHA-512 of the exact body. One host, one shape — not a proxy.
+        "filen_gateway" => {
+            let endpoint = str_arg(&args, "endpoint")?;
+            if !endpoint.starts_with("/v3/") || endpoint.contains("..") {
+                return Err("not a Filen endpoint".into());
+            }
+            let body = serde_json::to_string(&args["body"]).map_err(|e| e.to_string())?;
+            let checksum = {
+                use sha2::{Digest, Sha512};
+                format!("{:x}", Sha512::digest(body.as_bytes()))
+            };
+            let response = st
+                .http
+                .post(format!("https://gateway.filen.io{}", endpoint))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer anonymous")
+                .header("Checksum", checksum)
+                .body(body)
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+            let status = response.status().as_u16();
+            let text = response.text().await.map_err(|e| e.to_string())?;
+            ok(json!({ "status": status, "body": text }))
         },
 
         // --- the rclone binary (Settings › Rclone) ------------------------------------------

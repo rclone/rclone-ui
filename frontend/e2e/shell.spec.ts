@@ -158,12 +158,15 @@ test('the shell: zones, settings routes, the remotes zone and the icon rail', as
     await nav.getByRole('link', { name: 'Rclone', exact: true }).click()
     await expect(page).toHaveURL(/\/settings\/rclone$/)
     await expect(page.getByRole('heading', { name: 'Rclone' })).toBeVisible()
-    // General is not listed but keeps its route.
+    // The bare /settings lands on Rclone, which carries the server's own update where the
+    // machine lets it install one.
     await page.goto('/settings')
-    await expect(page.getByRole('heading', { name: 'Theme' })).toBeVisible()
-    const caps = (await (await page.request.get('/api/capabilities')).json()) as {
-        updater: boolean
-    }
+    await expect(page.getByRole('heading', { name: 'Rclone' })).toBeVisible()
+    const caps = await page.evaluate(
+        () =>
+            (window as unknown as { __RCLONE_CLOUD__: { capabilities: { updater: boolean } } })
+                .__RCLONE_CLOUD__.capabilities
+    )
     await expect(page.getByText('Check for updates')).toHaveCount(caps.updater ? 1 : 0)
     // A remote in the sidebar opens it in the Commander, which collapses the sidebar to icons.
     await nav.getByRole('link', { name: 'e2e-memory' }).click()

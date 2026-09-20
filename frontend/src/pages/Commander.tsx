@@ -36,7 +36,6 @@ import { getFsInfo } from '../../lib/format'
 import { parsePath } from '../../lib/paths'
 import { formatBytes } from '../../lib/format.ts'
 import { notify } from '../../lib/notifications'
-import { useIsPreview } from '../../lib/preview'
 import { startBatch, startCopy, startMove } from '../../lib/rclone/api'
 import { UserCancelledError } from '../../lib/errors'
 import rclone from '../../lib/rclone/client'
@@ -209,7 +208,6 @@ export default function Browser() {
                 await reportError(error, {
                     title: 'Error',
                     fallback: 'Download failed',
-                    capture: false,
                 })
             }
         },
@@ -242,7 +240,6 @@ export default function Browser() {
                 title: 'Share Error',
                 fallback: 'Failed to generate public link',
                 okLabel: 'OK',
-                capture: false,
             })
         }
     }, [])
@@ -260,7 +257,7 @@ export default function Browser() {
     }, [refreshPanels])
 
     return (
-        <div className="flex flex-col w-screen h-screen overflow-hidden">
+        <div className="flex flex-col w-full h-full overflow-hidden">
             <Group orientation="horizontal" className="flex-1">
                 <Panel defaultSize={50} minSize={25}>
                     <FilePanel
@@ -564,7 +561,6 @@ function TransferItem({
     }
     status: 'transferring' | 'checking' | 'done' | 'error'
 }) {
-    const isPreview = useIsPreview()
     const fileName = item.name?.split('/').pop() || item.name || 'Unknown'
 
     return (
@@ -603,7 +599,6 @@ function TransferItem({
                     <div className="flex items-center gap-2">
                         <Progress
                             value={item.percentage || 0}
-                            disableAnimation={isPreview}
                             size="sm"
                             color={status === 'checking' ? 'warning' : 'primary'}
                             className="flex-1"
@@ -676,7 +671,7 @@ function OperationDialog({
             onComplete?.()
             onClose()
         },
-        onError: onErrorDialog('Error', 'Copy operation failed', { capture: false }),
+        onError: onErrorDialog('Error', 'Copy operation failed'),
     })
 
     const moveMutation = useMutation({
@@ -704,7 +699,7 @@ function OperationDialog({
             onComplete?.()
             onClose()
         },
-        onError: onErrorDialog('Error', 'Move operation failed', { capture: false }),
+        onError: onErrorDialog('Error', 'Move operation failed'),
     })
 
     const handleConfirm = useCallback(() => {

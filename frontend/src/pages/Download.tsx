@@ -3,7 +3,7 @@ import MuxPlayer from '@mux/mux-player-react'
 import { useMutation } from '@tanstack/react-query'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertOctagonIcon, ClockIcon, DownloadIcon, FoldersIcon } from 'lucide-react'
+import { AlertOctagonIcon, DownloadIcon, FoldersIcon } from 'lucide-react'
 import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useOperationPreset } from '../components/operation/useOperationPreset'
 import { UserCancelledError, onErrorDialog } from '../../lib/errors'
@@ -14,11 +14,9 @@ import CommandInfoButton from '../components/CommandInfoButton'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import { PathField } from '../components/PathFinder'
-import { message } from '../../lib/api/dialog'
 import { navigate } from '../../lib/api/navigation'
 import { rpc } from '../../lib/api/rpc'
 import { usePersistedStore } from '../../store/persisted'
-import { openUrl } from '../../lib/api/shell'
 
 /** What the server's `resolve_link` found behind a page address (a TikTok video, a Drive file). */
 interface ResolvedLink {
@@ -132,7 +130,6 @@ export default function Download() {
             if (error instanceof UserCancelledError) return
             return onErrorDialog('Download Error', 'Failed to start download', {
                 okLabel: 'OK',
-                capture: false,
                 log: ['[Download] Failed to start download'],
             })(error)
         },
@@ -207,7 +204,7 @@ export default function Download() {
     }, [url, disableLinkResolution])
 
     return (
-        <div className="flex flex-col h-screen gap-2">
+        <div className="flex flex-col h-full gap-2">
             {/* Main Content */}
             <OperationWindowContent className="gap-4">
                 <Input
@@ -259,11 +256,9 @@ export default function Download() {
                             variant="faded"
                             color="primary"
                             onPress={() => {
-                                setTimeout(() => {
-                                    navigator.clipboard.readText().then((text) => {
-                                        setUrl(text)
-                                    })
-                                }, 10)
+                                navigator.clipboard.readText().then((text) => {
+                                    setUrl(text)
+                                })
                             }}
                         >
                             Paste
@@ -397,34 +392,6 @@ export default function Download() {
                     )}
                 </AnimatePresence>
                 <ButtonGroup variant="flat">
-                    <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
-                        <Button
-                            size="lg"
-                            type="button"
-                            color="primary"
-                            isIconOnly={true}
-                            onPress={async () => {
-                                const res = await message(
-                                    'Not yet implemented, you can request this feature on GitHub.',
-                                    {
-                                        title: 'Schedule Downloads',
-                                        kind: 'info',
-                                        buttons: {
-                                            ok: 'Request Feature',
-                                        },
-                                    }
-                                )
-
-                                if (res === 'Ok') {
-                                    await openUrl(
-                                        'https://github.com/rclone-ui/rclone-ui/issues/18'
-                                    )
-                                }
-                            }}
-                        >
-                            <ClockIcon className="size-6" />
-                        </Button>
-                    </Tooltip>
                     <CommandInfoButton command="copyurl" />
                 </ButtonGroup>
             </OperationWindowFooter>

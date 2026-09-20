@@ -10,26 +10,6 @@ export default defineConfig(async () => ({
         environment: 'node',
     },
 
-    // plugins: [
-    //     react({
-    //         babel: {
-    //             plugins: [
-    //                 [
-    //                     'babel-plugin-react-compiler',
-    //                     {
-    //                         target: '18',
-    //                         panicThreshold: 'all_errors',
-    //                         logger: {
-    //                             logEvent(filename, event) {
-    //                                 console.log(`[Compiler] ${event.kind}: ${filename}`)
-    //                             },
-    //                         },
-    //                     },
-    //                 ],
-    //             ],
-    //         },
-    //     }),
-    // ],
     plugins: [react()],
 
     // Some viewer libs (e.g. @extend-ai/react-xlsx) ship code-splitting Web Workers,

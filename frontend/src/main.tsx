@@ -8,12 +8,12 @@ import ReactDOM from 'react-dom/client'
 import { RouterProvider, createBrowserRouter } from 'react-router-dom'
 import { CapabilitiesProvider } from '../lib/api/host'
 import { forwardConsole } from '../lib/api/log'
-import { connect } from '../lib/api/ws'
+import { connect, onReconnect } from '../lib/api/ws'
 import * as api from '../lib/api'
 import queryClient from '../lib/query'
 import { reconnectRemote } from '../lib/rclone/api'
 import { setReconnectHandler } from '../lib/rclone/client'
-import { usePersistedStore } from '../store/persisted'
+import { useTheme } from '../lib/theme'
 import Shell from './layouts/shell/Shell'
 import Bisync from './pages/Bisync'
 import Commander from './pages/Commander'
@@ -37,6 +37,8 @@ import Wizard from './pages/Wizard'
 ;(window as unknown as { __RCLONE_CLOUD_API__: typeof api }).__RCLONE_CLOUD_API__ = api
 
 connect()
+// A socket that came back may have missed events: everything on screen asks again.
+onReconnect(() => queryClient.invalidateQueries())
 
 // Every page's console goes to the server's log file (rotated, so it can take all of it).
 forwardConsole()
@@ -77,10 +79,10 @@ const router = createBrowserRouter([
 ])
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
-    const theme = usePersistedStore((state) => state.appearance)
+    const [theme] = useTheme()
 
     useEffect(() => {
-        if (theme.app === 'system') {
+        if (theme === 'system') {
             const media = window.matchMedia('(prefers-color-scheme: dark)')
             const applySystem = () => {
                 document.documentElement.classList.toggle('dark', media.matches)
@@ -92,15 +94,11 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
             return () => media.removeEventListener('change', applySystem)
         }
 
-        const isDark = theme.app === 'dark'
-        document.documentElement.classList.toggle('dark', isDark)
-    }, [theme.app])
+        document.documentElement.classList.toggle('dark', theme === 'dark')
+    }, [theme])
 
-    return (
-        <main className="bg-transparent dark:bg-[#121212] overflow-scroll overscroll-y-none">
-            {children}
-        </main>
-    )
+    // The Shell is the one scroll root; this wraps, and scrolls nothing itself.
+    return <main className="bg-transparent dark:bg-[#121212]">{children}</main>
 }
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

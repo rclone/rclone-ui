@@ -113,7 +113,6 @@ export default function Bisync() {
         error: {
             title: 'Bisync',
             message: 'Failed to start bisync operation',
-            capture: false,
             log: ['Error starting bisync:'],
         },
         reset: {
@@ -357,7 +356,7 @@ export default function Bisync() {
     )
 
     return (
-        <div className="flex flex-col h-screen gap-10">
+        <div className="flex flex-col h-full gap-10">
             {/* Main Content */}
             <OperationWindowContent>
                 {/* Paths Display */}

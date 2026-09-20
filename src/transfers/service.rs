@@ -23,7 +23,7 @@ use serde_json::{json, Value};
 use crate::ctx::Ctx;
 use crate::lifecycle::notify;
 use crate::rc::RcClient;
-use crate::scheduler::history::now_iso;
+use crate::time::now_iso;
 use crate::scheduler::jobfile::RcRequest;
 
 use super::ledger::{self, Finished, Line, Started, State, Stats};

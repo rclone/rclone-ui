@@ -10,13 +10,12 @@ import {
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { ClockIcon, EyeIcon } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useMemo } from 'react'
+import { type ComponentProps, type ReactNode, useCallback } from 'react'
 import { useSchedulingAvailable } from '../../../lib/scheduler'
 
 import type { Template } from '../../../types/template'
 import CommandInfoButton from '../CommandInfoButton'
 import TemplatesDropdown from '../TemplatesDropdown'
-import { platform } from '../../../lib/api/os'
 import { navigate } from '../../../lib/api/navigation'
 
 /**
@@ -72,25 +71,23 @@ export default function OperationFooter({
     onResetOptions: () => void
     onResetAll: () => void
 }) {
-    const dropdownShadow = useMemo(() => (platform === 'windows' ? 'none' : undefined), [])
-
     // Hide the affordance where scheduling can't work — mirrors the Schedule options section on
     // the operation pages.
     const schedulingAvailable = useSchedulingAvailable()
 
     const handleStartPress = useCallback(() => {
-        setTimeout(() => onStart(), 100)
+        onStart()
     }, [onStart])
 
     const handleDryRunPress = useCallback(() => {
         if (dryRunIsPending || startBlocked) {
             return
         }
-        setTimeout(() => onDryRun?.(), 100)
+        onDryRun?.()
     }, [dryRunIsPending, startBlocked, onDryRun])
 
     const handleSchedulePress = useCallback(() => {
-        setTimeout(() => onSchedule(), 100)
+        onSchedule()
     }, [onSchedule])
 
     const handleViewTransfersPress = useCallback(() => navigate('/transfers'), [])
@@ -114,7 +111,7 @@ export default function OperationFooter({
                         transition={{ duration: 0.2, ease: 'easeOut' }}
                         className="flex flex-1 gap-2"
                     >
-                        <Dropdown shadow={dropdownShadow}>
+                        <Dropdown>
                             <DropdownTrigger>
                                 <Button
                                     fullWidth={true}

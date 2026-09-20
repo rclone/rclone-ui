@@ -62,7 +62,6 @@ export default function useCreateFolder(remote: RemoteString, cwd: string, refre
             await reportError(error, {
                 title: 'Error',
                 fallback: 'Create folder failed',
-                capture: false,
             })
         }
     }, [remote, cwd, refresh])

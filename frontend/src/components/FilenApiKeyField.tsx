@@ -4,8 +4,7 @@ import { EyeIcon, EyeOffIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { BackendOption } from '../../types/rclone'
 import { message } from '../../lib/api/dialog'
-
-const FILEN_GATEWAY_URL = 'https://gateway.filen.io'
+import { rpc } from '../../lib/api/rpc'
 
 function toHex(buffer: ArrayBuffer): string {
     let hex = ''
@@ -19,40 +18,19 @@ async function sha512Hex(input: string): Promise<string> {
     return toHex(await crypto.subtle.digest('SHA-512', new TextEncoder().encode(input)))
 }
 
-// POST to the Filen gateway the same way @filen/sdk's APIClient does: anonymous bearer auth plus a
-// SHA-512 checksum of the exact body, then unwrap its { status, message, code, data } envelope.
+// POST to the Filen gateway, then unwrap its { status, message, code, data } envelope. The
+// gateway has no CORS headers, so the server posts for the page (`filen_gateway`), with the
+// anonymous bearer auth and body checksum @filen/sdk's APIClient sends.
 async function filenPost<T>(endpoint: string, data: Record<string, unknown>): Promise<T> {
-    const body = JSON.stringify(data)
-
-    // The gateway has no CORS headers: the server makes the request (allow-listed host).
-    const proxied = await fetch('/api/proxy', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            url: `${FILEN_GATEWAY_URL}${endpoint}`,
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: 'Bearer anonymous',
-                Checksum: await sha512Hex(body),
-            },
-            body,
-        }),
+    const reply = await rpc<{ status: number; body: string }>('filen_gateway', {
+        endpoint,
+        body: data,
     })
-    const envelope = (await proxied.json()) as {
-        ok: boolean
-        error?: string
-        value?: { status: number; body: string }
-    }
-    if (!envelope.ok || !envelope.value) {
-        throw new Error(envelope.error ?? 'Filen request failed')
-    }
-    if (envelope.value.status < 200 || envelope.value.status >= 300) {
-        throw new Error(`Filen request failed (${envelope.value.status})`)
+    if (reply.status < 200 || reply.status >= 300) {
+        throw new Error(`Filen request failed (${reply.status})`)
     }
 
-    const json = JSON.parse(envelope.value.body) as {
+    const json = JSON.parse(reply.body) as {
         status?: boolean
         code?: string
         message?: string

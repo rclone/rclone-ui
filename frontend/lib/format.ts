@@ -124,8 +124,6 @@ export function buildReadablePathMultiple(
     type: 'short' | 'long',
     truncate: boolean = false
 ) {
-    console.log('[buildReadablePathMultiple] paths', paths)
-
     if (paths.length < 2) {
         return buildReadablePath(paths[0], type)
     }

@@ -77,71 +77,62 @@ export default function TemplatesDropdown({
             </Tooltip>
 
             <DropdownMenu
-                onAction={(key) => {
+                onAction={async (key) => {
                     if (key === 'add') {
-                        setTimeout(async () => {
-                            const result = await prompt({
-                                title: 'Add Template',
-                                message: 'Enter a name for the template',
-                                default: '',
-                                sensitive: false,
-                            }).catch(async (e) => {
-                                console.error('[TemplatesDropdown] prompt_text error', e)
-                                await message(
-                                    'Failed to add template, please open Settings > About and tap the red "Open Github Issue" button.',
-                                    {
-                                        title: 'Error',
-                                        kind: 'error',
-                                    }
-                                )
-                                return null
+                        const result = await prompt({
+                            title: 'Add Template',
+                            message: 'Enter a name for the template',
+                            default: '',
+                            sensitive: false,
+                        }).catch(async (e) => {
+                            console.error('[TemplatesDropdown] prompt_text error', e)
+                            await message('Failed to add the template.', {
+                                title: 'Error',
+                                kind: 'error',
                             })
-                            const inputtedName = result?.trim()
-                            if (!inputtedName || typeof inputtedName !== 'string') {
-                                return
-                            }
-
-                            usePersistedStore
-                                .getState()
-                                .addTemplate(inputtedName, operation, getOptions(), getPaths?.())
-                        }, 100)
-                    } else {
-                        const template = templates.find(
-                            (template) => template.id === key.toString()
-                        )
-                        if (!template || !allFlags) {
+                            return null
+                        })
+                        const inputtedName = result?.trim()
+                        if (!inputtedName || typeof inputtedName !== 'string') {
                             return
                         }
 
-                        setTimeout(async () => {
-                            // One question for both halves of a template. The paths are only
-                            // mentioned when it carries some, so a template of flags alone asks
-                            // exactly what it always asked.
-                            const carriesPaths = hasTemplatePaths(template.paths)
-                            const note = extraSourcesNote(template.paths, operation)
-                            const shouldMerge = await ask(
-                                [
-                                    carriesPaths
-                                        ? 'Would you like to merge the template with your existing flags and paths, or replace them?'
-                                        : 'Would you like to merge the template with your existing flags, or replace all existing flags?',
-                                    note,
-                                ]
-                                    .filter(Boolean)
-                                    .join('\n\n'),
-                                {
-                                    title: 'Apply Template',
-                                    kind: 'info',
-                                    okLabel: 'Add to Existing',
-                                    cancelLabel: 'Replace All',
-                                }
-                            )
-                            onSelect(
-                                groupByCategory(template.options, allFlags),
-                                shouldMerge,
-                                template.paths
-                            )
-                        }, 100)
+                        usePersistedStore
+                            .getState()
+                            .addTemplate(inputtedName, operation, getOptions(), getPaths?.())
+                        return
                     }
+                    const template = templates.find((template) => template.id === key.toString())
+                    if (!template || !allFlags) {
+                        return
+                    }
+
+                    // One question for both halves of a template. The paths are only mentioned
+                    // when it carries some, so a template of flags alone asks exactly what it
+                    // always asked.
+                    const carriesPaths = hasTemplatePaths(template.paths)
+                    const note = extraSourcesNote(template.paths, operation)
+                    const shouldMerge = await ask(
+                        [
+                            carriesPaths
+                                ? 'Would you like to merge the template with your existing flags and paths, or replace them?'
+                                : 'Would you like to merge the template with your existing flags, or replace all existing flags?',
+                            note,
+                        ]
+                            .filter(Boolean)
+                            .join('\n\n'),
+                        {
+                            title: 'Apply Template',
+                            kind: 'info',
+                            okLabel: 'Add to Existing',
+                            cancelLabel: 'Replace All',
+                        }
+                    )
+                    onSelect(
+                        groupByCategory(template.options, allFlags),
+                        shouldMerge,
+                        template.paths
+                    )
                 }}
                 color="primary"
                 disabledKeys={isDisabled ? ['add'] : []}

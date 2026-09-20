@@ -1,5 +1,5 @@
 // Mirrors the page console into the server's log file (batched `log` RPCs), so a bug report's
-// log covers what the pages saw. Errors also go to Sentry from the page itself.
+// log covers what the pages saw.
 
 import { rpc } from './rpc'
 

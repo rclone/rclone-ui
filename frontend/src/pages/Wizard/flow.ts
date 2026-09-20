@@ -94,7 +94,7 @@ export const GOALS: Choice<Goal>[] = [
     {
         key: 'mount',
         title: 'Mount as drive',
-        description: 'Open a remote in your file manager, like a disk.',
+        description: 'Make a remote available as a folder on the server.',
         icon: HardDriveIcon,
         tone: 'secondary',
     },
@@ -781,7 +781,7 @@ const KEEP_INFO = {
     ],
     template: [
         'Give it a name you will recognize later.',
-        'It is saved when the operation starts, with the places and options as they are then. Find it again in the Templates menu of the operation window, or on the Templates page.',
+        'It is saved when the operation starts, with the places and options as they are then. Find it again in the Templates menu of the operation page, or on the Templates page.',
     ],
 }
 

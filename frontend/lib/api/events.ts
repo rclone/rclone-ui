@@ -27,25 +27,10 @@ export interface DownloadProgress {
     total: number | null
 }
 
-export interface AddTemplatePayload {
-    cmd?: string
-    name?: string
-}
-
-export interface WindowEvent {
-    label: string
-    focused?: boolean
-    x?: number
-    y?: number
-}
-
 export interface EventPayloads {
     'lifecycle.phase': LifecyclePhase
     'state.changed': StateChanged
     'rclone.download-progress': DownloadProgress
-    'rclone.download-finished': DownloadProgress
-    /** The template a deep link or a shared URL asks to add. */
-    'deep-link.add-template': AddTemplatePayload
     /** The server wrote a line about a transfer: it started, or it ended. */
     'transfers.changed': { id: string }
 }

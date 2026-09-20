@@ -1,5 +1,3 @@
-import * as Sentry from '@sentry/browser'
-
 import { useHostStore } from '../../store/host'
 import { restartRclone } from '../api/app'
 
@@ -17,7 +15,6 @@ export async function restartActiveRclone(): Promise<boolean> {
         await restartRclone({ proxy: host.proxy, limits: host.limits })
         return true
     } catch (error) {
-        Sentry.captureException(error)
         console.error('[restartActiveRclone] failed to request a restart', error)
         return false
     }

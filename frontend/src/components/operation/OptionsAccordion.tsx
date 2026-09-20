@@ -121,6 +121,9 @@ export default function OptionsAccordion({
     )
 }
 
+// The page scrolls inside the Shell's outlet, not the window.
+const scroller = () => document.querySelector('.browser-outlet')
+
 // A one-time nudge pinned to the bottom of the banner-wrapped accordion, inviting the user to
 // scroll for more options. Dismisses itself the first time the user scrolls, and is remembered.
 function ShowMoreOptionsBanner() {
@@ -140,10 +143,11 @@ function ShowMoreOptionsBanner() {
             })
         }
 
-        window.addEventListener('scroll', handleScroll, { once: true })
+        const target = scroller()
+        target?.addEventListener('scroll', handleScroll, { once: true })
 
         return () => {
-            window.removeEventListener('scroll', handleScroll)
+            target?.removeEventListener('scroll', handleScroll)
         }
     }, [acknowledgements])
 
@@ -160,10 +164,8 @@ function ShowMoreOptionsBanner() {
                 })
                 requestAnimationFrame(() => {
                     setTimeout(() => {
-                        scrollTo({
-                            top: document.body.scrollHeight,
-                            behavior: 'smooth',
-                        })
+                        const target = scroller()
+                        target?.scrollTo({ top: target.scrollHeight, behavior: 'smooth' })
                     }, 400)
                 })
             }}

@@ -53,7 +53,6 @@ export default function ConfigEditDrawer({
         },
         onError: onErrorDialog('Failed to save config', undefined, {
             okLabel: 'OK',
-            capture: false,
             log: ['[updateConfig] failed to save config'],
         }),
     })
@@ -64,7 +63,6 @@ export default function ConfigEditDrawer({
                 .then(({ text }) => startTransition(() => setConfigContent(text)))
                 .catch(
                     onErrorDialog('Failed to read config', undefined, {
-                        capture: false,
                         log: ['[ConfigEditDrawer] failed to read config'],
                     })
                 )

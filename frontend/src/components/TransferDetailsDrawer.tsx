@@ -25,7 +25,6 @@ import {
 import { type ReactNode, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatBytes } from '../../lib/format'
-import { useIsPreview } from '../../lib/preview'
 import { notify } from '../../lib/notifications'
 import { transfersDetail, transfersStop } from '../../lib/api/transfers'
 import type { OperationPreset } from '../../lib/rclone/preset'
@@ -60,7 +59,6 @@ export default function TransferDetailsDrawer({
     onSelectTransfer: (id: string) => void
 }) {
     const queryClient = useQueryClient()
-    const isPreview = useIsPreview()
     const retryDrawer = useDisclosure()
     // Here and not in each section: one that empties for a second while the transfer runs comes
     // back the way it was left.
@@ -411,7 +409,6 @@ export default function TransferDetailsDrawer({
                                             >
                                                 <Progress
                                                     value={item.percentage}
-                                                    disableAnimation={isPreview}
                                                     classNames={{
                                                         base: 'overflow-hidden rounded-full max-w-lg',
                                                     }}

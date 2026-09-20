@@ -11,14 +11,12 @@ import {
     Input,
     Select,
     SelectItem,
-    Tooltip,
 } from '@heroui/react'
 import { useMutation } from '@tanstack/react-query'
 
 import { AnimatePresence, motion } from 'framer-motion'
 import {
     AlertOctagonIcon,
-    ClockIcon,
     FilterIcon,
     FoldersIcon,
     PlayIcon,
@@ -29,10 +27,7 @@ import {
 } from 'lucide-react'
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { writeText } from '../../lib/api/clipboard'
-import { message } from '../../lib/api/dialog'
 import { pathsProblem } from '../../lib/paths'
-import { platform } from '../../lib/api/os'
-import { openUrl } from '../../lib/api/shell'
 import { onErrorDialog } from '../../lib/errors'
 import { notify } from '../../lib/notifications'
 import { getOptionsSubtitle } from '../../lib/flags'
@@ -237,7 +232,7 @@ export default function Serve() {
     }, [startServeMutation.isPending, startServeMutation.isSuccess, source, type, jsonError, addr])
 
     return (
-        <div className="flex flex-col h-screen gap-10">
+        <div className="flex flex-col h-full gap-10">
             <OperationWindowContent>
                 <PathField
                     path={source || ''}
@@ -487,7 +482,7 @@ export default function Serve() {
                             transition={{ duration: 0.2, ease: 'easeOut' }}
                             className="flex flex-1 gap-2"
                         >
-                            <Dropdown shadow={platform === 'windows' ? 'none' : undefined}>
+                            <Dropdown>
                                 <DropdownTrigger>
                                     <Button
                                         fullWidth={true}
@@ -593,7 +588,7 @@ export default function Serve() {
                             className="flex flex-1"
                         >
                             <Button
-                                onPress={() => setTimeout(() => startServeMutation.mutate(), 100)}
+                                onPress={() => startServeMutation.mutate()}
                                 size="lg"
                                 fullWidth={true}
                                 color="primary"
@@ -617,34 +612,6 @@ export default function Serve() {
                     )}
                 </AnimatePresence>
                 <ButtonGroup variant="flat">
-                    <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
-                        <Button
-                            size="lg"
-                            type="button"
-                            color="primary"
-                            isIconOnly={true}
-                            onPress={async () => {
-                                const res = await message(
-                                    'Not yet implemented, you can request this feature on GitHub.',
-                                    {
-                                        title: 'Schedule Serves',
-                                        kind: 'info',
-                                        buttons: {
-                                            ok: 'Request Feature',
-                                        },
-                                    }
-                                )
-
-                                if (res === 'Ok') {
-                                    await openUrl(
-                                        'https://github.com/rclone-ui/rclone-ui/issues/18'
-                                    )
-                                }
-                            }}
-                        >
-                            <ClockIcon className="size-6" />
-                        </Button>
-                    </Tooltip>
                     <CommandInfoButton command="serve" />
                 </ButtonGroup>
             </OperationWindowFooter>

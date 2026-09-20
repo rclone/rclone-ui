@@ -1,5 +1,5 @@
 // What the server injects into index.html before any module runs (src/static_files.rs
-// `boot_payload`), read synchronously at import time by os.ts / paths.ts / host.ts.
+// `boot_payload`), read synchronously at import time by paths.ts / host.ts.
 
 export interface Capabilities {
     platform: string
@@ -11,25 +11,14 @@ export interface Capabilities {
 export interface BootPayload {
     version: string
     capabilities: Capabilities
-    os: {
-        platform: string
-        family: string
-        arch: string
-        version: string
-        eol: string
-    }
+    /** The machine the server (and so rclone) runs on. */
+    os: { platform: string }
     paths: {
         sep: string
-        delimiter: string
         home: string | null
-        appData: string
-        temp: string
         /** The server's own binary — what the metadata mapper runs (`paths.exe`). */
         exe: string | null
-        download: string | null
-        desktop: string | null
     }
-    theme: 'light' | 'dark' | 'system'
 }
 
 declare global {
@@ -46,18 +35,8 @@ const FALLBACK: BootPayload = {
         updater: false,
         processExit: false,
     },
-    os: { platform: 'linux', family: 'unix', arch: 'x86_64', version: '', eol: '\n' },
-    paths: {
-        sep: '/',
-        delimiter: ':',
-        home: null,
-        appData: '',
-        temp: '/tmp',
-        exe: null,
-        download: null,
-        desktop: null,
-    },
-    theme: 'system',
+    os: { platform: 'linux' },
+    paths: { sep: '/', home: null, exe: null },
 }
 
 export const boot: BootPayload =

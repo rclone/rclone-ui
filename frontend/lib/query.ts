@@ -6,8 +6,10 @@ import { UserCancelledError } from './errors'
 const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
-            // staleTime: 60_000,
-            // gcTime: 3_600_000,
+            // As long as the persister's maxAge: an answer dropped from memory is dropped from
+            // the stored cache on the next write, so a shorter gcTime would leave nothing to
+            // restore on the next load.
+            gcTime: 1000 * 60 * 60 * 24 * 30,
             retry: (failureCount, error) =>
                 !(error instanceof UserCancelledError) && failureCount < 3,
         },

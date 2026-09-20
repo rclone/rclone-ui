@@ -94,16 +94,9 @@ function askAbout(task: TaskRequestInput, sources: string[]) {
 }
 
 export async function startCopy(args: CopyArgs, isDryRun = false, extra?: StartExtra) {
-    console.log('[startCopy] starting', {
-        sources: args.sources,
-        destination: args.destination,
-        optionKeys: Object.keys(args.options),
-    })
-
     const kinds = await askAbout({ operation: 'copy', args }, args.sources)
     const [request] = buildCopyRequests(args, kinds)
 
-    console.log('[startCopy] submitting batch', { jobCount: request.body.inputs.length })
     return startBatch(
         request.body.inputs,
         {
@@ -121,16 +114,9 @@ export async function startCopy(args: CopyArgs, isDryRun = false, extra?: StartE
 }
 
 export async function startMove(args: MoveArgs, isDryRun = false, extra?: StartExtra) {
-    console.log('[startMove] starting', {
-        sources: args.sources,
-        destination: args.destination,
-        optionKeys: Object.keys(args.options),
-    })
-
     const kinds = await askAbout({ operation: 'move', args }, args.sources)
     const [request] = buildMoveRequests(args, kinds)
 
-    console.log('[startMove] submitting batch', { jobCount: request.body.inputs.length })
     return startBatch(
         request.body.inputs,
         {
@@ -185,10 +171,8 @@ async function startMountInner({ source, destination, options }: MountArgs) {
     const hasVolumeName = 'volname' in mountOptions && mountOptions.volname
     if (!hasVolumeName && needsVolumeName) {
         const segments = source.split(RE_PATH_SEPARATOR).filter(Boolean)
-        console.log('[Mount] segments', segments)
 
         const sourcePath = segments.length === 1 ? segments[0].replace(/:/g, '') : segments.pop()
-        console.log('[Mount] sourcePath', sourcePath)
 
         mountOptions.volname = `${sourcePath}-${Math.random().toString(36).substring(2, 3).toUpperCase()}`
     }
@@ -317,7 +301,6 @@ async function startMountInner({ source, destination, options }: MountArgs) {
     } catch (err) {
         console.error('[Mount] Error checking if directory exists:', err)
     }
-    console.log('[Mount] directoryExists', directoryExists)
 
     // The mount happens where the daemon runs: the selected host's OS, not the page server's.
     const isPlatformWindows = isHostWindows()

@@ -11,12 +11,11 @@ export interface UpdateInfo {
     date: string | null
 }
 
-export interface UpdateProgress {
+interface UpdateProgress {
     event: 'Started' | 'Progress' | 'Finished'
     data?: { contentLength?: number | null; chunkLength?: number }
 }
 
-export const quit = () => rpc<null>('app_quit')
 export const relaunch = () => rpc<null>('app_relaunch')
 export const updateCheck = () => rpc<UpdateInfo | null>('app_update_check')
 export async function updateInstall(
@@ -57,7 +56,6 @@ export async function status(): Promise<Status> {
 
 export const restartRclone = (overrides?: RestartOverrides) =>
     rpc<null>('rclone_restart', { overrides: overrides ?? null })
-export const stopRclone = () => rpc<null>('rclone_stop')
 
 // --- downloads ----------------------------------------------------------------------
 
