@@ -62,14 +62,18 @@ jobs:
         with:
           name: rclone-cloud-${{ matrix.target }}
           path: out/cloud/*
+      # Never the repo's Latest: that release is the desktop app's, whose updater reads
+      # `releases/latest/download/latest.json`.
       - name: Attach to the release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: out/cloud/*
+          make_latest: false
 
   # `cloud-latest.json`: what `rclone-cloud` polls to update itself, with `cloud-<os>-<arch>`
-  # platform keys pointing at the signed binaries above.
+  # platform keys pointing at the signed binaries above. It is read from the rolling
+  # `cloud-latest` release, whose URL never moves: GitHub's own "latest" is the desktop app's.
   manifest:
     needs: binaries
     if: startsWith(github.ref, 'refs/tags/')
@@ -99,9 +103,22 @@ jobs:
             '{version: $v, notes: "See the release notes on GitHub.", pub_date: $d, platforms: $p}' \
             > cloud-latest.json
           cat cloud-latest.json
-      - uses: softprops/action-gh-release@v2
+      - name: Keep it with the version
+        uses: softprops/action-gh-release@v2
         with:
           files: cloud-latest.json
+          make_latest: false
+      - name: Point the rolling release at it
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: cloud-latest
+          target_commitish: ${{ github.sha }}
+          name: Rclone Cloud update pointer
+          body: |
+            Not a version. `cloud-latest.json` is what a running rclone-cloud reads to find its
+            newest release; the binaries are on the `cloud-v*` releases.
+          files: cloud-latest.json
+          make_latest: false
 
   image:
     runs-on: ubuntu-latest

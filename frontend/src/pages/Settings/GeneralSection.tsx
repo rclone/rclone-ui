@@ -89,7 +89,12 @@ export default function GeneralSection() {
                 )
 
                 if (wantsManualDownload) {
-                    await openUrl('https://github.com/rclone-ui/rclone-ui/releases/latest')
+                    // The repository's latest release is the desktop app's.
+                    await openUrl(
+                        update
+                            ? `https://github.com/rclone-ui/rclone-ui/releases/tag/cloud-v${update.version}`
+                            : 'https://github.com/rclone-ui/rclone-ui/releases?q=cloud-v'
+                    )
                 }
 
                 return
