@@ -3,7 +3,6 @@ import { ArrowLeftIcon, RotateCcwIcon } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useReducer, useRef } from 'react'
 import { buildReadablePath } from '@/lib/format'
 import { currentHostOs } from '@/lib/rclone/client'
-import { useSchedulerSupported } from '@/lib/scheduler'
 import MetadataMapper from '@/components/MetadataMapper'
 import { OPERATIONS } from '@/components/OperationGrid'
 import { PathField } from '@/components/PathFinder'
@@ -148,16 +147,7 @@ export default function Wizard() {
         heading.current?.focus({ preventScroll: true })
     }, [step])
 
-    // A timer card explains itself when it cannot be taken, so the step is the same everywhere.
-    const support = useSchedulerSupported()
-    const timerReason =
-        support.data === undefined
-            ? 'Checking whether this machine can run schedules…'
-            : support.data.supported
-              ? undefined
-              : (support.data.reason ?? 'This machine cannot run schedules.')
-
-    const info = infoFor(step, answers, { timerReason, platform: currentHostOs() })
+    const info = infoFor(step, answers, { platform: currentHostOs() })
 
     const setPlace = (key: 'source' | 'destination' | 'url', value: string) =>
         dispatch({ type: 'set', patch: { [key]: value } as Partial<Answers> })
@@ -281,7 +271,6 @@ export default function Wizard() {
                         choices={WHENS}
                         value={answers.when}
                         onPick={(when) => dispatch({ type: 'when', when })}
-                        disabled={(key) => (key === 'once' ? undefined : timerReason)}
                     />
                     {answers.when === 'custom' && (
                         <CronSection

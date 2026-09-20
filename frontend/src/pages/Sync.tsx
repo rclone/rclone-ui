@@ -6,7 +6,6 @@ import { applyTemplatePaths } from '@/lib/rclone/templatePaths'
 import { startSync } from '@/lib/rclone/start'
 import { RCLONE_CONFIG_DEFAULTS } from '@/lib/rclone/constants'
 import { metadataOptionsProblem } from '@/lib/rclone/metadataMapper'
-import { useSchedulingAvailable } from '@/lib/scheduler'
 import OperationWindowContent from '@/components/OperationWindowContent'
 import OperationWindowFooter from '@/components/OperationWindowFooter'
 import OptionsSection from '@/components/OptionsSection'
@@ -75,7 +74,6 @@ export default function Sync() {
     const metadataGroup = optionGroups.metadata
 
     const [cronExpression, setCronExpression] = useState<string | null>(preset?.cron ?? null)
-    const schedulingAvailable = useSchedulingAvailable()
 
     // Only the ends that name a remote: a sync between two local paths has no backend options
     // to set, and the section would open on an empty tab strip.
@@ -153,8 +151,6 @@ export default function Sync() {
                     />
                 ),
             },
-            ...(schedulingAvailable
-                ? [
                       {
                           key: 'cron',
                           category: 'cron' as const,
@@ -165,8 +161,6 @@ export default function Sync() {
                               />
                           ),
                       },
-                  ]
-                : []),
             {
                 key: 'config',
                 category: 'config',
@@ -239,7 +233,6 @@ export default function Sync() {
             selectedRemotes,
             remotesGroup,
             cronExpression,
-            schedulingAvailable,
         ]
     )
 

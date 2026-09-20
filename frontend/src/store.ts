@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { stateStorage, watchDoc } from '@/server/state'
 import { type Template, hasTemplatePaths } from '@/lib/rclone/templatePaths'
-import type { ScheduledTask } from '@/lib/scheduler'
 
 // The one persisted document (`<data dir>/state/app.json`, served as `/api/state/app`).
 const APP_DOC = 'app'
@@ -83,10 +82,6 @@ interface PersistedState {
     remoteFirstSeen: Record<string, number>
     noteRemotes: (names: string[]) => void
 
-    scheduledTasks: ScheduledTask[]
-    addScheduledTask: (task: Omit<ScheduledTask, 'id'>) => string
-    removeScheduledTask: (id: string) => void
-    updateScheduledTask: (id: string, task: Partial<ScheduledTask>) => void
 }
 
 type PersistedData = Pick<
@@ -104,7 +99,6 @@ type PersistedData = Pick<
     | 'remoteConfigs'
     | 'favoritePaths'
     | 'remoteFirstSeen'
-    | 'scheduledTasks'
 >
 
 /** What the document holds before anything is saved. Every data key is here, and only here. */
@@ -122,7 +116,6 @@ const DEFAULTS: PersistedData = {
     remoteConfigs: {},
     favoritePaths: [],
     remoteFirstSeen: {},
-    scheduledTasks: [],
 }
 
 export const usePersistedStore = create<PersistedState>()(
@@ -193,23 +186,6 @@ export const usePersistedStore = create<PersistedState>()(
                     return changed ? { remoteFirstSeen: next } : {}
                 }),
 
-            addScheduledTask: (task: Omit<ScheduledTask, 'id'>) => {
-                const id = crypto.randomUUID()
-                set((state) => ({
-                    scheduledTasks: [...state.scheduledTasks, { ...task, id } as ScheduledTask],
-                }))
-                return id
-            },
-            removeScheduledTask: (id: string) =>
-                set((state) => ({
-                    scheduledTasks: state.scheduledTasks.filter((t) => t.id !== id),
-                })),
-            updateScheduledTask: (id: string, task: Partial<ScheduledTask>) =>
-                set((state) => ({
-                    scheduledTasks: state.scheduledTasks.map((t) =>
-                        t.id === id ? ({ ...t, ...task } as ScheduledTask) : t
-                    ),
-                })),
         }),
         {
             name: 'store',

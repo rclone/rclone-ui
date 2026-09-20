@@ -25,7 +25,7 @@ use crate::datadir::DataDir;
 use crate::notifications::notify;
 use crate::rc::RcClient;
 use crate::DaemonTarget;
-use crate::scheduler::jobfile::RcRequest;
+use crate::scheduler::taskfile::RcRequest;
 use crate::time::now_iso;
 
 use super::ledger::{self, Finished, Line, Started, State, Stats};

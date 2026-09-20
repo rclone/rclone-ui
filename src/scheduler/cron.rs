@@ -21,10 +21,6 @@ pub struct Field {
     /// a mixed list like `1,*/5` counts as RESTRICTED (OR) — exactly as cron executes it.
     pub star: bool,
     pub values: BTreeSet<u16>,
-    /// Verbatim (trimmed) field text. Star-origin fields are emitted unchanged into crontab
-    /// entries — normalizing `*/5` to an explicit list would clear cron's own star flag and
-    /// silently flip its dom/dow AND semantics to OR.
-    pub raw: String,
 }
 
 impl Field {
@@ -33,7 +29,6 @@ impl Field {
             wildcard: true,
             star: true,
             values: BTreeSet::new(),
-            raw: "*".to_string(),
         }
     }
 
@@ -257,7 +252,6 @@ fn parse_field(
         wildcard: false,
         star: raw.starts_with('*'),
         values,
-        raw: raw.to_string(),
     })
 }
 
@@ -275,11 +269,6 @@ fn parse_value(raw: &str, names: Option<&[&str]>, label: &str) -> Result<u16, St
         }
     }
     Err(format!("Invalid value '{}' in {} field", raw, label))
-}
-
-/// Every expression the parser accepts can be fired by the ticker, so validation is the parse.
-pub fn validate(expr: &str) -> Result<(), String> {
-    parse(expr).map(|_| ())
 }
 
 /// Whether a given local wall-clock time matches the spec. Reproduces cron's dom/dow rule: when

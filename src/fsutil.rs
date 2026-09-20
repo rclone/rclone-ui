@@ -1,7 +1,7 @@
 //! Filesystem primitives shared by everything that writes under the data directory: the one
 //! way a file that must never be seen half-written is replaced (bytes go to a temporary file
 //! next to the target, which is then renamed over it; state documents, the accounts file,
-//! notification targets and scheduler job files all use it), and the one way a binary this
+//! notification targets and scheduler task files all use it), and the one way a binary this
 //! server put on disk is made runnable.
 
 use std::path::Path;

@@ -32,7 +32,7 @@ import { generalErrors, splitFiles } from '@/lib/transfers/details'
 import { isLive, liveJob } from '@/lib/transfers/live'
 import { rerunEffect, retryPlan } from '@/lib/transfers/retry'
 import { ENDED, type TransferRow } from '@/lib/transfers/rows'
-import { usePersistedStore } from '@/store'
+import { useSchedules } from '@/lib/scheduler'
 import TransferRetryDrawer from './TransferRetryDrawer'
 import { message } from '@/dialog'
 import { OPERATIONS } from '@/components/OperationGrid'
@@ -144,11 +144,11 @@ export default function TransferDetailsDrawer({
     // What of it can be retried. Only of a transfer that is over (which inputs failed is not
     // known before) and whose record has the request it was started with.
     const navigate = useNavigate()
-    const scheduledTasks = usePersistedStore((state) => state.scheduledTasks)
+    const schedules = useSchedules().data
     // Whether the schedule that ran it is still there to open.
     const scheduleExists = useMemo(
-        () => scheduledTasks.some((task) => task.id === transfer.scheduled?.taskId),
-        [scheduledTasks, transfer.scheduled]
+        () => (schedules ?? []).some((task) => task.id === transfer.scheduled?.taskId),
+        [schedules, transfer.scheduled]
     )
 
     const retryable = useMemo(

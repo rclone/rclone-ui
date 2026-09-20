@@ -6,7 +6,6 @@ import { applyTemplatePaths } from '@/lib/rclone/templatePaths'
 import { startMove } from '@/lib/rclone/start'
 import { RCLONE_CONFIG_DEFAULTS } from '@/lib/rclone/constants'
 import { metadataOptionsProblem } from '@/lib/rclone/metadataMapper'
-import { useSchedulingAvailable } from '@/lib/scheduler'
 import OperationWindowContent from '@/components/OperationWindowContent'
 import OperationWindowFooter from '@/components/OperationWindowFooter'
 import OptionsSection from '@/components/OptionsSection'
@@ -54,7 +53,6 @@ export default function Move() {
     const metadataGroup = optionGroups.metadata
 
     const [cronExpression, setCronExpression] = useState<string | null>(preset?.cron ?? null)
-    const schedulingAvailable = useSchedulingAvailable()
 
     // Only the ends that name a remote: a move between two local paths has no backend options
     // to set, and the section would open on an empty tab strip.
@@ -139,8 +137,6 @@ export default function Move() {
                     />
                 ),
             },
-            ...(schedulingAvailable
-                ? [
                       {
                           key: 'cron',
                           category: 'cron' as const,
@@ -151,8 +147,6 @@ export default function Move() {
                               />
                           ),
                       },
-                  ]
-                : []),
             {
                 key: 'config',
                 category: 'config',
@@ -225,7 +219,6 @@ export default function Move() {
             copyFlags,
             selectedRemotes,
             cronExpression,
-            schedulingAvailable,
         ]
     )
 

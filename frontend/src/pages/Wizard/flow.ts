@@ -663,8 +663,6 @@ export interface Info {
 }
 
 export interface InfoContext {
-    /** Why schedules cannot be taken here, when they cannot (the page's `timerReason`). */
-    timerReason?: string
     /** The server's OS: what a mount needs differs by it. */
     platform?: string
 }
@@ -771,7 +769,6 @@ const WHEN_INFO = {
     custom: [
         'Write the schedule as five fields: minute, hour, day of the month, month, day of the week.',
     ],
-    blocked: 'Just once still works: it runs when you start it, and that is all.',
 }
 
 const KEEP_INFO = {
@@ -843,7 +840,6 @@ export function infoFor(step: StepKey, answers: Answers, ctx: InfoContext = {}):
                 link: { label: 'Metadata in the rclone docs', url: `${DOCS}/docs/#metadata` },
             }
         case 'when': {
-            if (ctx.timerReason) return { paragraphs: [ctx.timerReason, WHEN_INFO.blocked] }
             return { paragraphs: answers.when === 'custom' ? WHEN_INFO.custom : WHEN_INFO.default }
         }
         case 'keep':

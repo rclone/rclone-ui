@@ -1,4 +1,4 @@
-//! What a scheduled run is: the job file's requests, handed one after another to the rclone
+//! What a scheduled run is: the task file's requests, handed one after another to the rclone
 //! daemon the server is already running, and recorded as the ordinary transfers they are.
 //!
 //! There is no second process and no second daemon. If the server is up then the daemon and the
@@ -15,7 +15,8 @@ use serde_json::{json, Value};
 use tokio::sync::broadcast::{error::RecvError, Receiver};
 
 use super::history::{self, HistoryLine, RunLog};
-use super::jobfile::{self, JobSpec};
+use super::taskfile::{self, JobSpec};
+use crate::bus::Bus;
 use crate::datadir::DataDir;
 use crate::notifications::webhooks;
 use crate::transfers::ledger::{self, State};
@@ -30,7 +31,7 @@ fn running() -> &'static Mutex<HashSet<String>> {
 }
 
 /// Whether a run of this task is going on right now. A `started` history line with no `finished`
-/// and no run here is one the server was killed in the middle of ([`super::scheduler_status`]).
+/// and no run here is one the server was killed in the middle of (`super::list` says so).
 pub fn is_running(task_id: &str) -> bool {
     running().lock().unwrap().contains(task_id)
 }
@@ -66,7 +67,7 @@ fn skipped(dirs: &DataDir, task_id: &str, reason: &str) {
 }
 
 /// One run of one task, start to finish.
-pub async fn run(dirs: DataDir, transfers: Arc<TransferService>, task_id: String) {
+pub async fn run(dirs: DataDir, bus: Bus, transfers: Arc<TransferService>, task_id: String) {
     let Ok(task_id) = super::sanitize_id(&task_id) else {
         log::warn!("[scheduler] refusing to run an invalid task id");
         return;
@@ -81,31 +82,16 @@ pub async fn run(dirs: DataDir, transfers: Arc<TransferService>, task_id: String
 
     let mut log = RunLog::open(&dirs, &task_id);
 
-    // Missing job file: the task was deleted but its registration survived (e.g. unregister
-    // failed). Self-heal by removing the orphan.
-    //
-    // Self-heal ONLY on a clean not-found with the jobs directory present. A missing or
-    // unreadable data root, or a malformed/newer-schema job file, is an ENVIRONMENT problem —
-    // uninstalling there would destroy a valid registration.
-    let spec = match jobfile::load(&dirs, &task_id) {
-        Ok(spec) => spec,
+    // The file is the schedule: gone (removed between the fire and now), there is nothing to
+    // run; unreadable, nothing can be.
+    let spec = match taskfile::load(&dirs, &task_id) {
+        Ok(Some(file)) => file.spec,
+        Ok(None) => {
+            log.line("task file missing: the schedule was removed; skipped");
+            return;
+        }
         Err(e) => {
-            let job_path = jobfile::job_path(&dirs, &task_id);
-            let jobs_dir_present = job_path.parent().map(|p| p.is_dir()).unwrap_or(false);
-            if jobs_dir_present && !job_path.exists() {
-                log.line(&format!(
-                    "job file missing: {} — removing the orphan registration",
-                    e
-                ));
-                if let Ok(backend) = super::backend(&dirs) {
-                    let _ = backend.uninstall(&task_id);
-                }
-            } else {
-                log.line(&format!(
-                    "job file unusable: {} — leaving the registration in place (environment problem, not an orphan)",
-                    e
-                ));
-            }
+            log.line(&format!("task file unusable: {}; skipped", e));
             return;
         }
     };
@@ -139,6 +125,7 @@ pub async fn run(dirs: DataDir, transfers: Arc<TransferService>, task_id: String
             ts: crate::time::now_iso(),
         },
     );
+    super::changed(&bus, &task_id);
 
     let task_label = if spec.name.is_empty() {
         spec.operation.clone()
@@ -180,6 +167,7 @@ pub async fn run(dirs: DataDir, transfers: Arc<TransferService>, task_id: String
             stats: outcome.stats,
         },
     );
+    super::changed(&bus, &task_id);
 
     // Released BEFORE the completion webhooks: the run's work is done, and holding the task
     // through up-to-minutes of sequential delivery would make the next fire skip as

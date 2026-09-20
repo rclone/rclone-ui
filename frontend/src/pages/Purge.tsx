@@ -6,7 +6,6 @@ import { useFlags } from '@/lib/hooks'
 import { applyTemplatePaths } from '@/lib/rclone/templatePaths'
 import { startPurge } from '@/lib/rclone/start'
 import { RCLONE_CONFIG_DEFAULTS } from '@/lib/rclone/constants'
-import { useSchedulingAvailable } from '@/lib/scheduler'
 import OperationWindowContent from '@/components/OperationWindowContent'
 import OperationWindowFooter from '@/components/OperationWindowFooter'
 import OptionsSection from '@/components/OptionsSection'
@@ -30,7 +29,6 @@ export default function Purge() {
     const [sources, setSources] = useState<string[] | undefined>(preset?.args.sources)
 
     const [cronExpression, setCronExpression] = useState<string | null>(preset?.cron ?? null)
-    const schedulingAvailable = useSchedulingAvailable()
 
     const {
         jsonError,
@@ -92,8 +90,6 @@ export default function Purge() {
                     />
                 ),
             },
-            ...(schedulingAvailable
-                ? [
                       {
                           key: 'cron',
                           category: 'cron' as const,
@@ -104,10 +100,8 @@ export default function Purge() {
                               />
                           ),
                       },
-                  ]
-                : []),
         ],
-        [configGroup, globalFlags, configFlags, cronExpression, schedulingAvailable]
+        [configGroup, globalFlags, configFlags, cronExpression]
     )
 
     return (

@@ -1,77 +1,38 @@
 //! Scheduled tasks, run by the server itself.
 //!
-//! Registering a task writes a job file and an artifact for `ticker.rs`, the server's own minute
-//! ticker; when one is due the ticker hands the job file's pre-serialized rclone requests to the
-//! transfer service ([`runner`]), which puts them on the daemon the server is already running.
-//! Nothing is registered with the operating system and nothing is spawned: a task runs whenever
-//! the server does — which is what a server is for — and its run is a transfer like any other.
+//! A schedule is one file, `scheduler/tasks/<id>.json` ([`taskfile`]): the page's form and the
+//! pre-serialized rclone requests a run submits. The server's own minute ticker ([`ticker`])
+//! reads the files and hands a due one to the runner ([`runner`]), which puts its requests on
+//! the daemon the server is already running, through the same transfer service as everything
+//! else. Nothing is registered with the operating system and nothing is spawned: a task runs
+//! whenever the server does, which is what a server is for. Every change to a task, and every
+//! run's start and end, is `schedules.changed {id}` on the bus.
 
-pub mod cronconv;
+pub mod cron;
 pub mod history;
-pub mod jobfile;
 pub mod runner;
+pub mod taskfile;
 pub mod ticker;
 
-use std::collections::{HashMap, HashSet};
-
 use serde::Serialize;
+use serde_json::{json, Value};
 
-use jobfile::JobSpec;
+use crate::bus::Bus;
 use crate::datadir::DataDir;
+use taskfile::TaskFile;
 
-/// `set_enabled` on a task that has no registration. The disable path in
-/// `scheduler_set_enabled` treats it as benign — nothing armed IS disabled — and matches on this
-/// exact string, so it must not be reworded in passing.
-pub(crate) const NOT_REGISTERED: &str = "Task is not registered";
+pub const NO_SUCH_TASK: &str = "There is no such schedule";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InstallState {
-    NotInstalled,
-    Installed { enabled: bool },
+/// The bus event the pages reload their list from (`src/server/ws.ts` `EventPayloads`).
+pub const CHANGED_EVENT: &str = "schedules.changed";
+
+pub(crate) fn changed(bus: &Bus, id: &str) {
+    bus.publish(CHANGED_EVENT, json!({ "id": id }));
 }
 
-/// What registering leaves for the ticker. Only whether the task is armed: the schedule itself
-/// stays in the job file, which the tick re-reads every minute, and the run's own limits are
-/// there too — nothing has to be copied out.
-pub struct RenderedSchedule {
-    /// The state to install in, baked into the artifact so registration is one operation: a
-    /// disabled task is never briefly armed between an install and a follow-up set_enabled, and a
-    /// partial failure can't leave it running against the user's intent.
-    pub enabled: bool,
-}
-
-/// A task the ticker holds, and whether it will fire.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Registration {
-    pub task_id: String,
-    pub enabled: bool,
-}
-
-/// What the scheduler needs of its backend. One type implements it — [`ticker::TickerBackend`] —
-/// and the seam is what keeps the registration store behind a contract rather than spread through
-/// the functions below.
-pub trait SchedulerBackend: Send + Sync {
-    /// Create or overwrite the task's registration in `rendered.enabled`'s state. Idempotent.
-    fn install(&self, task_id: &str, rendered: &RenderedSchedule) -> Result<(), String>;
-    /// Remove the registration. Idempotent (a missing one is not an error).
-    fn uninstall(&self, task_id: &str) -> Result<(), String>;
-    fn set_enabled(&self, task_id: &str, enabled: bool) -> Result<(), String>;
-    fn is_installed(&self, task_id: &str) -> Result<InstallState, String>;
-    /// Everything of ours it holds, in one read. An error means it could not be inspected, and
-    /// nothing may be concluded from it.
-    fn inventory(&self) -> Result<Vec<Registration>, String>;
-}
-
-/// The backend: the in-process ticker. This server is a long-running daemon, so tasks fire from
-/// its own minute loop and nothing is registered with the operating system.
-pub fn backend(dirs: &DataDir) -> Result<Box<dyn SchedulerBackend>, String> {
-    Ok(Box::new(ticker::TickerBackend::new(dirs)))
-}
-
-/// Serializes every scheduler mutation across the process. A registration is two writes — the
-/// job file and the ticker's artifact — and the startup reconcile, a settings page and the
-/// ticker's own sweep would otherwise interleave them, leaving a task with one and not the
-/// other. Runs are kept apart separately, by [`runner::is_running`].
+/// Serializes every task mutation across the process: a save from a page and a toggle from
+/// another must not interleave a read-modify-write. Runs are kept apart separately, by
+/// [`runner::is_running`].
 static MUTATION_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn mutation_guard() -> std::sync::MutexGuard<'static, ()> {
@@ -80,8 +41,7 @@ fn mutation_guard() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Task ids become file names — never trust them,
-/// even though the app generates UUIDs.
+/// Task ids become file names — never trust them, even though the page generates UUIDs.
 pub fn sanitize_id(task_id: &str) -> Result<String, String> {
     if task_id.is_empty() || task_id.len() > 64 {
         return Err("invalid task id".to_string());
@@ -96,38 +56,9 @@ pub fn sanitize_id(task_id: &str) -> Result<String, String> {
     Ok(task_id.to_string())
 }
 
-/// Nothing of the cron survives into the registration — the tick reads it from the job file —
-/// but parsing it here is what refuses a schedule the ticker could never match.
-fn render(spec: &JobSpec, enabled: bool) -> Result<RenderedSchedule, String> {
-    cronconv::parse(&spec.cron)?;
-    Ok(RenderedSchedule { enabled })
-}
-
 // ---------------------------------------------------------------------------
 // What the RPCs call (rpc.rs); the ones that touch files run on the blocking pool there.
 // ---------------------------------------------------------------------------
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SupportInfo {
-    pub supported: bool,
-    pub reason: Option<String>,
-}
-
-/// Whether schedules can run here. The server is its own scheduler, so the answer is yes as
-/// long as a backend can be built.
-pub fn supported(dirs: &DataDir) -> SupportInfo {
-    match backend(dirs) {
-        Ok(_) => SupportInfo {
-            supported: true,
-            reason: None,
-        },
-        Err(reason) => SupportInfo {
-            supported: false,
-            reason: Some(reason),
-        },
-    }
-}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -142,13 +73,11 @@ pub struct CronValidation {
 }
 
 pub fn validate_cron(cron: &str) -> CronValidation {
-    match cronconv::validate(cron) {
-        Ok(()) => CronValidation {
+    match cron::parse(cron) {
+        Ok(spec) => CronValidation {
             valid: true,
             error: None,
-            next_runs: cronconv::parse(cron)
-                .map(|spec| cronconv::next_fires(&spec, chrono::Local::now(), 10))
-                .unwrap_or_default(),
+            next_runs: cron::next_fires(&spec, chrono::Local::now(), 10),
         },
         Err(error) => CronValidation {
             valid: false,
@@ -158,169 +87,130 @@ pub fn validate_cron(cron: &str) -> CronValidation {
     }
 }
 
-/// UPSERT: write the job file and (re)install the registration in the given enabled state (one
-/// operation — no separate set_enabled step to half-fail). There is one backend, the server's own
-/// minute ticker, so nothing has to be uninstalled from another one first.
-pub fn register(dirs: &DataDir, spec: JobSpec, enabled: bool) -> Result<(), String> {
-    sanitize_id(&spec.task_id)?;
-    if spec.schema_version != jobfile::JOB_SCHEMA_VERSION {
+/// One schedule as the page lists it: the file, and where it stands.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Listed {
+    pub id: String,
+    pub enabled: bool,
+    pub created_at: Option<u64>,
+    pub task: Value,
+    pub running: bool,
+    pub last_finished: Option<Value>,
+    /// The next local fire times, by the tick's own matcher.
+    pub next_runs: Vec<String>,
+}
+
+fn listed(dirs: &DataDir, file: &TaskFile) -> Listed {
+    let running = runner::is_running(&file.id);
+    Listed {
+        id: file.id.clone(),
+        enabled: file.enabled,
+        created_at: file.created_at,
+        task: file.task.clone(),
+        running,
+        last_finished: last_finished(dirs, &file.id, running),
+        next_runs: cron::parse(&file.spec.cron)
+            .map(|spec| cron::next_fires(&spec, chrono::Local::now(), 3))
+            .unwrap_or_default(),
+    }
+}
+
+/// The latest attempt, as the history has it. Newest-first: the latest started/finished event
+/// is the latest ATTEMPT. A started with no finished and no run going on is one that died
+/// without writing its terminal record — the server was killed, or lost power, mid-run.
+/// Surfacing the older success (or "Never") instead would hide the interruption.
+fn last_finished(dirs: &DataDir, id: &str, running: bool) -> Option<Value> {
+    let lines = history::read(dirs, id, 20);
+    let event_of = |line: &Value| line.get("event").and_then(|e| e.as_str()).map(str::to_owned);
+    let newest_attempt = lines.iter().find(|line| {
+        matches!(
+            event_of(line).as_deref(),
+            Some("started") | Some("finished")
+        )
+    });
+    match newest_attempt {
+        Some(line) if event_of(line).as_deref() == Some("started") && !running => Some(json!({
+            "runId": line.get("runId").cloned().unwrap_or_default(),
+            "ts": line.get("ts").cloned().unwrap_or_default(),
+            "success": false,
+            "error": "The run was interrupted before it could finish (crash, forced shutdown, or power loss).",
+            "durationMs": 0,
+            "interrupted": true,
+        })),
+        _ => lines
+            .iter()
+            .find(|line| event_of(line).as_deref() == Some("finished"))
+            .cloned(),
+    }
+}
+
+pub fn list(dirs: &DataDir) -> Vec<Listed> {
+    taskfile::list(dirs)
+        .iter()
+        .map(|file| listed(dirs, file))
+        .collect()
+}
+
+/// Create and update are the same call: the page keeps generating the ids. A schedule the
+/// ticker could never match, or one with nothing to run, is refused before anything is written.
+pub fn save(dirs: &DataDir, bus: &Bus, mut file: TaskFile) -> Result<Listed, String> {
+    sanitize_id(&file.id)?;
+    if file.schema_version != taskfile::SCHEMA_VERSION {
         return Err(format!(
-            "unsupported job schema version {}",
-            spec.schema_version
+            "unsupported task schema version {}",
+            file.schema_version
         ));
     }
-    if spec.requests.is_empty() {
+    cron::parse(&file.spec.cron)?;
+    if file.spec.requests.is_empty() {
         return Err("The task produced no rclone requests".to_string());
     }
-
     let _guard = mutation_guard();
-    let backend = backend(&dirs)?;
-    let rendered = render(&spec, enabled)?;
-    jobfile::save(&dirs, &spec)?;
-    if let Err(e) = backend.install(&spec.task_id, &rendered) {
-        // Keep the reported state truthful: "not registered" must mean nothing fires. The
-        // old artifact would otherwise keep firing the OLD schedule against the NEW job
-        // file. The job file stays for the startup reconcile to retry.
-        let _ = backend.uninstall(&spec.task_id);
-        return Err(e);
-    }
+    file.created_at = taskfile::load(dirs, &file.id)?
+        .and_then(|existing| existing.created_at)
+        .or_else(|| Some(now_ms()));
+    taskfile::save(dirs, &file)?;
+    changed(bus, &file.id);
+    Ok(listed(dirs, &file))
+}
+
+pub fn remove(dirs: &DataDir, bus: &Bus, id: &str) -> Result<(), String> {
+    let id = sanitize_id(id)?;
+    let _guard = mutation_guard();
+    taskfile::remove(dirs, &id);
+    history::remove_all(dirs, &id);
+    changed(bus, &id);
     Ok(())
 }
 
-pub fn unregister(dirs: &DataDir, task_id: String) -> Result<(), String> {
-    let task_id = sanitize_id(&task_id)?;
+pub fn set_enabled(dirs: &DataDir, bus: &Bus, id: &str, enabled: bool) -> Result<Listed, String> {
+    let id = sanitize_id(id)?;
     let _guard = mutation_guard();
-    // The job file is removed even when the uninstall fails: a surviving registration self-heals
-    // on its next fire (the runner finds no job file, removes it, and exits).
-    let uninstall_result = match backend(&dirs) {
-        Ok(backend) => backend.uninstall(&task_id),
-        Err(e) => Err(e),
-    };
-    jobfile::remove(&dirs, &task_id);
-    history::remove_all(&dirs, &task_id);
-    uninstall_result
+    let mut file = taskfile::load(dirs, &id)?.ok_or_else(|| NO_SUCH_TASK.to_string())?;
+    file.enabled = enabled;
+    taskfile::save(dirs, &file)?;
+    changed(bus, &id);
+    Ok(listed(dirs, &file))
 }
 
-pub fn set_enabled(dirs: &DataDir, task_id: String, enabled: bool) -> Result<(), String> {
-    let task_id = sanitize_id(&task_id)?;
-    let _guard = mutation_guard();
-    let result = backend(&dirs)?.set_enabled(&task_id, enabled);
-
-    // Disabling treats "no artifact" as success — nothing armed IS disabled — but never swallows
-    // a real failure, which would leave the task firing while the UI says paused. Enabling keeps
-    // the strict error: it must not guess.
-    if !enabled {
-        return match result {
-            Err(e) if e == NOT_REGISTERED => Ok(()),
-            other => other,
-        };
-    }
-    result
-}
-
-/// A task that may be run outside its schedule, named. Starting the run is the server's —
-/// it needs the transfer service — so this is the half that is the scheduler's: the id is real
-/// and the task is registered. A disabled task still answers: running it by hand is a choice,
-/// not a fire.
-pub fn runnable_now(dirs: &DataDir, task_id: &str) -> Result<String, String> {
-    let task_id = sanitize_id(task_id)?;
-    match backend(dirs)?.is_installed(&task_id)? {
-        InstallState::Installed { .. } => Ok(task_id),
-        InstallState::NotInstalled => Err(NOT_REGISTERED.to_string()),
+/// A task that may be run outside its schedule, named. Starting the run is the server's (it
+/// needs the transfer service), so this is the half that is the scheduler's: the id is real. A
+/// disabled task still answers: running it by hand is a choice, not a fire.
+pub fn runnable_now(dirs: &DataDir, id: &str) -> Result<String, String> {
+    let id = sanitize_id(id)?;
+    if taskfile::path(dirs, &id).is_file() {
+        Ok(id)
+    } else {
+        Err(NO_SUCH_TASK.to_string())
     }
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TaskStatus {
-    pub task_id: String,
-    pub installed: bool,
-    pub enabled: bool,
-    pub running: bool,
-    pub last_finished: Option<serde_json::Value>,
-    /// Why the task's state could not be established, when it could not be.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub warning: Option<String>,
-}
-
-/// What the ticker holds (task id → enabled), or why it could not be read.
-type Inventory = Result<HashMap<String, bool>, String>;
-
-fn take_inventory(dirs: &DataDir) -> Inventory {
-    Ok(backend(dirs)?
-        .inventory()?
-        .into_iter()
-        .map(|r| (r.task_id, r.enabled))
-        .collect())
-}
-
-/// (installed, enabled, warning) for one task. A read failure is reported as such, never as
-/// "not installed".
-fn install_state_of(inventory: &Inventory, task_id: &str) -> (bool, bool, Option<String>) {
-    match inventory {
-        Ok(held) => match held.get(task_id) {
-            Some(enabled) => (true, *enabled, None),
-            None => (false, false, None),
-        },
-        Err(e) => (
-            false,
-            false,
-            Some(format!("The schedules could not be read: {}", e)),
-        ),
-    }
-}
-
-pub fn status(dirs: &DataDir) -> Result<Vec<TaskStatus>, String> {
-    // What the ticker holds, read the first time a task needs it.
-    let mut taken: Option<Inventory> = None;
-    let mut statuses = Vec::new();
-    for spec in jobfile::list(&dirs) {
-        let inventory = taken.get_or_insert_with(|| take_inventory(&dirs));
-        let (installed, enabled, warning) = install_state_of(inventory, &spec.task_id);
-
-        let running = runner::is_running(&spec.task_id);
-        let lines = history::read(&dirs, &spec.task_id, 20);
-        let event_of = |line: &serde_json::Value| {
-            line.get("event")
-                .and_then(|e| e.as_str())
-                .map(str::to_owned)
-        };
-        // Newest-first: the latest started/finished event is the latest ATTEMPT. A started
-        // with no finished and no run going on is one that died without writing its terminal
-        // record — the server was killed, or lost power, mid-run. Surfacing the older success
-        // (or "Never") instead would hide the interruption.
-        let newest_attempt = lines.iter().find(|line| {
-            matches!(
-                event_of(line).as_deref(),
-                Some("started") | Some("finished")
-            )
-        });
-        let last_finished = match newest_attempt {
-            Some(line) if event_of(line).as_deref() == Some("started") && !running => {
-                Some(serde_json::json!({
-                    "runId": line.get("runId").cloned().unwrap_or_default(),
-                    "ts": line.get("ts").cloned().unwrap_or_default(),
-                    "success": false,
-                    "error": "The run was interrupted before it could finish (crash, forced shutdown, or power loss).",
-                    "durationMs": 0,
-                    "interrupted": true,
-                }))
-            }
-            _ => lines
-                .iter()
-                .find(|line| event_of(line).as_deref() == Some("finished"))
-                .cloned(),
-        };
-        statuses.push(TaskStatus {
-            task_id: spec.task_id.clone(),
-            installed,
-            enabled,
-            running,
-            last_finished,
-            warning,
-        });
-    }
-    Ok(statuses)
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 #[derive(Serialize)]
@@ -333,11 +223,11 @@ pub struct LogContent {
 /// Tail of a task's log for the in-app viewer: what the runner itself had to say about each
 /// run. There is no second log — rclone's own output belongs to the daemon the whole server
 /// shares, and what a run moved is its transfer's, on the Transfers page.
-pub fn read_log(dirs: &DataDir, task_id: String) -> Result<LogContent, String> {
+pub fn read_log(dirs: &DataDir, id: String) -> Result<LogContent, String> {
     const MAX_TAIL_BYTES: usize = 64 * 1024;
 
-    let task_id = sanitize_id(&task_id)?;
-    let path = history::log_path(&dirs, &task_id);
+    let id = sanitize_id(&id)?;
+    let path = history::log_path(dirs, &id);
 
     let Ok(bytes) = std::fs::read(&path) else {
         return Ok(LogContent {
@@ -366,108 +256,157 @@ pub fn read_log(dirs: &DataDir, task_id: String) -> Result<LogContent, String> {
     })
 }
 
-pub fn read_history(
-    dirs: &DataDir,
-    task_id: String,
-    limit: Option<usize>,
-) -> Result<Vec<serde_json::Value>, String> {
-    let task_id = sanitize_id(&task_id)?;
-    Ok(history::read(&dirs, &task_id, limit.unwrap_or(50)))
-}
-
-/// Task ids that still have a job file — by FILENAME, deliberately not by parse: an unreadable
-/// or newer-schema job file is an environment problem, and sweeping its artifact would destroy
-/// a valid registration (same conservatism as the runner's self-heal).
-fn registered_task_ids(dirs: &DataDir) -> std::collections::HashSet<String> {
-    let mut ids = std::collections::HashSet::new();
-    let Ok(entries) = std::fs::read_dir(jobfile::jobs_dir(dirs)) else {
-        return ids;
-    };
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if let Some(id) = name.strip_suffix(".json") {
-            ids.insert(id.to_string());
-        }
-    }
-    ids
-}
-
-/// Sweep registrations that have NO job file. These leftovers appear when an uninstall fails
-/// after the job file was removed; a DISABLED leftover never fires, so the runner's fire-time
-/// self-heal can never reach it — this sweep is the only thing that does.
-fn sweep_orphans(dirs: &DataDir) -> u32 {
-    match backend(dirs) {
-        Ok(backend) => sweep_backend(backend.as_ref(), &registered_task_ids(dirs)),
-        Err(_) => 0,
-    }
-}
-
-/// Uninstalls what the backend holds beyond `keep`. A backend that cannot be inspected is left
-/// alone: a read failure never authorises a deletion.
-pub(crate) fn sweep_backend(backend: &dyn SchedulerBackend, keep: &HashSet<String>) -> u32 {
-    let Ok(registrations) = backend.inventory() else {
-        return 0;
-    };
-    let mut removed = 0;
-    for registration in registrations {
-        let id = registration.task_id;
-        if keep.contains(&id) || sanitize_id(&id).is_err() {
-            continue;
-        }
-        if backend.uninstall(&id).is_ok() {
-            removed += 1;
-        }
-    }
-    removed
+pub fn read_history(dirs: &DataDir, id: String, limit: Option<usize>) -> Result<Vec<Value>, String> {
+    let id = sanitize_id(&id)?;
+    Ok(history::read(dirs, &id, limit.unwrap_or(50)))
 }
 
 #[cfg(test)]
-mod inventory_tests {
+mod tests {
     use super::*;
+    use taskfile::{JobSpec, RcRequest};
 
-    /// A backend that cannot be read reports itself, rather than every task as "not installed".
-    #[test]
-    fn an_inspection_failure_is_a_warning_not_an_absence() {
-        let failed: Inventory = Err("the ticker directory could not be read".into());
-        let (installed, enabled, warning) = install_state_of(&failed, "t1");
-        assert!(!installed && !enabled);
-        assert!(warning
-            .unwrap()
-            .contains("the ticker directory could not be read"));
+    fn scratch(name: &str) -> DataDir {
+        let root = std::env::temp_dir().join(format!(
+            "rclone-cloud-scheduler-{}-{}",
+            name,
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        DataDir { root }
     }
 
-    /// A backend that cannot be read keeps its registrations; nothing is swept on a guess.
-    #[test]
-    fn a_failed_inventory_sweeps_nothing() {
-        struct Broken(std::sync::Mutex<u32>);
-        impl SchedulerBackend for Broken {
-            fn install(&self, _: &str, _: &RenderedSchedule) -> Result<(), String> {
-                Ok(())
-            }
-            fn uninstall(&self, _: &str) -> Result<(), String> {
-                *self.0.lock().unwrap() += 1;
-                Ok(())
-            }
-            fn set_enabled(&self, _: &str, _: bool) -> Result<(), String> {
-                Ok(())
-            }
-            fn is_installed(&self, _: &str) -> Result<InstallState, String> {
-                Ok(InstallState::NotInstalled)
-            }
-            fn inventory(&self) -> Result<Vec<Registration>, String> {
-                Err("service unavailable".into())
-            }
+    fn task(id: &str, cron: &str, requests: usize) -> TaskFile {
+        TaskFile {
+            schema_version: taskfile::SCHEMA_VERSION,
+            id: id.into(),
+            enabled: true,
+            created_at: None,
+            task: json!({ "name": "nightly", "operation": "copy", "cron": cron }),
+            spec: JobSpec {
+                name: "nightly".into(),
+                operation: "copy".into(),
+                cron: cron.into(),
+                max_run_seconds: 60,
+                sources: vec!["/src".into()],
+                destination: Some("dst:".into()),
+                requests: (0..requests)
+                    .map(|_| RcRequest {
+                        endpoint: "/job/batch".into(),
+                        body: json!({}),
+                    })
+                    .collect(),
+            },
         }
+    }
+
+    /// A save is a file, listed oldest first with its form kept whole; a remove takes the file
+    /// and the history with it.
+    #[test]
+    fn a_task_file_round_trips_and_lists_in_the_order_it_was_made() {
+        let dirs = scratch("roundtrip");
+        let bus = Bus::new();
+        let first = save(&dirs, &bus, task("first", "0 2 * * *", 1)).unwrap();
+        assert!(first.created_at.is_some());
+        assert_eq!(first.task["name"], "nightly");
+        assert_eq!(first.next_runs.len(), 3);
+        // Later, and it says so; a re-save keeps the first date.
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let second = save(&dirs, &bus, task("second", "*/5 * * * *", 1)).unwrap();
+        let first_again = save(&dirs, &bus, task("first", "0 3 * * *", 1)).unwrap();
+        assert_eq!(first_again.created_at, first.created_at);
+        assert!(second.created_at > first.created_at);
+        let ids: Vec<String> = list(&dirs).into_iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec!["first", "second"]);
         assert_eq!(
-            sweep_backend(&Broken(std::sync::Mutex::new(0)), &HashSet::new()),
-            0
+            taskfile::load(&dirs, "first").unwrap().unwrap().spec.cron,
+            "0 3 * * *"
+        );
+
+        assert!(!set_enabled(&dirs, &bus, "first", false).unwrap().enabled);
+        assert_eq!(
+            set_enabled(&dirs, &bus, "nowhere", true).unwrap_err(),
+            NO_SUCH_TASK
+        );
+        assert_eq!(runnable_now(&dirs, "first").unwrap(), "first");
+        assert_eq!(runnable_now(&dirs, "nowhere").unwrap_err(), NO_SUCH_TASK);
+
+        history::append(
+            &dirs,
+            "first",
+            &history::HistoryLine::Skipped {
+                ts: "t".into(),
+                reason: "test".into(),
+            },
+        );
+        remove(&dirs, &bus, "first").unwrap();
+        assert!(taskfile::load(&dirs, "first").unwrap().is_none());
+        assert!(history::read(&dirs, "first", 5).is_empty());
+        let _ = std::fs::remove_dir_all(&dirs.root);
+    }
+
+    /// Refused before anything is written: a cron the tick could never match, no requests, an
+    /// id that is not a file name.
+    #[test]
+    fn a_save_that_could_never_run_is_refused() {
+        let dirs = scratch("refused");
+        let bus = Bus::new();
+        assert!(save(&dirs, &bus, task("bad-cron", "@daily", 1))
+            .unwrap_err()
+            .contains("5-field"));
+        assert!(save(&dirs, &bus, task("empty", "0 2 * * *", 0))
+            .unwrap_err()
+            .contains("no rclone requests"));
+        assert!(save(&dirs, &bus, task("../escape", "0 2 * * *", 1)).is_err());
+        assert!(list(&dirs).is_empty());
+        let _ = std::fs::remove_dir_all(&dirs.root);
+    }
+
+    /// A started with no finished, and no run going, was interrupted: the list says so instead
+    /// of showing the older success.
+    #[test]
+    fn an_interrupted_run_is_listed_as_one() {
+        let dirs = scratch("interrupted");
+        let bus = Bus::new();
+        save(&dirs, &bus, task("t", "0 2 * * *", 1)).unwrap();
+        history::append(
+            &dirs,
+            "t",
+            &history::HistoryLine::Finished {
+                run_id: "r1".into(),
+                ts: "2026-01-01T00:00:00Z".into(),
+                success: true,
+                error: None,
+                duration_ms: 5,
+                jobids: None,
+                stats: None,
+            },
+        );
+        history::append(
+            &dirs,
+            "t",
+            &history::HistoryLine::Started {
+                run_id: "r2".into(),
+                ts: "2026-01-02T00:00:00Z".into(),
+            },
+        );
+        let last = list(&dirs).remove(0).last_finished.unwrap();
+        assert_eq!(last["runId"], "r2");
+        assert_eq!(last["interrupted"], true);
+        assert_eq!(last["success"], false);
+        let _ = std::fs::remove_dir_all(&dirs.root);
+    }
+
+    /// The pages reload their list from this event: an emitted name the page never subscribed
+    /// to leaves the list stale after every save.
+    #[test]
+    fn the_changed_event_is_declared_in_ws_ts() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/frontend/src/server/ws.ts");
+        let ws = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {}", path, e));
+        assert!(
+            ws.contains(&format!("'{}':", CHANGED_EVENT)),
+            "{} is emitted but not declared in src/server/ws.ts",
+            CHANGED_EVENT
         );
     }
-}
-
-/// Startup-reconcile hook for the sweep above. Runs AFTER the reconcile has re-registered every
-/// stored task (their job files then exist and protect their registrations).
-pub fn sweep(dirs: &DataDir) -> Result<u32, String> {
-    let _guard = mutation_guard();
-    Ok(sweep_orphans(dirs))
 }

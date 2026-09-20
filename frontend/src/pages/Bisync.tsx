@@ -7,7 +7,6 @@ import { applyTemplatePaths } from '@/lib/rclone/templatePaths'
 import { startBisync } from '@/lib/rclone/start'
 import { RCLONE_CONFIG_DEFAULTS } from '@/lib/rclone/constants'
 import { metadataOptionsProblem } from '@/lib/rclone/metadataMapper'
-import { useSchedulingAvailable } from '@/lib/scheduler'
 import OperationWindowContent from '@/components/OperationWindowContent'
 import OperationWindowFooter from '@/components/OperationWindowFooter'
 import OptionsSection from '@/components/OptionsSection'
@@ -59,7 +58,6 @@ export default function Bisync() {
     )
 
     const [cronExpression, setCronExpression] = useState<string | null>(preset?.cron ?? null)
-    const schedulingAvailable = useSchedulingAvailable()
 
     // Only the ends that name a remote: a bisync between two local paths has no backend options
     // to set, and the section would open on an empty tab strip.
@@ -264,8 +262,6 @@ export default function Bisync() {
                     />
                 ),
             },
-            ...(schedulingAvailable
-                ? [
                       {
                           key: 'cron',
                           category: 'cron' as const,
@@ -276,8 +272,6 @@ export default function Bisync() {
                               />
                           ),
                       },
-                  ]
-                : []),
             {
                 key: 'config',
                 category: 'config',
@@ -351,7 +345,6 @@ export default function Bisync() {
             selectedRemotes,
             remotesGroup,
             cronExpression,
-            schedulingAvailable,
         ]
     )
 

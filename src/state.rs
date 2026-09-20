@@ -61,8 +61,6 @@ pub struct Settings {
     pub proxy: Option<ProxySettings>,
     pub limits: Limits,
     pub remote_configs: HashMap<String, RemoteConfig>,
-    /// Only the id and the switch: the task bodies stay opaque to Rust.
-    pub scheduled_tasks: Vec<ScheduledTaskEntry>,
 }
 
 impl Settings {
@@ -110,13 +108,6 @@ pub struct MountOnStart {
     pub filter_options: Map<String, Value>,
     pub config_options: Map<String, Value>,
     pub metadata_options: Map<String, Value>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct ScheduledTaskEntry {
-    pub id: String,
-    pub is_enabled: Option<bool>,
 }
 
 // --- the store -----------------------------------------------------------------------------

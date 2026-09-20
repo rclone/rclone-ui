@@ -8,7 +8,6 @@ import { notify } from '@/lib/notifications'
 import { startDelete } from '@/lib/rclone/start'
 import { RCLONE_CONFIG_DEFAULTS } from '@/lib/rclone/constants'
 import { metadataOptionsProblem } from '@/lib/rclone/metadataMapper'
-import { useSchedulingAvailable } from '@/lib/scheduler'
 import OperationWindowContent from '@/components/OperationWindowContent'
 import OperationWindowFooter from '@/components/OperationWindowFooter'
 import OptionsSection from '@/components/OptionsSection'
@@ -32,7 +31,6 @@ export default function Delete() {
     const [sources, setSources] = useState<string[] | undefined>(preset?.args.sources)
 
     const [cronExpression, setCronExpression] = useState<string | null>(preset?.cron ?? null)
-    const schedulingAvailable = useSchedulingAvailable()
 
     const {
         jsonError,
@@ -149,8 +147,6 @@ export default function Delete() {
                     />
                 ),
             },
-            ...(schedulingAvailable
-                ? [
                       {
                           key: 'cron',
                           category: 'cron' as const,
@@ -161,8 +157,6 @@ export default function Delete() {
                               />
                           ),
                       },
-                  ]
-                : []),
         ],
         [
             filterGroup,
@@ -174,7 +168,6 @@ export default function Delete() {
             sources,
             metadataFlags,
             cronExpression,
-            schedulingAvailable,
         ]
     )
 

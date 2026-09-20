@@ -1,6 +1,6 @@
-import { Alert, Card, CardBody, CardHeader, Tooltip, useDisclosure } from '@heroui/react'
+import { Card, CardBody, CardHeader, Tooltip, useDisclosure } from '@heroui/react'
 import { Button, Chip } from '@heroui/react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import cronstrue from 'cronstrue'
 import { formatDistance } from 'date-fns'
@@ -19,47 +19,38 @@ import { onErrorDialog } from '@/lib/errors'
 import { buildReadablePath } from '@/lib/format'
 import { useNow } from '@/lib/hooks'
 import {
-    type SchedulerTaskStatus,
-    reconcile as reconcileSchedules,
-    removeScheduledTask as schedulerRemoveTask,
+    type Schedule,
+    SCHEDULES_KEY,
+    removeSchedule,
     schedulerRunNow,
-    schedulerStatus,
-    schedulerValidateCron,
-    setScheduledTaskEnabled,
-    useSchedulerSupported,
+    setScheduleEnabled,
+    useSchedules,
 } from '@/lib/scheduler'
-import { usePersistedStore } from '@/store'
-import type { ScheduledTask } from '@/lib/scheduler'
 import EmptyState from '@/components/EmptyState'
 import ScheduleEditDrawer from './ScheduleEditDrawer'
 import { ask } from '@/dialog'
 
 export default function Schedules() {
-    // Heal registrations that failed in a page (the orchestrator reconciles the rest at boot).
-    useEffect(() => {
-        reconcileSchedules().catch((error) => console.error('[Schedules] reconcile failed', error))
-    }, [])
+    const schedulesQuery = useSchedules()
+    const schedules = useMemo(() => schedulesQuery.data ?? [], [schedulesQuery.data])
 
-    const scheduledTasks = usePersistedStore((state) => state.scheduledTasks)
-    const supportQuery = useSchedulerSupported()
-    const schedulingAvailable = supportQuery.data?.supported ?? false
-    const unavailableReason =
-        supportQuery.data?.reason ?? 'Scheduling is not available on this system.'
-
-    const [selectedTask, setSelectedTask] = useState<ScheduledTask | null>(null)
+    // By id: the list refreshes under the drawer (a run starts, the next fire times move), and
+    // the drawer follows the schedule, not a snapshot of it.
+    const [selectedId, setSelectedId] = useState<string | null>(null)
+    const selectedTask = schedules.find((schedule) => schedule.id === selectedId) ?? null
     const { isOpen, onOpen, onClose } = useDisclosure()
 
     // A scheduled run's transfer links back here as `?task=<id>`: the schedule it came from.
     // Answers whether the task was found, so the URL can wait for the tasks to load.
     const openFromSearch = useCallback(
         (search: URLSearchParams) => {
-            const task = scheduledTasks.find((candidate) => candidate.id === search.get('task'))
+            const task = schedules.find((candidate) => candidate.id === search.get('task'))
             if (!task) return false
-            setSelectedTask(task)
+            setSelectedId(task.id)
             onOpen()
             return true
         },
-        [scheduledTasks, onOpen]
+        [schedules, onOpen]
     )
 
     // Once per URL: the tasks change under this effect (an edit, a toggle), and a drawer the user
@@ -72,39 +63,24 @@ export default function Schedules() {
         if (openFromSearch(searchParams)) followedSearch.current = search
     }, [searchParams, openFromSearch])
 
-    const statusQuery = useQuery({
-        queryKey: ['scheduler', 'status'],
-        queryFn: () => schedulerStatus(),
-        enabled: schedulingAvailable,
-        refetchInterval: 5_000,
-        refetchOnWindowFocus: true,
-    })
-
-    const statusMap = useMemo(
-        () => new Map((statusQuery.data ?? []).map((status) => [status.taskId, status])),
-        [statusQuery.data]
-    )
-
     const handleOpenDrawer = useCallback(
-        (task: ScheduledTask) => {
-            setSelectedTask(task)
+        (task: Schedule) => {
+            setSelectedId(task.id)
             onOpen()
         },
         [onOpen]
     )
 
-    if (scheduledTasks.length === 0) {
-        const available = schedulingAvailable || supportQuery.isLoading
+    // Nothing until the list has been read once: an empty state that flashes before it is a lie.
+    if (schedulesQuery.isPending) return null
+
+    if (schedules.length === 0) {
         return (
             <div className="w-full h-full overflow-y-auto">
                 <EmptyState
                     icon={ClockIcon}
-                    title={available ? 'Nothing scheduled yet' : 'Scheduling is not available here'}
-                    description={
-                        available
-                            ? 'Set up a copy, move, sync, bisync, delete or purge, then schedule it from its window. The server runs them on its own, with nobody looking, and each run shows up in Transfers.'
-                            : unavailableReason
-                    }
+                    title="Nothing scheduled yet"
+                    description="Set up a copy, move, sync, bisync, delete or purge, then schedule it from its window. The server runs them on its own, with nobody looking, and each run shows up in Transfers."
                 />
             </div>
         )
@@ -112,22 +88,8 @@ export default function Schedules() {
 
     return (
         <div className="flex flex-col h-full overflow-scroll">
-            {!schedulingAvailable && !supportQuery.isLoading && (
-                <Alert
-                    color="warning"
-                    title={unavailableReason}
-                    radius="none"
-                    classNames={{ base: 'flex-shrink-0' }}
-                />
-            )}
-            {scheduledTasks.map((task) => (
-                <TaskCard
-                    key={task.id}
-                    task={task}
-                    status={statusMap.get(task.id)}
-                    schedulingAvailable={schedulingAvailable}
-                    onOpenDrawer={handleOpenDrawer}
-                />
+            {schedules.map((task) => (
+                <TaskCard key={task.id} task={task} onOpenDrawer={handleOpenDrawer} />
             ))}
             {selectedTask && (
                 <ScheduleEditDrawer isOpen={isOpen} onClose={onClose} selectedTask={selectedTask} />
@@ -138,14 +100,10 @@ export default function Schedules() {
 
 function TaskCard({
     task,
-    status,
-    schedulingAvailable,
     onOpenDrawer,
 }: {
-    task: ScheduledTask
-    status?: SchedulerTaskStatus
-    schedulingAvailable: boolean
-    onOpenDrawer: (task: ScheduledTask) => void
+    task: Schedule
+    onOpenDrawer: (task: Schedule) => void
 }) {
     const queryClient = useQueryClient()
 
@@ -153,19 +111,13 @@ function TaskCard({
     // their last dep change (e.g. a past occurrence kept showing as the "next run" forever).
     const now = useNow()
 
-    // Next-run preview comes from Rust (the very matcher the tick uses) — JS cron libraries
-    // disagree with real cron on dom/dow star semantics, so computing it here could predict
-    // fires that will never happen. The query returns the next 5; the memo picks
-    // the first still in the future so the label stays fresh between refetches.
-    const nextRunsQuery = useQuery({
-        queryKey: ['scheduler', 'validate-cron', task.cron],
-        queryFn: () => schedulerValidateCron(task.cron),
-        refetchInterval: 60_000,
-    })
-    const nextRun = useMemo(() => {
-        const upcoming = nextRunsQuery.data?.nextRuns ?? []
-        return upcoming.map((run) => new Date(run)).find((run) => run.getTime() > now) ?? null
-    }, [nextRunsQuery.data, now])
+    // The next fire times come with the list, from Rust (the very matcher the tick uses): JS
+    // cron libraries disagree with real cron on dom/dow star semantics, so computing them here
+    // could predict fires that will never happen. The first still in the future is the label.
+    const nextRun = useMemo(
+        () => task.nextRuns.map((run) => new Date(run)).find((run) => run.getTime() > now) ?? null,
+        [task.nextRuns, now]
+    )
 
     const source = useMemo(
         () => ('source' in task.args ? task.args.source : task.args.sources[0]),
@@ -173,7 +125,7 @@ function TaskCard({
     )
 
     const nextRunLabel = useMemo(() => {
-        if (!task.isEnabled || !schedulingAvailable) {
+        if (!task.isEnabled) {
             return 'Paused'
         }
         if (nextRun) {
@@ -181,10 +133,10 @@ function TaskCard({
             return distance.charAt(0).toUpperCase() + distance.slice(1)
         }
         return 'Never'
-    }, [nextRun, now, task.isEnabled, schedulingAvailable])
+    }, [nextRun, now, task.isEnabled])
 
-    const isRunning = status?.running ?? false
-    const lastFinished = status?.lastFinished
+    const isRunning = task.running
+    const lastFinished = task.lastFinished
 
     const lastRunLabel = useMemo(() => {
         if (isRunning) {
@@ -199,7 +151,7 @@ function TaskCard({
         return 'Never'
     }, [isRunning, lastFinished, now])
 
-    const invalidateScheduler = () => queryClient.invalidateQueries({ queryKey: ['scheduler'] })
+    const invalidateScheduler = () => queryClient.invalidateQueries({ queryKey: SCHEDULES_KEY })
 
     const runNowMutation = useMutation({
         mutationFn: () => schedulerRunNow(task.id),
@@ -214,9 +166,9 @@ function TaskCard({
                 if (!answer) {
                     return
                 }
-                await setScheduledTaskEnabled(task.id, false)
+                await setScheduleEnabled(task.id, false)
             } else {
-                await setScheduledTaskEnabled(task.id, true)
+                await setScheduleEnabled(task.id, true)
             }
         },
         onSuccess: invalidateScheduler,
@@ -229,17 +181,14 @@ function TaskCard({
             if (!answer) {
                 return
             }
-            await schedulerRemoveTask(task.id)
+            await removeSchedule(task.id)
         },
         onSuccess: invalidateScheduler,
         onError: onErrorDialog('Schedule', 'Failed to remove the task'),
     })
 
-    const errorLine = task.registrationError
-        ? `Not scheduled: ${task.registrationError}`
-        : status?.warning
-          ? status.warning
-          : !isRunning && lastFinished && !lastFinished.success
+    const errorLine =
+        !isRunning && lastFinished && !lastFinished.success
             ? lastFinished.error || 'The last run failed'
             : null
 
@@ -348,11 +297,7 @@ function TaskCard({
                                     size="lg"
                                     variant="flat"
                                     radius="sm"
-                                    color={
-                                        task.isEnabled && schedulingAvailable
-                                            ? 'primary'
-                                            : 'default'
-                                    }
+                                    color={task.isEnabled ? 'primary' : 'default'}
                                 >
                                     {nextRunLabel}
                                 </Chip>
@@ -366,12 +311,7 @@ function TaskCard({
                                 isIconOnly={true}
                                 color="success"
                                 variant="flat"
-                                isDisabled={
-                                    !schedulingAvailable ||
-                                    !task.isEnabled ||
-                                    isRunning ||
-                                    runNowMutation.isPending
-                                }
+                                isDisabled={!task.isEnabled || isRunning || runNowMutation.isPending}
                                 size="sm"
                                 onPress={() => runNowMutation.mutate()}
                                 data-focus-visible="false"
@@ -382,7 +322,7 @@ function TaskCard({
                         <Button
                             isIconOnly={true}
                             color={task.isEnabled ? 'primary' : 'warning'}
-                            isDisabled={!schedulingAvailable || toggleMutation.isPending}
+                            isDisabled={toggleMutation.isPending}
                             size="sm"
                             onPress={() => toggleMutation.mutate()}
                             data-focus-visible="false"

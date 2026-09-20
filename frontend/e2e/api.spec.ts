@@ -40,7 +40,7 @@ test('rpc round trip: the table, its arguments and its errors', async ({ request
     expect(unknown.ok).toBe(false)
     expect(unknown.error).toContain('unknown command')
 
-    const noSession = await request.post('/api/rpc/scheduler_supported', {
+    const noSession = await request.post('/api/rpc/scheduler_list', {
         headers: { 'Content-Type': 'application/json' },
         data: {},
     })

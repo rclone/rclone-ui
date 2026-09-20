@@ -25,12 +25,13 @@ import { useNow } from '@/lib/hooks'
 import {
     DEFAULT_MAX_RUN_HOURS,
     MAX_RUN_HOURS_LIMIT,
+    SCHEDULES_KEY,
+    type Schedule,
     schedulerReadHistory,
     schedulerReadLog,
-    updateScheduledTask as schedulerUpdateTask,
     schedulerValidateCron,
+    updateSchedule,
 } from '@/lib/scheduler'
-import type { ScheduledTask } from '@/lib/scheduler'
 import CronEditor from '@/components/CronEditor'
 
 export default function ScheduleEditDrawer({
@@ -40,7 +41,7 @@ export default function ScheduleEditDrawer({
 }: {
     isOpen: boolean
     onClose: () => void
-    selectedTask: ScheduledTask
+    selectedTask: Schedule
 }) {
     const queryClient = useQueryClient()
     const navigate = useNavigate()
@@ -140,7 +141,7 @@ export default function ScheduleEditDrawer({
     const saveMutation = useMutation({
         mutationFn: async () => {
             setSaveError(null)
-            await schedulerUpdateTask(selectedTask.id, {
+            await updateSchedule(selectedTask.id, {
                 name: name.trim(),
                 cron: cronExpression,
                 isEnabled,
@@ -149,6 +150,7 @@ export default function ScheduleEditDrawer({
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['scheduler'] })
+            queryClient.invalidateQueries({ queryKey: SCHEDULES_KEY })
             onClose()
         },
         onError: (error) => {
@@ -191,17 +193,6 @@ export default function ScheduleEditDrawer({
                         <DrawerBody className="py-0">
                             <ScrollShadow size={30} visibility="top">
                                 <div className="flex flex-col gap-6 pt-6 pb-10">
-                                    {!!selectedTask.registrationError && (
-                                        <Alert
-                                            color="danger"
-                                            variant="faded"
-                                            title="Not registered with the scheduler"
-                                        >
-                                            <pre className="text-sm break-all whitespace-pre-wrap">
-                                                {selectedTask.registrationError}
-                                            </pre>
-                                        </Alert>
-                                    )}
                                     {!!saveError && (
                                         <Alert color="danger" variant="faded" title="Save failed">
                                             <pre className="text-sm break-all whitespace-pre-wrap">

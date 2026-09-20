@@ -12,7 +12,7 @@ import {
 
 // lib/rclone/requests.ts is pure, so it runs in the test process itself. The requests the six
 // builders produce for one fixed set of arguments are pinned as snapshots: the live start path
-// and the scheduler's job files both come from here, and a refactor must change nothing.
+// and the scheduler's task files both come from here, and a refactor must change nothing.
 
 const remotes = { gdrive: { chunk_size: '64M' } }
 const pin = (name: string, value: unknown) =>

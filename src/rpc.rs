@@ -429,22 +429,22 @@ rpcs! { st, caller, args;
         ok(format!("/api/dl/{}", st.downloads.mint(&fs, &remote)))
     },
 
-    // --- schedules ------------------------------------------------------------------------------
-    "scheduler_supported" => ok(scheduler::supported(&st.dirs)),
+    // --- schedules: one file each, the server's to keep (scheduler/taskfile.rs) ----------------
     "scheduler_validate_cron" => ok(scheduler::validate_cron(args["cron"].as_str().unwrap_or(""))),
-    "scheduler_register" => {
-        #[derive(serde::Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Args { spec: scheduler::jobfile::JobSpec, enabled: bool }
-        let Args { spec, enabled } = parse(&args)?;
+    "scheduler_list" => {
         let dirs = st.dirs.clone();
-        blocking(move || scheduler::register(&dirs, spec, enabled)).await?;
-        ok(Value::Null)
+        ok(blocking(move || Ok(scheduler::list(&dirs))).await?)
     },
-    "scheduler_unregister" => {
-        let dirs = st.dirs.clone();
+    // Create and update are one call: the page keeps generating the ids.
+    "scheduler_save" => {
+        let file: scheduler::taskfile::TaskFile = parse(&args)?;
+        let (dirs, bus) = (st.dirs.clone(), st.bus.clone());
+        ok(blocking(move || scheduler::save(&dirs, &bus, file)).await?)
+    },
+    "scheduler_remove" => {
         let task_id = str_arg(&args, "taskId")?;
-        blocking(move || scheduler::unregister(&dirs, task_id)).await?;
+        let (dirs, bus) = (st.dirs.clone(), st.bus.clone());
+        blocking(move || scheduler::remove(&dirs, &bus, &task_id)).await?;
         ok(Value::Null)
     },
     "scheduler_set_enabled" => {
@@ -452,13 +452,8 @@ rpcs! { st, caller, args;
         #[serde(rename_all = "camelCase")]
         struct Args { task_id: String, enabled: bool }
         let Args { task_id, enabled } = parse(&args)?;
-        let dirs = st.dirs.clone();
-        blocking(move || scheduler::set_enabled(&dirs, task_id, enabled)).await?;
-        ok(Value::Null)
-    },
-    "scheduler_status" => {
-        let dirs = st.dirs.clone();
-        ok(blocking(move || scheduler::status(&dirs)).await?)
+        let (dirs, bus) = (st.dirs.clone(), st.bus.clone());
+        ok(blocking(move || scheduler::set_enabled(&dirs, &bus, &task_id, enabled)).await?)
     },
     "scheduler_read_log" => {
         let dirs = st.dirs.clone();
@@ -473,12 +468,13 @@ rpcs! { st, caller, args;
         let dirs = st.dirs.clone();
         ok(blocking(move || scheduler::read_history(&dirs, task_id, limit)).await?)
     },
-    // Fire and forget, as a fire is: the page watches the run through `scheduler_status` and the
-    // Transfers list, not through this reply.
+    // Fire and forget, as a fire is: the page watches the run through `schedules.changed` and
+    // the Transfers list, not through this reply.
     "scheduler_run_now" => {
         let task_id = scheduler::runnable_now(&st.dirs, &str_arg(&args, "taskId")?)?;
         tokio::spawn(scheduler::runner::run(
             st.dirs.clone(),
+            st.bus.clone(),
             Arc::clone(&st.transfers),
             task_id,
         ));

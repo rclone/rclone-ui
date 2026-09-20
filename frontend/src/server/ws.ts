@@ -160,6 +160,8 @@ export interface EventPayloads {
     'app.update.progress': UpdateProgress
     /** The server wrote a line about a transfer: it started, or it ended. */
     'transfers.changed': { id: string }
+    /** A schedule was saved, removed or toggled, or one of its runs started or ended. */
+    'schedules.changed': { id: string }
 }
 
 export function on<N extends keyof EventPayloads>(

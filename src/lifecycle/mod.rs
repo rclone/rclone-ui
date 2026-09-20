@@ -10,7 +10,6 @@ pub mod binary;
 pub mod install;
 pub mod mounts;
 pub mod process;
-pub mod scheduler_reconcile;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -263,13 +262,7 @@ impl Supervisor {
         self.target.send_replace(Some(target));
         self.set_phase(Phase::Ready { pid, port, version });
 
-        // Off the critical path: the scheduler reconcile and startup mounts.
-        {
-            let (dirs, store) = (self.dirs.clone(), Arc::clone(&self.store));
-            tokio::spawn(async move {
-                scheduler_reconcile::reconcile(&dirs, &store).await;
-            });
-        }
+        // Off the critical path: the startup mounts.
         {
             let (dirs, store) = (self.dirs.clone(), Arc::clone(&self.store));
             // A mount pass belongs to the daemon that was up when it started: a crash-looping

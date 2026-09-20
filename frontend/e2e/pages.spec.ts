@@ -1371,26 +1371,23 @@ test('the picker hands a folder over as it is, no slash added', async ({ page })
     }
 })
 
-test('a scheduled task keeps what its sources are, and its job file is built from that', async ({
+test('a scheduled task keeps what its sources are, and its task file is built from that', async ({
     page,
     request,
 }) => {
-    // The job file is written once, when the task is saved, and a run only submits it; a later
-    // re-registration (enable, a cron edit, a remote rename) rebuilds it without asking rclone
-    // again, so what the sources are has to be kept with the task.
+    // The task file's requests are built once, when the task is saved, and a run only submits
+    // them; a later save (enable, a cron edit, a remote rename) rebuilds them without asking
+    // rclone again, so what the sources are has to be kept with the task.
     const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-sched-'))
     writeFileSync(join(dir, 'a.txt'), 'a')
     type Task = { id: string; kinds?: Record<string, string> }
-    const doc = async () =>
-        (await (await request.get('/api/state/app', { headers: SESSION })).json()) as {
-            revision: number
-            state: { scheduledTasks?: Task[] }
-        }
-    const patch = async (set: Record<string, unknown>) =>
-        request.patch('/api/state/app', {
-            headers: { ...SESSION, 'If-Match': String((await doc()).revision) },
-            data: { set, unset: [] },
-        })
+    // The list carries each task's form under `task`; the id is beside it.
+    const schedules = async () =>
+        (
+            (await (
+                await request.post('/api/rpc/scheduler_list', { headers: SESSION, data: {} })
+            ).json()) as { value: { id: string; task: Omit<Task, 'id'> }[] }
+        ).value.map((listed): Task => ({ id: listed.id, ...listed.task }))
     let taskId: string | undefined
     try {
         await page.goto('/copy')
@@ -1407,32 +1404,26 @@ test('a scheduled task keeps what its sources are, and its job file is built fro
         await expect(page.getByRole('button', { name: 'NEW COPY' })).toBeVisible({
             timeout: 15_000,
         })
-        const saved = async () =>
-            (await doc()).state.scheduledTasks?.find((t) => t.kinds?.[dir] !== undefined)
+        const saved = async () => (await schedules()).find((t) => t.kinds?.[dir] !== undefined)
         await expect.poll(saved).toBeDefined()
         const task = (await saved())!
         taskId = task.id
         expect(task.kinds).toEqual({ [dir]: 'folder' })
-        const jobFile = join('e2e', '.tmp', 'open', 'scheduler', 'jobs', `${taskId}.json`)
-        const spec = JSON.parse(readFileSync(jobFile, 'utf8')) as {
-            requests: { body: { inputs: { _path: string; srcFs: string }[] } }[]
+        const taskFile = join('e2e', '.tmp', 'open', 'scheduler', 'tasks', `${taskId}.json`)
+        const file = JSON.parse(readFileSync(taskFile, 'utf8')) as {
+            spec: { requests: { body: { inputs: { _path: string; srcFs: string }[] } }[] }
         }
-        expect(spec.requests[0].body.inputs[0]).toMatchObject({
+        expect(file.spec.requests[0].body.inputs[0]).toMatchObject({
             _path: 'sync/copy',
             srcFs: `:local:${dir}/`,
         })
     } finally {
         if (taskId) {
-            await request.post('/api/rpc/scheduler_unregister', {
+            await request.post('/api/rpc/scheduler_remove', {
                 headers: SESSION,
                 data: { taskId },
             })
         }
-        await patch({
-            scheduledTasks: ((await doc()).state.scheduledTasks ?? []).filter(
-                (t) => t.id !== taskId
-            ),
-        })
         rmSync(dir, { recursive: true, force: true })
         await request.post('/api/rc/operations/purge', {
             headers: SESSION,
@@ -2388,17 +2379,8 @@ test('a scheduled run opens where every other transfer does, and can be filtered
             .map((line) => JSON.stringify(line))
             .join('\n')}\n`
     )
-    const doc = async () =>
-        (await (await request.get('/api/state/app', { headers: SESSION })).json()) as {
-            revision: number
-            state: { scheduledTasks?: unknown[] }
-        }
-    const setTasks = async (scheduledTasks: unknown[]) =>
-        request.patch('/api/state/app', {
-            headers: { ...SESSION, 'If-Match': String((await doc()).revision) },
-            data: { set: { scheduledTasks }, unset: [] },
-        })
-    const before = (await doc()).state.scheduledTasks ?? []
+    const rpcPost = (name: string, data: Record<string, unknown>) =>
+        request.post(`/api/rpc/${name}`, { headers: SESSION, data })
     // By name: the first drawer a store ever closes is followed by a one-time tip about the ESC
     // key, which is a dialog too.
     const drawer = page.getByRole('dialog', { name: /Transfer Details/ })
@@ -2426,21 +2408,46 @@ test('a scheduled run opens where every other transfer does, and can be filtered
         await expect(drawer).toBeHidden()
         await dismissTip()
 
-        await setTasks([
-            ...before,
-            {
-                id: taskId,
-                name: 'Nightly photos',
-                cron: '0 2 1 1 *',
-                isEnabled: false,
-                operation: 'copy',
-                args: {
-                    sources: ['/tmp/e2e-nightly-src'],
-                    destination: 'e2e-memory:nightly',
-                    options: {},
-                },
+        // The schedule, as the page saves one: its form, and the requests a run submits.
+        const task = {
+            name: 'Nightly photos',
+            cron: '0 2 1 1 *',
+            operation: 'copy',
+            args: {
+                sources: ['/tmp/e2e-nightly-src'],
+                destination: 'e2e-memory:nightly',
+                options: {},
             },
-        ])
+        }
+        await rpcPost('scheduler_save', {
+            schemaVersion: 1,
+            id: taskId,
+            enabled: false,
+            task,
+            spec: {
+                name: task.name,
+                operation: task.operation,
+                cron: task.cron,
+                maxRunSeconds: 3600,
+                sources: task.args.sources,
+                destination: task.args.destination,
+                requests: [
+                    {
+                        endpoint: '/job/batch',
+                        body: {
+                            inputs: [
+                                {
+                                    _path: 'sync/copy',
+                                    srcFs: '/tmp/e2e-nightly-src',
+                                    dstFs: 'e2e-memory:nightly',
+                                },
+                            ],
+                            _async: true,
+                        },
+                    },
+                ],
+            },
+        })
         await page.reload()
         await page.getByRole('tab', { name: 'INACTIVE' }).click()
 
@@ -2470,11 +2477,7 @@ test('a scheduled run opens where every other transfer does, and can be filtered
         await expect(page).toHaveURL(/\/transfers$/)
         await expect(page.getByText('Runs of')).toBeHidden()
     } finally {
-        await setTasks(before)
-        await request.post('/api/rpc/scheduler_unregister', {
-            headers: SESSION,
-            data: { taskId },
-        })
+        await rpcPost('scheduler_remove', { taskId })
         // Dated 2030: left in, it would be the newest row of every later test.
         const kept = readFileSync(file, 'utf8')
             .split('\n')

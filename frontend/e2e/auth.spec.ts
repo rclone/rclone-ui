@@ -183,7 +183,7 @@ test('the team: an admin adds a member, the member signs in, removal ends their 
     await expect(row('pat@example.com')).toHaveCount(0)
     expect(
         (
-            await member.request.post('/api/rpc/scheduler_supported', {
+            await member.request.post('/api/rpc/scheduler_list', {
                 headers: SESSION,
                 data: {},
             })

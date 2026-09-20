@@ -55,16 +55,23 @@ test('a scheduled run keeps the files that failed early, as the server does', as
             )
             .toBe('ready')
         // Slow enough for the run to look at its files while they go by. On the daemon, not in
-        // the job file: a run submits transfers, and a bandwidth limit is not one.
+        // the task file: a run submits transfers, and a bandwidth limit is not one.
         await api.post(`${base}/api/rc/core/bwlimit`, { headers: SESSION, data: { rate: '64k' } })
-        const registered = await rpc('scheduler_register', {
+        const saved = await rpc('scheduler_save', {
+            schemaVersion: 1,
+            id: taskId,
             enabled: false,
-            spec: {
-                schemaVersion: 1,
-                taskId,
+            task: {
                 name: 'E2E collect',
                 operation: 'copy',
                 cron: '0 3 1 1 *',
+                args: { sources: [`${join(root, 'src')}/`], destination, options: {} },
+            },
+            spec: {
+                name: 'E2E collect',
+                operation: 'copy',
+                cron: '0 3 1 1 *',
+                maxRunSeconds: 86_400,
                 sources: [`${join(root, 'src')}/`],
                 destination: destination,
                 requests: [
@@ -84,7 +91,7 @@ test('a scheduled run keeps the files that failed early, as the server does', as
                 ],
             },
         })
-        expect(registered.error).toBeUndefined()
+        expect(saved.error).toBeUndefined()
         expect((await rpc('scheduler_run_now', { taskId })).error).toBeUndefined()
 
         const run = async () =>
@@ -101,7 +108,7 @@ test('a scheduled run keeps the files that failed early, as the server does', as
     } finally {
         chmodSync(locked, 0o644)
         await api.post(`${base}/api/rc/core/bwlimit`, { headers: SESSION, data: { rate: 'off' } })
-        await rpc('scheduler_unregister', { taskId })
+        await rpc('scheduler_remove', { taskId })
         await context.close()
         rmSync(root, { recursive: true, force: true })
     }

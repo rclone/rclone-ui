@@ -2,15 +2,14 @@ import { useMutation } from '@tanstack/react-query'
 
 import { onErrorDialog } from '@/lib/errors'
 import { notify } from '@/lib/notifications'
-import { createScheduledTask } from '@/lib/scheduler'
+import { createSchedule } from '@/lib/scheduler'
 import type { ScheduledTask } from '@/lib/scheduler'
 import { prompt } from '@/dialog'
 
 /**
  * The schedule mutation shared by the operation pages: page-specific validation (path checks)
- * → cron validation → name prompt → createScheduledTask,
- * which persists the task and registers it with the server's scheduler. Each run replays the
- * pre-serialized requests built from `buildArgs()` output.
+ * → cron validation → name prompt → createSchedule, which saves the task on the server. Each
+ * run replays the pre-serialized requests built from `buildArgs()` output.
  */
 export function useScheduleTask({
     operation,
@@ -42,7 +41,7 @@ export function useScheduleTask({
                 throw new Error('Schedule name is required')
             }
 
-            await createScheduledTask({
+            await createSchedule({
                 name,
                 operation,
                 cron: cronExpression,

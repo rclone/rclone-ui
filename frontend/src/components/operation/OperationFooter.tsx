@@ -11,7 +11,6 @@ import {
 import { AnimatePresence, motion } from 'framer-motion'
 import { BookOpenTextIcon, ClockIcon, EyeIcon } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback } from 'react'
-import { useSchedulingAvailable } from '@/lib/scheduler'
 
 import type { Template } from '@/lib/rclone/templatePaths'
 import { rcloneDocsUrl } from '@/lib/rclone/constants'
@@ -71,10 +70,6 @@ export default function OperationFooter({
     onResetOptions: () => void
     onResetAll: () => void
 }) {
-    // Hide the affordance where scheduling can't work — mirrors the Schedule options section on
-    // the operation pages.
-    const schedulingAvailable = useSchedulingAvailable()
-
     const handleStartPress = useCallback(() => {
         onStart()
     }, [onStart])
@@ -193,19 +188,17 @@ export default function OperationFooter({
                         </Button>
                     </Tooltip>
                 ) : null}
-                {schedulingAvailable ? (
-                    <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
-                        <Button
-                            size="lg"
-                            type="button"
-                            color="primary"
-                            isIconOnly={true}
-                            onPress={handleSchedulePress}
-                        >
-                            <ClockIcon className="size-6" />
-                        </Button>
-                    </Tooltip>
-                ) : null}
+                <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
+                    <Button
+                        size="lg"
+                        type="button"
+                        color="primary"
+                        isIconOnly={true}
+                        onPress={handleSchedulePress}
+                    >
+                        <ClockIcon className="size-6" />
+                    </Button>
+                </Tooltip>
                 <CommandInfoButton command={operation} />
             </ButtonGroup>
         </>

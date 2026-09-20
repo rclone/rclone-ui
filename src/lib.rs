@@ -366,6 +366,7 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
         // service as everything else.
         tokio::spawn(scheduler::ticker::run_ticker(
             state.dirs.clone(),
+            state.bus.clone(),
             Arc::clone(&state.transfers),
         ));
     }

@@ -2,7 +2,7 @@ import { usePersistedStore } from '@/store'
 import type { ScheduledTask } from '@/lib/scheduler'
 import { renameRemoteIn, renameRemoteInArgs } from '@/lib/format'
 import queryClient from '@/lib/query'
-import { updateScheduledTask } from '@/lib/scheduler'
+import { listSchedules, updateSchedule } from '@/lib/scheduler'
 import rclone from './client'
 import { readDaemonConfig, writeDaemonConfig } from './config-file'
 import { renameConfigSection } from './config-text'
@@ -36,7 +36,7 @@ export function checkRemoteName(name: string, existing: string[]): string | unde
  * external one alike. Every parameter stays as it was, OAuth tokens
  * included. What the app keeps by name follows: mount-on-start settings, favorites, the
  * sidebar's first-seen time, and scheduled tasks whose paths or per-remote options name it
- * (each re-registered). Anything mounted or served under the old name keeps running until it
+ * (each saved again). Anything mounted or served under the old name keeps running until it
  * is stopped.
  */
 export async function renameRemote(from: string, to: string): Promise<void> {
@@ -80,7 +80,7 @@ function carryRemoteSettings(from: string, to: string) {
 
 async function carrySchedules(from: string, to: string) {
     const failures: string[] = []
-    for (const task of usePersistedStore.getState().scheduledTasks) {
+    for (const task of await listSchedules()) {
         const { args, changed } = renameRemoteInArgs(task.args, from, to)
         if (!changed) continue
         // What the sources are goes with them, under their new names.
@@ -93,7 +93,7 @@ async function carrySchedules(from: string, to: string) {
               )
             : undefined
         try {
-            await updateScheduledTask(task.id, { args, kinds } as Partial<ScheduledTask>)
+            await updateSchedule(task.id, { args, kinds } as Partial<ScheduledTask>)
         } catch (error) {
             const reason = error instanceof Error ? error.message : String(error)
             failures.push(`${task.name ?? task.id}: ${reason}`)

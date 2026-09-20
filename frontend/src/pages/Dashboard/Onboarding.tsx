@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useNotificationTargets } from '@/lib/notifications'
 import { useTeam } from '@/lib/team'
+import { useSchedules } from '@/lib/scheduler'
 import { type OnboardingStep, usePersistedStore } from '@/store'
 import { Eyebrow, Panel } from './primitives'
 
@@ -120,7 +121,7 @@ export default function Onboarding({
         }
     }, [hasRemotes, hasTransferred, hasTeam, completed, completeOnboardingStep])
 
-    const hasSchedules = usePersistedStore((state) => state.scheduledTasks.length > 0)
+    const hasSchedules = (useSchedules().data?.length ?? 0) > 0
     const hasTemplates = usePersistedStore((state) => state.templates.length > 0)
     const hasTargets = (useNotificationTargets().data?.length ?? 0) > 0
     const hintDone: Record<Hint['key'], boolean> = {
