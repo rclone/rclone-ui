@@ -44,7 +44,8 @@ const api = { dialog, state: { stateStorage, whenWritten } }
 // nothing to hear). A socket that came back may have missed events: everything on screen asks again.
 onReconnect(() => queryClient.invalidateQueries())
 
-// Every page's console goes to the server's log file (rotated, so it can take all of it).
+// Every page's console goes to the server's log file (rotated, so it can take all of it):
+// collected from here, sent once the Shell has a session.
 forwardConsole()
 
 const pageRoutes = [

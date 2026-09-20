@@ -21,6 +21,16 @@ test('with no account, every door leads to /onboard', async ({ browser }) => {
         await page.goto('/')
         await expect(page).toHaveURL(/\/onboard$/)
         await expect(page.getByRole('heading', { name: 'Create the owner account' })).toBeVisible()
+        // A console line stays on the screen: the forwarder waits for a session. It once sent
+        // the line, was refused, and reloaded to /login, whose redirect came straight back here.
+        const rpcs: string[] = []
+        page.on('request', (r) => {
+            if (r.url().includes('/api/rpc/')) rpcs.push(r.url())
+        })
+        await page.evaluate(() => console.log('a line from the onboard screen'))
+        await page.waitForTimeout(700)
+        await expect(page).toHaveURL(/\/onboard$/)
+        expect(rpcs).toEqual([])
         await page.goto('/login')
         await expect(page).toHaveURL(/\/onboard$/)
         expect(errors).toEqual([])

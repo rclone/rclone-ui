@@ -1,5 +1,7 @@
 // Mirrors the page console into the server's log file (batched `log` RPCs), so a bug report's
-// log covers what the pages saw.
+// log covers what the pages saw. Collected from the first line, sent once the page has a session
+// (`startForwarding`): the RPC needs one, and on the screens before the app every line would be
+// a refusal, and the refusal a reload to the login.
 
 import { rpc } from './rpc'
 
@@ -7,6 +9,7 @@ type Level = 'trace' | 'debug' | 'info' | 'warn' | 'error'
 
 const queue: { level: Level; message: string }[] = []
 let timer: ReturnType<typeof setTimeout> | null = null
+let forwarding = false
 
 function flush() {
     timer = null
@@ -20,7 +23,13 @@ function flush() {
 function enqueue(level: Level, message: string) {
     queue.push({ level, message })
     if (queue.length > 2000) queue.splice(0, queue.length - 2000)
-    if (!timer) timer = setTimeout(flush, 250)
+    if (forwarding && !timer) timer = setTimeout(flush, 250)
+}
+
+/** Sends what was collected and everything from now on. The Shell calls it with a session in hand. */
+export function startForwarding() {
+    forwarding = true
+    if (queue.length > 0 && !timer) timer = setTimeout(flush, 0)
 }
 
 function format(args: unknown[]): string {

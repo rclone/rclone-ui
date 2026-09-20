@@ -1,6 +1,7 @@
 // `rpc(name, args)` → `POST /api/rpc/<name>`. Progress, when an RPC has any, comes over the
 // WebSocket as a bus event (`ws.ts`), never through the reply.
 
+import { onEntryScreen } from './session'
 import { setUnauthorizedHandler } from './ws'
 
 // The server refuses an RPC without it: a cross-site form cannot set a custom header, so with
@@ -21,7 +22,7 @@ let unauthorizedHandled = false
 function handleUnauthorized() {
     if (unauthorizedHandled) return
     unauthorizedHandled = true
-    if (window.location.pathname !== '/login') window.location.assign('/login')
+    if (!onEntryScreen()) window.location.assign('/login')
 }
 setUnauthorizedHandler(handleUnauthorized)
 

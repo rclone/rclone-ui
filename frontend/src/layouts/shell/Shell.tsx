@@ -2,6 +2,7 @@ import { Spinner, cn } from '@heroui/react'
 import { Suspense, useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { setNavigate } from '@/navigate'
+import { startForwarding } from '@/server/log'
 import { getSession } from '@/server/session'
 import { connect } from '@/server/ws'
 import { initStore } from '@/store'
@@ -76,9 +77,10 @@ export default function Shell() {
                     navigate(session.onboard ? '/onboard' : '/login', { replace: true })
                     return
                 }
-                // The socket needs the session, so it is opened here rather than at load: the
-                // sign-in screens never knock on it.
+                // The socket and the console forwarder need the session, so they start here
+                // rather than at load: the screens before the app never knock on them.
                 connect()
+                startForwarding()
                 // Pages must not render before the document has loaded: a first write would carry
                 // defaults over what is saved.
                 return initStore().then(() => {
@@ -89,6 +91,7 @@ export default function Shell() {
                 // The server did not answer: render anyway, and let the socket's own retries and
                 // its unauthorized handling decide what happens next.
                 connect()
+                startForwarding()
                 if (!cancelled) setAuthState('ok')
             })
         return () => {

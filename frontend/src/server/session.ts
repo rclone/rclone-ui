@@ -18,6 +18,11 @@ export interface Session {
 
 export const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', admin: 'Admin', member: 'Member' }
 
+/** The screens before the app: a missing session is their reason to exist, not a reason to leave. */
+export function onEntryScreen(): boolean {
+    return window.location.pathname === '/login' || window.location.pathname === '/onboard'
+}
+
 /** Who this tab is signed in as (`GET /api/session`, answered without a session too). */
 export async function getSession(): Promise<Session> {
     const response = await fetch('/api/session', { credentials: 'same-origin' })

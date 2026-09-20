@@ -12,6 +12,7 @@
 
 import type { StateStorage } from 'zustand/middleware'
 import { CLIENT_HEADER } from './rpc'
+import { onEntryScreen } from './session'
 import { on } from './ws'
 
 interface StateDoc {
@@ -38,7 +39,7 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
         credentials: 'same-origin',
         headers: { ...CLIENT_HEADER, ...(init.headers ?? {}) },
     })
-    if (response.status === 401 && window.location.pathname !== '/login') {
+    if (response.status === 401 && !onEntryScreen()) {
         window.location.assign('/login')
     }
     return response
