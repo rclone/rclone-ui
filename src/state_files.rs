@@ -17,7 +17,7 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
-use crate::ctx::Events;
+use crate::bus::Bus;
 use crate::datadir::DataDir;
 
 pub const APP_DOC: &str = "app";
@@ -51,7 +51,7 @@ impl From<String> for PatchError {
 
 pub struct StateStore {
     dirs: DataDir,
-    events: Events,
+    bus: Bus,
     cache: Mutex<HashMap<String, StateDoc>>,
 }
 
@@ -61,10 +61,10 @@ fn write_doc(path: &Path, doc: &StateDoc) -> Result<(), String> {
 }
 
 impl StateStore {
-    pub fn new(dirs: DataDir, events: Events) -> Self {
+    pub fn new(dirs: DataDir, bus: Bus) -> Self {
         StateStore {
             dirs,
-            events,
+            bus,
             cache: Mutex::new(HashMap::new()),
         }
     }
@@ -113,7 +113,7 @@ impl StateStore {
     }
 
     fn changed(&self, doc: &str, revision: u64, keys: Vec<String>) {
-        self.events.emit(
+        self.bus.publish(
             "state.changed",
             json!({ "doc": doc, "revision": revision, "keys": keys }),
         );
@@ -274,7 +274,7 @@ mod tests {
         ));
         std::fs::create_dir_all(&root).unwrap();
         let dirs = DataDir { root: root.clone() };
-        (StateStore::new(dirs, Events::noop()), root)
+        (StateStore::new(dirs, Bus::new()), root)
     }
 
     #[test]

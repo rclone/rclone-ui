@@ -135,8 +135,8 @@ mod tests {
 
     /// A daemon that accepts the connection and never answers must not hold readiness past its
     /// deadline (the general request timeout is 300 s).
-    #[test]
-    fn readiness_gives_up_on_a_stalled_daemon() {
+    #[tokio::test]
+    async fn readiness_gives_up_on_a_stalled_daemon() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         std::thread::spawn(move || {
@@ -147,7 +147,7 @@ mod tests {
         });
         let client = RcClient::new(format!("http://{}", addr), None, None);
         let started = std::time::Instant::now();
-        let result = crate::rt::block_on(client.wait_ready(Duration::from_secs(1), || None));
+        let result = client.wait_ready(Duration::from_secs(1), || None).await;
         assert!(result.is_err());
         assert!(
             started.elapsed() < Duration::from_secs(6),

@@ -1,24 +1,14 @@
-// The page's WebSocket to the server: stream events for RPCs the page started (`stream` ids)
-// and every bus event (`{type:'event', name, payload}`). Reconnects with backoff; a session id
-// identifies this page on every RPC (`X-RcloneCloud-Session`) so the server knows which socket a
-// stream belongs to.
+// The page's WebSocket to the server: every bus event, as `{type:'event', name, payload}`. The
+// server says `ready` once the socket is up; a page whose socket came back hears of it through
+// `onReconnect` and asks its queries again (main.tsx). Reconnects with backoff.
 
-export const sessionId: string =
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-
-type StreamHandler = { onEvent: (event: unknown) => void; onEnd: (error?: string) => void }
 type EventHandler = (payload: unknown) => void
 
-const streams = new Map<string, StreamHandler>()
 const eventHandlers = new Map<string, Set<EventHandler>>()
 const reconnectListeners = new Set<() => void>()
 
 let socket: WebSocket | null = null
 let reconnectDelay = 500
-let readyResolvers: (() => void)[] = []
-let isReady = false
 let everConnected = false
 let onUnauthorized: () => void = () => {}
 
@@ -26,19 +16,7 @@ export function setUnauthorizedHandler(handler: () => void) {
     onUnauthorized = handler
 }
 
-export function newStreamId(): string {
-    return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
-export function registerStream(id: string, handler: StreamHandler): () => void {
-    streams.set(id, handler)
-    return () => streams.delete(id)
-}
-
-/** Subscribes to a bus event by name. */
-export function onEvent(name: string, handler: EventHandler): () => void {
+function onEvent(name: string, handler: EventHandler): () => void {
     let set = eventHandlers.get(name)
     if (!set) {
         set = new Set()
@@ -56,18 +34,8 @@ export function onReconnect(listener: () => void): () => void {
     return () => reconnectListeners.delete(listener)
 }
 
-/** Resolves once the socket has said hello (so a stream registered now will be delivered). */
-export function whenReady(): Promise<void> {
-    if (isReady) return Promise.resolve()
-    connect()
-    return new Promise((resolve) => readyResolvers.push(resolve))
-}
-
 interface Frame {
     type: string
-    id?: string
-    event?: unknown
-    error?: string
     name?: string
     payload?: unknown
 }
@@ -78,23 +46,8 @@ function handleFrame(frame: Frame) {
             reconnectDelay = 500
             const reconnected = everConnected
             everConnected = true
-            isReady = true
-            for (const resolve of readyResolvers) resolve()
-            readyResolvers = []
             if (reconnected) {
                 for (const listener of reconnectListeners) listener()
-            }
-            return
-        }
-        case 'stream': {
-            if (frame.id) streams.get(frame.id)?.onEvent(frame.event)
-            return
-        }
-        case 'stream_end': {
-            if (frame.id) {
-                const handler = streams.get(frame.id)
-                streams.delete(frame.id)
-                handler?.onEnd(frame.error)
             }
             return
         }
@@ -129,9 +82,6 @@ export function connect() {
     socket = ws
     let hadReady = false
 
-    ws.onopen = () => {
-        ws.send(JSON.stringify({ type: 'hello', session: sessionId }))
-    }
     ws.onmessage = (message) => {
         let frame: Frame
         try {
@@ -143,7 +93,6 @@ export function connect() {
         handleFrame(frame)
     }
     ws.onclose = () => {
-        isReady = false
         socket = null
         if (!hadReady) {
             // Probably unauthenticated (the server refuses the upgrade): don't hammer it.
@@ -170,4 +119,55 @@ if (typeof window !== 'undefined') {
     setInterval(() => {
         if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'ping' }))
     }, 25_000)
+}
+
+// --- the events the server publishes (`Bus::publish`), typed by name ---------------------------
+
+export interface LifecyclePhase {
+    phase: 'stopped' | 'resolving' | 'downloading' | 'updating' | 'starting' | 'ready' | 'failed'
+    version?: string
+    from?: string
+    to?: string
+    pid?: number
+    port?: number
+    updated?: boolean
+    error?: string
+    attempts?: number
+}
+
+export interface StateChanged {
+    doc: string
+    revision: number
+    keys: string[]
+}
+
+export interface DownloadProgress {
+    version: string
+    downloaded: number
+    total: number | null
+}
+
+export interface UpdateProgress {
+    event: 'Started' | 'Progress' | 'Finished'
+    data?: { contentLength?: number | null; chunkLength?: number }
+}
+
+export interface EventPayloads {
+    'lifecycle.phase': LifecyclePhase
+    'state.changed': StateChanged
+    /** An rclone release on its way into the machine's bin folder. */
+    'rclone.download-progress': DownloadProgress
+    /** The server's own update on its way in. */
+    'app.update.progress': UpdateProgress
+    /** The server wrote a line about a transfer: it started, or it ended. */
+    'transfers.changed': { id: string }
+}
+
+export function on<N extends keyof EventPayloads>(
+    name: N,
+    handler: (payload: EventPayloads[N]) => void
+): () => void
+export function on(name: string, handler: (payload: unknown) => void): () => void
+export function on(name: string, handler: (payload: any) => void): () => void {
+    return onEvent(name, handler)
 }

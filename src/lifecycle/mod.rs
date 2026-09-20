@@ -19,15 +19,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, watch};
 
-use crate::commands::misc;
-use crate::ctx::Ctx;
-use crate::notifications::webhooks;
+use crate::bus::Bus;
+use crate::datadir::DataDir;
+use crate::notifications::notify;
 use crate::rc::{self, RcClient};
-use crate::rt;
 use crate::scheduler::storeread;
 use crate::state_files::{StateStore, HOST_DOC};
 use crate::transfers::service::TransferService;
-use crate::zookeeper::{self, RcloneEvent};
+use crate::zookeeper::{self, DaemonState, RcloneEvent};
 
 const MAX_ATTEMPTS: u32 = 5;
 const READINESS_TIMEOUT: Duration = Duration::from_secs(15);
@@ -96,7 +95,10 @@ pub struct Options {
 }
 
 pub struct Supervisor {
-    ctx: Ctx,
+    dirs: DataDir,
+    bus: Bus,
+    /// The daemon this supervisor spawned, while it runs (`zookeeper::spawn_rclone_with`).
+    daemon: Arc<Mutex<DaemonState>>,
     store: Arc<StateStore>,
     options: Options,
     phase: watch::Sender<Phase>,
@@ -114,7 +116,8 @@ pub struct Supervisor {
 impl Supervisor {
     /// Starts the orchestrator on the current tokio runtime.
     pub fn spawn(
-        ctx: Ctx,
+        dirs: DataDir,
+        bus: Bus,
         store: Arc<StateStore>,
         options: Options,
         transfers: Arc<TransferService>,
@@ -122,7 +125,9 @@ impl Supervisor {
         let (phase, _) = watch::channel(Phase::Stopped);
         let (restart_tx, restart_rx) = mpsc::unbounded_channel();
         let supervisor = Arc::new(Supervisor {
-            ctx,
+            dirs,
+            bus,
+            daemon: Arc::new(Mutex::new(DaemonState::default())),
             store,
             options,
             phase,
@@ -162,15 +167,19 @@ impl Supervisor {
     }
 
     fn set_phase(&self, phase: Phase) {
-        self.ctx.events.emit("lifecycle.phase", &phase);
+        self.bus.publish("lifecycle.phase", &phase);
         self.phase.send_replace(phase);
     }
 
     async fn stop_daemon(&self) {
         *self.target.write().unwrap() = None;
         self.transfers.daemon_stopped();
-        let ctx = self.ctx.clone();
-        match rt::spawn_blocking(move || zookeeper::kill_rclone_daemon(&ctx, Some(5000))).await {
+        let daemon = Arc::clone(&self.daemon);
+        match tokio::task::spawn_blocking(move || {
+            zookeeper::kill_rclone_daemon(&daemon, Some(5000))
+        })
+        .await
+        {
             Ok(Err(e)) => log::warn!("[lifecycle] failed to stop the daemon: {}", e),
             Err(e) => log::warn!("[lifecycle] failed to stop the daemon: {}", e),
             Ok(Ok(_)) => {}
@@ -195,15 +204,20 @@ impl Supervisor {
     async fn start_once(&self) -> Result<mpsc::UnboundedReceiver<RcloneEvent>, String> {
         self.set_phase(Phase::Resolving);
         let found = resolve::resolve_binary(
-            &self.ctx,
+            &self.dirs,
+            &self.bus,
             self.options.rclone_path_override.as_deref(),
             |version| self.set_phase(Phase::Downloading { version }),
         )
         .await?;
         // It is replaced where it lives, so the path to run does not change.
-        let updated = resolve::maybe_auto_update(&self.ctx, &self.store, &found, |from, to| {
-            self.set_phase(Phase::Updating { from, to })
-        })
+        let updated = resolve::maybe_auto_update(
+            &self.dirs,
+            &self.bus,
+            &self.store,
+            &found,
+            |from, to| self.set_phase(Phase::Updating { from, to }),
+        )
         .await
         .is_some();
         let path = found.path;
@@ -211,8 +225,8 @@ impl Supervisor {
         // The only thing the daemon is told about its environment is the proxy. Its config file
         // is rclone's business: whatever `RCLONE_CONFIG`/`XDG_CONFIG_HOME` this process was given
         // is inherited untouched, and rclone resolves the rest.
-        let host = if storeread::host_state_exists(&self.ctx.dirs) {
-            storeread::read_host(&self.ctx.dirs)?
+        let host = if storeread::host_state_exists(&self.dirs) {
+            storeread::read_host(&self.dirs)?
         } else {
             storeread::HostState::default()
         };
@@ -224,7 +238,7 @@ impl Supervisor {
         if let Some(proxy) = env.get("https_proxy").cloned().filter(|p| !p.is_empty()) {
             let probed = self.proxy_probed.lock().unwrap().as_deref() == Some(proxy.as_str());
             if !probed {
-                if let Err(error) = misc::test_proxy_connection(&self.ctx, proxy.clone()).await {
+                if let Err(error) = crate::http::test_proxy_connection(&proxy).await {
                     log::warn!("[lifecycle] the proxy {} is unreachable: {}", proxy, error);
                 }
                 *self.proxy_probed.lock().unwrap() = Some(proxy);
@@ -256,15 +270,14 @@ impl Supervisor {
         let (close_tx, close_rx) = mpsc::unbounded_channel::<RcloneEvent>();
         log::info!("[lifecycle] starting {} on port {}", path, port);
         let pid = zookeeper::spawn_rclone_with(
-            &self.ctx,
+            &self.daemon,
             path,
             args,
             env,
             Box::new(move |event| {
                 let _ = close_tx.send(event);
             }),
-        )
-        ?;
+        )?;
 
         let target = RcTarget {
             base_url: format!("http://127.0.0.1:{}", port),
@@ -272,7 +285,7 @@ impl Supervisor {
             pass,
         };
         let client = target.client();
-        let daemon = Arc::clone(&self.ctx.daemon);
+        let daemon = Arc::clone(&self.daemon);
         client
             .wait_ready(READINESS_TIMEOUT, || {
                 let state = daemon.lock().unwrap();
@@ -301,13 +314,13 @@ impl Supervisor {
 
         // Off the critical path: the scheduler reconcile and startup mounts.
         {
-            let ctx = self.ctx.clone();
+            let dirs = self.dirs.clone();
             tokio::spawn(async move {
-                scheduler_reconcile::reconcile(&ctx).await;
+                scheduler_reconcile::reconcile(&dirs).await;
             });
         }
         {
-            let ctx = self.ctx.clone();
+            let dirs = self.dirs.clone();
             // A mount pass belongs to the daemon that was up when it started: a crash-looping
             // one would otherwise stack passes, each retrying against a port that is gone.
             let previous = self
@@ -315,7 +328,7 @@ impl Supervisor {
                 .lock()
                 .unwrap()
                 .replace(tokio::spawn(async move {
-                    mounts::startup_mounts(&ctx, &client).await
+                    mounts::startup_mounts(&dirs, &client).await
                 }));
             if let Some(previous) = previous {
                 previous.abort();
@@ -334,7 +347,7 @@ impl Supervisor {
         // every few seconds must not page every few seconds.
         if attempts == 1 {
             notify(
-                &self.ctx,
+                &self.dirs,
                 "rclone.crashed",
                 "Rclone daemon crashed",
                 &body,
@@ -342,7 +355,7 @@ impl Supervisor {
             );
         } else if attempts == MAX_ATTEMPTS {
             notify(
-                &self.ctx,
+                &self.dirs,
                 "rclone.crashed",
                 "Rclone daemon keeps crashing",
                 &format!("{} — {} times in a row", body, attempts),
@@ -459,26 +472,4 @@ async fn run_loop(
             }
         }
     }
-}
-
-/// Fire-and-forget webhook dispatch (delivery outcomes are recorded per target and logged).
-pub fn notify(
-    ctx: &Ctx,
-    event_id: &str,
-    title: &str,
-    body: &str,
-    data: Value,
-) -> tokio::task::JoinHandle<()> {
-    let dirs = ctx.dirs.clone();
-    let event_id = event_id.to_string();
-    let title = title.to_string();
-    let body = body.to_string();
-    // Each on its own: one endpoint that does not answer holds up nothing else. The handle is
-    // for the rare caller that must not say two things out of order.
-    rt::spawn_blocking(move || {
-        let client = webhooks::http_client();
-        for line in webhooks::dispatch(&dirs, &client, &event_id, &title, &body, data) {
-            log::warn!("[notifications] {}", line);
-        }
-    })
 }

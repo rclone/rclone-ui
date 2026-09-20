@@ -20,11 +20,12 @@ use tokio::sync::broadcast;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::ctx::Ctx;
-use crate::lifecycle::notify;
+use crate::bus::Bus;
+use crate::datadir::DataDir;
+use crate::notifications::notify;
 use crate::rc::RcClient;
-use crate::time::now_iso;
 use crate::scheduler::jobfile::RcRequest;
+use crate::time::now_iso;
 
 use super::ledger::{self, Finished, Line, Started, State, Stats};
 use super::status::{self, merge_failed, Failed, Verdict};
@@ -117,7 +118,8 @@ struct Watched {
 }
 
 pub struct TransferService {
-    ctx: Ctx,
+    dirs: DataDir,
+    bus: Bus,
     /// `local` is a daemon this process spawns, so its transfers die with it; otherwise
     /// (`--rclone-url`) it outlives us like any remote host.
     managed_local: bool,
@@ -204,9 +206,10 @@ fn webhook_data(started: &Started) -> Value {
 }
 
 impl TransferService {
-    pub fn new(ctx: Ctx, managed_local: bool) -> Arc<Self> {
+    pub fn new(dirs: DataDir, bus: Bus, managed_local: bool) -> Arc<Self> {
         Arc::new(TransferService {
-            ctx,
+            dirs,
+            bus,
             managed_local,
             watched: Mutex::new(HashMap::new()),
             resolver: RwLock::new(None),
@@ -240,7 +243,7 @@ impl TransferService {
     /// transfers were interrupted; anything else may still be running and is watched again
     /// (whether its daemon is still the same one shows at the first look).
     pub fn recover(&self) {
-        for started in ledger::open(&ledger::path(&self.ctx.dirs)) {
+        for started in ledger::open(&ledger::path(&self.dirs)) {
             if self.managed_local {
                 self.write_end(&started, State::Interrupted, None, None);
             } else {
@@ -331,7 +334,7 @@ impl TransferService {
         let said = (launch_error.is_none() && !started.is_dry_run && !ran_by_a_schedule(&started))
             .then(|| {
                 notify(
-                    &self.ctx,
+                    &self.dirs,
                     "job.started",
                     "Transfer started",
                     &describe(&started),
@@ -532,7 +535,7 @@ impl TransferService {
             Some(error) => {
                 data["error"] = Value::String(error.clone());
                 notify(
-                    &self.ctx,
+                    &self.dirs,
                     "job.failed",
                     "Transfer failed",
                     &format!("{} — {}", describe(&started), error),
@@ -541,7 +544,7 @@ impl TransferService {
             }
             None => {
                 notify(
-                    &self.ctx,
+                    &self.dirs,
                     "job.completed",
                     "Transfer completed",
                     &describe(&started),
@@ -554,7 +557,7 @@ impl TransferService {
     /// Records a transfer that just started and watches it. `launching`: its first look is
     /// `start`'s own ([`TransferService::launched`] hands it to the ticker).
     fn watch(&self, started: Started, launching: bool) {
-        let path = ledger::path(&self.ctx.dirs);
+        let path = ledger::path(&self.dirs);
         if let Err(error) = ledger::append(&path, &Line::Started(started.clone())) {
             log::error!("[transfers] {} not recorded: {}", started.id, error);
         }
@@ -587,9 +590,8 @@ impl TransferService {
     }
 
     fn changed(&self, started: &Started) {
-        self.ctx
-            .events
-            .emit("transfers.changed", json!({ "id": started.id }));
+        self.bus
+            .publish("transfers.changed", json!({ "id": started.id }));
     }
 
     /// Writes the end of a transfer that has been claimed (or that nothing watches yet), and
@@ -602,7 +604,7 @@ impl TransferService {
         error: Option<String>,
         stats: Option<Stats>,
     ) {
-        let path = ledger::path(&self.ctx.dirs);
+        let path = ledger::path(&self.dirs);
         let finished = Finished {
             id: started.id.clone(),
             ts: now_iso(),
@@ -610,7 +612,7 @@ impl TransferService {
             error: error.clone(),
             stats,
         };
-        if let Err(error) = ledger::finish(&self.ctx.dirs, &path, finished) {
+        if let Err(error) = ledger::finish(&self.dirs, &path, finished) {
             log::error!(
                 "[transfers] the end of {} not recorded: {}",
                 started.id,
@@ -629,17 +631,17 @@ impl TransferService {
     /// The request a transfer was started with, written as it starts.
     fn keep_request(&self, id: &str, request: &RcRequest) {
         let details = json!({ "request": { "endpoint": request.endpoint, "body": request.body } });
-        if let Err(error) = ledger::write_details(&self.ctx.dirs, id, &details) {
+        if let Err(error) = ledger::write_details(&self.dirs, id, &details) {
             log::warn!("[transfers] the request of {} not kept: {}", id, error);
         }
     }
 
     /// What a transfer left behind, added to the request that is already there.
     fn keep_outcome(&self, id: &str, status: &Value, transferred: &Value, failed: &Failed) {
-        let mut details = ledger::read_details(&self.ctx.dirs, id).unwrap_or_else(|| json!({}));
+        let mut details = ledger::read_details(&self.dirs, id).unwrap_or_else(|| json!({}));
         status::keep_outcome(&mut details, status, transferred, failed);
         // Before the `finished` line: the line is what tells the pages there is something to read.
-        if let Err(error) = ledger::write_details(&self.ctx.dirs, id, &details) {
+        if let Err(error) = ledger::write_details(&self.dirs, id, &details) {
             log::warn!("[transfers] details of {} not written: {}", id, error);
         }
     }
@@ -655,7 +657,7 @@ async fn probe(client: &RcClient, endpoint: &str, body: &Value) -> Result<Value,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ctx::Events;
+    use crate::bus::Bus;
     use crate::datadir::DataDir;
 
     fn service(name: &str, managed_local: bool) -> (Arc<TransferService>, DataDir) {
@@ -666,8 +668,7 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&root);
         let dirs = DataDir { root };
-        let ctx = Ctx::new(dirs.clone(), Events::noop());
-        (TransferService::new(ctx, managed_local), dirs)
+        (TransferService::new(dirs.clone(), Bus::new(), managed_local), dirs)
     }
 
     fn started(id: &str) -> Started {
@@ -736,8 +737,7 @@ mod tests {
         first.watch(started("there"), false);
         drop(first);
 
-        let ctx = Ctx::new(dirs.clone(), Events::noop());
-        let second = TransferService::new(ctx, true);
+        let second = TransferService::new(dirs.clone(), Bus::new(), true);
         second.recover();
 
         assert_eq!(state_of(&dirs, "here"), State::Interrupted);
@@ -747,7 +747,7 @@ mod tests {
         let (first, dirs_external) = service("recover-external", false);
         first.watch(started("here"), false);
         drop(first);
-        let external = TransferService::new(Ctx::new(dirs_external.clone(), Events::noop()), false);
+        let external = TransferService::new(dirs_external.clone(), Bus::new(), false);
         external.recover();
         assert_eq!(state_of(&dirs_external, "here"), State::Running);
         let _ = std::fs::remove_dir_all(&dirs.root);

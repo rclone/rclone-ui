@@ -2,7 +2,8 @@
 // lifecycle (the rclone daemon the server manages). Starting at boot is the operator's job,
 // through whatever supervisor runs the server.
 
-import { rpc, stream } from './rpc'
+import { rpc } from './rpc'
+import { type LifecyclePhase, type UpdateProgress, on } from './ws'
 
 export interface UpdateInfo {
     version: string
@@ -11,20 +12,18 @@ export interface UpdateInfo {
     date: string | null
 }
 
-interface UpdateProgress {
-    event: 'Started' | 'Progress' | 'Finished'
-    data?: { contentLength?: number | null; chunkLength?: number }
-}
-
 export const relaunch = () => rpc<null>('app_relaunch')
 export const updateCheck = () => rpc<UpdateInfo | null>('app_update_check')
+/** Installs the update `updateCheck` found; its download reports over the bus meanwhile. */
 export async function updateInstall(
     onProgress?: (progress: UpdateProgress) => void
 ): Promise<void> {
-    const handle = await stream<null, UpdateProgress>('app_update_install', {}, (event) =>
-        onProgress?.(event)
-    )
-    handle.unsubscribe()
+    const off = on('app.update.progress', (event) => onProgress?.(event))
+    try {
+        await rpc<null>('app_update_install')
+    } finally {
+        off()
+    }
 }
 /** The dialog is one at a time across pages, per remote. */
 export const claimReconnectDialog = (remote: string) =>
@@ -44,7 +43,7 @@ export interface Status {
     uptimeSeconds: number
     dirs: { data: string }
     managedDaemon: boolean
-    lifecycle: import('./events').LifecyclePhase | null
+    lifecycle: LifecyclePhase | null
     daemon: { url: string } | null
 }
 

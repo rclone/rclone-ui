@@ -10,21 +10,15 @@ pub mod ledger;
 pub mod service;
 pub mod status;
 
-use crate::ctx::Ctx;
+use crate::datadir::DataDir;
 
 /// Every transfer, running and past, newest first.
-pub fn transfers_list(
-    ctx: &Ctx,
-    limit: Option<usize>,
-) -> Result<Vec<ledger::Entry>, String> {
-    Ok(ledger::list(
-        &ctx.dirs,
-        limit.unwrap_or(ledger::KEEP_ENTRIES),
-    ))
+pub fn list(dirs: &DataDir, limit: Option<usize>) -> Vec<ledger::Entry> {
+    ledger::list(dirs, limit.unwrap_or(ledger::KEEP_ENTRIES))
 }
 
 /// What a finished transfer left behind: rclone's last `job/status` and the files it moved.
-pub fn transfers_detail(ctx: &Ctx, id: String) -> Result<Option<serde_json::Value>, String> {
-    let id = crate::scheduler::sanitize_id(&id).map_err(|_| "invalid transfer id")?;
-    Ok(ledger::read_details(&ctx.dirs, &id))
+pub fn detail(dirs: &DataDir, id: &str) -> Result<Option<serde_json::Value>, String> {
+    let id = crate::scheduler::sanitize_id(id).map_err(|_| "invalid transfer id")?;
+    Ok(ledger::read_details(dirs, &id))
 }

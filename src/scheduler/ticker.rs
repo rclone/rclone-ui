@@ -15,7 +15,6 @@ use super::jobfile;
 use super::runner;
 use super::storeread::DataDir;
 use super::{InstallState, Registration, RenderedSchedule, SchedulerBackend, NOT_REGISTERED};
-use crate::ctx::Ctx;
 use crate::transfers::service::TransferService;
 
 /// What registering a task leaves on disk. The schedule itself is the job file's; this is only
@@ -139,9 +138,8 @@ impl SchedulerBackend for TickerBackend {
 /// Runs due tasks at the top of every minute. A task whose previous run is still going is
 /// skipped by the runner itself; missed minutes are not caught up — a server that was down was
 /// not going to run them anyway.
-pub async fn run_ticker(ctx: Ctx, transfers: Arc<TransferService>) {
+pub async fn run_ticker(dirs: DataDir, transfers: Arc<TransferService>) {
     use chrono::{Datelike, Timelike};
-    let dirs = ctx.dirs.clone();
     loop {
         let now = chrono::Local::now();
         let wait = 60 - now.second() as u64;
@@ -174,7 +172,7 @@ pub async fn run_ticker(ctx: Ctx, transfers: Arc<TransferService>) {
             // Off the loop: a run lasts as long as its transfers do, and the next minute must
             // arrive on time regardless.
             tokio::spawn(runner::run(
-                ctx.clone(),
+                dirs.clone(),
                 Arc::clone(&transfers),
                 spec.task_id.clone(),
             ));

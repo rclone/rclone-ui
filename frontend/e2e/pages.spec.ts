@@ -20,7 +20,7 @@ import { stopLeftoverJobs } from './helpers'
 // user-facing path and checks the effect where it lands: the state document, the rc request, or
 // the file system.
 
-const SESSION = { 'X-RcloneCloud-Session': 'e2e', 'Content-Type': 'application/json' }
+const SESSION = { 'X-RcloneCloud-Client': 'web', 'Content-Type': 'application/json' }
 
 // What a test's page left running on the shared daemon stops with the test (`stopLeftoverJobs`).
 test.afterEach(({ request }) => stopLeftoverJobs(request))
@@ -184,7 +184,7 @@ test('a folder dropped in the commander is copied as a folder, without overwriti
     const upload = await request.post(
         '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=dropdir',
         {
-            headers: { 'X-RcloneCloud-Session': 'e2e' },
+            headers: { 'X-RcloneCloud-Client': 'web' },
             multipart: {
                 file0: { name: 'inner.txt', mimeType: 'text/plain', buffer: Buffer.from('inner') },
             },
@@ -253,7 +253,7 @@ test('a download from the Commander is a transfer like any other, tagged with wh
     const upload = await request.post(
         '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=downloads',
         {
-            headers: { 'X-RcloneCloud-Session': 'e2e' },
+            headers: { 'X-RcloneCloud-Client': 'web' },
             multipart: {
                 file0: {
                     name: 'report.txt',
@@ -1251,7 +1251,7 @@ test('a path reads the way rclone reads it, in the path bar and in a field', asy
     const upload = await request.post(
         '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=grammar',
         {
-            headers: { 'X-RcloneCloud-Session': 'e2e' },
+            headers: { 'X-RcloneCloud-Client': 'web' },
             multipart: {
                 file0: { name: 'inner.txt', mimeType: 'text/plain', buffer: Buffer.from('x') },
             },
@@ -2310,7 +2310,7 @@ test('delete takes several paths and removes every one of them', async ({ page, 
     const upload = await request.post(
         '/api/rc/operations/uploadfile?fs=e2e-memory:&remote=multi-delete',
         {
-            headers: { 'X-RcloneCloud-Session': 'e2e' },
+            headers: { 'X-RcloneCloud-Client': 'web' },
             multipart: {
                 file0: { name: 'one.txt', mimeType: 'text/plain', buffer: Buffer.from('1') },
                 file1: { name: 'two.txt', mimeType: 'text/plain', buffer: Buffer.from('2') },
@@ -2802,7 +2802,7 @@ test('the Dashboard counts transfers, not every file the daemon touches', async 
         const written = await request.post(
             `/api/rc/operations/uploadfile?fs=${encodeURIComponent(root)}&remote=`,
             {
-                headers: { 'X-RcloneCloud-Session': 'e2e' },
+                headers: { 'X-RcloneCloud-Client': 'web' },
                 multipart: {
                     file0: {
                         name: 'rclone.conf',

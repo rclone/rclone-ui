@@ -1,15 +1,19 @@
-//! rclone binary manager: spawning, versioned downloads, and PATH integration.
+//! The rclone binary: spawning the daemon, probing a binary's version, and installing a release
+//! where the server's own rclone lives.
 //!
 //! rclone is executed by absolute path from here (via `std::process`).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use serde::Serialize;
 
-use crate::ctx::Ctx;
+use crate::bus::Bus;
+use crate::datadir::DataDir;
+use crate::scheduler::storeread::ProxyCfg;
 
 // ---------------------------------------------------------------------------
 // Shared types & state
@@ -232,7 +236,7 @@ pub fn probe_rclone_version(path: &Path) -> Result<String, String> {
 /// Spawns the long-lived daemon and hands exactly one `close` event to `on_close` when it exits.
 /// Refuses to start a second daemon while one is tracked.
 pub fn spawn_rclone_with(
-    ctx: &Ctx,
+    daemon: &Arc<Mutex<DaemonState>>,
     path: String,
     args: Vec<String>,
     env: HashMap<String, String>,
@@ -240,7 +244,7 @@ pub fn spawn_rclone_with(
 ) -> Result<u32, String> {
     use std::process::{Command, Stdio};
 
-    let daemon = Arc::clone(&ctx.daemon);
+    let daemon = Arc::clone(daemon);
 
     // Reject a second daemon instead of orphaning the first. A restart that reaches here after a
     // swallowed kill failure gets the clean spawn-failure dialog rather than a crash dialog.
@@ -321,9 +325,12 @@ pub fn spawn_rclone_with(
 /// Terminates the running daemon. Marks it intentional so its close event is ignored by the UI.
 /// Returns whether a daemon was actually killed (false when nothing was tracked). Rust state is
 /// authoritative — no caller-supplied pid to SIGKILL a possibly-reused OS pid.
-pub fn kill_rclone_daemon(ctx: &Ctx, timeout_ms: Option<u64>) -> Result<bool, String> {
+pub fn kill_rclone_daemon(
+    daemon: &Arc<Mutex<DaemonState>>,
+    timeout_ms: Option<u64>,
+) -> Result<bool, String> {
     let target = {
-        let s = ctx.daemon.lock().unwrap();
+        let s = daemon.lock().unwrap();
         if s.pid.is_some() {
             if let Some(flag) = &s.intentional {
                 flag.store(true, Ordering::SeqCst);
@@ -485,19 +492,6 @@ struct DownloadProgress {
     total: Option<u64>,
 }
 
-fn build_http_client(proxy_url: Option<String>) -> Result<reqwest::Client, String> {
-    use std::time::Duration;
-    let mut builder = reqwest::Client::builder().timeout(Duration::from_secs(600));
-    if let Some(p) = proxy_url {
-        let p = p.trim().to_string();
-        if !p.is_empty() {
-            let proxy = reqwest::Proxy::all(&p).map_err(|e| format!("Invalid proxy: {}", e))?;
-            builder = builder.proxy(proxy);
-        }
-    }
-    builder.build().map_err(|e| e.to_string())
-}
-
 /// Parses a (PGP-signed) SHA256SUMS body for the expected hash of `file_name`.
 fn expected_sha256(sums: &str, file_name: &str) -> Option<String> {
     // SHA256SUMS is PGP-signed: skip the header/footer and blank lines, match "<hash>  <file>".
@@ -520,10 +514,11 @@ static INSTALLING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 /// what is there. The daemon is not stopped first: a rename under a running binary is safe, and
 /// a download that fails then leaves rclone running.
 pub async fn install_rclone(
-    ctx: &Ctx,
+    dirs: &DataDir,
+    bus: &Bus,
     version: &str,
     target: &Path,
-    proxy_url: Option<String>,
+    proxy: Option<ProxyCfg>,
 ) -> Result<(), String> {
     let _one = INSTALLING
         .try_lock()
@@ -546,15 +541,11 @@ pub async fn install_rclone(
     let zip_url = format!("https://downloads.rclone.org/v{}/{}", version, zip_name);
     let sums_url = format!("https://downloads.rclone.org/v{}/SHA256SUMS", version);
 
-    let tmp = ctx
-        .dirs
-        .root
-        .join("tmp")
-        .join(format!("rclone-{}", version));
+    let tmp = dirs.root.join("tmp").join(format!("rclone-{}", version));
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(&tmp).map_err(|e| e.to_string())?;
     let result = match download_verified(
-        ctx, version, &zip_name, &zip_url, &sums_url, proxy_url, &tmp,
+        bus, version, &zip_name, &zip_url, &sums_url, proxy, &tmp,
     )
     .await
     {
@@ -601,18 +592,18 @@ pub fn place(staged: &Path, target: &Path) -> Result<(), String> {
 
 /// The verified, unpacked binary inside `tmp`.
 async fn download_verified(
-    ctx: &Ctx,
+    bus: &Bus,
     version: &str,
     zip_name: &str,
     zip_url: &str,
     sums_url: &str,
-    proxy_url: Option<String>,
+    proxy: Option<ProxyCfg>,
     tmp: &Path,
 ) -> Result<PathBuf, String> {
     use sha2::{Digest, Sha256};
     use std::io::Write;
 
-    let client = build_http_client(proxy_url)?;
+    let client = crate::http::proxied(proxy.as_ref(), Duration::from_secs(600))?;
 
     // 1. Expected checksum (hard requirement).
     let sums = client
@@ -650,7 +641,7 @@ async fn download_verified(
         since_emit += chunk.len() as u64;
         if since_emit >= 262_144 {
             since_emit = 0;
-            ctx.events.emit(
+            bus.publish(
                 DOWNLOAD_PROGRESS_EVENT,
                 DownloadProgress {
                     version: version.to_string(),
@@ -739,18 +730,18 @@ fn unzip_hardened(zip_path: &Path, out_dir: &Path) -> Result<(), String> {
 mod download_event_tests {
     use super::*;
 
-    fn events_ts() -> String {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/frontend/lib/api/events.ts");
+    fn ws_ts() -> String {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/frontend/lib/api/ws.ts");
         std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {}", path, e))
     }
 
     /// The Rclone settings section renders the download bar from this event: an emitted name the
     /// page never subscribed to leaves the bar indeterminate for the whole download.
     #[test]
-    fn download_events_are_declared_in_events_ts() {
+    fn download_events_are_declared_in_ws_ts() {
         assert!(
-            events_ts().contains(&format!("'{}':", DOWNLOAD_PROGRESS_EVENT)),
-            "{} is emitted but not declared in lib/api/events.ts",
+            ws_ts().contains(&format!("'{}':", DOWNLOAD_PROGRESS_EVENT)),
+            "{} is emitted but not declared in lib/api/ws.ts",
             DOWNLOAD_PROGRESS_EVENT
         );
     }
@@ -879,23 +870,20 @@ mod install_tests {
 #[cfg(all(test, unix))]
 mod daemon_spawn_tests {
     use super::*;
-    use crate::ctx::Events;
-    use crate::datadir::DataDir;
     use std::sync::mpsc;
     use std::time::Duration;
 
-    fn ctx() -> Ctx {
-        let root = std::env::temp_dir().join(format!("rclone-cloud-daemon-{}", std::process::id()));
-        Ctx::new(DataDir { root }, Events::noop())
+    fn daemon() -> Arc<Mutex<DaemonState>> {
+        Arc::new(Mutex::new(DaemonState::default()))
     }
 
     #[test]
     fn the_close_event_reaches_a_typed_listener() {
-        let ctx = ctx();
+        let daemon = daemon();
         let (tx, rx) = mpsc::channel::<RcloneEvent>();
 
         let pid = spawn_rclone_with(
-            &ctx,
+            &daemon,
             "/bin/sh".to_string(),
             vec!["-c".to_string(), "exit 7".to_string()],
             HashMap::new(),
@@ -916,15 +904,15 @@ mod daemon_spawn_tests {
             "an exit nobody asked for is not intentional"
         );
         // The slot is cleared before the event goes out, so the next spawn is not refused.
-        assert!(ctx.daemon.lock().unwrap().pid.is_none());
+        assert!(daemon.lock().unwrap().pid.is_none());
     }
 
     #[test]
     fn a_second_daemon_is_refused_while_one_runs() {
-        let ctx = ctx();
+        let daemon = daemon();
         let (tx, rx) = mpsc::channel::<RcloneEvent>();
         spawn_rclone_with(
-            &ctx,
+            &daemon,
             "/bin/sh".to_string(),
             vec!["-c".to_string(), "sleep 30".to_string()],
             HashMap::new(),
@@ -935,7 +923,7 @@ mod daemon_spawn_tests {
         .expect("the first daemon spawns");
 
         let second = spawn_rclone_with(
-            &ctx,
+            &daemon,
             "/bin/sh".to_string(),
             vec!["-c".to_string(), "exit 0".to_string()],
             HashMap::new(),
@@ -943,7 +931,7 @@ mod daemon_spawn_tests {
         );
         assert!(second.is_err(), "a second daemon must be refused");
 
-        assert!(kill_rclone_daemon(&ctx, Some(5000)).unwrap());
+        assert!(kill_rclone_daemon(&daemon, Some(5000)).unwrap());
         let event = rx
             .recv_timeout(Duration::from_secs(10))
             .expect("the close event arrives");

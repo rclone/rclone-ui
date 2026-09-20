@@ -7,20 +7,19 @@
 //! | Route | What |
 //! |---|---|
 //! | `GET /api/status` | version, lifecycle phase, daemon |
-//! | `POST /api/rpc/{name}` | the command table + the server's own RPCs |
+//! | `POST /api/rpc/{name}` | every RPC (`rpc.rs`) |
 //! | `GET/PATCH/PUT /api/state/{doc}` | revisioned state documents |
 //! | `ANY /api/rc/{*path}` | streaming reverse proxy to the rclone daemon |
 //! | `GET /api/dl/{token}` | short-lived signed download link |
-//! | `GET /api/ws` | stream events + bus events |
+//! | `GET /api/ws` | the bus, event by event |
 //! | everything else | `frontend/dist/` with the boot script injected into index.html |
 
 pub mod auth;
 pub mod bus;
-pub mod commands;
-pub mod ctx;
 pub mod datadir;
 pub mod download;
 pub mod fsutil;
+pub mod http;
 pub mod lifecycle;
 pub mod logging;
 pub mod metadata_mapper;
@@ -31,10 +30,7 @@ pub mod rc;
 pub mod rc_proxy;
 pub mod resolve_link;
 pub mod rpc;
-pub mod rt;
 pub mod scheduler;
-pub mod server_rpcs;
-pub mod sink;
 pub mod state_api;
 pub mod state_files;
 pub mod static_files;
@@ -48,10 +44,8 @@ pub mod ws;
 pub mod zookeeper;
 
 pub use bus::{Bus, Event};
-pub use ctx::{Ctx, Events};
 pub use datadir::DataDir;
 pub use platform::kill_pid;
-pub use sink::Sink;
 pub use state_files::StateStore;
 
 use std::collections::HashMap;
@@ -161,11 +155,12 @@ impl DaemonTarget {
 }
 
 pub struct AppState {
-    pub ctx: Ctx,
+    pub dirs: DataDir,
+    /// The in-process broadcast bus: every event a page may hear, and the WebSocket's only feed.
+    pub bus: Bus,
     pub store: Arc<StateStore>,
     pub auth: auth::Auth,
     pub team: Arc<team::Team>,
-    pub sessions: ws::Sessions,
     pub capabilities: Value,
     pub external_rclone_url: Option<String>,
     pub dev_proxy: Option<String>,
@@ -224,7 +219,7 @@ impl AppState {
             "version": env!("CARGO_PKG_VERSION"),
             "uptimeSeconds": self.started_at.elapsed().as_secs(),
             "dirs": {
-                "data": self.ctx.dirs.root,
+                "data": self.dirs.root,
             },
             "managedDaemon": self.external_rclone_url.is_none(),
             "lifecycle": phase.as_ref().map(|p| serde_json::to_value(p).unwrap_or(Value::Null)),
@@ -280,7 +275,8 @@ impl Handle {
             return Some(Arc::clone(existing));
         }
         let supervisor = Supervisor::spawn(
-            self.state.ctx.clone(),
+            self.state.dirs.clone(),
+            self.state.bus.clone(),
             Arc::clone(&self.state.store),
             options,
             Arc::clone(&self.state.transfers),
@@ -321,9 +317,8 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
 
     std::fs::create_dir_all(&opts.dirs.root).map_err(|e| e.to_string())?;
 
-    let events = Events::new();
-    let ctx = Ctx::new(opts.dirs.clone(), events.clone());
-    let store = Arc::new(StateStore::new(opts.dirs.clone(), events));
+    let bus = Bus::new();
+    let store = Arc::new(StateStore::new(opts.dirs.clone(), bus.clone()));
     let team = Arc::new(team::Team::open(&opts.dirs.root.join("state"))?);
     if team.seed(&opts.owner.email, &opts.owner.password)? {
         log::info!("created the owner account {}", opts.owner.email);
@@ -336,20 +331,17 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
     }
     let auth = auth::Auth::new(team.clone());
     let capabilities = capabilities();
-    let http = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let http = http::plain();
 
     // A daemon this process spawns takes its transfers down with it; `--rclone-url` names one
     // that outlives us.
-    let transfers = TransferService::new(ctx.clone(), opts.rclone_url.is_none());
+    let transfers = TransferService::new(opts.dirs.clone(), bus.clone(), opts.rclone_url.is_none());
     let state: Shared = Arc::new(AppState {
-        ctx,
+        dirs: opts.dirs,
+        bus,
         store,
         auth,
         team,
-        sessions: ws::Sessions::default(),
         capabilities,
         external_rclone_url: opts.rclone_url.map(|u| u.trim_end_matches('/').to_string()),
         dev_proxy: opts.dev_proxy,
@@ -375,7 +367,7 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
         // schedules fire from its own minute loop — and run on it, through the same transfer
         // service as everything else.
         tokio::spawn(scheduler::ticker::run_ticker(
-            state.ctx.clone(),
+            state.dirs.clone(),
             Arc::clone(&state.transfers),
         ));
     }
@@ -384,7 +376,7 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
         .route("/api/login", post(auth::login))
         .route("/api/logout", post(auth::logout))
         .route("/api/session", get(auth::session))
-        .route("/api/status", get(server_rpcs::status))
+        .route("/api/status", get(rpc::status))
         .route(
             "/api/rpc/{name}",
             post(rpc::handle).layer(axum::extract::DefaultBodyLimit::max(1024 * 1024 * 1024)),

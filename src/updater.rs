@@ -4,7 +4,7 @@
 use std::sync::Mutex;
 use std::time::Duration;
 
-use crate::Sink;
+use crate::bus::Bus;
 use serde_json::{json, Value};
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -37,17 +37,8 @@ fn target() -> String {
     format!("cloud-{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
-fn client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(600))
-        .build()
-        .map_err(|e| e.to_string())
-}
-
-/// `check` and `install` run on the blocking pool, where waiting on the async client is fine.
-fn block_on<F: std::future::Future>(fut: F) -> F::Output {
-    crate::rt::block_on(fut)
+fn client() -> reqwest::Client {
+    crate::http::client(Duration::from_secs(600))
 }
 
 fn verify(data: &[u8], signature_b64: &str) -> Result<(), String> {
@@ -89,19 +80,17 @@ fn replace_current_exe(bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
-/// Blocking. `None` = up to date.
-pub fn check() -> Result<Option<UpdateInfo>, String> {
-    let http = client()?;
-    let manifest: Value = block_on(async {
-        http.get(MANIFEST)
-            .header("accept", "application/json")
-            .send()
-            .await
-            .map_err(|e| format!("could not fetch the update manifest: {}", e))?
-            .json()
-            .await
-            .map_err(|e| format!("invalid update manifest: {}", e))
-    })?;
+/// `None` = up to date.
+pub async fn check() -> Result<Option<UpdateInfo>, String> {
+    let manifest: Value = client()
+        .get(MANIFEST)
+        .header("accept", "application/json")
+        .send()
+        .await
+        .map_err(|e| format!("could not fetch the update manifest: {}", e))?
+        .json()
+        .await
+        .map_err(|e| format!("invalid update manifest: {}", e))?;
     let current = env!("CARGO_PKG_VERSION");
     let version = manifest["version"]
         .as_str()
@@ -130,40 +119,42 @@ pub fn check() -> Result<Option<UpdateInfo>, String> {
     }))
 }
 
-/// Blocking. Streams `{event:'Started'|'Progress'|'Finished', data}`.
-pub fn install(progress: Sink<Value>) -> Result<(), String> {
+/// The bus event the page draws the download from: `{event:'Started'|'Progress'|'Finished', data}`.
+/// An install is the server's, so every page may watch it.
+pub const PROGRESS_EVENT: &str = "app.update.progress";
+
+pub async fn install(bus: &Bus) -> Result<(), String> {
     let pending = PENDING
         .lock()
         .unwrap()
         .clone()
         .ok_or("no update was checked")?;
-    let http = client()?;
-    let bytes = block_on(async {
-        let mut response = http
-            .get(&pending.url)
-            .send()
-            .await
-            .map_err(|e| format!("download failed: {}", e))?;
-        if !response.status().is_success() {
-            return Err(format!("download failed (HTTP {})", response.status()));
-        }
-        let _ = progress.send(
-            json!({ "event": "Started", "data": { "contentLength": response.content_length() } }),
+    let mut response = client()
+        .get(&pending.url)
+        .send()
+        .await
+        .map_err(|e| format!("download failed: {}", e))?;
+    if !response.status().is_success() {
+        return Err(format!("download failed (HTTP {})", response.status()));
+    }
+    bus.publish(
+        PROGRESS_EVENT,
+        json!({ "event": "Started", "data": { "contentLength": response.content_length() } }),
+    );
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+        bytes.extend_from_slice(&chunk);
+        bus.publish(
+            PROGRESS_EVENT,
+            json!({ "event": "Progress", "data": { "chunkLength": chunk.len() } }),
         );
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
-            bytes.extend_from_slice(&chunk);
-            let _ = progress
-                .send(json!({ "event": "Progress", "data": { "chunkLength": chunk.len() } }));
-        }
-        Ok::<Vec<u8>, String>(bytes)
-    })?;
+    }
     verify(&bytes, &pending.signature)?;
     replace_current_exe(&bytes)?;
     log::info!(
         "installed rclone-cloud {}; restart to run it",
         pending.version
     );
-    let _ = progress.send(json!({ "event": "Finished" }));
+    bus.publish(PROGRESS_EVENT, json!({ "event": "Finished" }));
     Ok(())
 }

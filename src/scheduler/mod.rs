@@ -17,8 +17,6 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Serialize;
 
-use crate::ctx::Ctx;
-
 use jobfile::JobSpec;
 use storeread::DataDir;
 
@@ -107,7 +105,7 @@ fn render(spec: &JobSpec, enabled: bool) -> Result<RenderedSchedule, String> {
 }
 
 // ---------------------------------------------------------------------------
-// Commands (declared in commands/mod.rs as `sync`: they run on the blocking pool)
+// What the RPCs call (rpc.rs); the ones that touch files run on the blocking pool there.
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize)]
@@ -119,8 +117,8 @@ pub struct SupportInfo {
 
 /// Whether schedules can run here. The server is its own scheduler, so the answer is yes as
 /// long as a backend can be built.
-pub fn scheduler_supported(ctx: &Ctx) -> Result<SupportInfo, String> {
-    Ok(match backend(&ctx.dirs) {
+pub fn supported(dirs: &DataDir) -> SupportInfo {
+    match backend(dirs) {
         Ok(_) => SupportInfo {
             supported: true,
             reason: None,
@@ -129,7 +127,7 @@ pub fn scheduler_supported(ctx: &Ctx) -> Result<SupportInfo, String> {
             supported: false,
             reason: Some(reason),
         },
-    })
+    }
 }
 
 #[derive(Serialize)]
@@ -144,12 +142,12 @@ pub struct CronValidation {
     pub next_runs: Vec<String>,
 }
 
-pub fn scheduler_validate_cron(_ctx: &Ctx, cron: String) -> Result<CronValidation, String> {
-    Ok(match cronconv::validate(&cron) {
+pub fn validate_cron(cron: &str) -> CronValidation {
+    match cronconv::validate(cron) {
         Ok(()) => CronValidation {
             valid: true,
             error: None,
-            next_runs: cronconv::parse(&cron)
+            next_runs: cronconv::parse(cron)
                 .map(|spec| cronconv::next_fires(&spec, chrono::Local::now(), 10))
                 .unwrap_or_default(),
         },
@@ -158,15 +156,13 @@ pub fn scheduler_validate_cron(_ctx: &Ctx, cron: String) -> Result<CronValidatio
             error: Some(error),
             next_runs: Vec::new(),
         },
-    })
+    }
 }
 
 /// UPSERT: write the job file and (re)install the registration in the given enabled state (one
 /// operation — no separate set_enabled step to half-fail). There is one backend, the server's own
 /// minute ticker, so nothing has to be uninstalled from another one first.
-pub fn scheduler_register(ctx: &Ctx, spec: JobSpec, enabled: bool) -> Result<(), String> {
-    let dirs = ctx.dirs.clone();
-
+pub fn register(dirs: &DataDir, spec: JobSpec, enabled: bool) -> Result<(), String> {
     sanitize_id(&spec.task_id)?;
     if spec.schema_version != jobfile::JOB_SCHEMA_VERSION {
         return Err(format!(
@@ -192,8 +188,7 @@ pub fn scheduler_register(ctx: &Ctx, spec: JobSpec, enabled: bool) -> Result<(),
     Ok(())
 }
 
-pub fn scheduler_unregister(ctx: &Ctx, task_id: String) -> Result<(), String> {
-    let dirs = ctx.dirs.clone();
+pub fn unregister(dirs: &DataDir, task_id: String) -> Result<(), String> {
     let task_id = sanitize_id(&task_id)?;
     let _guard = mutation_guard();
     // The job file is removed even when the uninstall fails: a surviving registration self-heals
@@ -207,8 +202,7 @@ pub fn scheduler_unregister(ctx: &Ctx, task_id: String) -> Result<(), String> {
     uninstall_result
 }
 
-pub fn scheduler_set_enabled(ctx: &Ctx, task_id: String, enabled: bool) -> Result<(), String> {
-    let dirs = ctx.dirs.clone();
+pub fn set_enabled(dirs: &DataDir, task_id: String, enabled: bool) -> Result<(), String> {
     let task_id = sanitize_id(&task_id)?;
     let _guard = mutation_guard();
     let result = backend(&dirs)?.set_enabled(&task_id, enabled);
@@ -229,9 +223,9 @@ pub fn scheduler_set_enabled(ctx: &Ctx, task_id: String, enabled: bool) -> Resul
 /// it needs the transfer service — so this is the half that is the scheduler's: the id is real
 /// and the task is registered. A disabled task still answers: running it by hand is a choice,
 /// not a fire.
-pub fn runnable_now(ctx: &Ctx, task_id: &str) -> Result<String, String> {
+pub fn runnable_now(dirs: &DataDir, task_id: &str) -> Result<String, String> {
     let task_id = sanitize_id(task_id)?;
-    match backend(&ctx.dirs)?.is_installed(&task_id)? {
+    match backend(dirs)?.is_installed(&task_id)? {
         InstallState::Installed { .. } => Ok(task_id),
         InstallState::NotInstalled => Err(NOT_REGISTERED.to_string()),
     }
@@ -277,9 +271,7 @@ fn install_state_of(inventory: &Inventory, task_id: &str) -> (bool, bool, Option
     }
 }
 
-pub fn scheduler_status(ctx: &Ctx) -> Result<Vec<TaskStatus>, String> {
-    let dirs = ctx.dirs.clone();
-
+pub fn status(dirs: &DataDir) -> Result<Vec<TaskStatus>, String> {
     // What the ticker holds, read the first time a task needs it.
     let mut taken: Option<Inventory> = None;
     let mut statuses = Vec::new();
@@ -342,10 +334,9 @@ pub struct LogContent {
 /// Tail of a task's log for the in-app viewer: what the runner itself had to say about each
 /// run. There is no second log — rclone's own output belongs to the daemon the whole server
 /// shares, and what a run moved is its transfer's, on the Transfers page.
-pub fn scheduler_read_log(ctx: &Ctx, task_id: String) -> Result<LogContent, String> {
+pub fn read_log(dirs: &DataDir, task_id: String) -> Result<LogContent, String> {
     const MAX_TAIL_BYTES: usize = 64 * 1024;
 
-    let dirs = ctx.dirs.clone();
     let task_id = sanitize_id(&task_id)?;
     let path = history::log_path(&dirs, &task_id);
 
@@ -376,12 +367,11 @@ pub fn scheduler_read_log(ctx: &Ctx, task_id: String) -> Result<LogContent, Stri
     })
 }
 
-pub fn scheduler_read_history(
-    ctx: &Ctx,
+pub fn read_history(
+    dirs: &DataDir,
     task_id: String,
     limit: Option<usize>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let dirs = ctx.dirs.clone();
     let task_id = sanitize_id(&task_id)?;
     Ok(history::read(&dirs, &task_id, limit.unwrap_or(50)))
 }
@@ -478,8 +468,7 @@ mod inventory_tests {
 
 /// Startup-reconcile hook for the sweep above. Runs AFTER the reconcile has re-registered every
 /// stored task (their job files then exist and protect their registrations).
-pub fn scheduler_sweep_orphans(ctx: &Ctx) -> Result<u32, String> {
-    let dirs = ctx.dirs.clone();
+pub fn sweep(dirs: &DataDir) -> Result<u32, String> {
     let _guard = mutation_guard();
-    Ok(sweep_orphans(&dirs))
+    Ok(sweep_orphans(dirs))
 }

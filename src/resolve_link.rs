@@ -9,7 +9,7 @@ use reqwest::Url;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::ctx::Ctx;
+use crate::datadir::DataDir;
 use crate::scheduler::storeread;
 
 /// Free and keyless. Its endpoints and their answers: `<SERVICE>/docs/api-reference`.
@@ -85,27 +85,17 @@ pub struct ResolvedLink {
 
 /// `None` for an address of no known platform, and for one the service finds nothing behind:
 /// the address is then downloaded as it is.
-pub async fn resolve_link(ctx: &Ctx, url: String) -> Result<Option<ResolvedLink>, String> {
+pub async fn resolve_link(dirs: &DataDir, url: String) -> Result<Option<ResolvedLink>, String> {
     let Some(endpoint) = endpoint_for(&url) else {
         return Ok(None);
     };
-    resolve_with(&client(ctx)?, SERVICE, endpoint, &url).await
+    resolve_with(&client(dirs)?, SERVICE, endpoint, &url).await
 }
 
 /// Through the proxy of Settings › Rclone, the road the download itself takes.
-fn client(ctx: &Ctx) -> Result<reqwest::Client, String> {
-    let mut builder = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(20));
-    let proxy = storeread::read_host(&ctx.dirs).ok().and_then(|h| h.proxy);
-    if let Some(proxy) = proxy.filter(|p| !p.url.trim().is_empty()) {
-        let ignored = reqwest::NoProxy::from_string(&proxy.ignored_hosts.join(","));
-        let proxy = reqwest::Proxy::all(proxy.url.trim())
-            .map_err(|e| format!("invalid proxy: {}", e))?
-            .no_proxy(ignored);
-        builder = builder.proxy(proxy);
-    }
-    builder.build().map_err(|e| e.to_string())
+fn client(dirs: &DataDir) -> Result<reqwest::Client, String> {
+    let proxy = storeread::read_host(dirs).ok().and_then(|h| h.proxy);
+    crate::http::proxied(proxy.as_ref(), Duration::from_secs(20))
 }
 
 fn endpoint_for(url: &str) -> Option<&'static str> {

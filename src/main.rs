@@ -72,8 +72,7 @@ fn main() {
     let cli = Cli::parse();
     let opts = match cli.command {
         Some(Command::ListCommands) => {
-            let mut names: Vec<&str> = rclone_cloud::commands::COMMAND_NAMES.to_vec();
-            names.extend(rclone_cloud::server_rpcs::SERVER_RPCS);
+            let mut names: Vec<&str> = rclone_cloud::rpc::RPC_NAMES.to_vec();
             names.sort_unstable();
             for name in names {
                 println!("{}", name);
@@ -124,7 +123,7 @@ async fn preflight(cli: &CliServe, dirs: &rclone_cloud::DataDir) -> Result<(), S
     }
 
     let (dirs, pinned) = (dirs.clone(), cli.rclone_path.clone());
-    let found = rclone_cloud::rt::spawn_blocking(move || {
+    let found = tokio::task::spawn_blocking(move || {
         rclone_cloud::lifecycle::resolve::find_binary(&dirs, pinned.as_deref())
     })
     .await

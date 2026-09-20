@@ -1,6 +1,7 @@
-//! The notification engine: event catalog, webhook targets + dispatch, and SMTP. Pages drive it
-//! through the commands below (lib/notifications.ts); the scheduler runner calls
-//! webhooks::dispatch directly. Everything a person needs to see leaves over a webhook or email.
+//! The notification engine: the event catalog, the webhook targets and their dispatch, and SMTP.
+//! Pages drive it through the RPCs (lib/notifications.ts); a transfer's end, a crash and a
+//! scheduled run call [`notify`] or [`dispatch`] themselves. Everything a person needs to see
+//! leaves over a webhook or an email.
 
 pub mod catalog;
 pub mod smtp;
@@ -8,8 +9,9 @@ pub mod targets;
 pub mod webhooks;
 
 use serde::Serialize;
+use serde_json::Value;
 
-use crate::ctx::Ctx;
+use crate::datadir::DataDir;
 
 #[derive(Serialize)]
 pub struct Catalog {
@@ -17,89 +19,53 @@ pub struct Catalog {
     pub events: &'static [catalog::EventMeta],
 }
 
-pub fn notifications_catalog(_ctx: &Ctx) -> Result<Catalog, String> {
-    Ok(Catalog {
+pub fn catalog() -> Catalog {
+    Catalog {
         categories: &catalog::CATEGORIES,
         events: &catalog::EVENTS,
+    }
+}
+
+/// Sends `event_id` to every target subscribed to it and records what each delivery did.
+/// Delivery failures come back as log lines, never as an error.
+pub async fn dispatch(
+    dirs: &DataDir,
+    event_id: &str,
+    title: &str,
+    body: &str,
+    data: Value,
+) -> Vec<String> {
+    webhooks::dispatch(dirs, event_id, title, body, data).await
+}
+
+/// [`dispatch`], fire and forget: on its own task, so one endpoint that does not answer holds
+/// up nothing else. The handle is for the rare caller that must not say two things out of order.
+pub fn notify(
+    dirs: &DataDir,
+    event_id: &str,
+    title: &str,
+    body: &str,
+    data: Value,
+) -> tokio::task::JoinHandle<()> {
+    let dirs = dirs.clone();
+    let event_id = event_id.to_string();
+    let title = title.to_string();
+    let body = body.to_string();
+    tokio::spawn(async move {
+        for line in webhooks::dispatch(&dirs, &event_id, &title, &body, data).await {
+            log::warn!("[notifications] {}", line);
+        }
     })
 }
 
-/// The cross-process store lock can wait up to ~10s under contention — these are `sync`
-/// commands in the table, which keeps them off the async workers.
-pub fn notifications_list_targets(ctx: &Ctx) -> Result<Vec<targets::NotificationTarget>, String> {
-    targets::load(&ctx.dirs)
-}
-
-pub fn notifications_add_target(
-    ctx: &Ctx,
-    target: targets::NewTarget,
-) -> Result<targets::NotificationTarget, String> {
-    targets::add(&ctx.dirs, target)
-}
-
-pub fn notifications_update_target(
-    ctx: &Ctx,
-    id: String,
-    patch: targets::TargetPatch,
+/// The synthetic test message to one target, saved or not. Errors propagate: the screen shows
+/// them.
+pub async fn send_test(
+    dirs: &DataDir,
+    provider: &str,
+    url: &str,
+    target_id: Option<&str>,
+    name: Option<&str>,
 ) -> Result<(), String> {
-    targets::update(&ctx.dirs, &id, patch)
-}
-
-pub fn notifications_remove_target(ctx: &Ctx, id: String) -> Result<(), String> {
-    targets::remove(&ctx.dirs, &id)
-}
-
-/// Fire-and-forget for the caller: delivery failures are recorded per target and logged, never
-/// returned as an error.
-pub fn notifications_dispatch(
-    ctx: &Ctx,
-    event_id: String,
-    title: String,
-    body: String,
-    data: Option<serde_json::Value>,
-) -> Result<(), String> {
-    let client = webhooks::http_client();
-    for line in webhooks::dispatch(
-        &ctx.dirs,
-        &client,
-        &event_id,
-        &title,
-        &body,
-        data.unwrap_or(serde_json::Value::Null),
-    ) {
-        log::warn!("[notifications] {}", line);
-    }
-    Ok(())
-}
-
-/// The SMTP settings as a page may see them: no password, only whether one is saved.
-pub fn smtp_get(ctx: &Ctx) -> Result<smtp::SmtpView, String> {
-    smtp::view(&ctx.dirs)
-}
-
-pub fn smtp_set(ctx: &Ctx, settings: smtp::SmtpInput) -> Result<smtp::SmtpView, String> {
-    smtp::save(&ctx.dirs, settings)
-}
-
-/// The synthetic test mail to one address, through the saved settings. Errors propagate — the
-/// screen shows them.
-pub fn smtp_send_test(ctx: &Ctx, to: String) -> Result<(), String> {
-    webhooks::send_test(&ctx.dirs, "email", &to, None, None)
-}
-
-/// Errors propagate — the UI shows them in the "Test failed" dialog.
-pub fn notifications_send_test(
-    ctx: &Ctx,
-    provider: String,
-    url: String,
-    target_id: Option<String>,
-    name: Option<String>,
-) -> Result<(), String> {
-    webhooks::send_test(
-        &ctx.dirs,
-        &provider,
-        &url,
-        target_id.as_deref(),
-        name.as_deref(),
-    )
+    webhooks::send_test(dirs, provider, url, target_id, name).await
 }

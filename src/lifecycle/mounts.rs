@@ -8,11 +8,10 @@ use std::time::Duration;
 
 use serde_json::{json, Map, Value};
 
-use crate::ctx::Ctx;
+use crate::datadir::DataDir;
+use crate::notifications::notify;
 use crate::rc::RcClient;
 use crate::scheduler::storeread::{self, MountOnStart};
-
-use super::notify;
 
 // ---------------------------------------------------------------------------
 // lib/paths.ts + lib/format.ts getFsInfo + lib/rclone/requests.ts serializeOptions
@@ -497,12 +496,6 @@ fn support_in(dev_fuse: &std::path::Path) -> MountSupport {
     }
 }
 
-/// The `mount_support` command: what a page asks before it offers Auto Mount and after a mount
-/// failed.
-pub fn mount_support(_ctx: &Ctx) -> Result<MountSupport, String> {
-    Ok(support())
-}
-
 /// Errors that describe a wrong Remote Path (never retried) are prefixed so the caller can
 /// tell them from transient failures.
 async fn probe_mount_source(client: &RcClient, source: &str) -> Result<(), String> {
@@ -717,8 +710,8 @@ pub async fn start_mount(
 /// A machine that cannot mount would fail each attempt the same way on every restart. That is a
 /// fact about the deployment rather than an incident, so it is said once, in the log, and
 /// nothing is notified.
-pub async fn startup_mounts(ctx: &Ctx, client: &RcClient) {
-    let host = match storeread::read_host(&ctx.dirs) {
+pub async fn startup_mounts(dirs: &DataDir, client: &RcClient) {
+    let host = match storeread::read_host(dirs) {
         Ok(host) => host,
         Err(_) => return,
     };
@@ -786,7 +779,7 @@ pub async fn startup_mounts(ctx: &Ctx, client: &RcClient) {
             };
             log::warn!("[mounts] {}", body);
             notify(
-                ctx,
+                dirs,
                 "mount.failed",
                 "Automount skipped",
                 &body,
@@ -819,7 +812,7 @@ pub async fn startup_mounts(ctx: &Ctx, client: &RcClient) {
             Err(error) => {
                 log::error!("[mounts] failed to mount {}: {}", source, error);
                 notify(
-                    ctx,
+                    dirs,
                     "mount.failed",
                     "Mount failed",
                     &format!("Failed to mount {}: {}", source, error),

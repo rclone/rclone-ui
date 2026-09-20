@@ -7,14 +7,12 @@ use std::time::Duration;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::ctx::Ctx;
+use crate::bus::Bus;
 use crate::datadir::DataDir;
-use crate::rt;
-use crate::scheduler::storeread;
+use crate::notifications::notify;
+use crate::scheduler::storeread::{self, ProxyCfg};
 use crate::state_files::{StateStore, APP_DOC};
 use crate::zookeeper;
-
-use super::notify;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -81,21 +79,16 @@ pub fn find_binary(dirs: &DataDir, pinned: Option<&Path>) -> Result<Option<Found
     }
 }
 
-pub fn host_proxy(dirs: &DataDir) -> Option<String> {
+/// The proxy of Settings › Rclone, when one is set: the road a download takes.
+pub fn host_proxy(dirs: &DataDir) -> Option<ProxyCfg> {
     storeread::read_host(dirs)
         .ok()
         .and_then(|h| h.proxy)
-        .map(|p| p.url)
-        .filter(|u| !u.is_empty())
+        .filter(|p| !p.url.trim().is_empty())
 }
 
 pub async fn latest_version() -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let text = client
+    let text = crate::http::client(Duration::from_secs(15))
         .get("https://downloads.rclone.org/version.txt")
         .send()
         .await
@@ -113,12 +106,7 @@ pub async fn latest_version() -> Result<String, String> {
 /// Stable rclone releases this server can run, newest first (lib/rclone/versions.ts
 /// `fetchAvailableVersions`). Best-effort: GitHub's API is rate limited.
 pub async fn available_releases(limit: usize) -> Result<Vec<serde_json::Value>, String> {
-    let client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(20))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let response = client
+    let response = crate::http::client(Duration::from_secs(20))
         .get("https://api.github.com/repos/rclone/rclone/releases?per_page=30")
         .header("accept", "application/vnd.github+json")
         .header("user-agent", "rclone-cloud")
@@ -154,13 +142,13 @@ pub async fn available_releases(limit: usize) -> Result<Vec<serde_json::Value>, 
 /// The rclone to run, installing the latest when the machine has none. `on_download` is called
 /// with the version when a download starts.
 pub async fn resolve_binary(
-    ctx: &Ctx,
+    dirs: &DataDir,
+    bus: &Bus,
     pinned: Option<&Path>,
     on_download: impl Fn(String),
 ) -> Result<Found, String> {
-    let dirs = ctx.dirs.clone();
-    let named = pinned.map(Path::to_path_buf);
-    let found = rt::spawn_blocking(move || find_binary(&dirs, named.as_deref()))
+    let (probe_dirs, named) = (dirs.clone(), pinned.map(Path::to_path_buf));
+    let found = tokio::task::spawn_blocking(move || find_binary(&probe_dirs, named.as_deref()))
         .await
         .map_err(|e| format!("could not look for rclone: {}", e))??;
     let found = match found {
@@ -182,7 +170,7 @@ pub async fn resolve_binary(
                 version,
                 target.display()
             );
-            zookeeper::install_rclone(ctx, &version, &target, host_proxy(&ctx.dirs))
+            zookeeper::install_rclone(dirs, bus, &version, &target, host_proxy(dirs))
                 .await
                 .map_err(|e| format!("failed to install rclone: {}", e))?;
             Found {
@@ -205,7 +193,8 @@ pub async fn resolve_binary(
 /// the server may write there, otherwise somebody is told once per version. A pinned or a custom
 /// binary is never touched. Never fails the start. Returns the version it updated to.
 pub async fn maybe_auto_update(
-    ctx: &Ctx,
+    dirs: &DataDir,
+    bus: &Bus,
     store: &StateStore,
     found: &Found,
     on_updating: impl Fn(String, String),
@@ -223,7 +212,7 @@ pub async fn maybe_auto_update(
     if !crate::version::newer(&latest, &found.version) {
         return None;
     }
-    let root = storeread::read_root(&ctx.dirs).unwrap_or_default();
+    let root = storeread::read_root(dirs).unwrap_or_default();
     let target = zookeeper::install_target(None);
     if let (true, Ok(target)) = (root.auto_update_rclone, &target) {
         log::info!(
@@ -232,7 +221,8 @@ pub async fn maybe_auto_update(
             latest
         );
         on_updating(found.version.clone(), latest.clone());
-        return match zookeeper::install_rclone(ctx, &latest, target, host_proxy(&ctx.dirs)).await {
+        return match zookeeper::install_rclone(dirs, bus, &latest, target, host_proxy(dirs)).await
+        {
             Ok(()) => Some(latest),
             Err(e) => {
                 log::warn!(
@@ -261,7 +251,7 @@ pub async fn maybe_auto_update(
             latest
         );
         notify(
-            ctx,
+            dirs,
             "rclone.update-available",
             "Rclone update available",
             &body,

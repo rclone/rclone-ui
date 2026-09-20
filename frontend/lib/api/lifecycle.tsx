@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import { status } from './app'
-import { type LifecyclePhase, on } from './events'
+import { type LifecyclePhase, on } from './ws'
 
 let current: LifecyclePhase | null = null
 let seeded: Promise<void> | null = null

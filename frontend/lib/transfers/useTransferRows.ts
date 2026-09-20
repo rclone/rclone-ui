@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
-import { on as onAppEvent } from '../api/events'
+import { on as onAppEvent } from '../api/ws'
 import { transfersList } from '../api/transfers'
 import { fetchLive, isLive } from './live'
 import { toRows } from './rows'

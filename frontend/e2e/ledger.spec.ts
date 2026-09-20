@@ -405,7 +405,7 @@ test('saving a config file is not moving files, as far as getting started goes',
         const written = await context.request.post(
             `/api/rc/operations/uploadfile?fs=${encodeURIComponent(root)}&remote=`,
             {
-                headers: { 'X-RcloneCloud-Session': 'e2e' },
+                headers: { 'X-RcloneCloud-Client': 'web' },
                 multipart: {
                     file0: {
                         name: 'rclone.conf',

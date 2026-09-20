@@ -1,7 +1,7 @@
 import rcloneClient from './client'
 import { RCLONE_RELEASES_SHOWN } from './constants'
 import { rcloneInstall, rcloneReleases } from '../api/app'
-import { on as onAppEvent } from '../api/events'
+import { on as onAppEvent } from '../api/ws'
 import { ask } from '../api/dialog'
 import { transfersList } from '../api/transfers'
 import { isMoving } from '../transfers/live'

@@ -8,7 +8,7 @@ import { SERVER_BIN, SESSION, signIn, stopLeftoverJobs } from './helpers'
 // What a test’s page left running on the shared daemon stops with the test (`stopLeftoverJobs`).
 test.afterEach(({ request }) => stopLeftoverJobs(request))
 
-test('rpc round trip: the command table, the server RPCs and errors', async ({ request }) => {
+test('rpc round trip: the table, its arguments and its errors', async ({ request }) => {
     const cron = await (
         await request.post('/api/rpc/scheduler_validate_cron', {
             headers: SESSION,
@@ -92,7 +92,7 @@ test('the rc proxy reaches the daemon and streams file bytes', async ({ request 
 
     // Upload through the proxy (multipart), then read it back with a Range through --rc-serve.
     const upload = await request.post('/api/rc/operations/uploadfile?fs=e2e-memory:&remote=dir', {
-        headers: { 'X-RcloneCloud-Session': 'e2e' },
+        headers: { 'X-RcloneCloud-Client': 'web' },
         multipart: {
             file0: {
                 name: 'hello.txt',
@@ -103,7 +103,7 @@ test('the rc proxy reaches the daemon and streams file bytes', async ({ request 
     })
     expect(upload.ok()).toBe(true)
     const partial = await request.get('/api/rc/[e2e-memory:]/dir/hello.txt', {
-        headers: { 'X-RcloneCloud-Session': 'e2e', Range: 'bytes=0-4' },
+        headers: { 'X-RcloneCloud-Client': 'web', Range: 'bytes=0-4' },
     })
     expect(partial.status()).toBe(206)
     expect(await partial.text()).toBe('hello')
@@ -133,7 +133,7 @@ test('asset-like file names never bypass the API guard', async ({ request }) => 
     // ask the password-protected one for the file without a session. The proxy injects the
     // daemon's credentials, so it must refuse whatever the file is called.
     const upload = await request.post('/api/rc/operations/uploadfile?fs=e2e-memory:&remote=guard', {
-        headers: { 'X-RcloneCloud-Session': 'e2e' },
+        headers: { 'X-RcloneCloud-Client': 'web' },
         multipart: {
             file0: {
                 name: 'secret.png',

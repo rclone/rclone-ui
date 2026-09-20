@@ -1,7 +1,9 @@
-//! Webhook and email dispatch — the single engine behind the `notifications_dispatch` command,
-//! a transfer's end and a scheduled run alike. An email target is
-//! one whose `url` is its recipients (comma-separated); it goes through the saved SMTP settings
-//! (`smtp.rs`), read once per dispatch.
+//! Webhook and email dispatch — the single engine behind the `notifications_dispatch` RPC, a
+//! transfer's end and a scheduled run alike. An email target is one whose `url` is its
+//! recipients (comma-separated); it goes through the saved SMTP settings (`smtp.rs`), read once
+//! per dispatch.
+
+use std::time::Duration;
 
 use serde_json::{json, Value};
 
@@ -118,8 +120,9 @@ fn mail_text(body: &str) -> String {
 }
 
 /// `settings` is the SMTP file as read at fire time: `None` when the screen has never saved a
-/// server, which is the one delivery failure the page can fix itself.
-fn send_email(
+/// server, which is the one delivery failure the page can fix itself. lettre's transport blocks
+/// (and sleeps between tries), so it goes to the blocking pool.
+async fn send_email(
     settings: Option<&SmtpSettings>,
     target_url: &str,
     title: &str,
@@ -128,25 +131,23 @@ fn send_email(
     let Some(settings) = settings else {
         return Err(smtp::NOT_SET_UP.to_string());
     };
-    smtp::send(
-        settings,
-        &recipients_of(target_url),
-        title,
-        &mail_text(body),
-    )
+    let settings = settings.clone();
+    let to = recipients_of(target_url);
+    let (subject, text) = (title.to_string(), mail_text(body));
+    tokio::task::spawn_blocking(move || smtp::send(&settings, &to, &subject, &text))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
-pub fn http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(10))
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .unwrap_or_default()
+/// A webhook has this long, connect to answer; an endpoint that does not answer must not hold
+/// up a run's other notifications.
+fn client() -> reqwest::Client {
+    crate::http::client(Duration::from_secs(15))
 }
 
 /// One retry after 2s, only on network error or 5xx — 4xx means the endpoint rejected the
 /// request (bad URL, revoked webhook) and retrying only hammers it.
-fn send_once(
+async fn send_once(
     client: &reqwest::Client,
     request: &OutboundRequest,
     event_id: &str,
@@ -154,27 +155,23 @@ fn send_once(
     let mut attempt = 0;
     loop {
         attempt += 1;
-        let result = crate::rt::block_on(async {
-            let mut req = client.post(&request.url).json(&request.body);
-            if request.event_header {
-                req = req.header("X-RcloneCloud-Event", event_id);
-            }
-            req.send().await
-        });
-
-        match result {
+        let mut req = client.post(&request.url).json(&request.body);
+        if request.event_header {
+            req = req.header("X-RcloneCloud-Event", event_id);
+        }
+        match req.send().await {
             Ok(response) if response.status().is_success() => return Ok(()),
             Ok(response) => {
                 let status = response.status().as_u16();
                 if status >= 500 && attempt < 2 {
-                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    tokio::time::sleep(Duration::from_secs(2)).await;
                     continue;
                 }
                 return Err(format!("Webhook responded with status {}", status));
             }
             Err(e) => {
                 if attempt < 2 {
-                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    tokio::time::sleep(Duration::from_secs(2)).await;
                     continue;
                 }
                 return Err(format!("{}", e));
@@ -186,9 +183,8 @@ fn send_once(
 /// Sends `event_id` to every enabled target subscribed to it and records lastSentAt/lastError
 /// per target. Never fails the caller — delivery errors come back as log lines. Targets are
 /// read at fire time; the store lock is NOT held during the sends (up to ~17s each).
-pub fn dispatch(
+pub async fn dispatch(
     dirs: &DataDir,
-    client: &reqwest::Client,
     event_id: &str,
     title: &str,
     body: &str,
@@ -203,6 +199,7 @@ pub fn dispatch(
         Err(e) => return vec![format!("failed to load notification targets: {}", e)],
     };
 
+    let client = client();
     let timestamp = crate::time::now_iso();
     let mut log_lines = Vec::new();
     let mut outcomes: Vec<(String, Option<String>)> = Vec::new();
@@ -217,7 +214,7 @@ pub fn dispatch(
         if target.provider == "email" {
             let settings = smtp_settings.get_or_insert_with(|| smtp::load(dirs));
             let result = match settings {
-                Ok(settings) => send_email(settings.as_ref(), &target.url, title, body),
+                Ok(settings) => send_email(settings.as_ref(), &target.url, title, body).await,
                 Err(e) => Err(e.clone()),
             };
             match result {
@@ -239,7 +236,7 @@ pub fn dispatch(
             }
         };
 
-        match send_once(client, &request, event_id) {
+        match send_once(&client, &request, event_id).await {
             Ok(()) => outcomes.push((target.id.clone(), None)),
             Err(e) => {
                 log_lines.push(format!(
@@ -258,7 +255,7 @@ pub fn dispatch(
 /// Sends the synthetic test payload to one target — which may be unsaved drawer values (no
 /// `target_id`). Propagates the delivery error so the UI can surface it; records the outcome
 /// only when the target already exists.
-pub fn send_test(
+pub async fn send_test(
     dirs: &DataDir,
     provider: &str,
     url: &str,
@@ -273,8 +270,10 @@ pub fn send_test(
         _ => "This is a test notification from Rclone Cloud.".to_string(),
     };
     if provider == "email" {
-        let result = smtp::load(dirs)
-            .and_then(|settings| send_email(settings.as_ref(), url, "Test notification", &body));
+        let result = match smtp::load(dirs) {
+            Ok(settings) => send_email(settings.as_ref(), url, "Test notification", &body).await,
+            Err(e) => Err(e),
+        };
         if let Some(id) = target_id.filter(|id| !id.is_empty()) {
             targets::record_outcomes(dirs, &[(id.to_string(), result.clone().err())]);
         }
@@ -302,8 +301,7 @@ pub fn send_test(
         &timestamp,
     )?;
 
-    let client = http_client();
-    let result = send_once(&client, &request, event.id);
+    let result = send_once(&client(), &request, event.id).await;
     if let Some(id) = target_id.filter(|id| !id.is_empty()) {
         targets::record_outcomes(dirs, &[(id.to_string(), result.clone().err())]);
     }
@@ -366,8 +364,8 @@ mod tests {
 
     /// The full runner-side chain: load targets → filter by event → POST with header → record
     /// lastSentAt/lastError back into targets.json.
-    #[test]
-    fn dispatch_posts_and_records_outcomes_end_to_end() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn dispatch_posts_and_records_outcomes_end_to_end() {
         let dirs = test_dirs("dispatch");
         let (url, rx) = local_receiver();
 
@@ -395,15 +393,14 @@ mod tests {
         )
         .unwrap();
 
-        let client = http_client();
         let lines = dispatch(
             &dirs,
-            &client,
             "schedule.completed",
             "Scheduled task completed",
             "backup completed successfully",
             json!({ "scheduleId": "s1" }),
-        );
+        )
+        .await;
         assert!(lines.is_empty(), "no delivery errors expected: {:?}", lines);
 
         let raw = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
@@ -429,8 +426,8 @@ mod tests {
 
     /// An unreachable endpoint surfaces as a log line and a recorded lastError — never a failure
     /// of the dispatch call itself.
-    #[test]
-    fn dispatch_records_last_error_on_unreachable_endpoint() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn dispatch_records_last_error_on_unreachable_endpoint() {
         let dirs = test_dirs("dispatch-err");
         // Reserve a port and close it immediately so the connection is refused fast.
         let dead_url = {
@@ -449,8 +446,7 @@ mod tests {
         )
         .unwrap();
 
-        let client = http_client();
-        let lines = dispatch(&dirs, &client, "schedule.failed", "T", "B", Value::Null);
+        let lines = dispatch(&dirs, "schedule.failed", "T", "B", Value::Null).await;
         assert_eq!(lines.len(), 1);
         assert!(lines[0].contains("webhook delivery failed"));
 
@@ -464,8 +460,8 @@ mod tests {
 
     /// An email target is mailed through the saved SMTP settings, read at fire time like the
     /// targets are: the runner and the server share the file, and neither needs the page.
-    #[test]
-    fn an_email_target_is_mailed_through_the_smtp_settings() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn an_email_target_is_mailed_through_the_smtp_settings() {
         let dirs = test_dirs("email");
         let (host, port, rx) = super::super::smtp::tests::stub_server();
         super::super::smtp::save(
@@ -493,15 +489,14 @@ mod tests {
         )
         .unwrap();
 
-        let client = http_client();
         let lines = dispatch(
             &dirs,
-            &client,
             "schedule.failed",
             "Scheduled task failed",
             "backup failed: boom",
             json!({ "scheduleId": "s1" }),
-        );
+        )
+        .await;
         assert!(lines.is_empty(), "no delivery errors expected: {:?}", lines);
 
         let session = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
@@ -532,8 +527,8 @@ mod tests {
 
     /// Without SMTP settings an email target cannot be reached: the reason is recorded on the
     /// target (the page's warning chip) and logged, and nothing else is held up.
-    #[test]
-    fn an_email_target_without_smtp_records_why() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn an_email_target_without_smtp_records_why() {
         let dirs = test_dirs("email-unset");
         let added = targets::add(
             &dirs,
@@ -547,8 +542,7 @@ mod tests {
         )
         .unwrap();
 
-        let client = http_client();
-        let lines = dispatch(&dirs, &client, "schedule.failed", "T", "B", Value::Null);
+        let lines = dispatch(&dirs, "schedule.failed", "T", "B", Value::Null).await;
         assert_eq!(lines.len(), 1, "{:?}", lines);
         assert!(lines[0].contains("SMTP is not set up"), "{}", lines[0]);
 

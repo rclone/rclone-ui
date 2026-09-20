@@ -17,7 +17,6 @@ use tokio::sync::broadcast::{error::RecvError, Receiver};
 use super::history::{self, HistoryLine, RunLog};
 use super::jobfile::{self, JobSpec};
 use super::storeread::DataDir;
-use crate::ctx::Ctx;
 use crate::notifications::webhooks;
 use crate::transfers::ledger::{self, State};
 use crate::transfers::service::{Ended, Scheduled, StartRequest, TransferService};
@@ -67,8 +66,7 @@ fn skipped(dirs: &DataDir, task_id: &str, reason: &str) {
 }
 
 /// One run of one task, start to finish.
-pub async fn run(ctx: Ctx, transfers: Arc<TransferService>, task_id: String) {
-    let dirs = ctx.dirs.clone();
+pub async fn run(dirs: DataDir, transfers: Arc<TransferService>, task_id: String) {
     let Ok(task_id) = super::sanitize_id(&task_id) else {
         log::warn!("[scheduler] refusing to run an invalid task id");
         return;
@@ -362,8 +360,6 @@ fn recorded_end(dirs: &DataDir, id: &str) -> Option<Ended> {
         })
 }
 
-/// Webhook delivery blocks on HTTP (up to ~17s per target, sequentially), so it goes to the
-/// blocking pool rather than holding a runtime worker for the length of a run's notifications.
 async fn dispatch(
     dirs: &DataDir,
     event: &str,
@@ -371,15 +367,7 @@ async fn dispatch(
     body: String,
     data: Value,
 ) -> Vec<String> {
-    let dirs = dirs.clone();
-    let event = event.to_string();
-    let title = title.to_string();
-    crate::rt::spawn_blocking(move || {
-        let client = webhooks::http_client();
-        webhooks::dispatch(&dirs, &client, &event, &title, &body, data)
-    })
-    .await
-    .unwrap_or_default()
+    webhooks::dispatch(dirs, event, title, &body, data).await
 }
 
 #[cfg(test)]

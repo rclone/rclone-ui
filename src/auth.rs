@@ -18,7 +18,9 @@ use crate::team::{AuthUser, Team};
 use crate::Shared;
 
 pub const COOKIE: &str = "rui_session";
-pub const SESSION_HEADER: &str = "x-rclonecloud-session";
+/// Every RPC carries this header (`lib/api/rpc.ts`). The cookie is `SameSite=Strict`, and this is
+/// the second wall: a cross-site form cannot set a custom header, so it cannot post an RPC.
+pub const CLIENT_HEADER: &str = "x-rclonecloud-client";
 
 /// The accounts, their live sessions, and a channel naming users whose sessions were just
 /// revoked: an open socket of theirs closes on it (a removed member must not keep receiving
@@ -184,12 +186,10 @@ pub async fn guard(State(st): State<Shared>, mut req: Request<Body>, next: Next)
         if path == "/api/ws" && !same_origin(req.headers()) {
             return (StatusCode::FORBIDDEN, "cross-origin websocket").into_response();
         }
-        if path.starts_with("/api/rpc/")
-            && req.headers().get(SESSION_HEADER).is_none()
-        {
+        if path.starts_with("/api/rpc/") && req.headers().get(CLIENT_HEADER).is_none() {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({ "ok": false, "error": "missing X-RcloneCloud-Session header" })),
+                Json(json!({ "ok": false, "error": "missing X-RcloneCloud-Client header" })),
             )
                 .into_response();
         }

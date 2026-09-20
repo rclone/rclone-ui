@@ -28,16 +28,13 @@ test('a removed member loses their WebSocket', async ({ browser }) => {
         const memberPage = await member.newPage()
         await memberPage.goto('/')
         await expect(memberPage.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
-        // A socket of the member's own, said hello on, beside the page's.
+        // A socket of the member's own, beside the page's.
         await memberPage.evaluate(
             () =>
                 new Promise<void>((resolve, reject) => {
                     const socket = new WebSocket(`ws://${location.host}/api/ws`)
                     ;(window as unknown as { __e2eSocket?: WebSocket }).__e2eSocket = socket
-                    socket.onopen = () => {
-                        socket.send(JSON.stringify({ type: 'hello', session: 'e2e-revoked' }))
-                        resolve()
-                    }
+                    socket.onopen = () => resolve()
                     socket.onerror = () => reject(new Error('the socket did not open'))
                 })
         )

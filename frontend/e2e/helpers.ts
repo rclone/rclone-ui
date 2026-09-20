@@ -7,7 +7,7 @@ import type { APIRequestContext, Page } from '@playwright/test'
 export const OWNER = { email: 'admin@localhost', password: 'e2e-secret' }
 
 /** The headers a direct RPC call needs: the page's session header and a JSON body. */
-export const SESSION = { 'X-RcloneCloud-Session': 'e2e', 'Content-Type': 'application/json' }
+export const SESSION = { 'X-RcloneCloud-Client': 'web', 'Content-Type': 'application/json' }
 
 /** Page errors and error-level console lines, plus an RPC the server did not know. */
 export function collectErrors(page: Page) {
