@@ -24,7 +24,6 @@ pub mod lifecycle;
 pub mod logging;
 pub mod metadata_mapper;
 pub mod notifications;
-pub mod platform;
 pub mod port;
 pub mod rc;
 pub mod rc_proxy;
@@ -41,19 +40,18 @@ pub mod transfers;
 pub mod updater;
 pub mod version;
 pub mod ws;
-pub mod zookeeper;
 
 pub use bus::{Bus, Event};
 pub use datadir::DataDir;
-pub use platform::kill_pid;
 pub use state::StateStore;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
-use crate::lifecycle::{Options as LifecycleOptions, Supervisor};
+use crate::lifecycle::Supervisor;
 use crate::rc::RcClient;
 use crate::transfers::service::TransferService;
 use serde_json::{json, Value};
@@ -166,6 +164,9 @@ pub struct AppState {
     pub dev_proxy: Option<String>,
     /// `None` until [`Handle::start_lifecycle`], or in external-daemon mode.
     pub lifecycle: RwLock<Option<Arc<Supervisor>>>,
+    /// Where the rclone traffic goes: the external daemon, set once, or the managed one as the
+    /// supervisor raises and stops it (`None` while it is down).
+    daemon: watch::Sender<Option<DaemonTarget>>,
     /// Starts, watches and records transfers; alive in every mode, with or without a page.
     pub transfers: Arc<TransferService>,
     pub downloads: download::Downloads,
@@ -186,20 +187,7 @@ impl AppState {
 
     /// The managed (or external) daemon, when it is reachable.
     pub fn local_daemon(&self) -> Option<DaemonTarget> {
-        if let Some(url) = &self.external_rclone_url {
-            return Some(DaemonTarget {
-                base_url: url.trim_end_matches('/').to_string(),
-                user: None,
-                pass: None,
-            });
-        }
-        self.supervisor()
-            .and_then(|s| s.target())
-            .map(|t| DaemonTarget {
-                base_url: t.base_url,
-                user: Some(t.user),
-                pass: Some(t.pass),
-            })
+        self.daemon.borrow().clone()
     }
 
     /// `true` the first time only; the quit flow runs once.
@@ -265,8 +253,9 @@ impl Handle {
         format!("http://{}", self.addr)
     }
 
-    /// Starts the rclone orchestrator (once). In external-daemon mode this is a no-op.
-    pub fn start_lifecycle(&self, options: LifecycleOptions) -> Option<Arc<Supervisor>> {
+    /// Starts the rclone orchestrator (once). In external-daemon mode this is a no-op. `pinned`
+    /// is the binary `--rclone-path` names.
+    pub fn start_lifecycle(&self, pinned: Option<PathBuf>) -> Option<Arc<Supervisor>> {
         if self.state.external_rclone_url.is_some() {
             return None;
         }
@@ -278,8 +267,9 @@ impl Handle {
             self.state.dirs.clone(),
             self.state.bus.clone(),
             Arc::clone(&self.state.store),
-            options,
+            pinned,
             Arc::clone(&self.state.transfers),
+            self.state.daemon.clone(),
         );
         *slot = Some(Arc::clone(&supervisor));
         Some(supervisor)
@@ -333,9 +323,20 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
     let capabilities = capabilities();
     let http = http::plain();
 
+    let external_rclone_url = opts.rclone_url.map(|u| u.trim_end_matches('/').to_string());
+    let (daemon, daemon_rx) = watch::channel(external_rclone_url.as_ref().map(|url| DaemonTarget {
+        base_url: url.clone(),
+        user: None,
+        pass: None,
+    }));
     // A daemon this process spawns takes its transfers down with it; `--rclone-url` names one
     // that outlives us.
-    let transfers = TransferService::new(opts.dirs.clone(), bus.clone(), opts.rclone_url.is_none());
+    let transfers = TransferService::new(
+        opts.dirs.clone(),
+        bus.clone(),
+        external_rclone_url.is_none(),
+        daemon_rx,
+    );
     let state: Shared = Arc::new(AppState {
         dirs: opts.dirs,
         bus,
@@ -343,9 +344,10 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
         auth,
         team,
         capabilities,
-        external_rclone_url: opts.rclone_url.map(|u| u.trim_end_matches('/').to_string()),
+        external_rclone_url,
         dev_proxy: opts.dev_proxy,
         lifecycle: RwLock::new(None),
+        daemon,
         transfers,
         downloads: download::Downloads::default(),
         reconnect_claims: Mutex::new(HashMap::new()),
@@ -355,10 +357,6 @@ pub async fn serve(listener: TcpListener, opts: ServeOpts) -> Result<Handle, Str
     });
 
     {
-        let st = Arc::clone(&state);
-        state
-            .transfers
-            .set_daemon_resolver(Arc::new(move || st.local_daemon().map(|d| d.client())));
         // Before anything can start a transfer: what the previous process left open is closed
         // or watched again.
         state.transfers.recover();

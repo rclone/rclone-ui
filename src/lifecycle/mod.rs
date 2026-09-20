@@ -1,32 +1,35 @@
 //! The orchestrator: resolve a binary, spawn `rclone rcd`, wait for it, restart it on request
-//! (coalescing bursts), restart it after a crash
-//! with backoff, tell the transfers service when it went down, and run the startup mounts.
+//! (coalescing bursts), restart it after a crash with backoff, tell the transfers service when
+//! it went down, and run the startup mounts.
 //!
 //! Nothing here resolves a configuration file. The daemon inherits this process's environment,
 //! so `RCLONE_CONFIG`, `XDG_CONFIG_HOME` and `RCLONE_CONFIG_PASS` reach rclone exactly as the
 //! operator set them, and rclone picks its own config.
 
+pub mod binary;
+pub mod install;
 pub mod mounts;
-pub mod resolve;
+pub mod process;
 pub mod scheduler_reconcile;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::json;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::bus::Bus;
 use crate::datadir::DataDir;
 use crate::notifications::notify;
-use crate::rc::{self, RcClient};
+use crate::rc;
 use crate::state::{Settings, StateStore};
 use crate::transfers::service::TransferService;
-use crate::zookeeper::{self, DaemonState, RcloneEvent};
+use crate::DaemonTarget;
+use process::Exit;
 
 const MAX_ATTEMPTS: u32 = 5;
 const READINESS_TIMEOUT: Duration = Duration::from_secs(15);
@@ -53,8 +56,6 @@ pub enum Phase {
         pid: u32,
         port: u16,
         version: String,
-        /// The binary was updated during this start.
-        updated: bool,
     },
     Failed {
         error: String,
@@ -62,38 +63,24 @@ pub enum Phase {
     },
 }
 
-/// Where the managed daemon listens and how to authenticate to it.
-#[derive(Clone, Debug)]
-pub struct RcTarget {
-    pub base_url: String,
-    pub user: String,
-    pub pass: String,
-}
-
-impl RcTarget {
-    pub fn client(&self) -> RcClient {
-        RcClient::new(
-            self.base_url.clone(),
-            Some(self.user.clone()),
-            Some(self.pass.clone()),
-        )
-    }
-}
-
-pub struct Options {
-    /// Use this binary instead of resolving/downloading one.
-    pub rclone_path_override: Option<PathBuf>,
+/// The daemon this supervisor spawned, while it runs: how to stop it, and the task that holds
+/// it until it exits.
+struct Running {
+    stop: Option<oneshot::Sender<()>>,
+    task: tokio::task::JoinHandle<Exit>,
 }
 
 pub struct Supervisor {
     dirs: DataDir,
     bus: Bus,
-    /// The daemon this supervisor spawned, while it runs (`zookeeper::spawn_rclone_with`).
-    daemon: Arc<Mutex<DaemonState>>,
+    daemon: Mutex<Option<Running>>,
     store: Arc<StateStore>,
-    options: Options,
+    /// The binary `--rclone-path` names: never replaced by a custom one, never auto-updated.
+    pinned: Option<PathBuf>,
     phase: watch::Sender<Phase>,
-    target: RwLock<Option<RcTarget>>,
+    /// Where the daemon listens, for everybody who talks to it (`AppState::local_daemon`, the
+    /// transfer service); `None` while it is down.
+    target: watch::Sender<Option<DaemonTarget>>,
     restart_tx: mpsc::UnboundedSender<()>,
     shutting_down: AtomicBool,
     /// The proxy URL whose connectivity was already probed (and answered) this process.
@@ -110,19 +97,20 @@ impl Supervisor {
         dirs: DataDir,
         bus: Bus,
         store: Arc<StateStore>,
-        options: Options,
+        pinned: Option<PathBuf>,
         transfers: Arc<TransferService>,
+        target: watch::Sender<Option<DaemonTarget>>,
     ) -> Arc<Supervisor> {
         let (phase, _) = watch::channel(Phase::Stopped);
         let (restart_tx, restart_rx) = mpsc::unbounded_channel();
         let supervisor = Arc::new(Supervisor {
             dirs,
             bus,
-            daemon: Arc::new(Mutex::new(DaemonState::default())),
+            daemon: Mutex::new(None),
             store,
-            options,
+            pinned,
             phase,
-            target: RwLock::new(None),
+            target,
             restart_tx,
             shutting_down: AtomicBool::new(false),
             proxy_probed: Mutex::new(None),
@@ -137,20 +125,15 @@ impl Supervisor {
         self.phase.borrow().clone()
     }
 
-    pub fn target(&self) -> Option<RcTarget> {
-        self.target.read().unwrap().clone()
-    }
-
-    /// The binary `--rclone-path` names: never replaced by a custom one, never auto-updated.
     pub fn pinned(&self) -> Option<&std::path::Path> {
-        self.options.rclone_path_override.as_deref()
+        self.pinned.as_deref()
     }
 
     pub fn request_restart(&self) {
         let _ = self.restart_tx.send(());
     }
 
-    /// Stops the daemon for good (process exit). The loop sees the intentional close and parks.
+    /// Stops the daemon for good (process exit). The loop sees the intentional exit and parks.
     pub async fn shutdown(&self) {
         self.shutting_down.store(true, Ordering::SeqCst);
         self.stop_daemon().await;
@@ -162,46 +145,44 @@ impl Supervisor {
         self.phase.send_replace(phase);
     }
 
-    async fn stop_daemon(&self) {
-        *self.target.write().unwrap() = None;
+    /// The daemon is down: nobody is to talk to it, and its transfers went with it.
+    fn daemon_gone(&self) -> Option<Running> {
+        self.target.send_replace(None);
         self.transfers.daemon_stopped();
-        let daemon = Arc::clone(&self.daemon);
-        match tokio::task::spawn_blocking(move || {
-            zookeeper::kill_rclone_daemon(&daemon, Some(5000))
-        })
-        .await
-        {
-            Ok(Err(e)) => log::warn!("[lifecycle] failed to stop the daemon: {}", e),
-            Err(e) => log::warn!("[lifecycle] failed to stop the daemon: {}", e),
-            Ok(Ok(_)) => {}
+        self.daemon.lock().unwrap().take()
+    }
+
+    /// Stops the daemon and waits until it is gone.
+    async fn stop_daemon(&self) {
+        let Some(mut running) = self.daemon_gone() else {
+            return;
+        };
+        if let Some(stop) = running.stop.take() {
+            let _ = stop.send(());
+        }
+        if let Err(e) = (&mut running.task).await {
+            log::warn!("[lifecycle] the daemon task failed: {}", e);
         }
     }
 
-    async fn start_once(&self) -> Result<mpsc::UnboundedReceiver<RcloneEvent>, String> {
+    async fn start_once(&self) -> Result<mpsc::UnboundedReceiver<Exit>, String> {
+        // Reject a second daemon instead of orphaning the first.
+        if self.daemon.lock().unwrap().is_some() {
+            return Err("an rclone daemon is already running".to_string());
+        }
         self.set_phase(Phase::Resolving);
-        let found = resolve::resolve_binary(
+        let found = binary::resolve(
             &self.dirs,
             &self.bus,
             &self.store,
-            self.options.rclone_path_override.as_deref(),
-            |version| self.set_phase(Phase::Downloading { version }),
+            self.pinned.as_deref(),
+            &|phase| self.set_phase(phase),
         )
         .await?;
-        // It is replaced where it lives, so the path to run does not change.
-        let updated = resolve::maybe_auto_update(
-            &self.dirs,
-            &self.bus,
-            &self.store,
-            &found,
-            |from, to| self.set_phase(Phase::Updating { from, to }),
-        )
-        .await
-        .is_some();
-        let path = found.path;
 
-        // The daemon is told about its environment only the proxy and the limits. Its config file
-        // is rclone's business: whatever `RCLONE_CONFIG`/`XDG_CONFIG_HOME` this process was given
-        // is inherited untouched, and rclone resolves the rest.
+        // The daemon is told about its environment only the proxy and the limits. Its config
+        // file is rclone's business: whatever `RCLONE_CONFIG`/`XDG_CONFIG_HOME` this process was
+        // given is inherited untouched, and rclone resolves the rest.
         let mut env = build_run_env(&self.store.settings());
 
         // Informational proxy check (the env vars come from build_run_env regardless): one
@@ -231,40 +212,43 @@ impl Supervisor {
             &format!("127.0.0.1:{}", port),
             "--rc-serve",
             // The daemon's stdin is /dev/null, so an encrypted config with no password in the
-            // environment would have rclone prompt into EOF and report a panic. This turns that
-            // Passing a password is done using `RCLONE_CONFIG_PASS`.
+            // environment would have rclone prompt into EOF and report a panic. The password is
+            // passed with `RCLONE_CONFIG_PASS`, or not at all.
             "--ask-password=false",
         ]
         .iter()
         .map(|s| s.to_string())
         .collect();
 
-        let (close_tx, close_rx) = mpsc::unbounded_channel::<RcloneEvent>();
-        log::info!("[lifecycle] starting {} on port {}", path, port);
-        let pid = zookeeper::spawn_rclone_with(
-            &self.daemon,
-            path,
-            args,
-            env,
-            Box::new(move |event| {
-                let _ = close_tx.send(event);
-            }),
-        )?;
+        log::info!("[lifecycle] starting {} on port {}", found.path, port);
+        let daemon = process::spawn(&found.path, &args, &env)?;
+        let pid = daemon.pid;
+        let (stop_tx, stop_rx) = oneshot::channel();
+        let (exit_tx, exit_rx) = mpsc::unbounded_channel::<Exit>();
+        let task = tokio::spawn(async move {
+            let exit = daemon.run_until_exit(stop_rx).await;
+            let _ = exit_tx.send(exit.clone());
+            exit
+        });
+        *self.daemon.lock().unwrap() = Some(Running {
+            stop: Some(stop_tx),
+            task,
+        });
 
-        let target = RcTarget {
+        let target = DaemonTarget {
             base_url: format!("http://127.0.0.1:{}", port),
-            user,
-            pass,
+            user: Some(user),
+            pass: Some(pass),
         };
         let client = target.client();
-        let daemon = Arc::clone(&self.daemon);
         client
             .wait_ready(READINESS_TIMEOUT, || {
-                let state = daemon.lock().unwrap();
-                (state.pid != Some(pid)).then(|| "rclone daemon exited during startup".to_string())
+                let slot = self.daemon.lock().unwrap();
+                slot.as_ref()
+                    .is_none_or(|running| running.task.is_finished())
+                    .then(|| "rclone daemon exited during startup".to_string())
             })
-            .await
-            ?;
+            .await?;
         let version = client
             .call("/core/version", &json!({}))
             .await
@@ -276,13 +260,8 @@ impl Supervisor {
             })
             .unwrap_or_default();
 
-        *self.target.write().unwrap() = Some(target);
-        self.set_phase(Phase::Ready {
-            pid,
-            port,
-            version,
-            updated,
-        });
+        self.target.send_replace(Some(target));
+        self.set_phase(Phase::Ready { pid, port, version });
 
         // Off the critical path: the scheduler reconcile and startup mounts.
         {
@@ -306,11 +285,11 @@ impl Supervisor {
                 previous.abort();
             }
         }
-        Ok(close_rx)
+        Ok(exit_rx)
     }
 
-    async fn crashed(&self, event: &RcloneEvent, attempts: u32) {
-        let body = match event.code {
+    async fn crashed(&self, exit: &Exit, attempts: u32) {
+        let body = match exit.code {
             Some(code) => format!("rclone exited unexpectedly (code {})", code),
             None => "rclone exited unexpectedly".to_string(),
         };
@@ -323,7 +302,7 @@ impl Supervisor {
                 "rclone.crashed",
                 "Rclone daemon crashed",
                 &body,
-                json!({ "exitCode": event.code }),
+                json!({ "exitCode": exit.code }),
             );
         } else if attempts == MAX_ATTEMPTS {
             notify(
@@ -331,7 +310,7 @@ impl Supervisor {
                 "rclone.crashed",
                 "Rclone daemon keeps crashing",
                 &format!("{} — {} times in a row", body, attempts),
-                json!({ "exitCode": event.code, "attempts": attempts }),
+                json!({ "exitCode": exit.code, "attempts": attempts }),
             );
         }
         self.set_phase(Phase::Failed {
@@ -352,10 +331,7 @@ fn coalesce(rx: &mut mpsc::UnboundedReceiver<()>) {
 
 /// Parks until a restart is requested (or the backoff passes when `timeout` is given).
 /// Returns `false` when the supervisor is gone.
-async fn wait_for_restart(
-    rx: &mut mpsc::UnboundedReceiver<()>,
-    timeout: Option<Duration>,
-) -> bool {
+async fn wait_for_restart(rx: &mut mpsc::UnboundedReceiver<()>, timeout: Option<Duration>) -> bool {
     let request = match timeout {
         Some(delay) => tokio::select! {
             req = rx.recv() => req,
@@ -372,10 +348,7 @@ async fn wait_for_restart(
     }
 }
 
-async fn run_loop(
-    supervisor: Arc<Supervisor>,
-    mut restart_rx: mpsc::UnboundedReceiver<()>,
-) {
+async fn run_loop(supervisor: Arc<Supervisor>, mut restart_rx: mpsc::UnboundedReceiver<()>) {
     // Consecutive failures: failed starts, and crashes of a daemon that never made it past
     // CRASH_GRACE. A successful start alone does not reset it — a daemon that comes up and dies
     // seconds later would otherwise restart every two seconds forever, never backing off.
@@ -385,7 +358,7 @@ async fn run_loop(
             return;
         }
         match supervisor.start_once().await {
-            Ok(mut close_rx) => {
+            Ok(mut exit_rx) => {
                 let started_at = Instant::now();
                 tokio::select! {
                     request = restart_rx.recv() => {
@@ -397,11 +370,10 @@ async fn run_loop(
                         supervisor.stop_daemon().await;
                         coalesce(&mut restart_rx);
                     }
-                    event = close_rx.recv() => {
-                        let event = event.unwrap_or(RcloneEvent { kind: "close".into(), code: None, intentional: true });
-                        *supervisor.target.write().unwrap() = None;
-                        supervisor.transfers.daemon_stopped();
-                        if event.intentional || supervisor.shutting_down.load(Ordering::SeqCst) {
+                    exit = exit_rx.recv() => {
+                        let exit = exit.unwrap_or(Exit { code: None, intentional: true });
+                        supervisor.daemon_gone();
+                        if exit.intentional || supervisor.shutting_down.load(Ordering::SeqCst) {
                             // Stopped on purpose: stay down until something asks for a daemon again.
                             supervisor.set_phase(Phase::Stopped);
                             attempts = 0;
@@ -413,7 +385,7 @@ async fn run_loop(
                                 attempts = 0;
                             }
                             attempts = attempts.saturating_add(1);
-                            supervisor.crashed(&event, attempts).await;
+                            supervisor.crashed(&exit, attempts).await;
                             if !wait_for_restart(&mut restart_rx, Some(backoff(attempts))).await {
                                 return;
                             }

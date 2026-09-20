@@ -5,7 +5,6 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use rclone_cloud::{serve, Owner, ServeOpts};
-use rclone_cloud::lifecycle::Options as LifecycleOptions;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -96,7 +95,7 @@ fn main() {
 /// What stops the server before it listens: an rclone older than the pages need, here or behind
 /// `--rclone-url`, and a machine with no rclone where this server may not install one.
 async fn preflight(cli: &CliServe, dirs: &rclone_cloud::DataDir) -> Result<(), String> {
-    use rclone_cloud::zookeeper;
+    use rclone_cloud::lifecycle::binary;
     const AGAIN: &str = " Then start the server again.";
 
     if let Some(url) = &cli.rclone_url {
@@ -108,7 +107,7 @@ async fn preflight(cli: &CliServe, dirs: &rclone_cloud::DataDir) -> Result<(), S
         return match answer.as_ref().map(|answer| answer["version"].as_str()) {
             Ok(Some(version)) => {
                 let version = version.trim_start_matches('v');
-                zookeeper::check_minimum(version, &format!("the daemon at {}", url))
+                binary::check_minimum(version, &format!("the daemon at {}", url))
                     .map_err(|e| e + AGAIN)
             }
             // It may simply not be up yet. The pages say so when they ask it something.
@@ -126,21 +125,21 @@ async fn preflight(cli: &CliServe, dirs: &rclone_cloud::DataDir) -> Result<(), S
     let settings = rclone_cloud::StateStore::new(dirs.clone(), rclone_cloud::Bus::new()).settings();
     let pinned = cli.rclone_path.clone();
     let found = tokio::task::spawn_blocking(move || {
-        rclone_cloud::lifecycle::resolve::find_binary(&settings, pinned.as_deref())
+        binary::find_binary(&settings, pinned.as_deref())
     })
     .await
     .map_err(|e| e.to_string())?;
     match found {
         Ok(Some(found)) => {
-            zookeeper::check_minimum(&found.version, &found.path).map_err(|e| e + AGAIN)
+            binary::check_minimum(&found.version, &found.path).map_err(|e| e + AGAIN)
         }
-        Ok(None) => zookeeper::install_target(None)
+        Ok(None) => binary::install_target(None)
             .map(|_| ())
             .map_err(|reason| {
                 format!(
                     "rclone is not installed. {} Install it: {}{}",
                     reason,
-                    zookeeper::install_hint(),
+                    binary::install_hint(),
                     AGAIN
                 )
             }),
@@ -215,9 +214,7 @@ async fn run(cli: CliServe) -> Result<(), String> {
     match &cli.rclone_url {
         Some(url) => log::info!("using the external rclone daemon at {}", url),
         None => {
-            handle.start_lifecycle(LifecycleOptions {
-                rclone_path_override: cli.rclone_path.clone(),
-            });
+            handle.start_lifecycle(cli.rclone_path.clone());
         }
     }
 

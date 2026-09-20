@@ -12,10 +12,10 @@
 //! ([`TransferService::claim`]); whoever comes second finds nothing and writes nothing.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -24,6 +24,7 @@ use crate::bus::Bus;
 use crate::datadir::DataDir;
 use crate::notifications::notify;
 use crate::rc::RcClient;
+use crate::DaemonTarget;
 use crate::scheduler::jobfile::RcRequest;
 use crate::time::now_iso;
 
@@ -49,9 +50,6 @@ const LAUNCH_GRACE: Duration = Duration::from_secs(1);
 const SAID_FIRST: Duration = Duration::from_secs(3);
 /// What a page may start through here. The builders emit nothing else (`lib/rclone/requests.ts`).
 const START_ENDPOINTS: &[&str] = &["/job/batch", "/sync/sync", "/sync/bisync"];
-
-/// Builds an `RcClient` for the rclone daemon, once there is one to talk to.
-pub type DaemonResolver = Arc<dyn Fn() -> Option<RcClient> + Send + Sync>;
 
 /// What a page sends to start a transfer: the request its builders made, and what to remember
 /// about it.
@@ -124,7 +122,8 @@ pub struct TransferService {
     /// (`--rclone-url`) it outlives us like any remote host.
     managed_local: bool,
     watched: Mutex<HashMap<String, Watched>>,
-    resolver: RwLock<Option<DaemonResolver>>,
+    /// Where the daemon is, as the supervisor (or `--rclone-url`) says; `None` while it is down.
+    daemon: watch::Receiver<Option<DaemonTarget>>,
     /// Every end, as it is written, for whoever is waiting for one ([`TransferService::ends`]).
     ends: broadcast::Sender<Ended>,
 }
@@ -206,13 +205,18 @@ fn webhook_data(started: &Started) -> Value {
 }
 
 impl TransferService {
-    pub fn new(dirs: DataDir, bus: Bus, managed_local: bool) -> Arc<Self> {
+    pub fn new(
+        dirs: DataDir,
+        bus: Bus,
+        managed_local: bool,
+        daemon: watch::Receiver<Option<DaemonTarget>>,
+    ) -> Arc<Self> {
         Arc::new(TransferService {
             dirs,
             bus,
             managed_local,
             watched: Mutex::new(HashMap::new()),
-            resolver: RwLock::new(None),
+            daemon,
             ends: broadcast::channel(64).0,
         })
     }
@@ -223,13 +227,8 @@ impl TransferService {
         self.ends.subscribe()
     }
 
-    pub fn set_daemon_resolver(&self, resolver: DaemonResolver) {
-        *self.resolver.write().unwrap() = Some(resolver);
-    }
-
     fn client(&self) -> Option<RcClient> {
-        let resolver = self.resolver.read().unwrap().clone()?;
-        resolver()
+        self.daemon.borrow().as_ref().map(DaemonTarget::client)
     }
 
     /// Whether there is a daemon to submit to. What the scheduler asks before it begins a run,
@@ -657,6 +656,10 @@ async fn probe(client: &RcClient, endpoint: &str, body: &Value) -> Result<Value,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn no_daemon() -> watch::Receiver<Option<DaemonTarget>> {
+        watch::channel(None).1
+    }
     use crate::bus::Bus;
     use crate::datadir::DataDir;
 
@@ -668,7 +671,10 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&root);
         let dirs = DataDir { root };
-        (TransferService::new(dirs.clone(), Bus::new(), managed_local), dirs)
+        (
+            TransferService::new(dirs.clone(), Bus::new(), managed_local, no_daemon()),
+            dirs,
+        )
     }
 
     fn started(id: &str) -> Started {
@@ -737,7 +743,7 @@ mod tests {
         first.watch(started("there"), false);
         drop(first);
 
-        let second = TransferService::new(dirs.clone(), Bus::new(), true);
+        let second = TransferService::new(dirs.clone(), Bus::new(), true, no_daemon());
         second.recover();
 
         assert_eq!(state_of(&dirs, "here"), State::Interrupted);
@@ -747,7 +753,8 @@ mod tests {
         let (first, dirs_external) = service("recover-external", false);
         first.watch(started("here"), false);
         drop(first);
-        let external = TransferService::new(dirs_external.clone(), Bus::new(), false);
+        let external =
+            TransferService::new(dirs_external.clone(), Bus::new(), false, no_daemon());
         external.recover();
         assert_eq!(state_of(&dirs_external, "here"), State::Running);
         let _ = std::fs::remove_dir_all(&dirs.root);

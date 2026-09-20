@@ -62,12 +62,7 @@ fn replace_current_exe(bytes: &[u8]) -> Result<(), String> {
     let staged = exe.with_extension("update-new");
     let old = exe.with_extension("update-old");
     std::fs::write(&staged, bytes).map_err(|e| format!("could not write the update: {}", e))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o755))
-            .map_err(|e| e.to_string())?;
-    }
+    crate::fsutil::set_executable(&staged)?;
     let _ = std::fs::remove_file(&old);
     // A running executable can be renamed on every platform; the new file takes its path.
     std::fs::rename(&exe, &old)

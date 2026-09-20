@@ -1,6 +1,7 @@
 //! A small async client for rclone's RC API, plus the ephemeral-port and credential helpers
-//! the lifecycle uses to raise the daemon.
+//! the lifecycle uses to raise the daemon, and the retry ladder the server's own calls climb.
 
+use std::future::Future;
 use std::time::Duration;
 
 use serde_json::{json, Value};
@@ -93,6 +94,22 @@ impl RcClient {
         Ok(value)
     }
 
+    /// [`call`](Self::call) up the ladder of [`retry`]: four attempts over about seven seconds.
+    /// For the server's own calls to a daemon that may still be coming up.
+    pub async fn call_retrying(&self, endpoint: &str, body: Value) -> Result<Value, String> {
+        retry(
+            3,
+            Duration::from_secs(1),
+            Duration::from_secs(8),
+            |_| true,
+            || {
+                let body = body.clone();
+                async move { self.call(endpoint, &body).await }
+            },
+        )
+        .await
+    }
+
     /// Polls `/rc/noop` every 250 ms until the daemon answers, `is_dead` reports the process
     /// gone, or `timeout` passes.
     pub async fn wait_ready(
@@ -125,6 +142,35 @@ impl RcClient {
                 ));
             }
             tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+    }
+}
+
+/// Retries: exponential, factor 2, from `min`, each sleep capped at `max`. `retries` counts the
+/// retries, so the call is made `retries + 1` times — 3 means four attempts and 1+2+4 seconds
+/// of waiting. `should_retry` says which errors are worth another go.
+pub async fn retry<T, Fut>(
+    retries: u32,
+    min: Duration,
+    max: Duration,
+    should_retry: impl Fn(&String) -> bool,
+    mut f: impl FnMut() -> Fut,
+) -> Result<T, String>
+where
+    Fut: Future<Output = Result<T, String>>,
+{
+    let mut attempt = 0;
+    loop {
+        match f().await {
+            Ok(value) => return Ok(value),
+            Err(error) => {
+                if attempt >= retries || !should_retry(&error) {
+                    return Err(error);
+                }
+                let delay = (min * 2u32.pow(attempt)).min(max);
+                tokio::time::sleep(delay).await;
+                attempt += 1;
+            }
         }
     }
 }

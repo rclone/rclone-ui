@@ -3,7 +3,6 @@
 //! lib/rclone/mount.ts `probeMountSource`).
 
 use std::collections::HashMap;
-use std::future::Future;
 use std::time::Duration;
 
 use serde_json::{json, Map, Value};
@@ -378,52 +377,6 @@ fn to_struct_options(flags: &Map<String, Value>, infos: Option<&Vec<Value>>) -> 
 }
 
 // ---------------------------------------------------------------------------
-// Retries: exponential, factor 2, from `min`, each sleep capped at `max`. `retries` counts the
-// retries, so the call is made `retries + 1` times — 3 means four attempts and 1+2+4 seconds
-// of waiting.
-// ---------------------------------------------------------------------------
-
-async fn retry<T, Fut>(
-    retries: u32,
-    min: Duration,
-    max: Duration,
-    should_retry: impl Fn(&String) -> bool,
-    mut f: impl FnMut() -> Fut,
-) -> Result<T, String>
-where
-    Fut: Future<Output = Result<T, String>>,
-{
-    let mut attempt = 0;
-    loop {
-        match f().await {
-            Ok(value) => return Ok(value),
-            Err(error) => {
-                if attempt >= retries || !should_retry(&error) {
-                    return Err(error);
-                }
-                let delay = (min * 2u32.pow(attempt)).min(max);
-                tokio::time::sleep(delay).await;
-                attempt += 1;
-            }
-        }
-    }
-}
-
-async fn rc_retry(client: &RcClient, endpoint: &str, body: Value) -> Result<Value, String> {
-    retry(
-        3,
-        Duration::from_secs(1),
-        Duration::from_secs(8),
-        |_| true,
-        || {
-            let body = body.clone();
-            async move { client.call(endpoint, &body).await }
-        },
-    )
-    .await
-}
-
-// ---------------------------------------------------------------------------
 // probeMountSource / startMountInner
 // ---------------------------------------------------------------------------
 
@@ -582,7 +535,7 @@ pub async fn start_mount(
 
     let mut query = Map::new();
     if !mount_options.is_empty() || !vfs_options.is_empty() {
-        let infos = rc_retry(client, "/options/info", json!({ "blocks": "mount,vfs" })).await?;
+        let infos = client.call_retrying("/options/info", json!({ "blocks": "mount,vfs" })).await?;
         if !mount_options.is_empty() {
             query.insert(
                 "mountOpt".into(),
@@ -611,7 +564,7 @@ pub async fn start_mount(
 
     if destination == "*" && is_windows {
         query.insert("mountPoint".into(), Value::String("*".into()));
-        rc_retry(client, "/mount/mount", Value::Object(query)).await?;
+        client.call_retrying("/mount/mount", Value::Object(query)).await?;
         return Ok(());
     }
 
@@ -619,8 +572,7 @@ pub async fn start_mount(
     let dst_fs = dst.root.clone();
     let dst_file_path = dst.file_path.replace('\\', "/");
 
-    let directory_exists = match rc_retry(
-        client,
+    let directory_exists = match client.call_retrying(
         "/operations/stat",
         json!({ "fs": dst_fs, "remote": dst_file_path }),
     )
@@ -642,8 +594,7 @@ pub async fn start_mount(
     };
 
     if directory_exists == Some(true) {
-        let is_empty = match rc_retry(
-            client,
+        let is_empty = match client.call_retrying(
             "/operations/list",
             json!({ "fs": dst_fs, "remote": dst.file_path }),
         )
@@ -662,16 +613,14 @@ pub async fn start_mount(
             return Err("The selected directory must be empty to mount a remote.".to_string());
         }
         if is_windows {
-            let _ = rc_retry(
-                client,
+            let _ = client.call_retrying(
                 "/operations/rmdir",
                 json!({ "fs": dst_fs, "remote": dst.file_path }),
             )
             .await;
         }
     } else if !is_windows {
-        rc_retry(
-            client,
+        client.call_retrying(
             "/operations/mkdir",
             json!({ "fs": dst_fs, "remote": dst.file_path }),
         )
@@ -701,7 +650,7 @@ pub async fn start_mount(
     if is_macos {
         query.insert("mountType".into(), Value::String("nfsmount".into()));
     }
-    rc_retry(client, "/mount/mount", Value::Object(query)).await?;
+    client.call_retrying("/mount/mount", Value::Object(query)).await?;
     Ok(())
 }
 
@@ -754,11 +703,11 @@ pub async fn startup_mounts(dirs: &DataDir, store: &StateStore, client: &RcClien
         let source = format!("{}:{}", remote, config.remote_path);
         let mount_point = config.mount_point.clone();
 
-        // The same ladder the RC calls themselves use ([`rc_retry`]): four attempts over about
+        // The same ladder the RC calls themselves climb (`call_retrying`): four attempts over about
         // seven seconds. A remote whose network is still coming up at boot gets its chance; one
         // that is simply unreachable does not hold up the remotes behind it, which are probed
         // one after another.
-        let probe = retry(
+        let probe = crate::rc::retry(
             3,
             Duration::from_secs(1),
             Duration::from_secs(8),

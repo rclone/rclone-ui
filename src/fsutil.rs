@@ -1,7 +1,8 @@
 //! Filesystem primitives shared by everything that writes under the data directory: the one
 //! way a file that must never be seen half-written is replaced (bytes go to a temporary file
 //! next to the target, which is then renamed over it; state documents, the accounts file,
-//! notification targets and scheduler job files all use it).
+//! notification targets and scheduler job files all use it), and the one way a binary this
+//! server put on disk is made runnable.
 
 use std::path::Path;
 
@@ -24,6 +25,21 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
         return Err(format!("failed to replace {}: {}", path.display(), e));
     }
     Ok(())
+}
+
+/// Marks `path` executable (0o755). Nothing to do on Windows, where the extension decides.
+pub fn set_executable(path: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("could not make {} executable: {}", path.display(), e))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

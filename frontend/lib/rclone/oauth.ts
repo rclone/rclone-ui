@@ -10,7 +10,7 @@ import { UserCancelledError, formatErrorMessage } from '../errors'
 // comes from `config/oauthstatus` and the page offers it. rclone 1.75 added that call and
 // `config/oauthstop`; every login goes through them, so one somebody walked away from never
 // holds the port against the next one. The server refuses an rclone older than 1.75 for exactly
-// this (`MIN_RCLONE_VERSION`, src/zookeeper.rs).
+// this (`MIN_RCLONE_VERSION`, src/lifecycle/binary.rs).
 
 export interface OAuthStatus {
     status: 'running' | 'stopped'

@@ -130,7 +130,6 @@ export interface LifecyclePhase {
     to?: string
     pid?: number
     port?: number
-    updated?: boolean
     error?: string
     attempts?: number
 }

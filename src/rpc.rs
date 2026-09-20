@@ -15,7 +15,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 
 use crate::auth::Caller;
-use crate::lifecycle::resolve;
+use crate::lifecycle::{binary, install, process};
 use crate::state::{Limits, ProxySettings};
 use crate::team::{AuthUser, Role};
 use crate::transfers::service::StartRequest;
@@ -323,7 +323,7 @@ rpcs! { st, caller, args;
     },
     "rclone_releases" => {
         let limit = args["limit"].as_u64().unwrap_or(20) as usize;
-        ok(resolve::available_releases(limit).await?)
+        ok(binary::available_releases(limit).await?)
     },
     // Which rclone runs, and whether a version can be installed over it. `installBlocked` is the
     // reason when it cannot.
@@ -335,12 +335,12 @@ rpcs! { st, caller, args;
             let custom = settings.rclone_path.clone().filter(|path| !path.is_empty());
             let named = pinned.clone();
             let found = tokio::task::spawn_blocking(move || {
-                resolve::find_binary(&settings, named.as_deref())
+                binary::find_binary(&settings, named.as_deref())
             })
             .await
             .map_err(|e| e.to_string())?
             .unwrap_or(None);
-            let target = crate::zookeeper::install_target(pinned.as_deref());
+            let target = binary::install_target(pinned.as_deref());
             ok(json!({
                 "path": found.as_ref().map(|f| &f.path),
                 "version": found.as_ref().map(|f| &f.version),
@@ -358,14 +358,14 @@ rpcs! { st, caller, args;
             "the rclone daemon is external (--rclone-url): update it on its own machine",
         )?;
         let version = str_arg(&args, "version")?;
-        let target = crate::zookeeper::install_target(supervisor.pinned()).map_err(|reason| {
+        let target = binary::install_target(supervisor.pinned()).map_err(|reason| {
             format!(
                 "{} Run `rclone selfupdate --version {}` on the server instead.",
                 reason, version
             )
         })?;
         let proxy = st.store.settings().active_proxy().cloned();
-        crate::zookeeper::install_rclone(&st.dirs, &st.bus, &version, &target, proxy).await?;
+        install::install(&st.dirs, &st.bus, &version, &target, proxy).await?;
         st.store.update(|s| {
             s.remove("rclonePath");
         })?;
@@ -382,8 +382,8 @@ rpcs! { st, caller, args;
         let custom = args["path"].as_str().map(str::trim).filter(|p| !p.is_empty());
         if let Some(path) = custom {
             let binary = std::path::PathBuf::from(path);
-            let version = blocking(move || crate::zookeeper::probe_rclone_version(&binary)).await?;
-            crate::zookeeper::check_minimum(&version, path)?;
+            let version = blocking(move || process::probe_version(&binary)).await?;
+            binary::check_minimum(&version, path)?;
         }
         st.store.update(|s| match custom {
             Some(path) => {
