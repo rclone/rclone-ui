@@ -1164,12 +1164,12 @@ test('a favourite row shows its full path and carries the star alone', async ({
     // Favourites are bookmarks, not a folder: rename, download and delete would reach through
     // to the real path from a list that is only meant to point at it. Dropping the bookmark is
     // the one thing a row does here.
-    const host = async () =>
-        (await (await request.get('/api/state/host', { headers: SESSION })).json()) as {
+    const doc = async () =>
+        (await (await request.get('/api/state/app', { headers: SESSION })).json()) as {
             revision: number
         }
-    const before = await host()
-    await request.patch('/api/state/host', {
+    const before = await doc()
+    await request.patch('/api/state/app', {
         headers: { ...SESSION, 'If-Match': String(before.revision) },
         data: {
             set: { favoritePaths: [{ remote: 'e2e-memory', path: 'keep/', added: 1 }] },
@@ -1196,8 +1196,8 @@ test('a favourite row shows its full path and carries the star alone', async ({
         await star.click()
         await expect(row).toHaveCount(0)
     } finally {
-        const after = await host()
-        await request.patch('/api/state/host', {
+        const after = await doc()
+        await request.patch('/api/state/app', {
             headers: { ...SESSION, 'If-Match': String(after.revision) },
             data: { set: { favoritePaths: [] }, unset: [] },
         })
@@ -1381,14 +1381,14 @@ test('a scheduled task keeps what its sources are, and its job file is built fro
     const dir = mkdtempSync(join(tmpdir(), 'rcui-e2e-sched-'))
     writeFileSync(join(dir, 'a.txt'), 'a')
     type Task = { id: string; kinds?: Record<string, string> }
-    const host = async () =>
-        (await (await request.get('/api/state/host', { headers: SESSION })).json()) as {
+    const doc = async () =>
+        (await (await request.get('/api/state/app', { headers: SESSION })).json()) as {
             revision: number
             state: { scheduledTasks?: Task[] }
         }
     const patch = async (set: Record<string, unknown>) =>
-        request.patch('/api/state/host', {
-            headers: { ...SESSION, 'If-Match': String((await host()).revision) },
+        request.patch('/api/state/app', {
+            headers: { ...SESSION, 'If-Match': String((await doc()).revision) },
             data: { set, unset: [] },
         })
     let taskId: string | undefined
@@ -1408,7 +1408,7 @@ test('a scheduled task keeps what its sources are, and its job file is built fro
             timeout: 15_000,
         })
         const saved = async () =>
-            (await host()).state.scheduledTasks?.find((t) => t.kinds?.[dir] !== undefined)
+            (await doc()).state.scheduledTasks?.find((t) => t.kinds?.[dir] !== undefined)
         await expect.poll(saved).toBeDefined()
         const task = (await saved())!
         taskId = task.id
@@ -1429,7 +1429,7 @@ test('a scheduled task keeps what its sources are, and its job file is built fro
             })
         }
         await patch({
-            scheduledTasks: ((await host()).state.scheduledTasks ?? []).filter(
+            scheduledTasks: ((await doc()).state.scheduledTasks ?? []).filter(
                 (t) => t.id !== taskId
             ),
         })
@@ -1985,14 +1985,14 @@ test('renaming a remote carries its settings along', async ({ page, request }) =
         request.post(`/api/rc/${path}`, { headers: SESSION, data })
     const remotes = async () =>
         ((await (await rc('config/listremotes', {})).json()) as { remotes: string[] }).remotes
-    type HostDoc = { version: number; state: Record<string, unknown> }
-    const hostDoc = async () => (await (await request.get('/api/state/host')).json()) as HostDoc
+    type AppDoc = { version: number; state: Record<string, unknown> }
+    const appDoc = async () => (await (await request.get('/api/state/app')).json()) as AppDoc
     await rc('config/create', { name: 'sb-before', type: 'memory', parameters: {} })
     // This server's daemon is the suite's external rcd, on the shared config file.
     const configFile = new URL('./.tmp/rclone.conf', import.meta.url).pathname
     const before = readFileSync(configFile, 'utf8')
     expect(before).toContain('[sb-before]')
-    const original = await hostDoc()
+    const original = await appDoc()
     // What the app keeps under the remote's name: a mount-on-start setup and a favorite.
     const mountOnStart = {
         enabled: true,
@@ -2003,7 +2003,7 @@ test('renaming a remote carries its settings along', async ({ page, request }) =
         filterOptions: {},
         configOptions: {},
     }
-    await request.put('/api/state/host', {
+    await request.put('/api/state/app', {
         data: {
             version: original.version,
             state: {
@@ -2054,7 +2054,7 @@ test('renaming a remote carries its settings along', async ({ page, request }) =
         // The settings kept by name moved with it.
         await expect
             .poll(async () => {
-                const state = (await hostDoc()).state as {
+                const state = (await appDoc()).state as {
                     remoteConfigs?: Record<string, { mountOnStart?: { mountPoint: string } }>
                     favoritePaths?: { remote: string }[]
                 }
@@ -2068,8 +2068,8 @@ test('renaming a remote carries its settings along', async ({ page, request }) =
     } finally {
         await rc('config/delete', { name: 'sb-after' })
         await rc('config/delete', { name: 'sb-before' })
-        const current = await hostDoc()
-        await request.put('/api/state/host', {
+        const current = await appDoc()
+        await request.put('/api/state/app', {
             data: { version: current.version, state: original.state },
         })
     }
@@ -2388,17 +2388,17 @@ test('a scheduled run opens where every other transfer does, and can be filtered
             .map((line) => JSON.stringify(line))
             .join('\n')}\n`
     )
-    const host = async () =>
-        (await (await request.get('/api/state/host', { headers: SESSION })).json()) as {
+    const doc = async () =>
+        (await (await request.get('/api/state/app', { headers: SESSION })).json()) as {
             revision: number
             state: { scheduledTasks?: unknown[] }
         }
     const setTasks = async (scheduledTasks: unknown[]) =>
-        request.patch('/api/state/host', {
-            headers: { ...SESSION, 'If-Match': String((await host()).revision) },
+        request.patch('/api/state/app', {
+            headers: { ...SESSION, 'If-Match': String((await doc()).revision) },
             data: { set: { scheduledTasks }, unset: [] },
         })
-    const before = (await host()).state.scheduledTasks ?? []
+    const before = (await doc()).state.scheduledTasks ?? []
     // By name: the first drawer a store ever closes is followed by a one-time tip about the ESC
     // key, which is a dialog too.
     const drawer = page.getByRole('dialog', { name: /Transfer Details/ })

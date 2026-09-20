@@ -205,7 +205,7 @@ test('limits: bandwidth applies at once, the transaction limits through a restar
         }
     const saved = async () =>
         (
-            (await (await request.get(`${base}/api/state/host`, { headers: SESSION })).json()) as {
+            (await (await request.get(`${base}/api/state/app`, { headers: SESSION })).json()) as {
                 state: { limits?: { bwLimit: string; tpsLimit: number; tpsLimitBurst: number } }
             }
         ).state.limits
@@ -292,13 +292,13 @@ test('limits: bandwidth applies at once, the transaction limits through a restar
         expect(await saved()).toEqual({ bwLimit: '1M', tpsLimit: 5, tpsLimitBurst: 2 })
     } finally {
         // The other tests share this daemon: leave it unthrottled.
-        await request.patch(`${base}/api/state/host`, {
+        await request.patch(`${base}/api/state/app`, {
             headers: {
                 ...SESSION,
                 'If-Match': String(
                     (
                         (await (
-                            await request.get(`${base}/api/state/host`, { headers: SESSION })
+                            await request.get(`${base}/api/state/app`, { headers: SESSION })
                         ).json()) as { revision: number }
                     ).revision
                 ),

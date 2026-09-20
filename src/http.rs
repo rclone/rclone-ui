@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use crate::scheduler::storeread::ProxyCfg;
+use crate::state::ProxySettings;
 
 const CONNECT: Duration = Duration::from_secs(10);
 
@@ -26,7 +26,7 @@ pub fn plain() -> reqwest::Client {
 }
 
 /// [`client`] through the proxy of Settings › Rclone when one is set, its ignored hosts left alone.
-pub fn proxied(proxy: Option<&ProxyCfg>, timeout: Duration) -> Result<reqwest::Client, String> {
+pub fn proxied(proxy: Option<&ProxySettings>, timeout: Duration) -> Result<reqwest::Client, String> {
     let mut builder = reqwest::Client::builder()
         .connect_timeout(CONNECT)
         .timeout(timeout);

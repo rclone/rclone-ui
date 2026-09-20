@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { type ReactElement, useEffect, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import rclone from '../../../lib/rclone/client'
-import { useHostStore } from '../../../store/host'
+import { usePersistedStore } from '../../../store/persisted'
 import {
     REMOTES_SHOWN,
     allRemotesLeaf,
@@ -138,8 +138,8 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
     const remoteNames: string[] = remotes.data ?? []
     // Newest first: rclone lists alphabetically, so the host store remembers when each remote
     // was first listed. Not yet noted means new, so it leads until the effect below records it.
-    const firstSeen = useHostStore((state) => state.remoteFirstSeen)
-    const noteRemotes = useHostStore((state) => state.noteRemotes)
+    const firstSeen = usePersistedStore((state) => state.remoteFirstSeen)
+    const noteRemotes = usePersistedStore((state) => state.noteRemotes)
     useEffect(() => {
         if (remotes.data) noteRemotes(remotes.data)
     }, [remotes.data, noteRemotes])

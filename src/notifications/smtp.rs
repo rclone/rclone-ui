@@ -12,7 +12,7 @@ use lettre::transport::smtp::client::{Tls, TlsParameters};
 use lettre::{Message, SmtpTransport, Transport};
 use serde::{Deserialize, Serialize};
 
-use crate::scheduler::storeread::DataDir;
+use crate::datadir::DataDir;
 
 pub const NOT_SET_UP: &str =
     "SMTP is not set up. Save the mail server under Settings → SMTP first.";

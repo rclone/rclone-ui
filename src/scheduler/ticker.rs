@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use super::cronconv;
 use super::jobfile;
 use super::runner;
-use super::storeread::DataDir;
+use crate::datadir::DataDir;
 use super::{InstallState, Registration, RenderedSchedule, SchedulerBackend, NOT_REGISTERED};
 use crate::transfers::service::TransferService;
 

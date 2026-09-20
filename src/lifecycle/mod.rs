@@ -1,5 +1,5 @@
 //! The orchestrator: resolve a binary, spawn `rclone rcd`, wait for it, restart it on request
-//! (coalescing bursts, applying the initiating page's overrides first), restart it after a crash
+//! (coalescing bursts), restart it after a crash
 //! with backoff, tell the transfers service when it went down, and run the startup mounts.
 //!
 //! Nothing here resolves a configuration file. The daemon inherits this process's environment,
@@ -10,21 +10,21 @@ pub mod mounts;
 pub mod resolve;
 pub mod scheduler_reconcile;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde::Serialize;
+use serde_json::json;
 use tokio::sync::{mpsc, watch};
 
 use crate::bus::Bus;
 use crate::datadir::DataDir;
 use crate::notifications::notify;
 use crate::rc::{self, RcClient};
-use crate::scheduler::storeread;
-use crate::state_files::{StateStore, HOST_DOC};
+use crate::state::{Settings, StateStore};
 use crate::transfers::service::TransferService;
 use crate::zookeeper::{self, DaemonState, RcloneEvent};
 
@@ -80,15 +80,6 @@ impl RcTarget {
     }
 }
 
-/// Mirrors the frontend's `RestartRclonePayload`: values the initiating page wants persisted
-/// before the daemon comes back.
-#[derive(Clone, Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct RestartOverrides {
-    pub proxy: Option<Value>,
-    pub limits: Option<Value>,
-}
-
 pub struct Options {
     /// Use this binary instead of resolving/downloading one.
     pub rclone_path_override: Option<PathBuf>,
@@ -103,7 +94,7 @@ pub struct Supervisor {
     options: Options,
     phase: watch::Sender<Phase>,
     target: RwLock<Option<RcTarget>>,
-    restart_tx: mpsc::UnboundedSender<Option<RestartOverrides>>,
+    restart_tx: mpsc::UnboundedSender<()>,
     shutting_down: AtomicBool,
     /// The proxy URL whose connectivity was already probed (and answered) this process.
     proxy_probed: Mutex<Option<String>>,
@@ -155,8 +146,8 @@ impl Supervisor {
         self.options.rclone_path_override.as_deref()
     }
 
-    pub fn request_restart(&self, overrides: Option<RestartOverrides>) {
-        let _ = self.restart_tx.send(overrides);
+    pub fn request_restart(&self) {
+        let _ = self.restart_tx.send(());
     }
 
     /// Stops the daemon for good (process exit). The loop sees the intentional close and parks.
@@ -186,26 +177,12 @@ impl Supervisor {
         }
     }
 
-    fn apply_overrides(&self, overrides: RestartOverrides) {
-        if overrides.proxy.is_some() || overrides.limits.is_some() {
-            if let Err(e) = self.store.update(HOST_DOC, |s| {
-                if let Some(proxy) = overrides.proxy {
-                    s.insert("proxy".into(), proxy);
-                }
-                if let Some(limits) = overrides.limits {
-                    s.insert("limits".into(), limits);
-                }
-            }) {
-                log::warn!("[lifecycle] could not persist restart overrides: {}", e);
-            }
-        }
-    }
-
     async fn start_once(&self) -> Result<mpsc::UnboundedReceiver<RcloneEvent>, String> {
         self.set_phase(Phase::Resolving);
         let found = resolve::resolve_binary(
             &self.dirs,
             &self.bus,
+            &self.store,
             self.options.rclone_path_override.as_deref(),
             |version| self.set_phase(Phase::Downloading { version }),
         )
@@ -222,15 +199,10 @@ impl Supervisor {
         .is_some();
         let path = found.path;
 
-        // The only thing the daemon is told about its environment is the proxy. Its config file
+        // The daemon is told about its environment only the proxy and the limits. Its config file
         // is rclone's business: whatever `RCLONE_CONFIG`/`XDG_CONFIG_HOME` this process was given
         // is inherited untouched, and rclone resolves the rest.
-        let host = if storeread::host_state_exists(&self.dirs) {
-            storeread::read_host(&self.dirs)?
-        } else {
-            storeread::HostState::default()
-        };
-        let mut env = storeread::build_run_env(&host);
+        let mut env = build_run_env(&self.store.settings());
 
         // Informational proxy check (the env vars come from build_run_env regardless): one
         // request through the proxy, once per proxy URL. It costs up to 10 s and reaches a third
@@ -314,13 +286,13 @@ impl Supervisor {
 
         // Off the critical path: the scheduler reconcile and startup mounts.
         {
-            let dirs = self.dirs.clone();
+            let (dirs, store) = (self.dirs.clone(), Arc::clone(&self.store));
             tokio::spawn(async move {
-                scheduler_reconcile::reconcile(&dirs).await;
+                scheduler_reconcile::reconcile(&dirs, &store).await;
             });
         }
         {
-            let dirs = self.dirs.clone();
+            let (dirs, store) = (self.dirs.clone(), Arc::clone(&self.store));
             // A mount pass belongs to the daemon that was up when it started: a crash-looping
             // one would otherwise stack passes, each retrying against a port that is gone.
             let previous = self
@@ -328,7 +300,7 @@ impl Supervisor {
                 .lock()
                 .unwrap()
                 .replace(tokio::spawn(async move {
-                    mounts::startup_mounts(&dirs, &client).await
+                    mounts::startup_mounts(&dirs, &store, &client).await
                 }));
             if let Some(previous) = previous {
                 previous.abort();
@@ -373,23 +345,15 @@ fn backoff(attempts: u32) -> Duration {
     Duration::from_secs((2u64.pow(attempts.min(5))).min(30))
 }
 
-/// Everything queued behind the request that woke us, merged in arrival order.
-fn drain(
-    first: Option<RestartOverrides>,
-    rx: &mut mpsc::UnboundedReceiver<Option<RestartOverrides>>,
-) -> Vec<RestartOverrides> {
-    let mut all: Vec<RestartOverrides> = first.into_iter().collect();
-    while let Ok(next) = rx.try_recv() {
-        all.extend(next);
-    }
-    all
+/// The requests queued behind the one that woke us are the same request.
+fn coalesce(rx: &mut mpsc::UnboundedReceiver<()>) {
+    while rx.try_recv().is_ok() {}
 }
 
 /// Parks until a restart is requested (or the backoff passes when `timeout` is given).
 /// Returns `false` when the supervisor is gone.
 async fn wait_for_restart(
-    supervisor: &Supervisor,
-    rx: &mut mpsc::UnboundedReceiver<Option<RestartOverrides>>,
+    rx: &mut mpsc::UnboundedReceiver<()>,
     timeout: Option<Duration>,
 ) -> bool {
     let request = match timeout {
@@ -400,10 +364,8 @@ async fn wait_for_restart(
         None => rx.recv().await,
     };
     match request {
-        Some(request) => {
-            for overrides in drain(request, rx) {
-                supervisor.apply_overrides(overrides);
-            }
+        Some(()) => {
+            coalesce(rx);
             true
         }
         None => false,
@@ -412,7 +374,7 @@ async fn wait_for_restart(
 
 async fn run_loop(
     supervisor: Arc<Supervisor>,
-    mut restart_rx: mpsc::UnboundedReceiver<Option<RestartOverrides>>,
+    mut restart_rx: mpsc::UnboundedReceiver<()>,
 ) {
     // Consecutive failures: failed starts, and crashes of a daemon that never made it past
     // CRASH_GRACE. A successful start alone does not reset it — a daemon that comes up and dies
@@ -427,15 +389,13 @@ async fn run_loop(
                 let started_at = Instant::now();
                 tokio::select! {
                     request = restart_rx.recv() => {
-                        let Some(request) = request else { return };
+                        let Some(()) = request else { return };
                         log::info!("[lifecycle] restart requested");
                         if started_at.elapsed() >= CRASH_GRACE {
                             attempts = 0;
                         }
                         supervisor.stop_daemon().await;
-                        for overrides in drain(request, &mut restart_rx) {
-                            supervisor.apply_overrides(overrides);
-                        }
+                        coalesce(&mut restart_rx);
                     }
                     event = close_rx.recv() => {
                         let event = event.unwrap_or(RcloneEvent { kind: "close".into(), code: None, intentional: true });
@@ -445,7 +405,7 @@ async fn run_loop(
                             // Stopped on purpose: stay down until something asks for a daemon again.
                             supervisor.set_phase(Phase::Stopped);
                             attempts = 0;
-                            if !wait_for_restart(&supervisor, &mut restart_rx, None).await {
+                            if !wait_for_restart(&mut restart_rx, None).await {
                                 return;
                             }
                         } else {
@@ -454,7 +414,7 @@ async fn run_loop(
                             }
                             attempts = attempts.saturating_add(1);
                             supervisor.crashed(&event, attempts).await;
-                            if !wait_for_restart(&supervisor, &mut restart_rx, Some(backoff(attempts))).await {
+                            if !wait_for_restart(&mut restart_rx, Some(backoff(attempts))).await {
                                 return;
                             }
                         }
@@ -466,10 +426,123 @@ async fn run_loop(
                 attempts = attempts.saturating_add(1);
                 log::error!("[lifecycle] start failed (attempt {}): {}", attempts, error);
                 supervisor.set_phase(Phase::Failed { error, attempts });
-                if !wait_for_restart(&supervisor, &mut restart_rx, Some(backoff(attempts))).await {
+                if !wait_for_restart(&mut restart_rx, Some(backoff(attempts))).await {
                     return;
                 }
             }
+        }
+    }
+}
+
+/// The environment the daemon is started with, on top of the one this process already has.
+///
+/// The proxy and the limits belong here. Nothing about rclone's configuration file does: the
+/// server does not decide where that lives, so `RCLONE_CONFIG` and friends are left exactly as
+/// the operator set them and rclone resolves its own config (see the module doc).
+pub fn build_run_env(settings: &Settings) -> HashMap<String, String> {
+    let mut env = HashMap::new();
+
+    if let Some(proxy) = settings.active_proxy() {
+        for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"] {
+            env.insert(key.to_string(), proxy.url.trim().to_string());
+        }
+        if !proxy.ignored_hosts.is_empty() {
+            let joined = proxy.ignored_hosts.join(",");
+            env.insert("no_proxy".to_string(), joined.clone());
+            env.insert("NO_PROXY".to_string(), joined);
+        }
+    }
+
+    // Only what is set here: left out, the operator's own RCLONE_BWLIMIT / RCLONE_TPSLIMIT
+    // still reach the daemon. `--tpslimit` is read once, at start, which is why it is here.
+    let limits = &settings.limits;
+    if !limits.bw_limit.trim().is_empty() {
+        env.insert(
+            "RCLONE_BWLIMIT".to_string(),
+            limits.bw_limit.trim().to_string(),
+        );
+    }
+    if limits.tps_limit.is_finite() && limits.tps_limit > 0.0 {
+        env.insert("RCLONE_TPSLIMIT".to_string(), limits.tps_limit.to_string());
+        if limits.tps_limit_burst > 0 {
+            env.insert(
+                "RCLONE_TPSLIMIT_BURST".to_string(),
+                limits.tps_limit_burst.to_string(),
+            );
+        }
+    }
+
+    env
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::{Limits, ProxySettings};
+
+    #[test]
+    fn limits_reach_the_daemon_only_when_they_are_set() {
+        let unset = build_run_env(&Settings::default());
+        for key in ["RCLONE_BWLIMIT", "RCLONE_TPSLIMIT", "RCLONE_TPSLIMIT_BURST"] {
+            assert!(
+                !unset.contains_key(key),
+                "{} is the operator's when unset",
+                key
+            );
+        }
+        let settings = Settings {
+            limits: Limits {
+                bw_limit: " 10M:5M ".into(),
+                tps_limit: 2.5,
+                tps_limit_burst: 4,
+            },
+            ..Default::default()
+        };
+        let env = build_run_env(&settings);
+        assert_eq!(env["RCLONE_BWLIMIT"], "10M:5M");
+        assert_eq!(env["RCLONE_TPSLIMIT"], "2.5");
+        assert_eq!(env["RCLONE_TPSLIMIT_BURST"], "4");
+        // A burst means nothing without a limit.
+        let burst_only = build_run_env(&Settings {
+            limits: Limits {
+                tps_limit_burst: 4,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        assert!(!burst_only.contains_key("RCLONE_TPSLIMIT_BURST"));
+    }
+
+    /// The daemon's environment says nothing about rclone's config file. Setting any of these
+    /// would override what the operator put in the environment we are inherited from, which is
+    /// the one thing this design must never do.
+    #[test]
+    fn the_daemon_environment_says_nothing_about_the_config_file() {
+        let settings = Settings {
+            proxy: Some(ProxySettings {
+                url: "http://proxy:8080".into(),
+                ignored_hosts: vec!["localhost".into()],
+            }),
+            ..Default::default()
+        };
+        let env = build_run_env(&settings);
+        assert_eq!(
+            env.get("http_proxy").map(String::as_str),
+            Some("http://proxy:8080")
+        );
+        assert_eq!(env.get("no_proxy").map(String::as_str), Some("localhost"));
+        for key in [
+            "RCLONE_CONFIG",
+            "RCLONE_CONFIG_DIR",
+            "RCLONE_ASK_PASSWORD",
+            "RCLONE_CONFIG_PASS",
+            "RCLONE_CONFIG_PASS_COMMAND",
+        ] {
+            assert!(
+                !env.contains_key(key),
+                "{} must be left to the operator",
+                key
+            );
         }
     }
 }

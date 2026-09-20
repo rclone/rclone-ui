@@ -33,11 +33,6 @@ export const releaseReconnectDialog = (remote: string) =>
 
 // --- lifecycle ---------------------------------------------------------------------------
 
-export interface RestartOverrides {
-    proxy?: { url: string; ignoredHosts: string[] } | undefined
-    limits?: { bwLimit: string; tpsLimit: number; tpsLimitBurst: number } | undefined
-}
-
 export interface Status {
     version: string
     uptimeSeconds: number
@@ -53,8 +48,27 @@ export async function status(): Promise<Status> {
     return (await response.json()) as Status
 }
 
-export const restartRclone = (overrides?: RestartOverrides) =>
-    rpc<null>('rclone_restart', { overrides: overrides ?? null })
+export const restartRclone = () => rpc<null>('rclone_restart')
+
+export interface ProxySettings {
+    url: string
+    ignoredHosts: string[]
+}
+export interface Limits {
+    bwLimit: string
+    tpsLimit: number
+    tpsLimitBurst: number
+}
+/**
+ * Saves the daemon's proxy and limits on the server, which puts the bandwidth on the running
+ * rclone (what judges its syntax; a refused one is not kept) and restarts it when a transaction
+ * limit changed. A key left out is left alone; `null` clears it. The store follows through
+ * `state.changed`.
+ */
+export const daemonSettingsSet = (settings: {
+    proxy?: ProxySettings | null
+    limits?: Limits | null
+}) => rpc<null>('daemon_settings_set', settings)
 
 // --- downloads ----------------------------------------------------------------------
 

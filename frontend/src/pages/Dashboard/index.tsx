@@ -14,7 +14,6 @@ import rclone from '../../../lib/rclone/client'
 import { daemonVersionQueryOptions } from '../../../lib/hooks'
 import { ENDED, type TransferRow, totalsOf } from '../../../lib/transfers/rows'
 import { useTransferRows } from '../../../lib/transfers/useTransferRows'
-import { useHostStore } from '../../../store/host'
 import { usePersistedStore } from '../../../store/persisted'
 import OperationGrid from '../../components/OperationGrid'
 import Onboarding from './Onboarding'
@@ -239,7 +238,7 @@ export default function Dashboard() {
         queryFn: fetchServeList,
         refetchInterval: 15_000,
     })
-    const schedules = useHostStore((state) => state.scheduledTasks)
+    const schedules = usePersistedStore((state) => state.scheduledTasks)
     const onboardingDismissed = usePersistedStore((state) => state.onboarding.dismissed)
 
     const samples = useThroughputTrace(stats.data, stats.dataUpdatedAt)

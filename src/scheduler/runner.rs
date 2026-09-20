@@ -16,7 +16,7 @@ use tokio::sync::broadcast::{error::RecvError, Receiver};
 
 use super::history::{self, HistoryLine, RunLog};
 use super::jobfile::{self, JobSpec};
-use super::storeread::DataDir;
+use crate::datadir::DataDir;
 use crate::notifications::webhooks;
 use crate::transfers::ledger::{self, State};
 use crate::transfers::service::{Ended, Scheduled, StartRequest, TransferService};

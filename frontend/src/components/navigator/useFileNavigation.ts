@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import rclone from '../../../lib/rclone/client.ts'
-import { useHostStore } from '../../../store/host.ts'
+import { usePersistedStore } from '../../../store/persisted'
 import type {
     AllowedKey,
     Entry,
@@ -53,7 +53,7 @@ export default function useFileNavigation({
     allowMultiple?: boolean
     isActive?: boolean
 }) {
-    const favoritePaths = useHostStore((state) => state.favoritePaths)
+    const favoritePaths = usePersistedStore((state) => state.favoritePaths)
 
     const remotesQuery = useQuery({
         queryKey: ['remotes', 'list', 'all'],
@@ -701,7 +701,7 @@ export default function useFileNavigation({
                 if (sizes) loadFolderSizes(rows, controller.signal)
             }
 
-            // Favorites are held in the host document, so the rows are built, never fetched.
+            // Favorites are held in the persisted document, so the rows are built, never fetched.
             if (selectedRemote === 'UI_FAVORITES') {
                 commit(
                     (favoritePaths || []).map((fav) => {

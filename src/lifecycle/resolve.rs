@@ -10,8 +10,7 @@ use serde_json::Value;
 use crate::bus::Bus;
 use crate::datadir::DataDir;
 use crate::notifications::notify;
-use crate::scheduler::storeread::{self, ProxyCfg};
-use crate::state_files::{StateStore, APP_DOC};
+use crate::state::{Settings, StateStore};
 use crate::zookeeper;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
@@ -34,7 +33,7 @@ pub struct Found {
 
 /// The rclone that would run, without installing one. Blocks: it runs `rclone version`. `Err`
 /// only for a pinned binary that does not run, which is never stepped over.
-pub fn find_binary(dirs: &DataDir, pinned: Option<&Path>) -> Result<Option<Found>, String> {
+pub fn find_binary(settings: &Settings, pinned: Option<&Path>) -> Result<Option<Found>, String> {
     let probe = |path: &Path, kind: Kind| {
         zookeeper::probe_rclone_version(path).map(|version| Found {
             path: path.to_string_lossy().into_owned(),
@@ -51,8 +50,7 @@ pub fn find_binary(dirs: &DataDir, pinned: Option<&Path>) -> Result<Option<Found
             )
         });
     }
-    let root = storeread::read_root(dirs).unwrap_or_default();
-    if let Some(custom) = root.rclone_path.as_deref().filter(|p| !p.is_empty()) {
+    if let Some(custom) = settings.rclone_path.as_deref().filter(|p| !p.is_empty()) {
         match probe(Path::new(custom), Kind::Custom) {
             Ok(found) => return Ok(Some(found)),
             // The setting stays: Settings says it is not the one in use.
@@ -77,14 +75,6 @@ pub fn find_binary(dirs: &DataDir, pinned: Option<&Path>) -> Result<Option<Found
             Ok(None)
         }
     }
-}
-
-/// The proxy of Settings › Rclone, when one is set: the road a download takes.
-pub fn host_proxy(dirs: &DataDir) -> Option<ProxyCfg> {
-    storeread::read_host(dirs)
-        .ok()
-        .and_then(|h| h.proxy)
-        .filter(|p| !p.url.trim().is_empty())
 }
 
 pub async fn latest_version() -> Result<String, String> {
@@ -144,11 +134,14 @@ pub async fn available_releases(limit: usize) -> Result<Vec<serde_json::Value>, 
 pub async fn resolve_binary(
     dirs: &DataDir,
     bus: &Bus,
+    store: &StateStore,
     pinned: Option<&Path>,
     on_download: impl Fn(String),
 ) -> Result<Found, String> {
-    let (probe_dirs, named) = (dirs.clone(), pinned.map(Path::to_path_buf));
-    let found = tokio::task::spawn_blocking(move || find_binary(&probe_dirs, named.as_deref()))
+    let settings = store.settings();
+    let proxy = settings.active_proxy().cloned();
+    let named = pinned.map(Path::to_path_buf);
+    let found = tokio::task::spawn_blocking(move || find_binary(&settings, named.as_deref()))
         .await
         .map_err(|e| format!("could not look for rclone: {}", e))??;
     let found = match found {
@@ -170,7 +163,7 @@ pub async fn resolve_binary(
                 version,
                 target.display()
             );
-            zookeeper::install_rclone(dirs, bus, &version, &target, host_proxy(dirs))
+            zookeeper::install_rclone(dirs, bus, &version, &target, proxy)
                 .await
                 .map_err(|e| format!("failed to install rclone: {}", e))?;
             Found {
@@ -212,16 +205,23 @@ pub async fn maybe_auto_update(
     if !crate::version::newer(&latest, &found.version) {
         return None;
     }
-    let root = storeread::read_root(dirs).unwrap_or_default();
+    let settings = store.settings();
     let target = zookeeper::install_target(None);
-    if let (true, Ok(target)) = (root.auto_update_rclone, &target) {
+    if let (true, Ok(target)) = (settings.auto_update(), &target) {
         log::info!(
             "[lifecycle] auto-updating rclone {} -> {}",
             found.version,
             latest
         );
         on_updating(found.version.clone(), latest.clone());
-        return match zookeeper::install_rclone(dirs, bus, &latest, target, host_proxy(dirs)).await
+        return match zookeeper::install_rclone(
+            dirs,
+            bus,
+            &latest,
+            target,
+            settings.active_proxy().cloned(),
+        )
+        .await
         {
             Ok(()) => Some(latest),
             Err(e) => {
@@ -241,9 +241,9 @@ pub async fn maybe_auto_update(
             reason
         );
     }
-    if root.last_notified_rclone_version.as_deref() != Some(&latest) {
+    if settings.last_notified_rclone_version.as_deref() != Some(&latest) {
         let notified = latest.clone();
-        let _ = store.update(APP_DOC, |s| {
+        let _ = store.update(|s| {
             s.insert("lastNotifiedRcloneVersion".into(), Value::String(notified));
         });
         let body = format!(
@@ -277,28 +277,28 @@ mod tests {
     fn the_pinned_binary_comes_before_the_custom_one() {
         let root = std::env::temp_dir().join(format!("rclone-cloud-find-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
-        let dirs = DataDir { root: root.clone() };
         let (pinned, custom) = (root.join("pinned/rclone"), root.join("custom/rclone"));
         fake_rclone(&pinned, "1.60.0");
         fake_rclone(&custom, "1.76.0");
-        std::fs::create_dir_all(root.join("state")).unwrap();
-        let doc = serde_json::json!({ "version": 1, "state": { "rclonePath": custom } });
-        std::fs::write(root.join("state/app.json"), doc.to_string()).unwrap();
+        let settings = Settings {
+            rclone_path: Some(custom.to_string_lossy().into_owned()),
+            ..Default::default()
+        };
 
-        let found = find_binary(&dirs, None).unwrap().unwrap();
+        let found = find_binary(&settings, None).unwrap().unwrap();
         assert_eq!(
             (found.kind, found.version.as_str()),
             (Kind::Custom, "1.76.0")
         );
         // Too old is for the caller to say: this only reports what would run.
-        let found = find_binary(&dirs, Some(&pinned)).unwrap().unwrap();
+        let found = find_binary(&settings, Some(&pinned)).unwrap().unwrap();
         assert_eq!(
             (found.kind, found.version.as_str()),
             (Kind::Pinned, "1.60.0")
         );
         assert!(zookeeper::check_minimum(&found.version, &found.path).is_err());
         // A pinned binary that does not run is never stepped over.
-        let missing = find_binary(&dirs, Some(&root.join("nowhere/rclone")));
+        let missing = find_binary(&settings, Some(&root.join("nowhere/rclone")));
         assert!(missing.unwrap_err().contains("--rclone-path"));
         let _ = std::fs::remove_dir_all(&root);
     }

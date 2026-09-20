@@ -11,7 +11,7 @@ use serde_json::{json, Map, Value};
 use crate::datadir::DataDir;
 use crate::notifications::notify;
 use crate::rc::RcClient;
-use crate::scheduler::storeread::{self, MountOnStart};
+use crate::state::{MountOnStart, Settings, StateStore};
 
 // ---------------------------------------------------------------------------
 // lib/paths.ts + lib/format.ts getFsInfo + lib/rclone/requests.ts serializeOptions
@@ -431,8 +431,9 @@ const AUTOMOUNT_SOURCE_ERROR: &str = "AUTOMOUNT_SOURCE:";
 
 /// How many remotes are set to mount at start. The same two conditions the loop below applies
 /// per remote, so a host that cannot mount stays quiet unless there was really something to skip.
-fn asked_to_mount(host: &storeread::HostState) -> usize {
-    host.remote_configs
+fn asked_to_mount(settings: &Settings) -> usize {
+    settings
+        .remote_configs
         .values()
         .filter_map(|c| c.mount_on_start.as_ref())
         .filter(|m| m.enabled && !m.mount_point.is_empty())
@@ -710,14 +711,10 @@ pub async fn start_mount(
 /// A machine that cannot mount would fail each attempt the same way on every restart. That is a
 /// fact about the deployment rather than an incident, so it is said once, in the log, and
 /// nothing is notified.
-pub async fn startup_mounts(dirs: &DataDir, client: &RcClient) {
-    let host = match storeread::read_host(dirs) {
-        Ok(host) => host,
-        Err(_) => return,
-    };
-
+pub async fn startup_mounts(dirs: &DataDir, store: &StateStore, client: &RcClient) {
+    let settings = store.settings();
     if let Some(reason) = support().reason {
-        let asked = asked_to_mount(&host);
+        let asked = asked_to_mount(&settings);
         if asked > 0 {
             log::info!(
                 "[mounts] {} remote(s) ask to mount at start, but this machine cannot mount: {}",
@@ -744,7 +741,7 @@ pub async fn startup_mounts(dirs: &DataDir, client: &RcClient) {
     };
 
     for remote in remotes {
-        let Some(config) = host
+        let Some(config) = settings
             .remote_configs
             .get(&remote)
             .and_then(|c| c.mount_on_start.clone())
@@ -959,29 +956,34 @@ mod tests {
     /// conditions are the loop's own: switched on, and with somewhere to mount.
     #[test]
     fn only_remotes_that_really_asked_are_counted() {
-        let remote = |enabled, mount_point: &str| storeread::RemoteConfig {
-            mount_on_start: Some(storeread::MountOnStart {
+        let remote = |enabled, mount_point: &str| crate::state::RemoteConfig {
+            mount_on_start: Some(MountOnStart {
                 enabled,
                 mount_point: mount_point.to_string(),
                 ..Default::default()
             }),
         };
-        let mut host = storeread::HostState::default();
-        assert_eq!(asked_to_mount(&host), 0, "nothing configured");
+        let mut settings = Settings::default();
+        assert_eq!(asked_to_mount(&settings), 0, "nothing configured");
 
-        host.remote_configs
-            .insert("no-config".into(), storeread::RemoteConfig::default());
-        host.remote_configs
+        settings
+            .remote_configs
+            .insert("no-config".into(), crate::state::RemoteConfig::default());
+        settings
+            .remote_configs
             .insert("switched-off".into(), remote(false, "/mnt/off"));
-        host.remote_configs
+        settings
+            .remote_configs
             .insert("nowhere-to-go".into(), remote(true, ""));
-        assert_eq!(asked_to_mount(&host), 0, "none of those would be mounted");
+        assert_eq!(asked_to_mount(&settings), 0, "none of those would be mounted");
 
-        host.remote_configs
+        settings
+            .remote_configs
             .insert("wants-it".into(), remote(true, "/mnt/one"));
-        host.remote_configs
+        settings
+            .remote_configs
             .insert("wants-it-too".into(), remote(true, "/mnt/two"));
-        assert_eq!(asked_to_mount(&host), 2);
+        assert_eq!(asked_to_mount(&settings), 2);
     }
 
     /// A container without the FUSE device cannot mount, and says why and where to read on. Linux

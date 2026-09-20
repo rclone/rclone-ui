@@ -15,7 +15,8 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 
 use crate::auth::Caller;
-use crate::lifecycle::{resolve, RestartOverrides};
+use crate::lifecycle::resolve;
+use crate::state::{Limits, ProxySettings};
 use crate::team::{AuthUser, Role};
 use crate::transfers::service::StartRequest;
 use crate::{notifications, scheduler, transfers, QuitKind, Shared};
@@ -270,13 +271,54 @@ rpcs! { st, caller, args;
         let supervisor = st
             .supervisor()
             .ok_or("the rclone daemon is external (--rclone-url); nothing to restart")?;
-        let overrides: Option<RestartOverrides> = match args.get("overrides") {
-            Some(v) if !v.is_null() => {
-                Some(serde_json::from_value(v.clone()).map_err(|e| e.to_string())?)
-            }
-            _ => None,
+        supervisor.request_restart();
+        ok(Value::Null)
+    },
+    // Settings › Rclone's proxy and limits, saved here so the daemon they are for is told at
+    // once. The bandwidth lands on the running rclone first, which is what judges its syntax:
+    // nothing it refuses is kept. A transaction limit is read at start, so a change to one
+    // restarts the daemon (the page has asked about running transfers by then); the proxy is
+    // too, but applying it is the user's restart. A key left out is left alone; `null` clears.
+    "daemon_settings_set" => {
+        let (proxy, limits) = (args.get("proxy"), args.get("limits"));
+        if let Some(v) = proxy.filter(|v| !v.is_null()) {
+            parse::<ProxySettings>(v)?;
+        }
+        let next = match limits {
+            None => None,
+            Some(Value::Null) => Some(Limits::default()),
+            Some(v) => Some(parse::<Limits>(v)?),
         };
-        supervisor.request_restart(overrides);
+        let before = st.store.settings().limits;
+        if let Some(next) = &next {
+            if next.bw_limit.trim() != before.bw_limit.trim() {
+                if let Some(daemon) = st.local_daemon() {
+                    let rate = Some(next.bw_limit.trim()).filter(|r| !r.is_empty()).unwrap_or("off");
+                    daemon.client().call("/core/bwlimit", &json!({ "rate": rate })).await?;
+                }
+            }
+        }
+        st.store.update(|s| {
+            for (key, value) in [("proxy", proxy), ("limits", limits)] {
+                match value {
+                    None => {}
+                    Some(Value::Null) => {
+                        s.remove(key);
+                    }
+                    Some(value) => {
+                        s.insert(key.to_string(), value.clone());
+                    }
+                }
+            }
+        })?;
+        let tps_changed = next.as_ref().is_some_and(|n| {
+            n.tps_limit != before.tps_limit || n.tps_limit_burst != before.tps_limit_burst
+        });
+        if tps_changed {
+            if let Some(supervisor) = st.supervisor() {
+                supervisor.request_restart();
+            }
+        }
         ok(Value::Null)
     },
     "rclone_releases" => {
@@ -289,17 +331,15 @@ rpcs! { st, caller, args;
         None => ok(json!({ "kind": "external" })),
         Some(supervisor) => {
             let pinned = supervisor.pinned().map(std::path::Path::to_path_buf);
-            let (dirs, named) = (st.dirs.clone(), pinned.clone());
+            let settings = st.store.settings();
+            let custom = settings.rclone_path.clone().filter(|path| !path.is_empty());
+            let named = pinned.clone();
             let found = tokio::task::spawn_blocking(move || {
-                resolve::find_binary(&dirs, named.as_deref())
+                resolve::find_binary(&settings, named.as_deref())
             })
             .await
             .map_err(|e| e.to_string())?
             .unwrap_or(None);
-            let custom = crate::scheduler::storeread::read_root(&st.dirs)
-                .ok()
-                .and_then(|root| root.rclone_path)
-                .filter(|path| !path.is_empty());
             let target = crate::zookeeper::install_target(pinned.as_deref());
             ok(json!({
                 "path": found.as_ref().map(|f| &f.path),
@@ -324,12 +364,12 @@ rpcs! { st, caller, args;
                 reason, version
             )
         })?;
-        let proxy = resolve::host_proxy(&st.dirs);
+        let proxy = st.store.settings().active_proxy().cloned();
         crate::zookeeper::install_rclone(&st.dirs, &st.bus, &version, &target, proxy).await?;
-        st.store.update(crate::state_files::APP_DOC, |s| {
+        st.store.update(|s| {
             s.remove("rclonePath");
         })?;
-        supervisor.request_restart(None);
+        supervisor.request_restart();
         ok(target.to_string_lossy())
     },
     // `path: null` goes back to the server's own rclone. One older than the minimum is refused
@@ -345,7 +385,7 @@ rpcs! { st, caller, args;
             let version = blocking(move || crate::zookeeper::probe_rclone_version(&binary)).await?;
             crate::zookeeper::check_minimum(&version, path)?;
         }
-        st.store.update(crate::state_files::APP_DOC, |s| match custom {
+        st.store.update(|s| match custom {
             Some(path) => {
                 s.insert("rclonePath".into(), Value::String(path.to_string()));
             }
@@ -353,7 +393,7 @@ rpcs! { st, caller, args;
                 s.remove("rclonePath");
             }
         })?;
-        supervisor.request_restart(None);
+        supervisor.request_restart();
         ok(Value::Null)
     },
     "mount_support" => ok(crate::lifecycle::mounts::support()),
@@ -511,7 +551,7 @@ rpcs! { st, caller, args;
     // --- the Download page's link lookup --------------------------------------------------------
     "resolve_link" => {
         let url = str_arg(&args, "url")?;
-        ok(crate::resolve_link::resolve_link(&st.dirs, url).await?)
+        ok(crate::resolve_link::resolve_link(&st.store, url).await?)
     },
 
     // --- finishing a sign-in on another machine -------------------------------------------------

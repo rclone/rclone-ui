@@ -13,7 +13,7 @@ use serde::Serialize;
 
 use crate::bus::Bus;
 use crate::datadir::DataDir;
-use crate::scheduler::storeread::ProxyCfg;
+use crate::state::ProxySettings;
 
 // ---------------------------------------------------------------------------
 // Shared types & state
@@ -518,7 +518,7 @@ pub async fn install_rclone(
     bus: &Bus,
     version: &str,
     target: &Path,
-    proxy: Option<ProxyCfg>,
+    proxy: Option<ProxySettings>,
 ) -> Result<(), String> {
     let _one = INSTALLING
         .try_lock()
@@ -597,7 +597,7 @@ async fn download_verified(
     zip_name: &str,
     zip_url: &str,
     sums_url: &str,
-    proxy: Option<ProxyCfg>,
+    proxy: Option<ProxySettings>,
     tmp: &Path,
 ) -> Result<PathBuf, String> {
     use sha2::{Digest, Sha256};

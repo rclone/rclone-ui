@@ -12,7 +12,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use super::storeread::DataDir;
+use crate::datadir::DataDir;
 
 const HISTORY_ROTATE_BYTES: u64 = 512 * 1024;
 const HISTORY_KEEP_LINES: usize = 200;

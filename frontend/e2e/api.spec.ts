@@ -152,7 +152,7 @@ test('asset-like file names never bypass the API guard', async ({ request }) => 
         const response = await request.get(`${base}${path}`)
         expect(response.status(), path).toBe(401)
     }
-    const put = await request.put(`${base}/api/state/host.png`, {
+    const put = await request.put(`${base}/api/state/app.png`, {
         headers: SESSION,
         data: { version: 1, state: { a: 1 } },
     })

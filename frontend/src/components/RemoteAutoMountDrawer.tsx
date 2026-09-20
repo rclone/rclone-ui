@@ -14,7 +14,7 @@ import { AutomountSourceError, probeMountSource } from '../../lib/rclone/mount'
 import { message, pickPath } from '../../lib/api/dialog'
 import { home } from '../../lib/api/paths'
 import { setBusy } from '../../lib/api/navigation'
-import { type RemoteConfig, useHostStore } from '../../store/host'
+import { type RemoteConfig, usePersistedStore } from '../../store/persisted'
 import type { FlagValue } from '../../types/rclone'
 import OptionsSection from './OptionsSection'
 
@@ -38,8 +38,8 @@ export default function RemoteAutoMountDrawer({
     const { globalFlags, filterFlags, configFlags, mountFlags, vfsFlags, metadataFlags } =
         useFlags()
 
-    const remoteConfigs = useHostStore((state) => state.remoteConfigs)
-    const mergeRemoteConfig = useHostStore((state) => state.mergeRemoteConfig)
+    const remoteConfigs = usePersistedStore((state) => state.remoteConfigs)
+    const mergeRemoteConfig = usePersistedStore((state) => state.mergeRemoteConfig)
 
     const [buttonText, setButtonText] = useState('Save Changes')
 

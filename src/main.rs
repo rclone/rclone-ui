@@ -122,9 +122,11 @@ async fn preflight(cli: &CliServe, dirs: &rclone_cloud::DataDir) -> Result<(), S
         };
     }
 
-    let (dirs, pinned) = (dirs.clone(), cli.rclone_path.clone());
+    // The document as it is on disk, read once; the server builds its own store on the bus.
+    let settings = rclone_cloud::StateStore::new(dirs.clone(), rclone_cloud::Bus::new()).settings();
+    let pinned = cli.rclone_path.clone();
     let found = tokio::task::spawn_blocking(move || {
-        rclone_cloud::lifecycle::resolve::find_binary(&dirs, pinned.as_deref())
+        rclone_cloud::lifecycle::resolve::find_binary(&settings, pinned.as_deref())
     })
     .await
     .map_err(|e| e.to_string())?;

@@ -8,7 +8,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 
-use crate::scheduler::storeread::DataDir;
+use crate::datadir::DataDir;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

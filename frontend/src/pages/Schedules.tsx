@@ -28,7 +28,7 @@ import {
     setScheduledTaskEnabled,
     useSchedulerSupported,
 } from '../../lib/scheduler'
-import { useHostStore } from '../../store/host'
+import { usePersistedStore } from '../../store/persisted'
 import type { ScheduledTask } from '../../types/schedules'
 import EmptyState from '../components/EmptyState'
 import ScheduleEditDrawer from '../components/ScheduleEditDrawer'
@@ -40,7 +40,7 @@ export default function Schedules() {
         reconcileSchedules().catch((error) => console.error('[Schedules] reconcile failed', error))
     }, [])
 
-    const scheduledTasks = useHostStore((state) => state.scheduledTasks)
+    const scheduledTasks = usePersistedStore((state) => state.scheduledTasks)
     const supportQuery = useSchedulerSupported()
     const schedulingAvailable = supportQuery.data?.supported ?? false
     const unavailableReason =

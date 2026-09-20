@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { useHostStore } from '../store/host'
+import { usePersistedStore } from '../store/persisted'
 import type { ScheduledTask } from '../types/schedules'
 import { describeSources } from './rclone/kinds'
 import {
@@ -186,7 +186,7 @@ export async function createScheduledTask(input: {
         throw new Error(validation.error ?? 'Invalid cron expression')
     }
 
-    const hostState = useHostStore.getState()
+    const hostState = usePersistedStore.getState()
 
     // What the sources are is rclone's answer, asked now and saved with the task, never asked
     // again. (Callers guarantee the operation/args correlation via useScheduleTask's generic;
@@ -209,7 +209,7 @@ export async function createScheduledTask(input: {
     buildTaskRequests(request, kinds)
 
     const id = hostState.addScheduledTask(task)
-    const stored = useHostStore.getState().scheduledTasks.find((t) => t.id === id)
+    const stored = usePersistedStore.getState().scheduledTasks.find((t) => t.id === id)
     if (!stored) {
         throw new Error('Failed to save the scheduled task')
     }
@@ -218,7 +218,7 @@ export async function createScheduledTask(input: {
         await registerTask(stored)
     } catch (error) {
         const registrationError = error instanceof Error ? error.message : String(error)
-        useHostStore.getState().updateScheduledTask(id, { registrationError })
+        usePersistedStore.getState().updateScheduledTask(id, { registrationError })
         throw new Error(
             `The schedule was saved but could not be registered with the scheduler: ${registrationError}`
         )
@@ -241,9 +241,9 @@ export async function updateScheduledTask(
         }
     }
 
-    const store = useHostStore.getState()
+    const store = usePersistedStore.getState()
     store.updateScheduledTask(id, { ...patch, registrationError: undefined })
-    const merged = useHostStore.getState().scheduledTasks.find((t) => t.id === id)
+    const merged = usePersistedStore.getState().scheduledTasks.find((t) => t.id === id)
     if (!merged) {
         throw new Error('Task not found')
     }
@@ -252,7 +252,7 @@ export async function updateScheduledTask(
         await registerTask(merged)
     } catch (error) {
         const registrationError = error instanceof Error ? error.message : String(error)
-        useHostStore.getState().updateScheduledTask(id, { registrationError })
+        usePersistedStore.getState().updateScheduledTask(id, { registrationError })
         throw new Error(`The task was saved but could not be registered: ${registrationError}`)
     }
 }
@@ -273,11 +273,11 @@ export async function removeScheduledTask(id: string): Promise<void> {
             )
         }
     }
-    useHostStore.getState().removeScheduledTask(id)
+    usePersistedStore.getState().removeScheduledTask(id)
 }
 
 export async function setScheduledTaskEnabled(id: string, enabled: boolean): Promise<void> {
-    const task = useHostStore.getState().scheduledTasks.find((t) => t.id === id)
+    const task = usePersistedStore.getState().scheduledTasks.find((t) => t.id === id)
     if (!task) {
         throw new Error('Task not found')
     }
@@ -294,14 +294,14 @@ export async function setScheduledTaskEnabled(id: string, enabled: boolean): Pro
     // task firing while the UI says paused.
     if (!enabled && task.registrationError) {
         await rpc('scheduler_set_enabled', { taskId: id, enabled: false })
-        useHostStore.getState().updateScheduledTask(id, { isEnabled: false })
+        usePersistedStore.getState().updateScheduledTask(id, { isEnabled: false })
         return
     }
 
     // The scheduler first, the store second — a failed call must not leave the UI claiming a
     // state the scheduler does not have.
     await rpc('scheduler_set_enabled', { taskId: id, enabled })
-    useHostStore.getState().updateScheduledTask(id, { isEnabled: enabled })
+    usePersistedStore.getState().updateScheduledTask(id, { isEnabled: enabled })
 }
 
 /**
@@ -315,17 +315,21 @@ export async function reconcile(): Promise<void> {
     if (!support.supported) {
         return
     }
-    const failed = useHostStore.getState().scheduledTasks.filter((task) => task.registrationError)
+    const failed = usePersistedStore
+        .getState()
+        .scheduledTasks.filter((task) => task.registrationError)
     for (const { id } of failed) {
-        const task = useHostStore.getState().scheduledTasks.find((t) => t.id === id)
+        const task = usePersistedStore.getState().scheduledTasks.find((t) => t.id === id)
         if (!task) continue
         try {
             await registerTask(task)
-            useHostStore.getState().updateScheduledTask(task.id, { registrationError: undefined })
+            usePersistedStore
+                .getState()
+                .updateScheduledTask(task.id, { registrationError: undefined })
         } catch (error) {
             const registrationError = error instanceof Error ? error.message : String(error)
             console.error('[scheduler] failed to register task', task.id, registrationError)
-            useHostStore.getState().updateScheduledTask(task.id, { registrationError })
+            usePersistedStore.getState().updateScheduledTask(task.id, { registrationError })
         }
     }
 }

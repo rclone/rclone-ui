@@ -14,7 +14,7 @@ import {
     useState,
 } from 'react'
 import { fsInfoQueryOptions, hasFeature } from '../../../lib/hooks'
-import { useHostStore } from '../../../store/host.ts'
+import { usePersistedStore } from '../../../store/persisted'
 import FileList from './FileList'
 import PanelToolbar, { type ToolbarButtons } from './PanelToolbar'
 import PathBreadcrumb from './PathBreadcrumb'
@@ -140,7 +140,7 @@ const FilePanel = forwardRef<
     },
     ref
 ) {
-    const favoritePaths = useHostStore((state) => state.favoritePaths)
+    const favoritePaths = usePersistedStore((state) => state.favoritePaths)
     const [previewItem, setPreviewItem] = useState<Entry | null>(null)
     const columns = useNameColumnResize(showPreviewColumn)
 
@@ -161,7 +161,7 @@ const FilePanel = forwardRef<
     // false while loading — matches the previous default (hide the share affordance until confirmed).
     const canShare = hasFeature(fsInfoQuery.data, 'PublicLink')
 
-    // Favourites are bookmarks kept in the host document, not a folder being listed: a row
+    // Favourites are bookmarks kept in the persisted document, not a folder being listed: a row
     // points at a path instead of being one, so rename, download and delete would reach past
     // the list to the real thing. Dropping the bookmark is all a row here does.
     const isFavorites = nav.selectedRemote === 'UI_FAVORITES'
@@ -283,7 +283,7 @@ const FilePanel = forwardRef<
     const handleToggleFavorite = useCallback(
         (entry: Entry, isFavorited: boolean) => {
             if (isFavorited) {
-                useHostStore.setState({
+                usePersistedStore.setState({
                     favoritePaths: (favoritePaths || []).filter((it) => {
                         const remote = (it as any).remote as string | undefined
                         const rawPath = (it as any).path as string
@@ -298,7 +298,7 @@ const FilePanel = forwardRef<
             } else {
                 // The path under its remote, spelled as the panel has it: no slash added or lost.
                 const storedPath = parseRemotePath(entry.fullPath).path
-                useHostStore.setState({
+                usePersistedStore.setState({
                     favoritePaths: [
                         ...(favoritePaths || []),
                         {

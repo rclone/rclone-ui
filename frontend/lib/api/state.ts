@@ -1,7 +1,7 @@
 // zustand `persist` storage over the server's state documents (`/api/state/<doc>`). Reads the
 // whole document; writes only the top-level keys the page itself changed, with `If-Match` so a
 // stale page can never clobber another writer — on 409 it adopts the newer revision, re-applies
-// its own keys and retries once. Rust writers (the lifecycle) patch the same documents; every
+// its own keys and retries once. Rust writers (the lifecycle) patch the same document; every
 // change is announced as `state.changed`, which `watchDoc` turns into a rehydrate.
 //
 // Two things are kept apart, because they are not the same. `known` is the server's document as
@@ -222,23 +222,4 @@ export function watchDoc(doc: string, rehydrate: () => Promise<void> | void): ()
 /** Resolves once every write to `doc` queued so far has landed (or failed); a later write needs a later call. */
 export function whenWritten(doc: string): Promise<void> {
     return (queues.get(doc) ?? Promise.resolve()).catch(() => undefined)
-}
-
-interface Hydratable {
-    hasHydrated: () => boolean
-    onFinishHydration: (listener: (state: unknown) => void) => () => void
-}
-
-/**
- * Resolves when a persisted store has hydrated: at once if it has, otherwise on the store's own
- * notification.
- */
-export function hydrated(persist: Hydratable): Promise<void> {
-    if (persist.hasHydrated()) return Promise.resolve()
-    return new Promise((resolve) => {
-        const off = persist.onFinishHydration(() => {
-            off()
-            resolve()
-        })
-    })
 }

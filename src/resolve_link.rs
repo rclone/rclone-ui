@@ -9,8 +9,7 @@ use reqwest::Url;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::datadir::DataDir;
-use crate::scheduler::storeread;
+use crate::state::StateStore;
 
 /// Free and keyless. Its endpoints and their answers: `<SERVICE>/docs/api-reference`.
 const SERVICE: &str = "https://backend1.tioo.eu.org";
@@ -85,17 +84,16 @@ pub struct ResolvedLink {
 
 /// `None` for an address of no known platform, and for one the service finds nothing behind:
 /// the address is then downloaded as it is.
-pub async fn resolve_link(dirs: &DataDir, url: String) -> Result<Option<ResolvedLink>, String> {
+pub async fn resolve_link(store: &StateStore, url: String) -> Result<Option<ResolvedLink>, String> {
     let Some(endpoint) = endpoint_for(&url) else {
         return Ok(None);
     };
-    resolve_with(&client(dirs)?, SERVICE, endpoint, &url).await
+    resolve_with(&client(store)?, SERVICE, endpoint, &url).await
 }
 
 /// Through the proxy of Settings › Rclone, the road the download itself takes.
-fn client(dirs: &DataDir) -> Result<reqwest::Client, String> {
-    let proxy = storeread::read_host(dirs).ok().and_then(|h| h.proxy);
-    crate::http::proxied(proxy.as_ref(), Duration::from_secs(20))
+fn client(store: &StateStore) -> Result<reqwest::Client, String> {
+    crate::http::proxied(store.settings().active_proxy(), Duration::from_secs(20))
 }
 
 fn endpoint_for(url: &str) -> Option<&'static str> {

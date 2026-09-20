@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use super::storeread::DataDir;
+use crate::datadir::DataDir;
 
 pub const JOB_SCHEMA_VERSION: u32 = 1;
 pub const DEFAULT_MAX_RUN_SECONDS: u64 = 86_400;

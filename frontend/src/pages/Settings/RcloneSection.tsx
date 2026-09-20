@@ -17,6 +17,7 @@ import {
 import {
     type RcloneBinary,
     type UpdateInfo,
+    daemonSettingsSet,
     rcloneBinary,
     rcloneSetCustom,
     relaunch,
@@ -26,11 +27,8 @@ import {
 } from '../../../lib/api/app'
 import { useCapabilities } from '../../../lib/api/host'
 import { openUrl } from '../../../lib/api/shell'
-import { restartActiveRclone } from '../../../lib/rclone/cli'
-import rclone from '../../../lib/rclone/client'
 import { usePersistedStore } from '../../../store/persisted'
 import SettingsGroup from './SettingsGroup'
-import { useHostStore } from '../../../store/host'
 import { rpc } from '../../../lib/api/rpc'
 import BaseSection from './BaseSection'
 
@@ -375,7 +373,7 @@ function AutoUpdateRow({ installTarget }: { installTarget?: string | null }) {
 // transfer. Bandwidth can be changed on a running rclone; the two transaction limits are read
 // once, when it starts.
 function LimitsSettings() {
-    const limits = useHostStore((state) => state.limits)
+    const limits = usePersistedStore((state) => state.limits)
     const managed = useQuery({ queryKey: ['server', 'status'], queryFn: status }).data
         ?.managedDaemon
     const [bwLimit, setBwLimit] = useState('')
@@ -410,30 +408,7 @@ function LimitsSettings() {
     const save = async () => {
         setIsSaving(true)
         try {
-            const saved = useHostStore.getState().limits
-            const next = {
-                bwLimit: saved?.bwLimit ?? '',
-                tpsLimit: saved?.tpsLimit ?? 0,
-                tpsLimitBurst: saved?.tpsLimitBurst ?? 0,
-            }
-            if (bwChanged) {
-                // Applied to the running rclone at once, which is also what checks the syntax.
-                try {
-                    await rclone('/core/bwlimit' as any, {
-                        params: { query: { rate: bwLimit.trim() || 'off' } },
-                    })
-                } catch (error) {
-                    await message(formatErrorMessage(error), {
-                        title: 'Bandwidth limit not accepted',
-                        kind: 'error',
-                    })
-                    return
-                }
-                next.bwLimit = bwLimit.trim()
-                useHostStore.setState({ limits: { ...next } })
-            }
-            if (!tpsChanged) return
-            if (await isRcloneBusy()) {
+            if (tpsChanged && (await isRcloneBusy())) {
                 const restart = await ask(
                     'Rclone is currently busy. Wait for the transfers to finish, or restart it now.\n\nRestarting interrupts every running transfer and scheduled run, and unmounts what is mounted.',
                     {
@@ -449,10 +424,22 @@ function LimitsSettings() {
                     return
                 }
             }
-            next.tpsLimit = tps
-            next.tpsLimitBurst = tps > 0 ? burst : 0
-            useHostStore.setState({ limits: next })
-            await restartActiveRclone()
+            const saved = usePersistedStore.getState().limits
+            const next = {
+                bwLimit: bwLimit.trim(),
+                tpsLimit: tpsChanged ? tps : (saved?.tpsLimit ?? 0),
+                tpsLimitBurst: tpsChanged ? (tps > 0 ? burst : 0) : (saved?.tpsLimitBurst ?? 0),
+            }
+            try {
+                // The server puts the bandwidth on the running rclone first (what judges its
+                // syntax), then restarts it if a transaction limit changed.
+                await daemonSettingsSet({ limits: next })
+            } catch (error) {
+                await message(formatErrorMessage(error), {
+                    title: bwChanged ? 'Bandwidth limit not accepted' : 'Limits not saved',
+                    kind: 'error',
+                })
+            }
         } finally {
             setIsSaving(false)
         }
@@ -527,7 +514,7 @@ const IGNORED_HINT = 'Hosts that should bypass the proxy server'
 
 // The proxy half of this screen.
 function ProxySettings() {
-    const proxy = useHostStore((state) => state.proxy)
+    const proxy = usePersistedStore((state) => state.proxy)
 
     const [proxyUrl, setProxyUrl] = useState('')
     const [newHost, setNewHost] = useState('')
@@ -541,30 +528,31 @@ function ProxySettings() {
 
     const ignoredHosts = useMemo(() => proxy?.ignoredHosts || [], [proxy?.ignoredHosts])
 
-    const handleAddHost = (host: string) => {
-        const addingHost = host.trim()
+    // Saved on the server, which the daemon reads at its next start; the store follows through
+    // `state.changed`.
+    const saveProxy = async (next: { url: string; ignoredHosts: string[] } | null) => {
+        try {
+            await daemonSettingsSet({ proxy: next })
+        } catch (error) {
+            await message(formatErrorMessage(error), { title: 'Proxy not saved', kind: 'error' })
+        }
+    }
 
+    const handleAddHost = async (host: string) => {
+        const addingHost = host.trim()
         if (addingHost && !ignoredHosts.includes(addingHost)) {
-            useHostStore.setState((state) => ({
-                proxy: {
-                    url: state.proxy?.url || '',
-                    ignoredHosts: [...(state.proxy?.ignoredHosts || []), addingHost],
-                },
-            }))
+            await saveProxy({ url: proxy?.url || '', ignoredHosts: [...ignoredHosts, addingHost] })
             setNewHost('')
         }
     }
 
-    const handleRemoveHost = (host: string) => {
+    const handleRemoveHost = async (host: string) => {
         const removingHost = host.trim()
-
         if (removingHost) {
-            useHostStore.setState((state) => ({
-                proxy: {
-                    url: state.proxy?.url || '',
-                    ignoredHosts: ignoredHosts.filter((host) => host !== removingHost),
-                },
-            }))
+            await saveProxy({
+                url: proxy?.url || '',
+                ignoredHosts: ignoredHosts.filter((h) => h !== removingHost),
+            })
         }
     }
 
@@ -583,12 +571,7 @@ function ProxySettings() {
             await rpc<string>('test_proxy_connection', { proxyUrl: url })
 
             // If test successful, save the proxy URL
-            useHostStore.setState((state) => ({
-                proxy: {
-                    url: url,
-                    ignoredHosts: state.proxy?.ignoredHosts || [],
-                },
-            }))
+            await saveProxy({ url, ignoredHosts })
 
             await message('The proxy has been saved!\n\nRestart rclone to apply the changes.', {
                 title: 'Proxy Saved',
@@ -606,12 +589,7 @@ function ProxySettings() {
             )
 
             if (saveAnyway) {
-                useHostStore.setState((state) => ({
-                    proxy: {
-                        url: url,
-                        ignoredHosts: state.proxy?.ignoredHosts || [],
-                    },
-                }))
+                await saveProxy({ url, ignoredHosts })
 
                 await message('The proxy has been saved!\n\nRestart rclone to apply the changes.', {
                     title: 'Proxy Saved',
@@ -654,9 +632,7 @@ function ProxySettings() {
                         color="danger"
                         variant="ghost"
                         onPress={() => {
-                            useHostStore.setState(() => ({
-                                proxy: undefined,
-                            }))
+                            void saveProxy(null)
                             setProxyUrl('')
                         }}
                         data-focus-visible="false"

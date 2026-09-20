@@ -10,7 +10,6 @@ pub mod cronconv;
 pub mod history;
 pub mod jobfile;
 pub mod runner;
-pub mod storeread;
 pub mod ticker;
 
 use std::collections::{HashMap, HashSet};
@@ -18,7 +17,7 @@ use std::collections::{HashMap, HashSet};
 use serde::Serialize;
 
 use jobfile::JobSpec;
-use storeread::DataDir;
+use crate::datadir::DataDir;
 
 /// `set_enabled` on a task that has no registration. The disable path in
 /// `scheduler_set_enabled` treats it as benign — nothing armed IS disabled — and matches on this

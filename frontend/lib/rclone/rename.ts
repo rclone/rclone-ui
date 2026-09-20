@@ -1,4 +1,4 @@
-import { useHostStore } from '../../store/host'
+import { usePersistedStore } from '../../store/persisted'
 import type { ScheduledTask } from '../../types/schedules'
 import { renameRemoteIn, renameRemoteInArgs } from '../format'
 import queryClient from '../query'
@@ -56,15 +56,15 @@ export async function renameRemote(from: string, to: string): Promise<void> {
         )
     }
     await rclone('/fscache/clear').catch(() => null)
-    carryHostState(from, to)
+    carryRemoteSettings(from, to)
     forgetRemoteHealth()
     queryClient.invalidateQueries({ queryKey: ['remotes'] })
     queryClient.invalidateQueries({ queryKey: ['dashboard', 'remotes'] })
     await carrySchedules(from, to)
 }
 
-function carryHostState(from: string, to: string) {
-    useHostStore.setState((state) => {
+function carryRemoteSettings(from: string, to: string) {
+    usePersistedStore.setState((state) => {
         const { [from]: config, ...remoteConfigs } = state.remoteConfigs
         const { [from]: seen, ...remoteFirstSeen } = state.remoteFirstSeen
         return {
@@ -80,7 +80,7 @@ function carryHostState(from: string, to: string) {
 
 async function carrySchedules(from: string, to: string) {
     const failures: string[] = []
-    for (const task of useHostStore.getState().scheduledTasks) {
+    for (const task of usePersistedStore.getState().scheduledTasks) {
         const { args, changed } = renameRemoteInArgs(task.args, from, to)
         if (!changed) continue
         // What the sources are goes with them, under their new names.

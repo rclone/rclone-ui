@@ -32,7 +32,7 @@ pub mod resolve_link;
 pub mod rpc;
 pub mod scheduler;
 pub mod state_api;
-pub mod state_files;
+pub mod state;
 pub mod static_files;
 pub mod storage;
 pub mod team;
@@ -46,7 +46,7 @@ pub mod zookeeper;
 pub use bus::{Bus, Event};
 pub use datadir::DataDir;
 pub use platform::kill_pid;
-pub use state_files::StateStore;
+pub use state::StateStore;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;

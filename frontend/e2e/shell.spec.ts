@@ -272,7 +272,7 @@ test('the sidebar lists the five newest remotes, then all of them with a count',
         const noted = page
             .waitForResponse(
                 (response) =>
-                    response.url().includes('/api/state/host') &&
+                    response.url().includes('/api/state/app') &&
                     response.request().method() === 'PATCH',
                 { timeout: 5000 }
             )

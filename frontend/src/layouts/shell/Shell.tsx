@@ -3,19 +3,11 @@ import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { onBusy, setNavigate } from '../../../lib/api/navigation'
 import { getSession } from '../../../lib/api/session'
-import { hydrated } from '../../../lib/api/state'
-import { initHostStore } from '../../../store/host'
-import { usePersistedStore } from '../../../store/persisted'
+import { initStore } from '../../../store/persisted'
 import DialogHost from '../../components/DialogHost'
 import Sidebar from './Sidebar'
 import SiteHeader from './SiteHeader'
 import { useSidebarState } from './useSidebarState'
-
-/** Pages must not render before both documents have loaded: their first writes would carry defaults over what is saved. */
-async function ensureHostStore() {
-    await hydrated(usePersistedStore.persist)
-    await initHostStore()
-}
 
 // The seam between the sidebar and the page: an invisible strip whose centre line lights up on
 // hover, with a resize cursor pointing the way the sidebar will move, and a click toggles it.
@@ -67,7 +59,9 @@ export default function Shell() {
                     navigate('/login', { replace: true })
                     return
                 }
-                return ensureHostStore().then(() => {
+                // Pages must not render before the document has loaded: a first write would carry
+                // defaults over what is saved.
+                return initStore().then(() => {
                     if (!cancelled) setAuthState('ok')
                 })
             })

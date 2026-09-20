@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use super::catalog::{self, EventMeta};
 use super::smtp::{self, SmtpSettings};
 use super::targets::{self, NotificationTarget};
-use crate::scheduler::storeread::DataDir;
+use crate::datadir::DataDir;
 
 fn discord_color(severity: &str) -> u32 {
     match severity {

@@ -121,17 +121,18 @@ test('the state API keeps its contract, and knows its two documents only', async
             )
             .toBe(true)
         await signIn(request, base)
-        // No page has been opened here, so `host` has never been written.
+        // No page has been opened here, so the document has never been written.
         await stateContract(async (method, data, ifMatch) => {
-            const response = await request.fetch('/api/state/host', {
+            const response = await request.fetch('/api/state/app', {
                 method,
                 headers: { ...SESSION, ...(ifMatch === undefined ? {} : { 'If-Match': ifMatch }) },
                 data,
             })
             return { status: response.status(), body: (await response.json()) as StateDoc }
         })
-        // Nothing else is a document, the accounts file beside them least of all.
-        for (const name of ['team', 'hosts/local', '..%2Fstorage']) {
+        // Nothing else is a document: not the accounts file beside it, not the name the machine's
+        // settings once had.
+        for (const name of ['team', 'host', 'hosts/local', '..%2Fstorage']) {
             const response = await request.get(`/api/state/${name}`, { headers: SESSION })
             expect(response.ok(), name).toBe(false)
         }
