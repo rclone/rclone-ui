@@ -108,22 +108,6 @@ export async function removeNotificationTarget(id: string): Promise<void> {
  * callers (never throws); delivery happens in Rust, which records lastSentAt/lastError per
  * target and reads targets at fire time.
  */
-export async function dispatchNotification(
-    eventId: NotificationEventId,
-    payload: { title: string; body: string; data?: Record<string, unknown> }
-): Promise<void> {
-    try {
-        await rpc('notifications_dispatch', {
-            eventId,
-            title: payload.title,
-            body: payload.body,
-            data: payload.data,
-        })
-    } catch (error) {
-        console.error('[dispatchNotification] failed', eventId, error)
-    }
-}
-
 /**
  * Sends a test payload directly to the given target (which may be unsaved drawer values).
  * Throws on failure so the UI can surface the error; Rust records the outcome when the target

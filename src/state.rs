@@ -108,6 +108,9 @@ pub struct MountOnStart {
     pub filter_options: Map<String, Value>,
     pub config_options: Map<String, Value>,
     pub metadata_options: Map<String, Value>,
+    /// rclone's `mount/mount` body, built by the page when this was saved (`buildMountRequest`);
+    /// the server replays it at start. `None` for a setting saved before it was kept.
+    pub request: Option<crate::lifecycle::mounts::MountRequest>,
 }
 
 // --- the store -----------------------------------------------------------------------------

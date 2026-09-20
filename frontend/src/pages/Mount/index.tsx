@@ -30,10 +30,10 @@ import { reportError } from '@/lib/errors'
 import { getOptionsSubtitle } from '@/lib/flags'
 import { useFlags } from '@/lib/hooks'
 import { applyTemplatePaths, pathsFromArgs } from '@/lib/rclone/templatePaths'
-import { startMount } from './startMount'
 import { RCLONE_CONFIG_DEFAULTS } from '@/lib/rclone/constants'
 import { metadataOptionsProblem } from '@/lib/rclone/metadataMapper'
-import { explainMountFailure } from '@/lib/rclone/mount'
+import { buildMountRequest, explainMountFailure } from '@/lib/rclone/mount'
+import { mountStart } from '@/server/app'
 import { usePersistedStore } from '@/store'
 import type { FlagValue } from '@/lib/rclone/types'
 import { CommandInfoButton } from '@/components/operation/OperationFooter'
@@ -137,17 +137,19 @@ export default function Mount() {
             const problem = pathsProblem([source, dest])
             if (problem) throw new Error(problem)
 
-            const resolvedMountPoint = await startMount({
-                source: source,
-                destination: dest,
-                options: {
-                    mount: mountOptions,
-                    vfs: vfsOptions,
-                    filter: filterOptions,
-                    config: configOptions,
-                    metadata: metadataOptions,
-                },
-            })
+            const resolvedMountPoint = await mountStart(
+                await buildMountRequest({
+                    source: source,
+                    destination: dest,
+                    options: {
+                        mount: mountOptions,
+                        vfs: vfsOptions,
+                        filter: filterOptions,
+                        config: configOptions,
+                        metadata: metadataOptions,
+                    },
+                })
+            )
 
             return resolvedMountPoint || dest
         },

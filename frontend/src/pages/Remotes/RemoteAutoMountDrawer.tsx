@@ -9,7 +9,7 @@ import { onErrorDialog } from '@/lib/errors'
 import { useFlags } from '@/lib/hooks'
 import { RCLONE_CONFIG_DEFAULTS } from '@/lib/rclone/constants'
 import { metadataOptionsProblem } from '@/lib/rclone/metadataMapper'
-import { AutomountSourceError, probeMountSource } from '@/lib/rclone/mount'
+import { AutomountSourceError, buildMountRequest, probeMountSource } from '@/lib/rclone/mount'
 
 import { message, pickPath } from '@/dialog'
 import { home } from '@/server/boot'
@@ -173,6 +173,26 @@ export default function RemoteAutoMountDrawer({
                         throw error
                     }
                     console.warn('[RemoteAutoMountDrawer] source probe inconclusive:', error)
+                }
+            }
+
+            // The request the server replays at start, built now, once: it needs the daemon (the
+            // option names rclone wants), which the probe above needed too.
+            const mount = newConfig.mountOnStart
+            if (mount?.enabled && mount.remotePath && mount.mountPoint) {
+                newConfig.mountOnStart = {
+                    ...mount,
+                    request: await buildMountRequest({
+                        source: `${remoteName}:${mount.remotePath}`,
+                        destination: mount.mountPoint,
+                        options: {
+                            mount: mount.mountOptions,
+                            vfs: mount.vfsOptions,
+                            filter: mount.filterOptions,
+                            config: mount.configOptions,
+                            metadata: mount.metadataOptions,
+                        },
+                    }),
                 }
             }
 

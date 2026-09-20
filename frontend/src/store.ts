@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { stateStorage, watchDoc } from '@/server/state'
 import { type Template, hasTemplatePaths } from '@/lib/rclone/templatePaths'
+import type { MountRequest } from '@/server/app'
 
 // The one persisted document (`<data dir>/state/app.json`, served as `/api/state/app`).
 const APP_DOC = 'app'
@@ -19,6 +20,8 @@ export interface RemoteConfig {
         filterOptions: Record<string, any>
         configOptions: Record<string, any>
         metadataOptions: Record<string, any>
+        /** rclone's `mount/mount` body, built when this was saved; the server replays it at start. */
+        request?: MountRequest
     }
 }
 

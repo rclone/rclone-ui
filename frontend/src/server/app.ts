@@ -130,3 +130,21 @@ export const testProxyConnection = (proxyUrl: string) =>
 /** A POST to the Filen gateway, which has no CORS headers, with the auth and checksum it wants. */
 export const filenGateway = (endpoint: string, body: Record<string, unknown>) =>
     rpc<{ status: number; body: string }>('filen_gateway', { endpoint, body })
+
+/**
+ * rclone's `mount/mount` body, as `buildMountRequest` (lib/rclone/mount.ts) builds it: the source
+ * with its options serialized in, the mount point as rclone wants it, the option groups keyed by
+ * rclone's Go field names. What the server sends, and what it saves for a mount at start.
+ */
+export interface MountRequest {
+    fs: string
+    mountPoint: string
+    mountType?: string
+    mountOpt?: string
+    vfsOpt?: string
+    _config?: string
+    _filter?: string
+}
+
+/** Starts the mount: the server makes the mount point ready, sends the request, and notifies a failure. Resolves to the mount point (on Windows, `*` becomes the letter rclone picked). */
+export const mountStart = (request: MountRequest) => rpc<string>('mount_start', { request })

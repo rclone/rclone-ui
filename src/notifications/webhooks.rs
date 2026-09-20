@@ -1,5 +1,5 @@
-//! Webhook and email dispatch — the single engine behind the `notifications_dispatch` RPC, a
-//! transfer's end and a scheduled run alike. An email target is one whose `url` is its
+//! Webhook and email dispatch — the single engine behind every notification: a transfer's end,
+//! a scheduled run, a mount that failed, the daemon crashing. An email target is one whose `url` is its
 //! recipients (comma-separated); it goes through the saved SMTP settings (`smtp.rs`), read once
 //! per dispatch.
 

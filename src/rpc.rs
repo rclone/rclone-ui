@@ -397,6 +397,13 @@ rpcs! { st, caller, args;
         ok(Value::Null)
     },
     "mount_support" => ok(crate::lifecycle::mounts::support()),
+    // The page built rclone's `mount/mount` body (`buildMountRequest`); the server makes the
+    // mount point ready, sends it, and notifies a failure. Resolves to the mount point.
+    "mount_start" => {
+        let request: crate::lifecycle::mounts::MountRequest = parse(&args["request"])?;
+        let daemon = st.local_daemon().ok_or("the rclone daemon is not running")?;
+        ok(crate::lifecycle::mounts::mount_start(&daemon.client(), &st.dirs, &request).await?)
+    },
     "test_proxy_connection" => {
         let url = str_arg(&args, "proxyUrl")?;
         ok(crate::http::test_proxy_connection(&url).await?)
@@ -509,17 +516,6 @@ rpcs! { st, caller, args;
         ok(Value::Null)
     },
     // Fire-and-forget for the caller: delivery failures are recorded per target and logged.
-    "notifications_dispatch" => {
-        #[derive(serde::Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Args { event_id: String, title: String, body: String, data: Option<Value> }
-        let Args { event_id, title, body, data } = parse(&args)?;
-        let data = data.unwrap_or(Value::Null);
-        for line in notifications::dispatch(&st.dirs, &event_id, &title, &body, data).await {
-            log::warn!("[notifications] {}", line);
-        }
-        ok(Value::Null)
-    },
     // Errors propagate: the screen shows them in its "Test failed" dialog.
     "notifications_send_test" => {
         #[derive(serde::Deserialize)]
