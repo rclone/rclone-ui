@@ -1,4 +1,4 @@
-name: ci
+name: ci-cloud
 
 on:
   pull_request:
