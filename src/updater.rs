@@ -16,7 +16,7 @@ pub struct UpdateInfo {
     pub date: Option<String>,
 }
 
-/// Written by release-cloud.yml: `platforms["cloud-<os>-<arch>"] = { url, signature }` for the
+/// Written by release-cloud.yml on main: `platforms["cloud-<os>-<arch>"] = { url, signature }` for the
 /// raw binaries, each signed with minisign. Read from the rolling `cloud-latest` release and not
 /// from `releases/latest`, which in this repository is the desktop app's.
 const MANIFEST: &str =
