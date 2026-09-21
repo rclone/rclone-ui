@@ -10,7 +10,30 @@ permissions:
   packages: write
 
 jobs:
+  # This workflow builds the cloud branch and nothing else. main carries the same file so GitHub
+  # lists it and offers "Run workflow"; run on any other branch, or for a cloud-v* tag whose
+  # commit is not on cloud, it stops here before anything is built or published.
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: The ref is cloud, or a tag on it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/cloud) exit 0 ;;
+            refs/tags/cloud-v*)
+              # On cloud: cloud is the tagged commit, or ahead of it.
+              status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$GITHUB_SHA...cloud" --jq .status)"
+              if [ "$status" = "ahead" ] || [ "$status" = "identical" ]; then exit 0; fi
+              echo "::error::$GITHUB_REF_NAME is not on the cloud branch ($status)"
+              exit 1 ;;
+          esac
+          echo "::error::release-cloud builds the cloud branch only; run it with cloud selected (got $GITHUB_REF)"
+          exit 1
+
   binaries:
+    needs: guard
     strategy:
       fail-fast: false
       matrix:
@@ -123,6 +146,7 @@ jobs:
           make_latest: false
 
   image:
+    needs: guard
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
