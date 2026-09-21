@@ -4,7 +4,7 @@ A web interface for [rclone](https://rclone.org): remotes, transfers, mounts, sc
 notifications, served to a browser. One binary runs the HTTP API, the pages and rclone itself.
 
 ## Run it
-
+### Docker
 ```sh
 docker run -d --name rclone-cloud \
   -p 5573:5573 \
@@ -30,7 +30,8 @@ else works. On Windows the same goes for [WinFsp](https://github.com/winfsp/winf
 either is up to you; the server checks again at every mount and every daemon start, so no
 restart is needed afterwards.
 
-Without Docker, run the binary from the releases page: `rclone-cloud serve`. Under systemd or
+### Without Docker
+Run the binary from the releases page: `rclone-cloud serve`. Under systemd or
 launchd a self-update exits with code 3 and expects the supervisor to start it again.
 
 ## Configuration
@@ -76,7 +77,7 @@ updated automatically.
 
 The server does not manage rclone's configuration file. It never picks a path for it, never
 creates it and never passes one to the daemon: rclone resolves its own config, the way it does on
-a command line. Create a remote and rclone writes the file itself.
+a command line.
 
 The daemon inherits the server's environment, so rclone's own variables are how you steer it:
 
