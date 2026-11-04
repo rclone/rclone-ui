@@ -178,7 +178,14 @@ export interface MoveArgs {
         config?: Record<string, FlagValue>
         filter?: Record<string, FlagValue>
         remotes?: Record<string, Record<string, FlagValue>>
+        // sync/move's own parameters, not config flags. createEmptySrcDirs defaults to true when unset.
+        outer?: MoveOuterOptions
     }
+}
+
+export interface MoveOuterOptions {
+    createEmptySrcDirs?: boolean
+    deleteEmptySrcDirs?: boolean
 }
 
 export interface SyncArgs {
@@ -329,7 +336,9 @@ function buildTransferInputs(
     args: CopyArgs | MoveArgs,
     paths: { folder: string; file: string },
     configParam: string | undefined,
-    filterParam: string | undefined
+    filterParam: string | undefined,
+    // Extra parameters for folder sources only: operations/copyfile and operations/movefile take none of them.
+    folderParams: Record<string, boolean>
 ): BatchInput[] {
     const { sources, destination, options } = args
 
@@ -374,7 +383,7 @@ function buildTransferInputs(
                 dstFs: serializeOptions(`${dstFullDirPath}${srcName}`, {
                     remote: dstOptions,
                 }),
-                createEmptySrcDirs: true,
+                ...folderParams,
                 ...(configParam ? { _config: configParam } : {}),
                 ...(filterParam ? { _filter: filterParam } : {}),
             })
@@ -415,7 +424,8 @@ export function buildCopyRequests(args: CopyArgs): RcRequest[] {
         args,
         { folder: 'sync/copy', file: 'operations/copyfile' },
         configParam,
-        filterParam
+        filterParam,
+        { createEmptySrcDirs: true }
     )
     return [
         {
@@ -441,7 +451,11 @@ export function buildMoveRequests(args: MoveArgs): RcRequest[] {
         args,
         { folder: 'sync/move', file: 'operations/movefile' },
         configParam,
-        filterParam
+        filterParam,
+        {
+            createEmptySrcDirs: args.options.outer?.createEmptySrcDirs ?? true,
+            ...(args.options.outer?.deleteEmptySrcDirs ? { deleteEmptySrcDirs: true } : {}),
+        }
     )
     return [
         {
