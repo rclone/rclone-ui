@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Rclone UI
+Comment=Cross-platform GUI for rclone & S3
+Exec=/usr/bin/rcui %u
+Icon=org.rclone.ui
+Terminal=false
+Categories=Utility;
+StartupWMClass=org.rclone.ui
+MimeType=x-scheme-handler/rclone;

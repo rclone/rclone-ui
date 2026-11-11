@@ -1,43 +1,60 @@
-import { Button, Divider, Drawer, DrawerBody, DrawerContent, DrawerHeader, cn } from '@heroui/react'
+import { Button, cn, DrawerBody, DrawerContent, Tooltip } from '@heroui/react'
+import { t } from '@lingui/core/macro'
+import { Trans } from '@lingui/react/macro'
 import {
-    DownloadIcon,
-    FileIcon as FileIconLucide,
-    Maximize2Icon,
-    Minimize2Icon,
-    XIcon,
-} from 'lucide-react'
+    CompressWide as CompressWideIcon,
+    DownloadBracket as DownloadBracketIcon,
+    ExpandWide as ExpandWideIcon,
+    File as PlainFileIcon,
+} from '@zappicon/react'
 import {
     type ComponentType,
     type LazyExoticComponent,
-    Suspense,
     lazy,
+    Suspense,
     useCallback,
-    useMemo,
     useState,
 } from 'react'
-import { formatBytes } from '../../../../lib/format.ts'
-import { openWindow } from '../../../../lib/window.ts'
-import { useCurrentHost, usePersistedStore } from '../../../../store/persisted.ts'
-import FileIcon, { getFileType, isPreviewable } from '../FileIcon'
+import { formatErrorMessage, reportError } from '../../../../lib/errors'
+import { formatBytes, formatDate } from '../../../../lib/format'
+import { openUrl } from '../../../../lib/shell'
+import ContentDrawer, { DrawerShellHeader } from '../../ContentDrawer'
+import FileIcon, { fileTypeName, getFileType, isPreviewable } from '../FileIcon'
 import type { Entry } from '../types'
 import { getFileExtension } from '../utils'
-import PreviewProLock from './PreviewProLock'
-import { PreviewLoading, type PreviewViewerProps } from './previewStates'
+import { mediaUrl, useMediaUrl } from './media'
+import {
+    DOCUMENT_MAX,
+    PreviewBoundary,
+    PreviewError,
+    PreviewLoading,
+    PreviewNotice,
+    type PreviewViewerProps,
+} from './previewStates'
 
-// Lazy-loaded so each viewer's heavy WASM/WebGL bundle only loads when a matching
-// file is actually opened, keeping them out of the main + Commander bundle.
+function FileTile({ entry }: { entry: Entry }) {
+    return (
+        <span className="grid size-16 place-items-center rounded-[18px] bg-content1 shadow-[0_0_0_1px_rgb(0_0_0/0.06),0_6px_16px_-4px_rgb(0_0_0/0.15)] dark:bg-default-100 dark:shadow-[0_0_0_1px_rgb(255_255_255/0.08)] [&>svg]:size-8">
+            <FileIcon entry={entry} size="lg" />
+        </span>
+    )
+}
+
+// Lazy-loaded so that each viewer's heavy WASM or WebGL bundle loads only when a matching file
+// is opened. This keeps them out of the main bundle and the Browser bundle.
 const PdfPreview = lazy(() => import('./PdfPreview'))
 const DocxPreview = lazy(() => import('./DocxPreview'))
 const XlsxPreview = lazy(() => import('./XlsxPreview'))
 const PptxPreview = lazy(() => import('./PptxPreview'))
-// CodeMirror + its ~140 bundled languages are heavy; keep them out of the main chunk too.
 const CodeMirrorPreview = lazy(() => import('./CodeMirrorPreview'))
 
-// Text-like file types (plus .csv) render in the CodeMirror viewer.
 const CODE_VIEWER_TYPES = new Set(['text', 'code', 'config'])
 
-// Documents route to a dedicated inline viewer by extension; any other extension
-// falls through to the media/text switch or the download fallback below.
+// Shown with the browser's own elements, directly from the signed URL.
+const MEDIA_TYPES = new Set(['image', 'video', 'audio'])
+
+// Documents open in a dedicated inline viewer, chosen by extension. Any other extension falls
+// through to the media and text cases, or to the download fallback below.
 const DOCUMENT_VIEWERS: Record<string, LazyExoticComponent<ComponentType<PreviewViewerProps>>> = {
     pdf: PdfPreview,
     docx: DocxPreview,
@@ -46,49 +63,15 @@ const DOCUMENT_VIEWERS: Record<string, LazyExoticComponent<ComponentType<Preview
     pptx: PptxPreview,
 }
 
-const TRAILING_SLASH_RE = /\/$/
-const LEADING_SLASHES_RE = /^\/+/
-const WINDOWS_DRIVE_RE = /^([a-zA-Z]:\/)/
-const MAX_PREVIEW_SIZE = 500_000_000
+const DOWNLOAD = t({ message: 'Download', comment: 'Button: downloads the file.' })
 
-// The daemon runs with `--rc-serve`, exposing objects at `/[fs]/remote/path` where
-// `[fs]` is an rclone connection string. The local filesystem must be addressed via
-// the `:local:` backend rooted at the filesystem root — the same fs the app uses for
-// local `/operations/list` calls (see searchPath()/getFsInfo()). A bare `[local]`
-// names a non-existent remote, so local previews 404'd while remotes worked.
-function buildLocalFs(fullPath: string): { fs: string; path: string } {
-    const normalized = fullPath.replace(/\\/g, '/')
-    const drive = normalized.match(WINDOWS_DRIVE_RE)
-    if (drive) {
-        // e.g. C:/Users/x → fs ":local:C:/", path "Users/x"
-        return {
-            fs: `:local:${drive[1]}`,
-            path: normalized.slice(drive[0].length).replace(LEADING_SLASHES_RE, ''),
-        }
-    }
-    // POSIX absolute path → local backend rooted at "/", path relative to it.
-    return { fs: ':local:/', path: normalized.replace(LEADING_SLASHES_RE, '') }
-}
-
-function buildPreviewUrl(entry: Entry, hostUrl: string, auth?: string): string {
-    const normalizedHost = hostUrl.replace(TRAILING_SLASH_RE, '')
-
-    let url: string
-    if (entry.remote === 'UI_LOCAL_FS') {
-        const { fs, path } = buildLocalFs(entry.fullPath)
-        url = `${normalizedHost}/[${fs}]/${path}`
-    } else {
-        const pathPart = entry.fullPath.includes(':/')
-            ? entry.fullPath.split(':/').slice(1).join('/')
-            : entry.fullPath
-        url = `${normalizedHost}/[${entry.remote}:]/${pathPart}`
-    }
-
-    if (auth) {
-        url = `${url}?auth=${encodeURIComponent(auth)}`
-    }
-
-    return url
+function tooLargeWords(bytes: number): string {
+    const size = formatBytes(bytes)
+    const max = formatBytes(DOCUMENT_MAX)
+    return t({
+        message: `${size} (max: ${max})`,
+        comment: 'The size of a file, and the largest size that the preview opens.',
+    })
 }
 
 export default function PreviewDrawer({
@@ -98,141 +81,123 @@ export default function PreviewDrawer({
     item: Entry | null
     onClose: () => void
 }) {
-    const currentHost = useCurrentHost()
-    const hostUrl = currentHost?.url
-    const authUser = currentHost?.authUser
-    const authPassword = currentHost?.authPassword
-
-    // File previews are a PRO feature — without a valid license we tease the preview
-    // behind an upsell overlay instead of unlocking it.
-    const licenseValid = usePersistedStore((state) => state.licenseValid)
-
-    // When expanded, the drawer widens to ~90% of the window (the Commander).
+    // When expanded, the drawer widens to almost the full width of the window (97vw).
     const [expanded, setExpanded] = useState(false)
 
-    const auth = useMemo(() => {
-        if (authUser) {
-            return btoa(`${authUser}:${authPassword ?? ''}`)
-        }
-        return undefined
-    }, [authUser, authPassword])
-
-    const authHeader = auth ? `Basic ${auth}` : undefined
-
     const fileType = item ? getFileType(item) : 'unknown'
+    const typeName = fileTypeName(fileType)
     const canPreview = item ? isPreviewable(item) : false
+    const ext = item ? getFileExtension(item.name) : ''
+    const DocumentViewer: LazyExoticComponent<ComponentType<PreviewViewerProps>> | undefined =
+        DOCUMENT_VIEWERS[ext]
+    // Only documents have a size limit (DOCUMENT_MAX). Images, video and audio stream through
+    // the signed URL whatever their size, and the text viewer loads only the start of a large
+    // file (CodeMirrorPreview).
+    const isTooLarge = !!DocumentViewer && item?.size !== undefined && item.size > DOCUMENT_MAX
 
-    const isTooLarge =
-        item?.size !== undefined && MAX_PREVIEW_SIZE > 0 && item.size > MAX_PREVIEW_SIZE
+    // The core streams the file through a signed URL that supports ranges, so a video can seek.
+    const media = useMediaUrl(item && canPreview && !isTooLarge ? item.fullPath : undefined)
+    const previewUrl = media.url ?? null
 
-    const previewUrl = useMemo(() => {
-        if (!item || !hostUrl) return null
-        return buildPreviewUrl(item, hostUrl, auth)
-    }, [item, hostUrl, auth])
+    // The URL that an <img>, <video> or <audio> element couldn't load (missing, refused, expired,
+    // or in a format it can't play). It is stored by URL, so the next file starts fresh.
+    const [failedUrl, setFailedUrl] = useState<string | null>(null)
 
+    // Downloads the file as an attachment, which the system browser saves.
     const handleDownload = useCallback(() => {
-        if (!previewUrl) return
-        window.open(previewUrl, '_blank')
-    }, [previewUrl])
+        if (!item) return
+        mediaUrl(item.fullPath, false)
+            .then(openUrl)
+            .catch((error: unknown) =>
+                reportError(error, {
+                    title: DOWNLOAD,
+                    fallback: t`Could not get a download link for this file.`,
+                    log: ['[preview] download link'],
+                })
+            )
+    }, [item])
 
     const handleClose = useCallback(() => {
         setExpanded(false)
         onClose()
     }, [onClose])
 
-    const handleUnlock = useCallback(() => {
-        openWindow({ name: 'Settings', url: '/settings?tab=license' })
-    }, [])
-
-    // Only tease the paywall over an actual rendered preview — not the "select a file",
-    // "too large", or unsupported/download-fallback states.
-    const showProLock = !licenseValid && !!previewUrl && !isTooLarge && canPreview
-
     const renderPreview = () => {
-        if (!item || !previewUrl) {
+        if (!item) {
             return (
-                <div className="flex flex-col items-center justify-center h-full gap-4 text-default-500">
-                    <FileIconLucide className="size-16" />
-                    <p>Select a file to preview</p>
-                </div>
-            )
-        }
-
-        if (isTooLarge) {
-            return (
-                <div className="flex flex-col items-center justify-center h-full gap-4 text-default-500">
-                    <FileIcon entry={item} size="lg" />
-                    <p>File is too large for preview</p>
-                    <p className="text-sm">
-                        {formatBytes(item.size ?? 0)} (max: {formatBytes(MAX_PREVIEW_SIZE)})
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-sm text-default-500">
+                    <PlainFileIcon className="size-12 text-default-300" />
+                    <p>
+                        <Trans>Select a file to preview</Trans>
                     </p>
-                    <Button
-                        color="primary"
-                        onPress={handleDownload}
-                        startContent={<DownloadIcon className="size-4" />}
-                    >
-                        Download
-                    </Button>
                 </div>
             )
         }
 
-        // Shown for types we can't render inline (and for the sub-formats of an
-        // otherwise-previewable type that this viewer doesn't handle, e.g. .odt / .csv).
+        // Shown for types that can't be rendered inline, and for formats of an otherwise
+        // previewable type that no viewer handles (such as .odt).
         const unsupportedFallback = (
-            <div className="flex flex-col items-center justify-center h-full gap-4 text-default-500">
-                <FileIcon entry={item} size="lg" />
-                <p>Preview not available for this file type</p>
-                <Button
-                    color="primary"
-                    onPress={handleDownload}
-                    startContent={<DownloadIcon className="size-4" />}
-                >
-                    Download
-                </Button>
-            </div>
+            <PreviewNotice
+                visual={<FileTile entry={item} />}
+                title={t`Preview not available for this file type`}
+                description={t`Download the file to access it locally.`}
+                onDownload={handleDownload}
+            />
         )
 
         if (!canPreview) {
             return unsupportedFallback
         }
 
-        // Documents (pdf/docx/xlsx/pptx) route to their dedicated inline viewer;
-        // unsupported document sub-formats (e.g. .odt) fall through to download.
-        const ext = getFileExtension(item.name)
-        const DocumentViewer = DOCUMENT_VIEWERS[ext]
-        if (DocumentViewer) {
+        if (isTooLarge) {
             return (
-                <DocumentViewer
-                    url={previewUrl}
-                    name={item.name}
-                    authHeader={authHeader}
+                <PreviewNotice
+                    visual={<FileTile entry={item} />}
+                    title={t`File is too large to preview`}
+                    description={tooLargeWords(item.size ?? 0)}
                     onDownload={handleDownload}
                 />
             )
         }
 
-        // Text, code and config files — plus .csv (classified as a spreadsheet, but we
-        // show it as delimited text) — render in the CodeMirror viewer.
-        if (CODE_VIEWER_TYPES.has(fileType) || ext === 'csv') {
+        // There is no URL, so nothing below could show the file.
+        if (media.error) {
             return (
-                <CodeMirrorPreview
-                    url={previewUrl}
-                    name={item.name}
-                    authHeader={authHeader}
+                <PreviewError
+                    message={formatErrorMessage(media.error, t`The file could not be opened.`)}
                     onDownload={handleDownload}
                 />
             )
         }
+
+        // The viewers receive the URL while it is still being signed and show it as loading, so
+        // a viewer that is already open stays mounted from one file to the next.
+        if (DocumentViewer) {
+            return <DocumentViewer url={previewUrl} name={item.name} onDownload={handleDownload} />
+        }
+
+        // A .csv file is classified as a spreadsheet, but it is shown as delimited text.
+        if (CODE_VIEWER_TYPES.has(fileType) || ext === 'csv') {
+            return (
+                <CodeMirrorPreview url={previewUrl} name={item.name} onDownload={handleDownload} />
+            )
+        }
+
+        if (MEDIA_TYPES.has(fileType)) {
+            if (!previewUrl) return <PreviewLoading />
+            if (failedUrl === previewUrl) return <PreviewError onDownload={handleDownload} />
+        }
+        const onMediaError = () => setFailedUrl(previewUrl)
 
         switch (fileType) {
             case 'image':
                 return (
                     <div className="flex items-center justify-center w-full h-full p-4">
                         <img
-                            src={previewUrl}
+                            src={previewUrl ?? undefined}
                             alt={item.name}
                             className="object-contain max-w-full max-h-full rounded-lg"
+                            onError={onMediaError}
                         />
                     </div>
                 )
@@ -240,49 +205,49 @@ export default function PreviewDrawer({
             case 'video':
                 return (
                     <div className="flex items-center justify-center w-full h-full p-4">
-                        {/* biome-ignore lint/a11y/useMediaCaption: <explanation> */}
+                        {/* biome-ignore lint/a11y/useMediaCaption: the user's own files have no captions to offer */}
                         <video
-                            src={previewUrl}
+                            src={previewUrl ?? undefined}
                             controls={true}
                             className="max-w-full max-h-full rounded-lg"
                             autoPlay={false}
+                            onError={onMediaError}
                         >
-                            Your browser does not support the video tag.
+                            <Trans>This video can’t be played here.</Trans>
                         </video>
                     </div>
                 )
 
             case 'audio':
                 return (
-                    <div className="flex flex-col items-center justify-center w-full h-full gap-4 p-4">
-                        <FileIcon entry={item} size="lg" />
-                        <p className="text-lg font-medium">{item.name}</p>
-                        {/* biome-ignore lint/a11y/useMediaCaption: <explanation> */}
-                        <audio src={previewUrl} controls={true} className="w-full max-w-md">
-                            Your browser does not support the audio tag.
+                    <div className="flex flex-col items-center justify-center w-full h-full gap-4 p-6">
+                        <FileTile entry={item} />
+                        <p className="text-sm font-semibold text-center">{item.name}</p>
+                        {/* biome-ignore lint/a11y/useMediaCaption: the user's own files have no captions to offer */}
+                        <audio
+                            src={previewUrl ?? undefined}
+                            controls={true}
+                            className="w-full max-w-md"
+                            onError={onMediaError}
+                        >
+                            <Trans>This audio can’t be played here.</Trans>
                         </audio>
                     </div>
                 )
 
             default:
                 return (
-                    <div className="flex flex-col items-center justify-center h-full gap-4 text-default-500">
-                        <FileIcon entry={item} size="lg" />
-                        <p>Preview not available</p>
-                        <Button
-                            color="primary"
-                            onPress={handleDownload}
-                            startContent={<DownloadIcon className="size-4" />}
-                        >
-                            Download
-                        </Button>
-                    </div>
+                    <PreviewNotice
+                        visual={<FileTile entry={item} />}
+                        title={t`Preview not available`}
+                        onDownload={handleDownload}
+                    />
                 )
         }
     }
 
     return (
-        <Drawer
+        <ContentDrawer
             isOpen={!!item}
             placement="right"
             size="md"
@@ -291,83 +256,140 @@ export default function PreviewDrawer({
             classNames={{
                 base: cn(
                     'transition-[max-width] duration-300 ease-in-out',
-                    expanded && '!max-w-[97vw]'
+                    expanded && 'max-w-[97vw]!'
                 ),
             }}
         >
             <DrawerContent>
-                <DrawerHeader className="flex items-center justify-between mt-4">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                        {item && (
-                            <button
-                                type="button"
-                                onClick={() => setExpanded((value) => !value)}
-                                aria-label={expanded ? 'Collapse preview' : 'Expand preview'}
-                                className="relative grid shrink-0 cursor-pointer size-5 group place-items-center"
-                            >
-                                {/* File icon by default; hard-swaps to a maximize/
-                                    minimize affordance on hover (only one is ever shown). */}
-                                <span className="col-start-1 row-start-1 group-hover:hidden">
-                                    <FileIcon entry={item} size="md" />
-                                </span>
-                                <span className="hidden col-start-1 row-start-1 group-hover:block">
-                                    {expanded ? (
-                                        <Minimize2Icon className="size-4" />
-                                    ) : (
-                                        <Maximize2Icon className="size-4" />
-                                    )}
-                                </span>
-                            </button>
-                        )}
-                        <span className="font-medium truncate">{item?.name ?? 'Preview'}</span>
-                    </div>
-                    <Button isIconOnly={true} size="sm" variant="light" onPress={handleClose}>
-                        <XIcon className="size-5" />
-                    </Button>
-                </DrawerHeader>
-                <Divider />
+                <DrawerShellHeader
+                    leading={
+                        item && (
+                            <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-content1 shadow-[0_0_0_1px_rgb(0_0_0/0.08),0_1px_2px_rgb(0_0_0/0.08)] dark:bg-default-100 dark:shadow-[0_0_0_1px_rgb(255_255_255/0.08)]">
+                                <FileIcon entry={item} size="md" />
+                            </span>
+                        )
+                    }
+                    title={item?.name ?? t({ message: 'Preview', context: 'heading' })}
+                    description={
+                        item && (
+                            <span>
+                                {typeName}
+                                {item.size !== undefined && (
+                                    <span className="normal-case tabular-nums">
+                                        {' · '}
+                                        {formatBytes(item.size)}
+                                    </span>
+                                )}
+                            </span>
+                        )
+                    }
+                    actions={
+                        item && (
+                            <>
+                                <Tooltip content={DOWNLOAD} size="sm" closeDelay={0}>
+                                    <Button
+                                        isIconOnly={true}
+                                        size="sm"
+                                        variant="light"
+                                        radius="full"
+                                        aria-label={DOWNLOAD}
+                                        onPress={handleDownload}
+                                        className="text-default-500"
+                                    >
+                                        <DownloadBracketIcon className="size-4" />
+                                    </Button>
+                                </Tooltip>
+                                <Tooltip
+                                    content={expanded ? t`Collapse preview` : t`Expand preview`}
+                                    size="sm"
+                                    closeDelay={0}
+                                >
+                                    <Button
+                                        isIconOnly={true}
+                                        size="sm"
+                                        variant="light"
+                                        radius="full"
+                                        aria-label={
+                                            expanded ? t`Collapse preview` : t`Expand preview`
+                                        }
+                                        onPress={() => setExpanded((value) => !value)}
+                                        className="text-default-500"
+                                    >
+                                        {expanded ? (
+                                            <CompressWideIcon className="size-4" />
+                                        ) : (
+                                            <ExpandWideIcon className="size-4" />
+                                        )}
+                                    </Button>
+                                </Tooltip>
+                            </>
+                        )
+                    }
+                    onClose={handleClose}
+                    closeLabel={t`Close preview`}
+                    className="gap-2.5"
+                />
                 <DrawerBody className="p-0">
                     <div className="flex flex-col h-full">
                         <div className="relative flex-1 overflow-hidden">
-                            <Suspense fallback={<PreviewLoading />}>{renderPreview()}</Suspense>
-                            {showProLock && <PreviewProLock onUnlock={handleUnlock} />}
+                            <PreviewBoundary
+                                resetKey={item?.fullPath ?? ''}
+                                onDownload={handleDownload}
+                            >
+                                <Suspense fallback={<PreviewLoading />}>{renderPreview()}</Suspense>
+                            </PreviewBoundary>
                         </div>
 
                         {item && (
-                            <>
-                                <Divider />
-                                <div className="p-4 space-y-2 text-sm shrink-0 bg-default-50">
-                                    <div className="flex justify-between">
-                                        <span className="text-default-500">Type:</span>
-                                        <span className="capitalize">{fileType}</span>
-                                    </div>
-                                    {item.size !== undefined && (
-                                        <div className="flex justify-between">
-                                            <span className="text-default-500">Size:</span>
-                                            <span>{formatBytes(item.size)}</span>
-                                        </div>
-                                    )}
-                                    {item.modTime && (
-                                        <div className="flex justify-between">
-                                            <span className="text-default-500">Modified:</span>
-                                            <span>{item.modTime}</span>
-                                        </div>
-                                    )}
-                                    <div className="flex justify-between">
-                                        <span className="text-default-500">Location:</span>
-                                        <span
-                                            className="text-right truncate max-w-[200px]"
-                                            title={item.fullPath}
-                                        >
-                                            {item.remote === 'UI_LOCAL_FS' ? 'Local' : item.remote}
-                                        </span>
-                                    </div>
-                                </div>
-                            </>
+                            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 px-5 py-3.5 text-xs border-t shrink-0 border-divider bg-content1/70">
+                                <dt className="text-default-500">
+                                    {t({ message: 'Type', comment: 'Label: the type of a file.' })}
+                                </dt>
+                                <dd className="text-right">{typeName}</dd>
+                                {item.size !== undefined && (
+                                    <>
+                                        <dt className="text-default-500">
+                                            {t({
+                                                message: 'Size',
+                                                comment: 'The size of a file.',
+                                            })}
+                                        </dt>
+                                        <dd className="text-right tabular-nums">
+                                            {formatBytes(item.size)}
+                                        </dd>
+                                    </>
+                                )}
+                                {item.modTime && (
+                                    <>
+                                        <dt className="text-default-500">
+                                            {t({
+                                                message: 'Modified',
+                                                comment: 'Label: when a file was last changed.',
+                                            })}
+                                        </dt>
+                                        <dd className="text-right tabular-nums">
+                                            {Number.isNaN(Date.parse(item.modTime))
+                                                ? item.modTime
+                                                : formatDate(item.modTime)}
+                                        </dd>
+                                    </>
+                                )}
+                                <dt className="text-default-500">
+                                    {t({ message: 'Location', comment: 'Label: where a file is.' })}
+                                </dt>
+                                <dd className="text-right truncate" title={item.fullPath}>
+                                    {item.remote === 'UI_LOCAL_FS'
+                                        ? t({
+                                              message: 'Local',
+                                              comment: 'Where a file is: on this computer.',
+                                          })
+                                        : item.remote}
+                                </dd>
+                            </dl>
                         )}
                     </div>
                 </DrawerBody>
             </DrawerContent>
-        </Drawer>
+        </ContentDrawer>
     )
 }

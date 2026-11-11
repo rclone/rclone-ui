@@ -1,316 +1,199 @@
-import { Alert } from '@heroui/react'
-import { useMutation } from '@tanstack/react-query'
-import { AlertOctagonIcon, FoldersIcon, PlayIcon } from 'lucide-react'
-import { startTransition, useCallback, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link } from '@heroui/react'
+import { t } from '@lingui/core/macro'
+import { Trans } from '@lingui/react/macro'
+import { useMemo, useState } from 'react'
 import { onErrorDialog } from '../../lib/errors'
-import { getOptionsSubtitle } from '../../lib/flags'
 import { getRemoteName } from '../../lib/format'
-import { hasFeature, useFlags, useFsInfo } from '../../lib/hooks'
-import { notify } from '../../lib/notifications'
-import { startDelete, startDryRun } from '../../lib/rclone/api'
-import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
-import { useSchedulingAvailable } from '../../lib/scheduler'
-import OperationWindowContent from '../components/OperationWindowContent'
+import { pathsFromArgs } from '../../lib/rclone/templatePaths'
+import { hasFeature, useFsInfo } from '../../lib/remotes'
+import { openWindow } from '../../lib/shell'
+import OperationWindowContent, { OperationPage } from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
-import OptionsSection from '../components/OptionsSection'
-import { PathField } from '../components/PathFinder'
-import CronSection from '../components/operation/CronSection'
+import { confirmDelete, hasFilters } from '../components/operation/confirmations'
+import { pageLook } from '../components/operation/look'
 import OperationFooter from '../components/operation/OperationFooter'
-import OptionsAccordion, {
-    type OptionsAccordionItemDef,
-} from '../components/operation/OptionsAccordion'
-import { useOperationDryRun } from '../components/operation/useOperationDryRun'
+import OperationHeader from '../components/operation/OperationHeader'
+import { OptionsSection } from '../components/operation/OptionsAccordion'
+import { pickerFor } from '../components/operation/places'
+import { deleteLine, plainLine } from '../components/operation/summary'
+import { useOperationSubmission } from '../components/operation/useOperationSubmission'
 import { useOptionGroups } from '../components/operation/useOptionGroups'
-import { useScheduleTask } from '../components/operation/useScheduleTask'
+import { useOptionItems } from '../components/operation/useOptionItems'
+import { MultiPathField, RoutePanel, RouteRow } from '../components/PathFinder'
+import { usePageStart, useReportEdited } from '../route'
 
-const PATH_ALLOWED_KEYS: ('LOCAL_FS' | 'FAVORITES' | 'REMOTES')[] = ['REMOTES', 'FAVORITES']
-
-const HELP_CONTENT = `Removes files from the specified path.
-
-Unlike "Purge", Delete obeys include/exclude filters, so you can use it to selectively delete specific files. Delete only removes files but leaves the directory structure intact — empty folders will remain after the files are deleted.
-
-If you want to delete an entire directory and all of its contents (ignoring filters), use the Purge command instead. Purge is also more efficient for deleting entire folders on remotes that support server-side deletion.
-
-Here's a quick guide to using the Delete command:
-
-1. SELECT PATH
-Use the path selector at the top to choose which path to delete files from. You can select from configured remotes or favorites. Tap the folder icon to browse, or type a path directly.
-
-2. CONFIGURE OPTIONS (Optional)
-Expand the accordion sections to customize your delete operation. Tap any chip on the right to add it to the JSON editor. Hover over chips to see what each option does.
-
-• Filters — This is where Delete really shines. Use include/exclude patterns to selectively delete specific files. For example, delete only .tmp files, or only files older than a certain age (max_age), or only files larger than a certain size (min_size).
-
-• Config — Performance tuning: parallel checkers, and other global rclone settings.
-
-• Cron — Schedule this delete to run automatically at set intervals. Useful for automated cleanup tasks. It runs even when the app is closed.
-
-3. USE TEMPLATES (Optional)
-Tap the folder icon in the bottom bar to load or save option presets. Templates let you quickly apply common filter configurations for recurring cleanup tasks.
-
-4. START THE DELETE
-Once a path is selected, tap "START DELETE" to begin. The operation will delete all files matching your filters (or all files if no filters are set). Empty directories will be left behind unless you use the rmdirs option.`
+const PICKER = pickerFor('delete', 'source')
 
 export default function Delete() {
-    const [searchParams] = useSearchParams()
-    const { globalFlags, filterFlags, configFlags } = useFlags()
+    const start = usePageStart('delete')
+    const presetArgs = start.preset?.delete ?? undefined
 
-    const [sourceFs, setSourceFs] = useState<string | undefined>(
-        searchParams.get('initialSource') ? searchParams.get('initialSource')! : undefined
-    )
+    const [sources, setSources] = useState<string[] | undefined>(start.sources)
+    const [openedWith] = useState(sources)
 
-    const [cronExpression, setCronExpression] = useState<string | null>(null)
-    const schedulingAvailable = useSchedulingAvailable()
-
+    const optionState = useOptionGroups({
+        operation: 'delete',
+        groups: ['filter', 'config', 'metadata'],
+        initial: presetArgs?.options,
+    })
     const {
         jsonError,
-        setJsonError,
+        edited: optionsEdited,
         groups: optionGroups,
         applyTemplate,
         getMergedOptions,
         resetJson,
-        resetLocks,
-    } = useOptionGroups({
-        groups: [{ key: 'filter' }, { key: 'config', defaults: RCLONE_CONFIG_DEFAULTS.config }],
-    })
+    } = optionState
     const filterGroup = optionGroups.filter
     const configGroup = optionGroups.config
+    const metadataGroup = optionGroups.metadata
 
-    const sourceRemoteName = useMemo(() => getRemoteName(sourceFs), [sourceFs])
+    // The tip names one remote, so it is only shown for one path.
+    const sourceRemoteName = useMemo(
+        () => (sources?.length === 1 ? getRemoteName(sources[0]) : null),
+        [sources]
+    )
 
     const sourceFsInfoQuery = useFsInfo(sourceRemoteName)
 
-    // false while loading — matches the previous default (offer the plain delete until purge is confirmed).
+    // False while the remote's features load, so the plain delete is offered until purge is
+    // known to be supported.
     const supportsPurge = useMemo(
-        () => hasFeature(sourceFsInfoQuery.data, 'Purge'),
-        [sourceFsInfoQuery.data]
+        () => !!sourceRemoteName && hasFeature(sourceFsInfoQuery.data, 'Purge'),
+        [sourceRemoteName, sourceFsInfoQuery.data]
     )
 
     const buildArgs = () => ({
-        sources: [sourceFs!],
+        sources: sources ?? [],
         options: {
-            filter: filterGroup.options,
-            config: configGroup.options,
+            filter: filterGroup.sent,
+            config: configGroup.sent,
+            metadata: metadataGroup.sent,
         },
     })
 
-    const startDeleteMutation = useMutation({
-        mutationFn: async () => {
-            if (!sourceFs) {
-                throw new Error('Please select a source path to delete')
-            }
-
-            return startDelete(buildArgs())
-        },
-        onSuccess: async () => {
-            await notify({
-                title: 'Success',
-                body: 'Delete task started',
-            })
-            if (cronExpression) {
-                scheduleTaskMutation.mutate()
-            }
-        },
-        onError: onErrorDialog('Delete', 'Failed to start delete', {
-            log: ['Error starting delete:'],
-        }),
-    })
-
-    const scheduleTaskMutation = useScheduleTask({
+    const submission = useOperationSubmission({
         operation: 'delete',
-        cronExpression,
-        validate: () => {
-            if (!sourceFs) {
-                throw new Error('Please select a source path to delete')
-            }
+        // The core refuses the root of a remote, and the page shows its refusal (useFormRefusal).
+        problem: () => (sources && sources.length > 0 ? undefined : t`Please select a source path`),
+        jsonError,
+        buildArgs: buildArgs,
+        dryRun: true,
+        // With filters, only the matching files are deleted, and the question says so.
+        confirm: async (args) =>
+            (await confirmDelete(
+                args.sources ?? [],
+                hasFilters(filterGroup.options, metadataGroup.options)
+            ))
+                ? 'start'
+                : 'cancel',
+        error: {
+            title: t({ message: 'Delete', comment: 'The name of the operation, as a title.' }),
+            message: t`Failed to start delete`,
+            log: ['Error starting delete:'],
         },
-        buildArgs,
+        reset: {
+            paths: () => {
+                setSources(undefined)
+            },
+        },
+        groups: { resetJson },
     })
 
-    const dryRunMutation = useOperationDryRun(async () => {
-        if (!sourceFs) {
-            throw new Error('Please select a source path to delete')
-        }
-        return startDryRun((isDryRun) =>
-            startDelete(
-                {
-                    sources: [sourceFs],
-                    options: {
-                        filter: filterGroup.options,
-                        config: { ...configGroup.options, dry_run: true },
-                    },
-                },
-                isDryRun
-            )
-        )
+    useReportEdited(
+        !submission.startMutation.isSuccess &&
+            (optionsEdited || (sources ?? []).join('\n') !== (openedWith ?? []).join('\n'))
+    )
+
+    const accordionItems = useOptionItems(optionState, {
+        refusals: submission.refusals,
+        mapperPaths: { source: sources?.[0] },
     })
 
-    const buttonText = useMemo(() => {
-        if (startDeleteMutation.isPending) return 'STARTING...'
-        if (!sourceFs || sourceFs.length === 0) return 'Please select a source path'
-        if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        if (cronExpression) return 'START AND SCHEDULE DELETE'
-        return 'START DELETE'
-    }, [startDeleteMutation.isPending, sourceFs, jsonError, cronExpression])
-
-    const buttonIcon = useMemo(() => {
-        if (startDeleteMutation.isPending) return
-        if (!sourceFs || sourceFs.length === 0) return <FoldersIcon className="w-5 h-5" />
-        if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
-        return <PlayIcon className="w-5 h-5 fill-current" />
-    }, [startDeleteMutation.isPending, sourceFs, jsonError])
-
-    const accordionItems = useMemo<OptionsAccordionItemDef[]>(
-        () => [
-            {
-                key: 'filters',
-                category: 'filters',
-                subtitle: getOptionsSubtitle(Object.keys(filterGroup.options).length),
-                children: (
-                    <OptionsSection
-                        globalOptions={globalFlags?.filter ?? {}}
-                        optionsJson={filterGroup.jsonString}
-                        setOptionsJson={filterGroup.setJsonString}
-                        availableOptions={filterFlags || []}
-                        isLocked={filterGroup.locked}
-                        setIsLocked={filterGroup.setLocked}
-                    />
-                ),
-            },
-            {
-                key: 'config',
-                category: 'config',
-                subtitle: getOptionsSubtitle(Object.keys(configGroup.options).length),
-                children: (
-                    <OptionsSection
-                        globalOptions={globalFlags?.main ?? {}}
-                        optionsJson={configGroup.jsonString}
-                        setOptionsJson={configGroup.setJsonString}
-                        availableOptions={configFlags || []}
-                        isLocked={configGroup.locked}
-                        setIsLocked={configGroup.setLocked}
-                    />
-                ),
-            },
-            ...(schedulingAvailable
-                ? [
-                      {
-                          key: 'cron',
-                          category: 'cron' as const,
-                          children: (
-                              <CronSection
-                                  expression={cronExpression}
-                                  onChange={setCronExpression}
-                              />
-                          ),
-                      },
-                  ]
-                : []),
-        ],
-        [
-            filterGroup,
-            configGroup,
-            globalFlags,
-            filterFlags,
-            configFlags,
-            cronExpression,
-            schedulingAvailable,
-        ]
-    )
-
-    const handleStart = useCallback(
-        () => startDeleteMutation.mutate(),
-        [startDeleteMutation.mutate]
-    )
-
-    const handleSchedule = useCallback(
-        () => scheduleTaskMutation.mutate(),
-        [scheduleTaskMutation.mutate]
-    )
-
-    const handleDryRun = useCallback(() => dryRunMutation.mutate(), [dryRunMutation.mutate])
-
-    const handleResetPaths = useCallback(() => {
-        startTransition(() => {
-            setSourceFs(undefined)
-            setJsonError(null)
-            startDeleteMutation.reset()
-        })
-    }, [setJsonError, startDeleteMutation.reset])
-
-    const handleResetOptions = useCallback(() => {
-        startTransition(() => {
-            resetJson()
-            setCronExpression(null)
-            startDeleteMutation.reset()
-        })
-    }, [resetJson, startDeleteMutation.reset])
-
-    const handleResetAll = useCallback(() => {
-        startTransition(() => {
-            resetJson()
-            resetLocks()
-            setCronExpression(null)
-            setSourceFs(undefined)
-            startDeleteMutation.reset()
-        })
-    }, [resetJson, resetLocks, startDeleteMutation.reset])
-
+    const { tone } = pageLook()
+    const firstSource = sources?.[0]
     return (
-        <div className="flex flex-col h-screen gap-10">
-            {/* Main Content */}
+        <OperationPage>
             <OperationWindowContent>
-                {/* Path Display */}
-                <PathField
-                    path={sourceFs || ''}
-                    setPath={setSourceFs}
-                    label="Path"
-                    placeholder="Enter a remote:/path to delete"
-                    showPicker={true}
-                    allowedKeys={PATH_ALLOWED_KEYS}
-                    showFiles={true}
+                {submission.scheduling}
+                <OperationHeader
+                    command={submission.command}
+                    preview={submission.preview}
+                    operation="delete"
+                    intro={t`Deletes the files in the paths you pick, and keeps their folders.`}
+                    templates={{
+                        isDisabled: submission.templatesDisabled,
+                        onSelect: applyTemplate,
+                        getOptions: getMergedOptions,
+                        paths: {
+                            get: () => pathsFromArgs({ sources }),
+                            set: (paths) =>
+                                setSources(paths.sources?.length ? paths.sources : undefined),
+                        },
+                    }}
                 />
 
-                {supportsPurge && (
-                    <Alert
-                        color="primary"
-                        title="LET ME SHARE A TIP!"
-                        variant="faded"
-                        className="min-h-none h-fit max-h-fit"
-                    >
-                        If you're deleting a entire folder, "{sourceRemoteName}" supports Purge
-                        which is more efficient.
-                    </Alert>
-                )}
+                <RoutePanel
+                    tone={tone}
+                    note={
+                        supportsPurge && firstSource
+                            ? {
+                                  kind: 'info',
+                                  text: (
+                                      <Trans>
+                                          Deleting a whole folder? {sourceRemoteName} can purge it
+                                          instead, in one call rather than one for each file.{' '}
+                                          <Link
+                                              as="button"
+                                              type="button"
+                                              size="sm"
+                                              underline="always"
+                                              className="align-baseline"
+                                              onPress={() =>
+                                                  openWindow(
+                                                      `/purge?initialSource=${encodeURIComponent(firstSource)}`
+                                                  ).catch(onErrorDialog(t`Couldn't open Purge`))
+                                              }
+                                          >
+                                              Purge it instead
+                                          </Link>
+                                      </Trans>
+                                  ),
+                              }
+                            : undefined
+                    }
+                >
+                    <RouteRow stop="single" tone={tone}>
+                        <MultiPathField
+                            paths={sources ?? []}
+                            setPaths={setSources}
+                            label={t`Files or folders`}
+                            placeholder={t`Enter a remote:path to delete`}
+                            showPicker={true}
+                            allowedKeys={PICKER.allowedKeys}
+                            showFiles={PICKER.files}
+                            remember={PICKER.remember}
+                            bare={true}
+                        />
+                    </RouteRow>
+                </RoutePanel>
 
-                <OptionsAccordion items={accordionItems} />
+                <OptionsSection items={accordionItems} />
             </OperationWindowContent>
 
             <OperationWindowFooter>
                 <OperationFooter
-                    operation="delete"
-                    templatesDisabled={!!jsonError}
-                    onTemplateSelect={applyTemplate}
-                    getTemplateOptions={getMergedOptions}
-                    startIsSuccess={startDeleteMutation.isSuccess}
-                    startIsPending={startDeleteMutation.isPending}
-                    onStart={handleStart}
-                    onSchedule={handleSchedule}
-                    dryRunIsPending={dryRunMutation.isPending}
-                    onDryRun={handleDryRun}
-                    startBlocked={!!jsonError || !sourceFs || sourceFs.length === 0}
-                    buttonText={buttonText}
-                    buttonIcon={buttonIcon}
-                    newLabel="NEW DELETE"
+                    {...submission.footer}
+                    line={deleteLine(
+                        sources ?? [],
+                        hasFilters(filterGroup.options, metadataGroup.options)
+                    )}
+                    startedLine={plainLine(t`Delete started`)}
+                    newLabel={t`New delete`}
                     showViewTransfers={false}
-                    resetPathsLabel="Reset Path"
-                    onResetPaths={handleResetPaths}
-                    onResetOptions={handleResetOptions}
-                    onResetAll={handleResetAll}
-                    helpContent={HELP_CONTENT}
+                    resetPathsLabel={t`Reset path`}
                 />
             </OperationWindowFooter>
-        </div>
+        </OperationPage>
     )
 }

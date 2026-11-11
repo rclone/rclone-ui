@@ -1,0 +1,66 @@
+{
+  "discord": {
+    "body": {
+      "username": "Rclone UI",
+      "embeds": [
+        {
+          "title": "Test notification",
+          "description": "This is a test notification from Rclone UI for \"Ops <alerts> & \"friends\"\".",
+          "color": 3447003,
+          "timestamp": "2026-01-02T03:04:05.678Z"
+        }
+      ]
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://discord.com/api/webhooks/1234567890/AbC-dEf_123"
+  },
+  "email": {
+    "subject": "Test notification",
+    "text": "This is a test notification from Rclone UI for \"Ops <alerts> & \"friends\"\".\n\n— Rclone UI v1.2.3",
+    "to": [
+      "ops@example.com",
+      "alice@example.com"
+    ]
+  },
+  "slack": {
+    "body": {
+      "text": "*Test notification*\nThis is a test notification from Rclone UI for \"Ops &lt;alerts&gt; &amp; \"friends\"\"."
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://hooks.slack.com/services/T000AAA/B000BBB/xyz123"
+  },
+  "telegram": {
+    "body": {
+      "chat_id": "-1001234567890",
+      "message_thread_id": "7",
+      "parse_mode": "HTML",
+      "text": "<b>Test notification</b>\nThis is a test notification from Rclone UI for \"Ops &lt;alerts&gt; &amp; \"friends\"\"."
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://api.telegram.org/bot123456:ABC-def_ghi/sendMessage"
+  },
+  "webhook": {
+    "body": {
+      "source": "rclone-ui",
+      "version": "1.2.3",
+      "event": "test",
+      "label": "Test notification",
+      "severity": "info",
+      "title": "Test notification",
+      "body": "This is a test notification from Rclone UI for \"Ops <alerts> & \"friends\"\".",
+      "timestamp": "2026-01-02T03:04:05.678Z",
+      "data": null
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "X-RcloneUI-Event": "test"
+    },
+    "url": "https://example.com/hooks/rclone"
+  }
+}

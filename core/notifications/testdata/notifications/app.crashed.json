@@ -1,0 +1,69 @@
+{
+  "discord": {
+    "body": {
+      "username": "Rclone UI",
+      "embeds": [
+        {
+          "title": "Rclone UI crashed",
+          "description": "Rclone UI quit unexpectedly 2 times in a row and was started again. signal: killed",
+          "color": 15158332,
+          "timestamp": "2026-01-02T03:04:05.678Z"
+        }
+      ]
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://discord.com/api/webhooks/1234567890/AbC-dEf_123"
+  },
+  "email": {
+    "subject": "Rclone UI crashed",
+    "text": "Rclone UI quit unexpectedly 2 times in a row and was started again. signal: killed\n\n— Rclone UI v1.2.3",
+    "to": [
+      "ops@example.com",
+      "alice@example.com"
+    ]
+  },
+  "slack": {
+    "body": {
+      "text": "*Rclone UI crashed*\nRclone UI quit unexpectedly 2 times in a row and was started again. signal: killed"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://hooks.slack.com/services/T000AAA/B000BBB/xyz123"
+  },
+  "telegram": {
+    "body": {
+      "chat_id": "-1001234567890",
+      "message_thread_id": "7",
+      "parse_mode": "HTML",
+      "text": "<b>Rclone UI crashed</b>\nRclone UI quit unexpectedly 2 times in a row and was started again. signal: killed"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://api.telegram.org/bot123456:ABC-def_ghi/sendMessage"
+  },
+  "webhook": {
+    "body": {
+      "source": "rclone-ui",
+      "version": "1.2.3",
+      "event": "app.crashed",
+      "label": "Rclone UI crashed",
+      "severity": "error",
+      "title": "Rclone UI crashed",
+      "body": "Rclone UI quit unexpectedly 2 times in a row and was started again. signal: killed",
+      "timestamp": "2026-01-02T03:04:05.678Z",
+      "data": {
+        "crashes": 2,
+        "error": "signal: killed"
+      }
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "X-RcloneUI-Event": "app.crashed"
+    },
+    "url": "https://example.com/hooks/rclone"
+  }
+}

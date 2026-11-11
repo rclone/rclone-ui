@@ -1,82 +1,130 @@
-import { useQuery } from '@tanstack/react-query'
-import { Channel, invoke } from '@tauri-apps/api/core'
-import { homeDir } from '@tauri-apps/api/path'
+import { plural, t } from '@lingui/core/macro'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import rclone from '../../../lib/rclone/client.ts'
-import { useHostStore } from '../../../store/host.ts'
-import { useCurrentHost } from '../../../store/persisted.ts'
+import { useDebounce } from 'use-debounce'
+import type { Browse } from '../../../lib/core/types'
+import { compareText, foldCase, formatNumber } from '../../../lib/format'
+import { locale } from '../../../lib/i18n'
+import { onLive, onResync } from '../../../lib/live'
+import { joinRemoteDir, pathProblem } from '../../../lib/paths'
+import { useReconnectOffer } from '../../../lib/reconnect'
+import { namesOf, useRemotes } from '../../../lib/remotes'
+import { homeDir, isWindows } from '../../../lib/shell'
+import { toastWarning } from '../toast'
+import { useFavorites } from './favorites'
+import { useFileDates } from './fileDates'
+import { useFolderSizeJob } from './folderSizes'
+import { useJob } from './jobs'
+import {
+    type Held,
+    LIST_CAP,
+    listingError,
+    onFolderChanged,
+    relisting,
+    SEARCH_CAP,
+    toEntries,
+} from './listing'
+import { listingKey } from './listingKey'
+import {
+    addTo,
+    alreadySelected,
+    folderHolding,
+    removeFrom,
+    type Selection,
+    selectAllOf,
+} from './selection'
 import type {
     AllowedKey,
     Entry,
     PaddingItem,
     RemoteString,
     SelectItem,
+    Sort,
     VirtualizedEntry,
 } from './types'
 import {
-    RE_BACKSLASH,
-    RE_LEADING_SLASH,
-    RE_PATH_SEPARATOR,
-    RE_TRAILING_SLASH,
-    VIRTUAL_PADDING_COUNT,
-    cacheKey,
+    BY_NAME,
+    expandHome,
+    favoriteRows,
     getLocalParent,
     getRemoteParent,
     joinLocal,
-    listRemotePath,
     log,
-    searchPath,
+    panelFolder,
+    parseRemotePath,
+    placeOf,
     serializeRemotePath,
+    unknownRemote,
+    VIRTUAL_PADDING_COUNT,
 } from './utils'
 
-const nameCollator = new Intl.Collator(undefined, {
-    numeric: true,
-    sensitivity: 'base',
-})
+/**
+ * Orders two names that `compareText` holds equal (they differ only by case or accents), so that
+ * the rows keep one order. It follows the app's language too.
+ */
+const exactCollator = new Intl.Collator(locale())
 
+/**
+ * The line under the list about the rows: `active` while they still arrive, `warning` when the
+ * panel stopped at its cap.
+ */
+export interface PanelStatus {
+    kind: 'active' | 'warning'
+    text: string
+}
+
+const EMPTY: Entry[] = []
+const NOTHING_HELD: Held<Entry> = { at: null, rows: EMPTY, complete: false }
+
+/**
+ * A file panel's state. `initialRemote` and `initialPath` set where it starts. `UI_LOCAL_FS` with
+ * no path starts in the home folder, and with an empty path at the list of disks. Without an
+ * initial place, the panel starts at home, or with `startAtFirstRemote`, at the root of the first
+ * remote (at home when there are none). `initialSort` and `initialSelection` restore how the
+ * panel was left (the Commander's).
+ */
 export default function useFileNavigation({
     initialRemote,
     initialPath,
-    allowedKeys = ['REMOTES', 'LOCAL_FS', 'FAVORITES'],
+    startAtFirstRemote = false,
+    initialSort = BY_NAME,
+    initialSelection,
+    allowedKeys = ['REMOTES', 'LOCAL_FS', 'LOCAL_FS_EXTRA', 'FAVORITES'],
     allowFiles = true,
     allowMultiple = true,
     isActive = true,
 }: {
     initialRemote?: string | 'UI_LOCAL_FS'
     initialPath?: string
+    startAtFirstRemote?: boolean
+    initialSort?: Sort
+    initialSelection?: SelectItem[]
     allowedKeys?: AllowedKey[]
     allowFiles?: boolean
     allowMultiple?: boolean
     isActive?: boolean
 }) {
-    const favoritePaths = useHostStore((state) => state.favoritePaths)
-    const currentHost = useCurrentHost()
-
-    const remotesQuery = useQuery({
-        queryKey: ['remotes', 'list', 'all'],
-        queryFn: async () => await rclone('/config/listremotes').then((r) => r?.remotes),
-        staleTime: 1000 * 60,
-    })
-
-    const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data])
+    const favoritePaths = useFavorites()
+    const home = homeDir()
+    const { remotes: configured, query: remotesQuery } = useRemotes()
+    // Sorted like every list of remotes. The names are joined so that the list keeps its identity
+    // when only a remote's fsinfo changes.
+    const remoteNames = namesOf(configured).join('\n')
+    const remotes = useMemo(() => (remoteNames ? remoteNames.split('\n') : []), [remoteNames])
+    // Whether the list of remotes has been read, so an empty list means there are none.
+    const remotesKnown = remotesQuery.isSuccess
+    const remotesSettled = remotesQuery.isSuccess || remotesQuery.isError
 
     const [selectedRemote, setSelectedRemote] = useState<RemoteString>(initialRemote ?? null)
     const [cwd, setCwd] = useState<string>(initialPath ?? '')
     const [pathInput, setPathInput] = useState<string>('')
     const [searchTerm, setSearchTerm] = useState<string>('')
     const [searchInSubfolders, setSearchInSubfolders] = useState(false)
-    const [recursiveSearchItems, setRecursiveSearchItems] = useState<Entry[] | null>(null)
-    const [isSearching, setIsSearching] = useState(false)
-    const [searchError, setSearchError] = useState<string | null>(null)
-    const [sortDescriptor, setSortDescriptor] = useState<{
-        column: 'name' | 'size' | 'modTime'
-        direction: 'ascending' | 'descending'
-    }>({ column: 'name', direction: 'ascending' })
-    const [items, setItems] = useState<Entry[]>([])
-    const [isLoading, setIsLoading] = useState<boolean>(false)
-    const [error, setError] = useState<string | null>(null)
+    const [sortDescriptor, setSortDescriptor] = useState<Sort>(initialSort)
+    // The reason the path bar refused a path (`pathProblem`). A failed listing reports its own
+    // error through the listing job.
+    const [pathError, setPathError] = useState<string | null>(null)
     const [isUpDisabled, setIsUpDisabled] = useState(false)
-    const [refreshKey, setRefreshKey] = useState(0)
+    const [showLoading, setShowLoading] = useState(false)
 
     const isRemote = useMemo(
         () =>
@@ -89,29 +137,181 @@ export default function useFileNavigation({
     const canShowLocal = useMemo(() => allowedKeys.includes('LOCAL_FS'), [allowedKeys])
     const canShowRemotes = useMemo(() => allowedKeys.includes('REMOTES'), [allowedKeys])
 
-    const cacheRef = useRef<Map<string, Entry[]>>(new Map())
-    const localCompleteCacheRef = useRef<Set<string>>(new Set())
-    const entryByKeyRef = useRef<Map<string, Entry>>(new Map())
-    const abortControllerRef = useRef<AbortController | null>(null)
-    const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const isNavigatingRef = useRef(false)
-    const localRequestIdRef = useRef<string | null>(null)
-    const localRequestPrefixRef = useRef(Math.random().toString(36).slice(2))
-    const localRequestSequenceRef = useRef(0)
-    const searchRequestSequenceRef = useRef(0)
 
-    const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
-    const selectedTypesRef = useRef<Map<string, 'file' | 'folder'>>(new Map())
+    // The selection is one ordered map from each path to its type, so a path and its type can't
+    // get out of step.
+    const [selected, setSelected] = useState<Selection>(
+        () => new Map((initialSelection ?? []).map((item) => [item.path, item.type]))
+    )
+    // The panel's table expects a set of keys, so the set is derived from the map.
+    const selectedPaths = useMemo(() => new Set(selected.keys()), [selected])
+
+    // The folder's rows come from the core's listing, which the core caches per folder. They are
+    // sent in pieces and collected here as they arrive. Favorites are built from the core's list
+    // instead, and the roots of the local sidebar have no folder to list.
+    const isFavorites = selectedRemote === 'UI_FAVORITES'
+    const listingEnabled =
+        isActive && !!selectedRemote && !isFavorites && !(selectedRemote === 'UI_LOCAL_FS' && !cwd)
+    const location = useMemo(
+        () => (listingEnabled ? panelFolder(selectedRemote, cwd) : null),
+        [listingEnabled, selectedRemote, cwd]
+    )
+    // Turning File dates on or off changes the arguments, so the folder is listed again.
+    const [fileDates] = useFileDates()
+    const listing = useJob<Browse.Row>('list', location ? { path: location, fileDates } : null, {
+        cap: LIST_CAP,
+    })
+    // Whether the listing's rows belong to the folder shown. Just after a folder change they still
+    // belong to the previous folder, because the job starts after the render. Showing them as the
+    // new folder's rows would list entries that aren't in it.
+    const current = location !== null && listing.args?.path === location
+
+    // Folder sizes are computed for local folders only, unless the user turned them off
+    // (`folderSizes.ts`).
+    const sizes = useFolderSizeJob(
+        listing,
+        current && selectedRemote === 'UI_LOCAL_FS' ? location : null
+    )
+
+    const listed = useMemo(
+        () => (current ? toEntries(listing.items, selectedRemote as string, { sizes }) : EMPTY),
+        [current, listing.items, selectedRemote, sizes]
+    )
+    // The previous folder stays on screen, with its own paths, until the next folder's rows start
+    // to arrive. A failed listing clears it. The folder shown, listed again (a refresh, or a
+    // change in it), keeps its rows until the new listing ends (`relisting`).
+    const [held, setHeld] = useState<Held<Entry>>(NOTHING_HELD)
+    const waiting =
+        location !== null &&
+        (!current || (listing.phase === 'running' && listing.items.length === 0))
+    const refreshing = relisting({ at: location, held, current, phase: listing.phase })
+    useEffect(() => {
+        if (listing.phase === 'failed') setHeld(NOTHING_HELD)
+        else if (!waiting && !refreshing) {
+            setHeld({ at: location, rows: listed, complete: listing.phase !== 'running' })
+        }
+    }, [listing.phase, waiting, refreshing, listed, location])
+
+    const favoriteItems = useMemo(() => favoriteRows(favoritePaths), [favoritePaths])
+    // A failed listing doesn't show the previous folder, and a disabled one shows nothing.
+    const items: Entry[] = isFavorites
+        ? favoriteItems
+        : !listingEnabled || (current && listing.phase === 'failed')
+          ? EMPTY
+          : waiting || refreshing
+            ? held.rows
+            : listed
+    const error =
+        pathError ??
+        (current && listing.phase === 'failed'
+            ? listingError(listing.error, listing.notFound)
+            : null)
+    // "Loading..." replaces the list, so it is only for another folder, never for the one shown.
+    // `waiting` is checked too, because the effect that clears `showLoading` runs a render after
+    // the rows arrive, and that render would unmount the list.
+    const isLoading = showLoading && waiting && !refreshing
+
+    // When rclone reports that the remote's sign-in expired, offer to reconnect, then list the
+    // folder again.
+    const refreshListing = listing.refresh
+    useReconnectOffer(listing.reconnect, refreshListing)
+
+    // List the folder again when the page changes something in it, or when a transfer into it
+    // ends. A config change also lists a remote folder again (the core returns its cache when
+    // nothing changed there), but it can't affect a local folder. A resync after missed events
+    // lists it again too, because a change might have happened in the gap.
+    const reaskListing = listing.reask
+    const panelKey = useMemo(
+        () => (selectedRemote && !isFavorites ? listingKey(selectedRemote, cwd) : null),
+        [selectedRemote, isFavorites, cwd]
+    )
+    useEffect(() => {
+        if (!panelKey) return
+        const offChanged = onFolderChanged((changed) => {
+            if (changed(panelKey)) reaskListing()
+        })
+        const offRemotes = isRemote ? onLive('remotes.changed', () => reaskListing()) : null
+        const offResync = onResync(() => reaskListing())
+        return () => {
+            offChanged()
+            offRemotes?.()
+            offResync()
+        }
+    }, [panelKey, reaskListing, isRemote])
 
     const recursiveSearchActive = searchInSubfolders && searchTerm.trim().length > 0
 
+    // Searching in subfolders runs the core's search 350 ms after typing stops. A new term
+    // cancels the old search. Matches are shown as the search finds them.
+    const [typedTerm] = useDebounce(searchTerm.trim(), 350)
+    const searchLocation = useMemo(() => panelFolder(selectedRemote, cwd), [selectedRemote, cwd])
+    const searchJob = useJob<Browse.Row>(
+        'search',
+        isActive && recursiveSearchActive && typedTerm && searchLocation
+            ? { path: searchLocation, q: typedTerm, fileDates }
+            : null,
+        { cap: SEARCH_CAP }
+    )
+    // As with the listing, only show matches found under the folder shown.
+    const recursiveSearchItems = useMemo(
+        () =>
+            searchLocation && searchJob.phase !== 'idle' && searchJob.args?.path === searchLocation
+                ? toEntries(searchJob.items, selectedRemote as string, { search: true })
+                : null,
+        [searchLocation, searchJob.phase, searchJob.args, searchJob.items, selectedRemote]
+    )
+    const searchPending = recursiveSearchActive && typedTerm !== searchTerm.trim()
+    const isSearching =
+        recursiveSearchActive &&
+        (searchPending || searchJob.phase === 'running') &&
+        searchJob.items.length === 0
+    const searchError =
+        recursiveSearchActive && searchJob.phase === 'failed'
+            ? t`Unable to search this folder`
+            : null
+    const refreshSearchJob = searchJob.refresh
+    useReconnectOffer(searchJob.reconnect, refreshSearchJob)
+
+    let status: PanelStatus | null = null
+    if (recursiveSearchActive) {
+        const found = searchJob.items.length
+        if (searchJob.capped) {
+            // The count is the search's cap, so it is always the same large number.
+            const count = formatNumber(found)
+            status = { kind: 'warning', text: t`Showing the first ${count} matches` }
+        } else if (searchJob.phase === 'running' && found > 0) {
+            status = {
+                kind: 'active',
+                text: plural(found, { one: 'Searching… # match', other: 'Searching… # matches' }),
+            }
+        }
+    } else if (!isFavorites && listingEnabled) {
+        const listedCount = listing.items.length
+        if (listing.capped) {
+            // The count is the panel's cap, so it is always the same large number.
+            const count = formatNumber(listedCount)
+            status = { kind: 'warning', text: t`Showing the first ${count} entries` }
+        } else if (listing.phase === 'running' && listedCount > 0) {
+            status = {
+                kind: 'active',
+                text: plural(listedCount, {
+                    one: 'Listing… # entry',
+                    other: 'Listing… # entries',
+                }),
+            }
+        }
+    }
+
     const visibleItems = useMemo(() => {
-        const sourceItems = recursiveSearchActive ? (recursiveSearchItems ?? []) : items
-        const base = allowFiles ? sourceItems : sourceItems.filter((it) => it.isDir)
+        // A folder picker also lists files, as rows that can't be picked. Both modes use the
+        // same listing, so the counts and the cap match, and a folder that holds only files
+        // isn't shown as empty.
+        const base = recursiveSearchActive ? (recursiveSearchItems ?? []) : items
         const normalizedSearchTerm = recursiveSearchActive ? searchTerm.trim() : searchTerm
-        const lower = normalizedSearchTerm.toLowerCase()
+        const lower = foldCase(normalizedSearchTerm)
         const filtered = normalizedSearchTerm
-            ? base.filter((item) => item.name.toLowerCase().includes(lower))
+            ? base.filter((item) => foldCase(item.name).includes(lower))
             : base
         const direction = sortDescriptor.direction === 'ascending' ? 1 : -1
 
@@ -121,9 +321,9 @@ export default function useFileNavigation({
             const aName = a.displayName ?? a.name
             const bName = b.displayName ?? b.name
             const nameComparison =
-                nameCollator.compare(aName, bName) ||
-                aName.localeCompare(bName) ||
-                a.key.localeCompare(b.key)
+                compareText(aName, bName) ||
+                exactCollator.compare(aName, bName) ||
+                exactCollator.compare(a.key, b.key)
 
             if (sortDescriptor.column === 'name') return nameComparison * direction
 
@@ -143,10 +343,8 @@ export default function useFileNavigation({
                     : b.modTime
                       ? Date.parse(b.modTime)
                       : undefined
-            const normalizedA =
-                aValue !== undefined && Number.isFinite(aValue) ? aValue : undefined
-            const normalizedB =
-                bValue !== undefined && Number.isFinite(bValue) ? bValue : undefined
+            const normalizedA = aValue !== undefined && Number.isFinite(aValue) ? aValue : undefined
+            const normalizedB = bValue !== undefined && Number.isFinite(bValue) ? bValue : undefined
 
             if (normalizedA === undefined && normalizedB !== undefined) return 1
             if (normalizedA !== undefined && normalizedB === undefined) return -1
@@ -159,16 +357,9 @@ export default function useFileNavigation({
             }
             return nameComparison
         })
-    }, [
-        allowFiles,
-        items,
-        recursiveSearchActive,
-        recursiveSearchItems,
-        searchTerm,
-        sortDescriptor,
-    ])
+    }, [items, recursiveSearchActive, recursiveSearchItems, searchTerm, sortDescriptor])
 
-    const handleSort = useCallback((column: 'name' | 'size' | 'modTime') => {
+    const handleSort = useCallback((column: Sort['column']) => {
         setSortDescriptor((current) => ({
             column,
             direction:
@@ -178,58 +369,34 @@ export default function useFileNavigation({
         }))
     }, [])
 
+    const favoritedKeys = useMemo(() => {
+        const map: Record<string, boolean> = {}
+        // A favorite is a full path, kept as it was saved. A leading slash means the absolute root.
+        for (const it of favoritePaths) if (it.path) map[it.path] = true
+        return map
+    }, [favoritePaths])
+
     const virtualizedItems: (VirtualizedEntry | PaddingItem)[] = useMemo(() => {
         const base: (VirtualizedEntry | PaddingItem)[] = visibleItems.map((item) => ({
             ...item,
-            isSelected: selectedPaths.has(item.key),
+            isSelected: selected.has(item.key),
+            isFavorited: favoritedKeys[item.key] ?? false,
         }))
         for (let i = 0; i < VIRTUAL_PADDING_COUNT; i++) {
             base.push({ key: `__padding-${i}`, padding: true })
         }
         return base
-    }, [visibleItems, selectedPaths])
+    }, [visibleItems, selected, favoritedKeys])
 
-    const selectedCount = useMemo(() => selectedPaths.size, [selectedPaths])
-
-    const favoritedKeys = useMemo(() => {
-        const map: Record<string, boolean> = {}
-        for (const it of favoritePaths || []) {
-            const remote = (it as any).remote as string | undefined
-            const rawPath = (it as any).path as string
-            let fullKey = rawPath
-            if (rawPath?.includes(':/')) {
-                fullKey = rawPath
-            } else if (remote && remote !== 'UI_LOCAL_FS') {
-                const rel = (rawPath || '').replace(RE_LEADING_SLASH, '')
-                fullKey = serializeRemotePath(remote, rel)
-            } else {
-                fullKey = rawPath
-            }
-            if (fullKey) map[fullKey] = true
-        }
-        return map
-    }, [favoritePaths])
+    const selectedCount = selected.size
 
     const cleanupSelectionForRemote = useCallback(
         (newRemote: RemoteString) => {
             log('cleanupSelectionForRemote', { newRemote, selectedRemote })
             if (newRemote !== selectedRemote) {
                 startTransition(() => {
-                    setSelectedPaths(new Set())
+                    setSelected(new Map())
                 })
-                selectedTypesRef.current.clear()
-                const currentPrefix = selectedRemote === 'UI_LOCAL_FS' ? '' : `${selectedRemote}:`
-                const keysToRemove: string[] = []
-                for (const key of entryByKeyRef.current.keys()) {
-                    if (selectedRemote === 'UI_LOCAL_FS' && !key.includes(':/')) {
-                        keysToRemove.push(key)
-                    } else if (selectedRemote !== 'UI_LOCAL_FS' && key.startsWith(currentPrefix)) {
-                        keysToRemove.push(key)
-                    }
-                }
-                for (const key of keysToRemove) {
-                    entryByKeyRef.current.delete(key)
-                }
             }
         },
         [selectedRemote]
@@ -247,7 +414,7 @@ export default function useFileNavigation({
         if (nextRemote === 'UI_LOCAL_FS') {
             startTransition(() => setPathInput(nextCwd || ''))
         } else {
-            startTransition(() => setPathInput(`${nextRemote}:/${nextCwd || ''}`))
+            startTransition(() => setPathInput(serializeRemotePath(nextRemote, nextCwd || '')))
         }
     }, [])
 
@@ -258,35 +425,22 @@ export default function useFileNavigation({
             if (!entry.isDir) return
             if (!selectedRemote) return
             if (selectedRemote === 'UI_FAVORITES') {
-                const full = entry.fullPath
-                if (full.includes(':/')) {
-                    const [remoteName, ...rest] = full.split(':/')
-                    const rel = rest.join('/')
-                    cleanupSelectionForRemote(remoteName as any)
-                    startTransition(() => {
-                        setSelectedRemote(remoteName as any)
-                        setCwd(rel)
-                    })
-                } else {
-                    cleanupSelectionForRemote('UI_LOCAL_FS')
-                    startTransition(() => {
-                        setSelectedRemote('UI_LOCAL_FS')
-                        setCwd(full)
-                    })
-                }
+                const place = placeOf(entry.fullPath)
+                cleanupSelectionForRemote(place.remote)
+                startTransition(() => {
+                    setSelectedRemote(place.remote)
+                    setCwd(place.cwd)
+                })
                 return
             }
             isNavigatingRef.current = true
             if (recursiveSearchActive) {
-                const resultPath = isRemote
-                    ? entry.fullPath.split(':/').slice(1).join('/')
-                    : entry.fullPath
+                const resultPath = isRemote ? parseRemotePath(entry.fullPath).path : entry.fullPath
                 startTransition(() => setCwd(resultPath))
                 return
             }
             if (isRemote) {
-                const base = cwd ? `${cwd}/` : ''
-                startTransition(() => setCwd(`${base}${entry.name}`))
+                startTransition(() => setCwd(joinRemoteDir(cwd, entry.name)))
             } else {
                 const newPath = await joinLocal(cwd, entry.name)
                 startTransition(() => setCwd(newPath))
@@ -309,34 +463,53 @@ export default function useFileNavigation({
         }
     }, [cwd, selectedRemote, isRemote])
 
+    // The panel's refresh button. It lists the folder from rclone again, however recent the
+    // cached listing is (`fresh`), and runs the search in it again.
+    const refresh = useCallback(() => {
+        setPathError(null)
+        refreshListing()
+        refreshSearchJob()
+    }, [refreshListing, refreshSearchJob])
+
     const navigateTo = useCallback(
         (path: string) => {
-            const value = path.trim()
+            // `~` stands for the home folder, as in a shell. The path isn't trimmed: a crumb or
+            // "Show in panel" gives a folder's exact path, whose name may end with a space. The
+            // path field trims what is typed (PathBreadcrumb).
+            const value = expandHome(path, home, isWindows())
             if (!value) return
-            if (value.includes(':/')) {
-                const [remote, ...rest] = value.split(':/')
-                const rel = rest.join('/')
-                cleanupSelectionForRemote(remote)
-                startTransition(() => {
-                    setSelectedRemote(remote)
-                    setCwd(rel)
-                })
-            } else {
-                cleanupSelectionForRemote('UI_LOCAL_FS')
-                startTransition(() => {
-                    setSelectedRemote('UI_LOCAL_FS')
-                    setCwd(value)
-                })
+            // The path is read the way rclone reads it (`lib/paths.ts`). `remote:folder` is a
+            // remote, and `C:\Users` is a drive on a Windows host. A path that rclone would refuse,
+            // or would read differently than intended, is reported here and not opened. So is a
+            // remote that isn't configured, before anything tries to list it.
+            const problem =
+                pathProblem(value) ?? unknownRemote(value, remotesKnown ? remotes : undefined)
+            if (problem) {
+                setPathError(problem)
+                return
             }
+            const { remote: nextRemote, cwd: nextCwd } = placeOf(value)
+            // The user entered the folder the panel already shows (after a refused path, for
+            // example). No state would change, so nothing would reload. Refresh instead, since
+            // that is what the user meant.
+            if (nextRemote === selectedRemote && nextCwd === cwd) {
+                refresh()
+                return
+            }
+            cleanupSelectionForRemote(nextRemote)
+            startTransition(() => {
+                setSelectedRemote(nextRemote)
+                setCwd(nextCwd)
+            })
         },
-        [cleanupSelectionForRemote]
+        [cleanupSelectionForRemote, selectedRemote, cwd, refresh, home, remotes, remotesKnown]
     )
 
     const selectRemote = useCallback(
         async (remote: string | 'UI_LOCAL_FS' | 'UI_FAVORITES', initialPath?: string) => {
             cleanupSelectionForRemote(remote)
             if (remote === 'UI_LOCAL_FS') {
-                const startPath = initialPath ?? (await homeDir())
+                const startPath = initialPath ?? home
                 startTransition(() => {
                     setSelectedRemote(remote)
                     setCwd(startPath)
@@ -348,227 +521,120 @@ export default function useFileNavigation({
                 })
             }
         },
-        [cleanupSelectionForRemote]
+        [cleanupSelectionForRemote, home]
     )
 
+    // What is inside a selected folder is already selected, so ticking it is refused
+    // (`selection.ts`). This is checked outside the state update, so the toast shows once.
     const handleToggleSelect = useCallback(
         (entry: Entry) => {
-            const next = new Set(selectedPaths)
-            if (next.has(entry.key)) {
-                next.delete(entry.key)
-                selectedTypesRef.current.delete(entry.key)
-            } else {
-                if (!allowMultiple && next.size > 0) return
-                next.add(entry.key)
-                selectedTypesRef.current.set(entry.key, entry.isDir ? 'folder' : 'file')
+            // A folder picker shows files but can't select them.
+            if (!allowFiles && !entry.isDir) return
+            const holder = selected.has(entry.key) ? undefined : folderHolding(selected, entry.key)
+            if (holder) {
+                const { title, description } = alreadySelected(holder)
+                toastWarning(title, description)
+                return
             }
-            startTransition(() => setSelectedPaths(next))
+            startTransition(() =>
+                setSelected((prev) => {
+                    const next = new Map(prev)
+                    if (next.has(entry.key)) {
+                        removeFrom(next, entry.key)
+                        return next
+                    }
+                    // A single-selection picker keeps only the first selected row.
+                    if (!allowMultiple && next.size > 0) return prev
+                    addTo(next, entry)
+                    return next
+                })
+            )
         },
-        [selectedPaths, allowMultiple]
+        [allowFiles, allowMultiple, selected]
     )
 
-    const getSelection = useCallback((): SelectItem[] => {
-        const paths = Array.from(selectedPaths)
-        return paths.map((path) => {
-            const known = selectedTypesRef.current.get(path)
-            if (known) return { path, type: known }
-            const entry = entryByKeyRef.current.get(path)
-            if (entry) return { path, type: entry.isDir ? 'folder' : 'file' }
-            if (path.includes(':/')) {
-                const rel = path.split(':/').slice(1).join('/')
-                return { path, type: rel.endsWith('/') ? 'folder' : 'file' }
-            }
-            return { path, type: 'file' }
-        })
-    }, [selectedPaths])
+    const getSelection = useCallback(
+        (): SelectItem[] => Array.from(selected, ([path, type]) => ({ path, type })),
+        [selected]
+    )
 
     const clearSelection = useCallback(() => {
-        selectedTypesRef.current.clear()
-        startTransition(() => setSelectedPaths(new Set()))
+        startTransition(() => setSelected(new Map()))
     }, [])
 
+    /**
+     * Removes entries from the selection, such as a row that was renamed, deleted or moved away,
+     * with whatever is selected inside them: those paths no longer exist either.
+     */
+    const deselect = useCallback((keys: string[]) => {
+        startTransition(() =>
+            setSelected((prev) => {
+                const next = new Map(prev)
+                for (const key of keys) removeFrom(next, key)
+                return next.size === prev.size ? prev : next
+            })
+        )
+    }, [])
+
+    // Items inside a selected folder are skipped, and the toast says why.
     const selectAll = useCallback(
         (type: 'files' | 'folders' | 'all') => {
-            const next = new Set(selectedPaths)
-            for (const item of visibleItems) {
-                if (type === 'files' && !item.isDir) {
-                    next.add(item.key)
-                    selectedTypesRef.current.set(item.key, 'file')
-                } else if (type === 'folders' && item.isDir) {
-                    next.add(item.key)
-                    selectedTypesRef.current.set(item.key, 'folder')
-                } else if (type === 'all') {
-                    next.add(item.key)
-                    selectedTypesRef.current.set(item.key, item.isDir ? 'folder' : 'file')
-                }
+            const wanted = visibleItems.filter(
+                (item) =>
+                    (allowFiles || item.isDir) &&
+                    (type === 'all' || (type === 'files' ? !item.isDir : item.isDir))
+            )
+            const { next, holder } = selectAllOf(selected, wanted)
+            if (holder) {
+                const { title, description } = alreadySelected(holder)
+                toastWarning(title, description)
             }
-            startTransition(() => setSelectedPaths(next))
+            startTransition(() => setSelected(next))
         },
-        [selectedPaths, visibleItems]
+        [allowFiles, visibleItems, selected]
     )
 
-    const refresh = useCallback(() => {
-        const cKey = cacheKey(selectedRemote, cwd)
-        cacheRef.current.delete(cKey)
-        localCompleteCacheRef.current.delete(cKey)
-        startTransition(() => setItems([]))
-        setIsLoading(true)
-        setRefreshKey((k) => k + 1)
-    }, [selectedRemote, cwd])
-
-    useEffect(() => {
-        const requestSequence = ++searchRequestSequenceRef.current
-        const term = searchTerm.trim()
-
-        if (
-            !isActive ||
-            !searchInSubfolders ||
-            !term ||
-            !selectedRemote ||
-            selectedRemote === 'UI_FAVORITES'
-        ) {
-            startTransition(() => {
-                setRecursiveSearchItems(null)
-                setSearchError(null)
-                setIsSearching(false)
-            })
-            return
-        }
-
-        const controller = new AbortController()
-        startTransition(() => {
-            setRecursiveSearchItems(null)
-            setSearchError(null)
-            setIsSearching(true)
-        })
-
-        const timeoutId = setTimeout(async () => {
-            try {
-                const result = await searchPath(
-                    selectedRemote as string | 'UI_LOCAL_FS',
-                    cwd,
-                    term,
-                    controller.signal
-                )
-                if (
-                    controller.signal.aborted ||
-                    searchRequestSequenceRef.current !== requestSequence
-                ) {
-                    return
-                }
-
-                const lowerTerm = term.toLowerCase()
-                const normalizedBase = cwd
-                    .replace(RE_BACKSLASH, '/')
-                    .replace(RE_TRAILING_SLASH, '')
-                const nextItems = result
-                    .map((item) => {
-                        const relativePath = String(item.Path || item.Name || '')
-                            .replace(RE_LEADING_SLASH, '')
-                        const name = String(item.Name || relativePath.split('/').pop() || '')
-                        if (
-                            !relativePath ||
-                            !name ||
-                            relativePath.split('/').some((part) => part.startsWith('.')) ||
-                            !name.toLowerCase().includes(lowerTerm)
-                        ) {
-                            return null
-                        }
-
-                        const relativeToRoot = normalizedBase
-                            ? `${normalizedBase}/${relativePath}`
-                            : relativePath
-                        const fullPath =
-                            selectedRemote === 'UI_LOCAL_FS'
-                                ? normalizedBase
-                                    ? relativeToRoot
-                                    : `/${relativePath}`
-                                : serializeRemotePath(selectedRemote as string, relativeToRoot)
-
-                        return {
-                            key: fullPath,
-                            name,
-                            displayName: relativePath,
-                            isDir: !!(item.IsDir || item.IsBucket),
-                            size: typeof item.Size === 'number' ? item.Size : undefined,
-                            modTime: item.ModTime,
-                            mimeType: item.MimeType,
-                            remote: selectedRemote,
-                            fullPath,
-                        } as Entry
-                    })
-                    .filter((item): item is Entry => item !== null)
-
-                const map = entryByKeyRef.current
-                for (const entry of nextItems) map.set(entry.key, entry)
-                startTransition(() => {
-                    setRecursiveSearchItems(nextItems)
-                    setIsSearching(false)
-                })
-            } catch {
-                if (
-                    controller.signal.aborted ||
-                    searchRequestSequenceRef.current !== requestSequence
-                ) {
-                    return
-                }
-                startTransition(() => {
-                    setRecursiveSearchItems([])
-                    setSearchError('Unable to search this folder')
-                    setIsSearching(false)
-                })
-            }
-        }, 350)
-
-        return () => {
-            clearTimeout(timeoutId)
-            controller.abort()
-        }
-    }, [
-        currentHost?.id,
-        cwd,
-        isActive,
-        searchInSubfolders,
-        searchTerm,
-        refreshKey,
-        selectedRemote,
-    ])
-
-    // Initialize once per activation. The guard is set inside the branches (the remotes branch
-    // only once the list has loaded, so late data can still finish the job) — after that, dep
-    // churn (e.g. a /config/listremotes refetch minting a new `remotes` identity) can no longer
-    // yank live navigation back to the initial location. Deliberately no effect cleanup:
-    // cancelling the pending homeDir() write would strand the panel on isLoading.
+    // Initialize once per activation. Each branch sets the guard itself. The remotes branch sets
+    // it only once a remote exists, so a remote added later can still complete the
+    // initialization. After that, a dependency change (such as a reload of the shared `remotes`
+    // that creates a new list) can't move the user back to the initial location. There is no
+    // cleanup on purpose, because the pending state update for the home folder must still apply.
     const hasInitializedRef = useRef(false)
     useEffect(() => {
         if (!isActive) {
-            // Deactivation re-arms initialization so a closed-and-reopened drawer (PathSelector
-            // passes isActive={isOpen}) still resets to its initial location.
+            // Deactivating resets the guard, so a drawer that is closed and opened again
+            // (PathSelector passes isActive={isOpen}) goes back to its initial location.
             hasInitializedRef.current = false
             return
         }
         if (hasInitializedRef.current) return
 
         const hasInitial = initialRemote !== undefined
-        const needsLocalPath = initialRemote === 'UI_LOCAL_FS' && !initialPath
+        // An empty path is the list of disks. A panel that was left there reopens there.
+        const needsLocalPath = initialRemote === 'UI_LOCAL_FS' && initialPath === undefined
 
-        if (needsLocalPath || (!hasInitial && canShowLocal)) {
+        if (!hasInitial && startAtFirstRemote && canShowRemotes) {
+            // Wait for the list of remotes. With none (or when it can't be read), start at home.
+            if (!remotesSettled) return
             hasInitializedRef.current = true
-            setIsLoading(true)
-            homeDir().then((home) => {
-                startTransition(() => {
-                    setSelectedRemote('UI_LOCAL_FS')
-                    setCwd(home)
-                    setPathInput(home)
-                })
-                setIsLoading(false)
+            const first = remotes[0]
+            startTransition(() => {
+                setSelectedRemote(first ?? 'UI_LOCAL_FS')
+                setCwd(first ? '' : home)
+            })
+        } else if (needsLocalPath || (!hasInitial && canShowLocal)) {
+            hasInitializedRef.current = true
+            startTransition(() => {
+                setSelectedRemote('UI_LOCAL_FS')
+                setCwd(home)
+                setPathInput(home)
             })
         } else if (!hasInitial && canShowFavorites) {
             hasInitializedRef.current = true
             startTransition(() => setSelectedRemote('UI_FAVORITES'))
         } else if (!hasInitial && canShowRemotes) {
-            // remotes still loading (empty list): stay uninitialized so the arrival re-run
-            // completes the initialization.
+            // With no remotes yet, stay uninitialized so that the effect completes the
+            // initialization when the first remote arrives.
             if (remotes.length > 0) {
                 hasInitializedRef.current = true
                 startTransition(() => {
@@ -577,8 +643,8 @@ export default function useFileNavigation({
                 })
             }
         } else {
-            // hasInitial with a concrete remote/path: state was already seeded by the useState
-            // initializers; nothing to apply.
+            // An initial remote and path were given, and the useState initializers already
+            // applied them.
             hasInitializedRef.current = true
         }
     }, [
@@ -587,368 +653,47 @@ export default function useFileNavigation({
         canShowFavorites,
         canShowRemotes,
         remotes,
+        remotesSettled,
+        startAtFirstRemote,
         initialRemote,
         initialPath,
+        home,
     ])
 
-    // Load directory content when remote/cwd changes
-    // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is an intentional re-run trigger the body doesn't read — refresh() evicts the cacheRef entry, clears items, and bumps it to force a refetch of the current directory; removing it breaks the Refresh button (empty panel, isLoading stuck true)
+    // The loading indicator is delayed. A listing that returns within 200 ms never shows it. A
+    // slower one (a cache miss or a refresh) shows it until the first rows arrive, and then the
+    // status line shows the count.
     useEffect(() => {
-        if (!isActive) return
-        const cKey = cacheKey(selectedRemote, cwd)
-
-        async function loadDir() {
-            log('loadDir: start', { selectedRemote, cwd, isRemote })
-            if (!selectedRemote) {
-                startTransition(() => {
-                    setItems([])
-                    setError(null)
-                    setIsLoading(false)
-                })
-                isNavigatingRef.current = false
-                return
-            }
-
-            if (abortControllerRef.current) abortControllerRef.current.abort()
-            if (loadingTimerRef.current) {
-                clearTimeout(loadingTimerRef.current)
-                loadingTimerRef.current = null
-            }
-
-            const controller = new AbortController()
-            abortControllerRef.current = controller
-
-            let finished = false
-            setError(null)
-            loadingTimerRef.current = setTimeout(() => {
-                if (!controller.signal.aborted && !finished) {
-                    startTransition(() => setIsLoading(true))
-                }
-            }, 200)
-
-            if (cacheRef.current.has(cKey)) {
-                log('loadDir: cache hit', cKey)
-                const cached = cacheRef.current.get(cKey)!
-                startTransition(() => setItems(cached))
-                isNavigatingRef.current = false
-                if (
-                    selectedRemote === 'UI_LOCAL_FS' &&
-                    localCompleteCacheRef.current.has(cKey)
-                ) {
-                    finished = true
-                    if (loadingTimerRef.current) {
-                        clearTimeout(loadingTimerRef.current)
-                        loadingTimerRef.current = null
-                    }
-                    setIsLoading(false)
-                    return
-                }
-            }
-
-            let nextItems: Entry[] = []
-            if (selectedRemote === 'UI_FAVORITES') {
-                nextItems = (favoritePaths || []).map((fav) => {
-                    const remote = (fav as any).remote as string | undefined
-                    const isLocal = !remote || remote === 'UI_LOCAL_FS'
-                    const rawPath = (fav as any).path as string
-                    let fullPath = rawPath
-                    if (!isLocal) {
-                        if (rawPath.includes(':/')) {
-                            fullPath = rawPath
-                        } else {
-                            const rel = (rawPath || '').replace(RE_LEADING_SLASH, '')
-                            fullPath = serializeRemotePath(remote!, rel)
-                        }
-                    }
-                    const relForName = (() => {
-                        if (!isLocal) {
-                            if (rawPath.includes(':/'))
-                                return rawPath.split(':/').slice(1).join('/')
-                            return rawPath
-                        }
-                        return rawPath
-                    })()
-                    const normalized = (relForName || '')
-                        .replace(RE_BACKSLASH, '/')
-                        .replace(RE_TRAILING_SLASH, '')
-                    const baseName = normalized.split(RE_PATH_SEPARATOR).pop() || ''
-                    const prefix = isLocal ? '(LOCAL)' : `(${remote})`
-                    const addedLabel = `Added on ${new Date((fav as any).added).toLocaleString()}`
-                    return {
-                        key: fullPath,
-                        name: `${prefix} ${baseName}`,
-                        isDir: true,
-                        size: undefined,
-                        modTime: addedLabel,
-                        remote: isLocal ? 'UI_LOCAL_FS' : remote,
-                        fullPath,
-                    } as Entry
-                })
-                nextItems.sort((a, b) => a.name.localeCompare(b.name))
-                if (!controller.signal.aborted) {
-                    finished = true
-                    if (loadingTimerRef.current) {
-                        clearTimeout(loadingTimerRef.current)
-                        loadingTimerRef.current = null
-                    }
-                    cacheRef.current.set(cKey, nextItems)
-                    const map = entryByKeyRef.current
-                    for (const e of nextItems) map.set(e.key, e)
-                    startTransition(() => {
-                        setItems(nextItems)
-                        setIsLoading(false)
-                    })
-                    isNavigatingRef.current = false
-                }
-                return
-            }
-
-            if (isRemote) {
-                log('loadDir: fetching remote')
-                const remote = selectedRemote as string
-                const targetCwd = cwd || ''
-                let listedItems: { list: any[] } | null = null
-                try {
-                    listedItems = await listRemotePath(remote, targetCwd, {
-                        noModTime: false,
-                        noMimeType: true,
-                    })
-                } catch (_err: unknown) {
-                    if (!controller.signal.aborted) {
-                        finished = true
-                        if (loadingTimerRef.current) {
-                            clearTimeout(loadingTimerRef.current)
-                            loadingTimerRef.current = null
-                        }
-                        startTransition(() => {
-                            setIsLoading(false)
-                            setItems([])
-                            setError('No access or folder does not exist')
-                        })
-                        isNavigatingRef.current = false
-                    }
-                    return
-                }
-
-                if (controller.signal.aborted) {
-                    log('loadDir: aborted after fetch')
-                    return
-                }
-
-                nextItems = (listedItems?.list || [])
-                    .map((it) => {
-                        const rel = (it.Path || it.Name || '') as string
-                        const baseName = rel.split('/').pop() || ''
-                        const isDir = !!(it.IsDir || (it as any).IsBucket)
-                        const full = serializeRemotePath(remote, rel)
-                        return {
-                            key: full,
-                            name: baseName,
-                            isDir,
-                            size: it.Size,
-                            modTime: it.ModTime,
-                            mimeType: it.MimeType,
-                            remote,
-                            fullPath: full,
-                        } as Entry
-                    })
-                    .filter((e) => !e.name.startsWith('.'))
-            } else if (cwd) {
-                const requestId = `${localRequestPrefixRef.current}-${++localRequestSequenceRef.current}`
-                localRequestIdRef.current = requestId
-                let streamedItems: Entry[] = []
-                let streamedIndexes = new Map<string, number>()
-                const pendingSizes = new Map<string, number | undefined>()
-                let sizeFrame: number | null = null
-                let streamFailed = false
-                const channel = new Channel<
-                    | {
-                          event: 'entries'
-                          entries: {
-                              name: string
-                              fullPath: string
-                              isDir: boolean
-                              size: number | null
-                              modTime: string | null
-                          }[]
-                      }
-                    | { event: 'size'; fullPath: string; size: number | null }
-                    | { event: 'error'; message: string }
-                    | { event: 'complete' }
-                >()
-                const cancelSizeFrame = () => {
-                    if (sizeFrame !== null) cancelAnimationFrame(sizeFrame)
-                    sizeFrame = null
-                }
-                const flushSizeUpdates = () => {
-                    if (controller.signal.aborted || pendingSizes.size === 0) {
-                        pendingSizes.clear()
-                        return
-                    }
-
-                    const nextItems = [...streamedItems]
-                    for (const [fullPath, size] of pendingSizes) {
-                        const index = streamedIndexes.get(fullPath)
-                        if (index === undefined) continue
-                        const updated = { ...nextItems[index], size }
-                        nextItems[index] = updated
-                        entryByKeyRef.current.set(updated.key, updated)
-                    }
-                    pendingSizes.clear()
-                    streamedItems = nextItems
-                    cacheRef.current.set(cKey, streamedItems)
-                    startTransition(() => setItems(streamedItems))
-                }
-                try {
-                    await new Promise<void>((resolve, reject) => {
-                        channel.onmessage = (event) => {
-                            if (event.event === 'complete') {
-                                cancelSizeFrame()
-                                flushSizeUpdates()
-                                if (!controller.signal.aborted && !streamFailed) {
-                                    localCompleteCacheRef.current.add(cKey)
-                                }
-                                if (localRequestIdRef.current === requestId) {
-                                    localRequestIdRef.current = null
-                                }
-                                resolve()
-                                return
-                            }
-                            if (controller.signal.aborted) return
-                            if (event.event === 'error') {
-                                streamFailed = true
-                                cancelSizeFrame()
-                                pendingSizes.clear()
-                                cacheRef.current.delete(cKey)
-                                localCompleteCacheRef.current.delete(cKey)
-                                reject(new Error(event.message))
-                                return
-                            }
-                            if (event.event === 'entries') {
-                                streamedItems = event.entries.map(
-                                    (entry) =>
-                                        ({
-                                            key: entry.fullPath,
-                                            name: entry.name,
-                                            isDir: entry.isDir,
-                                            size: entry.size ?? undefined,
-                                            modTime: entry.modTime ?? undefined,
-                                            remote: 'UI_LOCAL_FS',
-                                            fullPath: entry.fullPath,
-                                        }) as Entry
-                                )
-                                streamedItems.sort((a, b) => {
-                                    if (a.isDir && !b.isDir) return -1
-                                    if (!a.isDir && b.isDir) return 1
-                                    return a.name.localeCompare(b.name)
-                                })
-                                streamedIndexes = new Map(
-                                    streamedItems.map((entry, index) => [entry.fullPath, index])
-                                )
-                                finished = true
-                                if (loadingTimerRef.current) {
-                                    clearTimeout(loadingTimerRef.current)
-                                    loadingTimerRef.current = null
-                                }
-                                cacheRef.current.set(cKey, streamedItems)
-                                localCompleteCacheRef.current.delete(cKey)
-                                const map = entryByKeyRef.current
-                                for (const entry of streamedItems) map.set(entry.key, entry)
-                                setItems(streamedItems)
-                                setIsLoading(false)
-                                isNavigatingRef.current = false
-                                return
-                            }
-
-                            pendingSizes.set(event.fullPath, event.size ?? undefined)
-                            if (sizeFrame === null) {
-                                sizeFrame = requestAnimationFrame(() => {
-                                    sizeFrame = null
-                                    flushSizeUpdates()
-                                })
-                            }
-                        }
-
-                        invoke<void>('list_local_directory', {
-                            path: cwd,
-                            requestId,
-                            onEvent: channel,
-                        }).catch(reject)
-                    })
-                } catch {
-                    cacheRef.current.delete(cKey)
-                    localCompleteCacheRef.current.delete(cKey)
-                    if (!controller.signal.aborted) {
-                        finished = true
-                        if (loadingTimerRef.current) {
-                            clearTimeout(loadingTimerRef.current)
-                            loadingTimerRef.current = null
-                        }
-                        setIsLoading(false)
-                        setItems([])
-                        setError('No access or folder does not exist')
-                        isNavigatingRef.current = false
-                    }
-                    return
-                } finally {
-                    cancelSizeFrame()
-                    pendingSizes.clear()
-                    if (localRequestIdRef.current === requestId) {
-                        localRequestIdRef.current = null
-                    }
-                }
-
-                return
-            } else {
-                nextItems = []
-            }
-
-            if (controller.signal.aborted) return
-
-            nextItems.sort((a, b) => {
-                if (a.isDir && !b.isDir) return -1
-                if (!a.isDir && b.isDir) return 1
-                return a.name.localeCompare(b.name)
-            })
-
-            if (!controller.signal.aborted) {
-                finished = true
-                if (loadingTimerRef.current) {
-                    clearTimeout(loadingTimerRef.current)
-                    loadingTimerRef.current = null
-                }
-                cacheRef.current.set(cKey, nextItems)
-                const map = entryByKeyRef.current
-                for (const e of nextItems) map.set(e.key, e)
-                setItems(nextItems)
-                setIsLoading(false)
-                isNavigatingRef.current = false
-            }
+        if (!waiting) {
+            setShowLoading(false)
+            return
         }
+        const timer = setTimeout(() => setShowLoading(true), 200)
+        return () => clearTimeout(timer)
+    }, [waiting])
 
-        loadDir()
-
-        return () => {
-            if (abortControllerRef.current) abortControllerRef.current.abort()
-            if (localRequestIdRef.current) {
-                cacheRef.current.delete(cKey)
-                localCompleteCacheRef.current.delete(cKey)
-                invoke('cancel_local_directory', {
-                    requestId: localRequestIdRef.current,
-                }).catch(() => {})
-                localRequestIdRef.current = null
-            }
-            if (loadingTimerRef.current) {
-                clearTimeout(loadingTimerRef.current)
-                loadingTimerRef.current = null
-            }
-        }
-    }, [selectedRemote, cwd, isRemote, favoritePaths, isActive, refreshKey])
+    // A navigation ends once the rows shown belong to the new folder, which means its listing
+    // has sent some rows or has finished. Until then the screen still shows the previous folder,
+    // whose entries aren't in the new one. It doesn't wait for the whole folder, because then a
+    // large folder would ignore clicks until its last row arrived.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: a folder served at once is never waited for, so the folder itself must re-run this
+    useEffect(() => {
+        if (!waiting) isNavigatingRef.current = false
+    }, [waiting, selectedRemote, cwd])
 
     useEffect(() => {
         updatePathInput(selectedRemote, cwd)
         setSearchTerm('')
+        setPathError(null)
     }, [selectedRemote, cwd, updatePathInput])
+
+    // A single-selection picker selects from the folder it shows. A selection left over from the
+    // parent folder would disable every row here, and the picker would return it even though it
+    // is no longer on screen.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: the folder changing is what clears it
+    useEffect(() => {
+        if (!allowMultiple) setSelected((prev) => (prev.size === 0 ? prev : new Map()))
+    }, [allowMultiple, selectedRemote, cwd])
 
     useEffect(() => {
         let cancelled = false
@@ -958,7 +703,9 @@ export default function useFileNavigation({
                 return
             }
             if (isRemote) {
-                if (!cancelled) setIsUpDisabled(cwd === '')
+                // Both roots are the top of their own tree: '' is the login folder, and '/' is
+                // the root of the machine.
+                if (!cancelled) setIsUpDisabled(cwd === '' || cwd === '/')
                 return
             }
             const current = cwd
@@ -990,9 +737,11 @@ export default function useFileNavigation({
         visibleItems,
         virtualizedItems,
         isLoading,
+        isRefreshing: refreshing,
         isSearching,
         error,
         searchError,
+        status,
         isUpDisabled,
         searchTerm,
         searchInSubfolders,
@@ -1019,13 +768,12 @@ export default function useFileNavigation({
         handleToggleSelect,
         getSelection,
         clearSelection,
+        deselect,
         selectAll,
         refresh,
-        entryByKeyRef,
 
         // For external control
         setSelectedRemote,
         setCwd,
-        setSelectedPaths,
     }
 }

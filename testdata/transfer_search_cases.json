@@ -1,0 +1,30 @@
+{
+  "transfer": {
+    "seq": 12,
+    "operation": "sync",
+    "sources": ["/Users/me/Photos", "gdrive:Docs"],
+    "destination": "b2:Backup",
+    "error": "directory not found",
+    "origin": { "kind": "schedule", "id": "s1", "name": "Nightly Backup" }
+  },
+  "searches": [
+    { "search": "", "matches": true },
+    { "search": "  ", "matches": true },
+    { "search": "#12", "matches": true },
+    { "search": "#1", "matches": true },
+    { "search": "#13", "matches": false },
+    { "search": "12", "matches": true },
+    { "search": "SYNC", "matches": true },
+    { "search": "photos", "matches": true },
+    { "search": "gdrive:docs", "matches": true },
+    { "search": "b2:back", "matches": true },
+    { "search": "Not Found", "matches": true },
+    { "search": " not found ", "matches": true },
+    { "search": "nightly", "matches": true },
+    { "search": "NIGHTLY BACKUP", "matches": true },
+    { "search": "copy", "matches": false },
+    { "search": "onedrive", "matches": false },
+    { "search": "directory xyz", "matches": false },
+    { "search": "weekly", "matches": false }
+  ]
+}

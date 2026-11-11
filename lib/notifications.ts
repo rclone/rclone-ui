@@ -1,360 +1,309 @@
-import { useQuery } from '@tanstack/react-query'
-import { invoke } from '@tauri-apps/api/core'
-import { message } from '@tauri-apps/plugin-dialog'
+import { t } from '@lingui/core/macro'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useDebounce } from 'use-debounce'
+import { notifications as api } from './core/api'
+import { coreKey } from './core/query'
 import {
-    isPermissionGranted,
-    requestPermission,
-    sendNotification,
-} from '@tauri-apps/plugin-notification'
-import { type WatchedJob, useStore } from '../store/memory'
-import { usePersistedStore } from '../store/persisted'
-import type {
-    NotificationCatalog,
-    NotificationEventId,
+    type NotificationCatalog,
+    type NotificationEvent,
     NotificationProvider,
+    type NotificationTarget,
+    SMTPEncryption,
+    type SMTPInput,
+    type SMTPView,
+    type TargetInput,
+    type TestInput,
+} from './shell/bindings/github.com/rclone/rclone-ui/core/notifications/models'
+
+export type {
+    NotificationCatalog,
+    NotificationEvent,
     NotificationTarget,
-} from '../types/notifications'
-import rclone from './rclone/client'
+    SMTPInput,
+    SMTPView,
+    TargetInput,
+}
+export { NotificationProvider, SMTPEncryption }
 
-// The TS face of the notification system. The engine lives in Rust
-// (src-tauri/src/notifications/): webhook dispatch, target storage (targets.json — NOT the
-// zustand store), delivery-outcome recording, and the event catalog are shared with the
-// headless scheduler runner, so webhooks behave identically whether the app is open or not.
-// This file keeps the thin invoke wrappers plus the parts that must stay in the webview:
-// GUI OS toasts (the notification plugin), the job watcher, and provider form helpers.
+// Notifications run in the core (core/notifications): it owns the catalog, the targets, delivery
+// and the result of each send, and it validates what is saved. notifications.changed keeps the
+// queries fresh. This file has the calls to the core and the helpers for the provider forms.
 
-// ---------------------------------------------------------------------------
-// OS toasts (GUI only — the headless runner posts its own via Rust notify-rust)
-// ---------------------------------------------------------------------------
-
-export async function notify({ title, body }: { title: string; body: string }) {
-    let permissionGranted = await isPermissionGranted()
-
-    if (!permissionGranted) {
-        const permission = await requestPermission()
-        permissionGranted = permission === 'granted'
-    }
-
-    if (permissionGranted) {
-        sendNotification({
-            title,
-            body,
-        })
-    } else {
-        await message(body, {
-            title,
-            kind: 'info',
-        })
-    }
+/** The saved targets, oldest first. */
+export function useNotificationTargets() {
+    return useQuery({
+        queryKey: coreKey('notifications', 'ListTargets'),
+        queryFn: () => api.ListTargets(),
+    })
 }
 
-// ---------------------------------------------------------------------------
-// Webhook engine wrappers
-// ---------------------------------------------------------------------------
-
-export type NewNotificationTarget = Omit<
-    NotificationTarget,
-    'id' | 'createdAt' | 'lastSentAt' | 'lastError'
->
-
-export async function getNotificationsCatalog(): Promise<NotificationCatalog> {
-    return await invoke<NotificationCatalog>('notifications_catalog')
+/** The choices that a target's form offers, in order. */
+export function useNotificationsCatalog() {
+    return useQuery({
+        queryKey: coreKey('notifications', 'Catalog'),
+        queryFn: () => api.Catalog(),
+    })
 }
 
-export async function listNotificationTargets(): Promise<NotificationTarget[]> {
-    return await invoke<NotificationTarget[]>('notifications_list_targets')
+/**
+ * Saves a new target. If the core rejects it (for example, because the address is taken), the
+ * error names the field (refusedFields).
+ */
+export function addNotificationTarget(target: TargetInput): Promise<NotificationTarget> {
+    return api.CreateTarget(target)
 }
 
-/** Throws with a user-facing message (e.g. duplicate URL — re-checked race-safely in Rust). */
-export async function addNotificationTarget(
-    target: NewNotificationTarget
-): Promise<NotificationTarget> {
-    return await invoke<NotificationTarget>('notifications_add_target', { target })
+/**
+ * Replaces a saved target's name, url, events and enabled state. Its provider stays the same.
+ */
+export async function updateNotificationTarget(id: string, target: TargetInput): Promise<void> {
+    await api.UpdateTarget(id, target)
 }
 
-export async function updateNotificationTarget(
-    id: string,
-    patch: Partial<Omit<NotificationTarget, 'id' | 'createdAt' | 'lastSentAt' | 'lastError'>>
-): Promise<void> {
-    await invoke('notifications_update_target', { id, patch })
+export async function setNotificationTargetEnabled(id: string, enabled: boolean): Promise<void> {
+    await api.SetTargetEnabled(id, enabled)
 }
 
 export async function removeNotificationTarget(id: string): Promise<void> {
-    await invoke('notifications_remove_target', { id })
+    await api.DeleteTarget(id)
 }
 
 /**
- * Sends `eventId` to every enabled webhook target that subscribed to it. Fire-and-forget for
- * callers (never throws); delivery happens in Rust, which records lastSentAt/lastError per
- * target and reads targets at fire time.
+ * Sends a test to a saved target, which records the result, or to the provider and url of the
+ * unsaved form. Throws with the reason when the test wasn't delivered. The reason is shown to the
+ * user: the core gives it in the app's language.
  */
-export async function dispatchNotification(
-    eventId: NotificationEventId,
-    payload: { title: string; body: string; data?: Record<string, unknown> }
-): Promise<void> {
-    try {
-        await invoke('notifications_dispatch', {
-            eventId,
-            title: payload.title,
-            body: payload.body,
-            data: payload.data,
-        })
-    } catch (error) {
-        console.error('[dispatchNotification] failed', eventId, error)
-    }
+export async function sendTestNotification(target: TestInput): Promise<void> {
+    const res = await api.Test(target)
+    if (!res.ok) throw new Error(res.message || t`The test notification was not delivered.`)
+}
+
+/** The saved mail server, without its password. An empty host means there is none. */
+export function useSmtp() {
+    return useQuery({ queryKey: coreKey('notifications', 'GetSmtp'), queryFn: () => api.GetSmtp() })
 }
 
 /**
- * Sends a test payload directly to the given target (which may be unsaved drawer values).
- * Throws on failure so the UI can surface the error; Rust records the outcome when the target
- * already exists (`id` set).
+ * Saves the mail server. An empty host clears it, and the password is stored in the keychain. If
+ * the core rejects the input, the error names the field (refusedFields).
  */
-export async function sendTestNotification(
-    target: Pick<NotificationTarget, 'provider' | 'url'> & { id?: string; name?: string }
-): Promise<void> {
-    await invoke('notifications_send_test', {
-        provider: target.provider,
-        url: target.url,
-        targetId: target.id,
-        name: target.name,
-    })
+export async function saveSmtp(input: SMTPInput): Promise<void> {
+    await api.SetSmtp(input)
 }
 
-export function useNotificationTargets() {
-    return useQuery({
-        queryKey: ['notifications', 'targets'],
-        queryFn: listNotificationTargets,
-        // Dispatches (and their outcome recording) happen in the hidden main window and the
-        // headless runner — separate queryClients that can't invalidate this window's cache.
-        // Polling is what keeps lastSentAt/lastError chips honest.
-        refetchInterval: 10_000,
-        refetchOnWindowFocus: true,
-    })
+/** Sends a test mail to `to` through the saved server. Throws with the reason when it fails. */
+export async function testSmtp(to: string): Promise<string> {
+    const res = await api.TestSmtp(to)
+    if (!res.ok) throw new Error(res.message || t`The test mail was not sent.`)
+    return res.message ?? ''
 }
 
-export function useNotificationsCatalog() {
-    return useQuery({
-        queryKey: ['notifications', 'catalog'],
-        queryFn: getNotificationsCatalog,
-        // Default staleTime, NOT Infinity: lib/query.ts persists the cache to localStorage for
-        // 30 days, and a frozen catalog would hide events added by app updates.
-    })
+const P = NotificationProvider
+
+interface ProviderMeta {
+    // The provider's name, which is the same in every language.
+    label: string
+    // addLabel is the title of the drawer that adds a target and the label of its save button.
+    // editLabel is the title of the drawer that edits one. Each is a whole label, so that a
+    // language can order its words its own way.
+    addLabel: string
+    editLabel: string
+    description: string
+    urlPlaceholder: string
+    accentClass: string
+    // The official docs page for getting the webhook or bot token, shown as a button in the drawer.
+    helpUrl?: string
+    helpLabel?: string
 }
 
-// ---------------------------------------------------------------------------
-// Free-tier limit
-// ---------------------------------------------------------------------------
-
-/** Free (community) limit — a license removes the cap. Enforced at creation in the UI, and by
- *  the launch reconcile below when a license lapses. */
-export const FREE_MAX_TARGETS = 5
-
-/**
- * License enforcement at launch: without a valid license, only the 5 oldest enabled targets
- * stay enabled — the rest are turned off (never auto-re-enabled; the user flips them back on
- * after re-activating). Runs in the hidden main window after validateInstance(); never throws.
- */
-export async function reconcileNotificationTargets(): Promise<void> {
-    try {
-        if (usePersistedStore.getState().licenseValid) {
-            return
-        }
-        const targets = await listNotificationTargets()
-        const extras = targets
-            .filter((target) => target.isEnabled)
-            .sort((a, b) => a.createdAt - b.createdAt)
-            .slice(FREE_MAX_TARGETS)
-        for (const target of extras) {
-            await updateNotificationTarget(target.id, { isEnabled: false })
-            console.warn('[reconcileNotificationTargets] disabled over-limit target', target.name)
-        }
-    } catch (error) {
-        console.error('[reconcileNotificationTargets] failed', error)
-    }
+const WEBHOOK: ProviderMeta = {
+    label: 'Webhook',
+    addLabel: t`Add Webhook`,
+    editLabel: t`Edit Webhook`,
+    description: t`Post JSON to any endpoint`,
+    urlPlaceholder: 'https://example.com/hooks/rclone',
+    accentClass: 'text-primary',
 }
 
-// ---------------------------------------------------------------------------
-// Provider form helpers
-// ---------------------------------------------------------------------------
-
-export const NOTIFICATION_PROVIDERS: Record<
-    NotificationProvider,
-    {
-        label: string
-        // Noun used in drawer titles/buttons, e.g. "Add Discord Webhook" / "Add Telegram Bot".
-        titleLabel: string
-        description: string
-        urlPlaceholder: string
-        accentClass: string
-        // Official docs page for obtaining the webhook/bot token, shown as a button in the drawer.
-        helpUrl?: string
-        helpLabel?: string
-    }
-> = {
-    discord: {
+const PROVIDER_META: Partial<Record<NotificationProvider, ProviderMeta>> = {
+    [P.NotificationProviderDiscord]: {
         label: 'Discord',
-        titleLabel: 'Discord Webhook',
-        description: 'Post to a Discord channel',
+        addLabel: t`Add Discord Webhook`,
+        editLabel: t`Edit Discord Webhook`,
+        description: t`Post to a Discord channel`,
         urlPlaceholder: 'https://discord.com/api/webhooks/1234567890/AbCdEf...',
         accentClass: 'text-[#5865F2]',
         helpUrl: 'https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks',
-        helpLabel: 'How to create a webhook',
+        helpLabel: t`How to create a webhook`,
     },
-    slack: {
+    [P.NotificationProviderSlack]: {
         label: 'Slack',
-        titleLabel: 'Slack Webhook',
-        description: 'Post to a Slack channel',
+        addLabel: t`Add Slack Webhook`,
+        editLabel: t`Edit Slack Webhook`,
+        description: t`Post to a Slack channel`,
         urlPlaceholder: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX',
         accentClass: 'text-emerald-500',
         helpUrl: 'https://api.slack.com/messaging/webhooks',
-        helpLabel: 'How to create a webhook',
+        helpLabel: t`How to create a webhook`,
     },
-    telegram: {
+    [P.NotificationProviderTelegram]: {
         label: 'Telegram',
-        titleLabel: 'Telegram Bot',
-        description: 'Message a chat via your bot',
-        urlPlaceholder: 'https://api.telegram.org/bot123456:ABC-DEF...',
+        addLabel: t`Add Telegram Bot`,
+        editLabel: t`Edit Telegram Bot`,
+        description: t`Message a chat via your bot`,
+        urlPlaceholder: '123456789:AAH…',
         accentClass: 'text-sky-500',
         helpUrl: 'https://core.telegram.org/bots#how-do-i-create-a-bot',
-        helpLabel: 'How to create a bot & get a token',
+        helpLabel: t`How to create a bot and get its token`,
     },
-    webhook: {
-        label: 'Webhook',
-        titleLabel: 'Webhook',
-        description: 'POST JSON to any endpoint',
-        urlPlaceholder: 'https://example.com/hooks/rclone',
-        accentClass: 'text-primary',
+    [P.NotificationProviderWebhook]: WEBHOOK,
+    // The `url` holds the recipients. The mail is sent through the mail server set in the
+    // Notifications window.
+    [P.NotificationProviderEmail]: {
+        label: 'Email',
+        addLabel: t`Add Email`,
+        editLabel: t`Edit Email`,
+        description: t`Send an email through your SMTP server`,
+        urlPlaceholder: 'alerts@example.com, ops@example.com',
+        accentClass: 'text-amber-500',
     },
 }
 
-// Accepts discord.com, legacy discordapp.com, and the ptb./canary. test clients.
-const RE_DISCORD_WEBHOOK =
-    /^https:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/
-const RE_SLACK_WEBHOOK = /^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/\w+$/
-// Standard Bot API endpoint: the path carries "bot<botid>:<token>"; chat_id rides the query.
-// This is the STORED shape — the form collects only the pure bot URL (below) and the
-// /sendMessage method is appended by buildTelegramUrl.
-const RE_TELEGRAM_SEND_MESSAGE = /^https:\/\/api\.telegram\.org\/bot\d+:[\w-]+\/sendMessage(\?.*)?$/
-// What the form accepts: the pure bot URL. A pasted full endpoint or trailing slash is
-// tolerated (normalized away when the URL is built) rather than rejected.
-const RE_TELEGRAM_BOT_URL = /^https:\/\/api\.telegram\.org\/bot\d+:[\w-]+(\/sendMessage)?\/?$/
-const RE_TELEGRAM_SEND_MESSAGE_SUFFIX = /\/sendMessage$/
-const RE_TRAILING_SLASHES = /\/+$/
+/** The providers a target can send to, in the order the page offers them. */
+export const NOTIFICATION_PROVIDERS: NotificationProvider[] = [
+    P.NotificationProviderDiscord,
+    P.NotificationProviderSlack,
+    P.NotificationProviderTelegram,
+    P.NotificationProviderWebhook,
+    P.NotificationProviderEmail,
+]
 
-export function validateWebhookUrl(provider: NotificationProvider, url: string): string | null {
-    const trimmed = url.trim()
+export function providerMeta(provider: NotificationProvider): ProviderMeta {
+    return PROVIDER_META[provider] ?? WEBHOOK
+}
 
-    if (!trimmed) {
-        return 'A webhook URL is required'
+// The checks below are loose, and run while the user types in the form. They catch a field left
+// empty, or a value that is plainly not a URL or an address. The core decides what may be saved,
+// and when it rejects a save, the reason is shown next to the field (refusedFields).
+
+// The stored URL's path: /bot<token>/sendMessage.
+const RE_TELEGRAM_PATH = /^\/bot([^/]+)\/sendMessage$/
+const TELEGRAM_API = 'https://api.telegram.org'
+
+// One mailbox: some text, an @, and a domain. It accepts everything that the core accepts,
+// including a domain with no dot, as in ops@mailhost.
+const RE_EMAIL_ADDRESS = /^[^\s@,<>]+@[^\s@,<>]+$/
+
+/** Checks the Email target's recipients: one address or several, separated by commas. */
+function validateRecipients(value: string): string | null {
+    const addresses = value
+        .split(',')
+        .map((address) => address.trim())
+        .filter(Boolean)
+    if (addresses.length === 0 || addresses.some((address) => !RE_EMAIL_ADDRESS.test(address))) {
+        return t`Enter one or more email addresses, separated by commas.`
     }
-
-    if (provider === 'discord') {
-        if (!RE_DISCORD_WEBHOOK.test(trimmed)) {
-            return "This doesn't look like a Discord webhook URL — expected https://discord.com/api/webhooks/…"
-        }
-        return null
-    }
-
-    if (provider === 'slack') {
-        if (!RE_SLACK_WEBHOOK.test(trimmed)) {
-            return "This doesn't look like a Slack webhook URL — expected https://hooks.slack.com/services/…"
-        }
-        return null
-    }
-
-    if (provider === 'telegram') {
-        if (!RE_TELEGRAM_SEND_MESSAGE.test(trimmed)) {
-            return "This doesn't look like a Telegram Bot API URL — expected https://api.telegram.org/bot<token>/sendMessage"
-        }
-        const { chatId } = splitTelegramUrl(trimmed)
-        if (validateTelegramChatId(chatId)) {
-            return 'The Telegram URL is missing a valid chat_id'
-        }
-        return null
-    }
-
-    let parsed: URL
-    try {
-        parsed = new URL(trimmed)
-    } catch {
-        return 'This is not a valid URL'
-    }
-
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return 'The URL must use http:// or https://'
-    }
-
     return null
 }
 
-// Integer chat id (negative for groups/supergroups) or a public @channelusername.
-const RE_TELEGRAM_CHAT_ID = /^(-?\d+|@\w{5,})$/
-
-export const TELEGRAM_CHAT_ID_HELP =
-    'Message @userinfobot on Telegram for your own ID, add @getidsbot to a group for its ID, or use @channelname for a public channel.'
+function isWebUrl(value: string): boolean {
+    try {
+        const parsed = new URL(value)
+        return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && !!parsed.host
+    } catch {
+        return false
+    }
+}
 
 /**
- * The Telegram form collects the pure bot URL and the chat id separately; the /sendMessage
- * method and the chat_id are both OURS to add — they are merged into one stored URL
- * (…/sendMessage?chat_id=…) so the dispatcher and the NotificationTarget shape stay
- * provider-agnostic. The UI never lets users type query params directly.
+ * Returns what is plainly wrong with a target's url as typed: it is empty, or it isn't a URL (or,
+ * for Email, an address).
  */
-export function buildTelegramUrl(baseUrl: string, chatId: string): string {
-    const parsed = new URL(baseUrl.trim())
-    parsed.search = ''
-    const base = parsed
-        .toString()
-        .replace(RE_TRAILING_SLASHES, '')
-        .replace(RE_TELEGRAM_SEND_MESSAGE_SUFFIX, '')
-    return `${base}/sendMessage?chat_id=${encodeURIComponent(chatId.trim())}`
+export function validateWebhookUrl(provider: NotificationProvider, url: string): string | null {
+    const trimmed = url.trim()
+    if (provider === P.NotificationProviderEmail) {
+        return validateRecipients(trimmed)
+    }
+    if (!trimmed) {
+        return t`A webhook URL is required`
+    }
+    if (!isWebUrl(trimmed)) {
+        return t`Enter a URL that starts with https:// or http://`
+    }
+    return null
 }
 
-/** Inverse of buildTelegramUrl, for seeding the edit form from a stored URL. */
-export function splitTelegramUrl(url: string): { baseUrl: string; chatId: string } {
+export const TELEGRAM_CHAT_ID_HELP = t({
+    message:
+        'Message @userinfobot on Telegram for your own ID, add @getidsbot to a group for its ID, or use @channelname for a public channel.',
+    comment:
+        '@userinfobot and @getidsbot are the names of Telegram bots: keep them as they are. @channelname is an example.',
+})
+
+/**
+ * Builds the stored Telegram URL from the bot token that BotFather sent and the chat id. The
+ * target stores one URL (https://api.telegram.org/bot<token>/sendMessage?chat_id=…), so that
+ * delivery works the same way for every provider, and the form edits its two parts.
+ */
+export function buildTelegramUrl(token: string, chatId: string): string {
+    return `${TELEGRAM_API}/bot${token.trim()}/sendMessage?chat_id=${encodeURIComponent(chatId.trim())}`
+}
+
+/** The inverse of buildTelegramUrl, for filling in the edit form from a stored URL. */
+export function splitTelegramUrl(url: string): { token: string; chatId: string } {
     try {
         const parsed = new URL(url)
-        const chatId = parsed.searchParams.get('chat_id') ?? ''
-        parsed.search = ''
-        const baseUrl = parsed
-            .toString()
-            .replace(RE_TRAILING_SLASHES, '')
-            .replace(RE_TELEGRAM_SEND_MESSAGE_SUFFIX, '')
-        return { baseUrl, chatId }
+        const token = RE_TELEGRAM_PATH.exec(parsed.pathname)?.[1] ?? ''
+        return {
+            token: decodeURIComponent(token),
+            chatId: parsed.searchParams.get('chat_id') ?? '',
+        }
     } catch {
-        return { baseUrl: url, chatId: '' }
+        return { token: '', chatId: '' }
     }
 }
 
-/** Validates the drawer's Telegram URL field: the pure bot URL, no query params. */
-export function validateTelegramBotUrl(url: string): string | null {
-    const trimmed = url.trim()
-    if (!trimmed) {
-        return 'A bot URL is required'
-    }
-    if (trimmed.includes('?')) {
-        return "Don't include query parameters — enter the Chat ID in its own field below"
-    }
-    if (!RE_TELEGRAM_BOT_URL.test(trimmed)) {
-        return "This doesn't look like a Telegram Bot API URL — expected https://api.telegram.org/bot<token>"
-    }
-    return null
-}
-
-export function validateTelegramChatId(chatId: string): string | null {
-    const trimmed = chatId.trim()
-    if (!trimmed) {
-        return 'A chat ID is required'
-    }
-    if (!RE_TELEGRAM_CHAT_ID.test(trimmed)) {
-        return 'Enter a numeric chat ID (negative for groups) or a public @channelname'
-    }
-    return null
+/**
+ * The core's errors for a target's form, by field (notifications.Check). The previous answer
+ * stays while a new one loads. For Telegram, the `url` error is about the bot token and the
+ * `chatId` error is about the chat ID. A url that another target already uses is only rejected
+ * by a save. Returns undefined while `input` is undefined.
+ */
+export function useTargetProblems(
+    input: TargetInput | undefined
+): Record<string, string> | undefined {
+    const key = input ? JSON.stringify(input) : ''
+    const [asked] = useDebounce(key, 400)
+    const query = useQuery({
+        queryKey: coreKey('notifications', 'Check', asked),
+        queryFn: async () => (await api.Check(JSON.parse(asked) as TargetInput)) ?? {},
+        enabled: asked !== '',
+        staleTime: Number.POSITIVE_INFINITY,
+        retry: false,
+        placeholderData: keepPreviousData,
+    })
+    if (!input) return undefined
+    return query.data as Record<string, string> | undefined
 }
 
 const MAX_MASK_SEGMENT_LENGTH = 10
 
-// Webhook URLs are credentials (Telegram's first path segment IS the bot token) — the list view
-// renders this instead of the full URL.
+/**
+ * What the list shows under a target's name: its recipients in full, the bot and the chat for
+ * Telegram (the bot's number is the public part of its token), or its URL masked.
+ */
+export function targetSubtitle(target: Pick<NotificationTarget, 'provider' | 'url'>): string {
+    if (target.provider === P.NotificationProviderEmail) return target.url
+    if (target.provider === P.NotificationProviderTelegram) {
+        const { token, chatId } = splitTelegramUrl(target.url)
+        const bot = token.split(':')[0]
+        if (bot && chatId) return t`Bot ${bot} → chat ${chatId}`
+    }
+    return maskWebhookUrl(target.url)
+}
+
+// Webhook URLs are credentials (Telegram's first path segment IS the bot token), so the list
+// shows this masked form instead of the full URL.
 export function maskWebhookUrl(url: string): string {
     try {
         const parsed = new URL(url)
@@ -372,226 +321,5 @@ export function maskWebhookUrl(url: string): string {
         return `${parsed.host}/${firstSegment}/…${url.slice(-4)}`
     } catch {
         return url.length > 24 ? `${url.slice(0, 24)}…` : url
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Job watcher
-// ---------------------------------------------------------------------------
-
-const POLL_INTERVAL_MS = 5000
-// A jobid that can't be fetched this many consecutive ticks is gone (daemon restarted and
-// forgot it) — drop it silently instead of emitting a bogus outcome. This is also what bounds
-// the watch list: rclone expires finished jobs after 24h, and a still-running job stays
-// legitimately watchable for as long as it runs.
-const MAX_STATUS_FAILURES = 6
-
-let initialized = false
-let pollTimer: ReturnType<typeof setInterval> | null = null
-let ticking = false
-// Guards against a broadcast echo re-adding a job we already handled. Module-local, so a main
-// window reload can re-emit job.started for still-running jobs — acceptable edge case.
-const seenJobIds = new Set<number>()
-const handledJobIds = new Set<number>()
-const statusFailures = new Map<number, number>()
-
-/**
- * Observes watchedJobs (registered by lib/rclone/api.ts from any window) and emits the
- * job.started/completed/failed notifications. Must be initialized
- * ONLY in the hidden main window — a second watcher would double-post webhooks.
- */
-export function initJobWatcher() {
-    if (initialized) {
-        return
-    }
-    initialized = true
-
-    console.log('[jobWatcher] initialized')
-
-    useStore.subscribe((state) => onWatchedJobsChange(state.watchedJobs))
-
-    // The rclone client is bound to the current host, so after a host switch the watched jobids
-    // belong to a daemon we can no longer (safely) query — polling the new host could even match
-    // an unrelated job with the same id. Drop them.
-    let lastHostId = usePersistedStore.getState().currentHostId
-    usePersistedStore.subscribe((state) => {
-        if (state.currentHostId !== lastHostId) {
-            console.warn('[jobWatcher] host changed, dropping watched jobs')
-            lastHostId = state.currentHostId
-            clearWatchedJobs()
-        }
-    })
-
-    onWatchedJobsChange(useStore.getState().watchedJobs)
-}
-
-/**
- * Forget all watched jobs — jobids do not survive a daemon restart or crash. The dedupe sets
- * must go too: a fresh daemon issues jobids from 1 again, guaranteed to collide with old ones.
- * Dry-run IDs use the same daemon-local namespace and must be cleared with them.
- */
-export function clearWatchedJobs() {
-    statusFailures.clear()
-    seenJobIds.clear()
-    handledJobIds.clear()
-    useStore.setState({ watchedJobs: {}, dryRunJobIds: [] })
-}
-
-function onWatchedJobsChange(watchedJobs: Record<number, WatchedJob>) {
-    for (const job of Object.values(watchedJobs)) {
-        if (seenJobIds.has(job.jobid) || handledJobIds.has(job.jobid)) {
-            continue
-        }
-        seenJobIds.add(job.jobid)
-
-        dispatchNotification('job.started', {
-            title: 'Transfer started',
-            body: describeJob(job),
-            data: baseJobData(job),
-        })
-    }
-
-    const hasJobs = Object.keys(watchedJobs).length > 0
-    if (hasJobs && !pollTimer) {
-        pollTimer = setInterval(tick, POLL_INTERVAL_MS)
-    } else if (!hasJobs && pollTimer) {
-        clearInterval(pollTimer)
-        pollTimer = null
-    }
-}
-
-async function tick() {
-    if (ticking) {
-        return
-    }
-    ticking = true
-    try {
-        for (const job of Object.values(useStore.getState().watchedJobs)) {
-            await checkJob(job)
-        }
-    } finally {
-        ticking = false
-    }
-}
-
-async function checkJob(job: WatchedJob) {
-    // A broadcast echo can resurrect a job another write raced with — never process one twice.
-    if (handledJobIds.has(job.jobid)) {
-        unwatch(job.jobid)
-        return
-    }
-
-    let jobStatus: any
-    try {
-        jobStatus = await rclone('/job/status', {
-            params: {
-                query: {
-                    jobid: job.jobid,
-                },
-            },
-        })
-        statusFailures.delete(job.jobid)
-    } catch (error) {
-        const failures = (statusFailures.get(job.jobid) ?? 0) + 1
-        statusFailures.set(job.jobid, failures)
-        if (failures >= MAX_STATUS_FAILURES) {
-            console.warn('[jobWatcher] dropping unreachable job', job.jobid, error)
-            unwatch(job.jobid)
-        }
-        return
-    }
-
-    // Re-check after the await: JobDetailsDrawer un-watches user-stopped jobs so the forced
-    // "context canceled" finish must not surface as a bogus failure notification.
-    if (!useStore.getState().watchedJobs[job.jobid]) {
-        return
-    }
-
-    if (!jobStatus?.finished) {
-        return
-    }
-
-    unwatch(job.jobid)
-
-    if (useStore.getState().dryRunJobIds.includes(job.jobid)) {
-        console.log('[jobWatcher] skipping dry run job', job.jobid)
-        return
-    }
-
-    // Same failure detection as fetchJob: the top-level error plus per-result errors, which is
-    // where batch partial failures live.
-    let failedResults = 0
-    let totalResults = 0
-    if (
-        jobStatus.output &&
-        typeof jobStatus.output === 'object' &&
-        'results' in jobStatus.output &&
-        Array.isArray(jobStatus.output.results)
-    ) {
-        totalResults = jobStatus.output.results.length
-        failedResults = jobStatus.output.results.filter((result: any) => !!result?.error).length
-    }
-
-    const errorMessage: string =
-        jobStatus.error ||
-        (failedResults > 0 ? `${failedResults} of ${totalResults} operations failed` : '')
-
-    const data = {
-        ...baseJobData(job),
-        durationSeconds:
-            typeof jobStatus.duration === 'number' ? Math.round(jobStatus.duration) : undefined,
-        ...(errorMessage ? { error: errorMessage } : {}),
-    }
-
-    console.log('[jobWatcher] job finished', job.jobid, errorMessage || 'success')
-
-    if (errorMessage) {
-        dispatchNotification('job.failed', {
-            title: 'Transfer failed',
-            body: `${describeJob(job)} — ${errorMessage}`,
-            data,
-        })
-    } else {
-        dispatchNotification('job.completed', {
-            title: 'Transfer completed',
-            body: describeJob(job),
-            data,
-        })
-    }
-}
-
-function unwatch(jobid: number) {
-    handledJobIds.add(jobid)
-    statusFailures.delete(jobid)
-    useStore.setState((state) => {
-        const watchedJobs = { ...state.watchedJobs }
-        delete watchedJobs[jobid]
-        return { watchedJobs }
-    })
-}
-
-function describeJob(job: WatchedJob): string {
-    const sources = job.sources ?? []
-    const sourceLabel =
-        sources.length > 2
-            ? `${sources.slice(0, 2).join(', ')} and ${sources.length - 2} more`
-            : sources.join(', ')
-
-    let description = job.operation
-    if (sourceLabel) {
-        description += ` of ${sourceLabel}`
-    }
-    if (job.destination) {
-        description += ` to ${job.destination}`
-    }
-    return description
-}
-
-function baseJobData(job: WatchedJob) {
-    return {
-        jobid: job.jobid,
-        operation: job.operation,
-        sources: job.sources,
-        destination: job.destination,
     }
 }

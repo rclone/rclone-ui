@@ -1,0 +1,71 @@
+{
+  "discord": {
+    "body": {
+      "username": "Rclone UI",
+      "embeds": [
+        {
+          "title": "Serve failed",
+          "description": "Failed to serve s3:bucket over webdav on 127.0.0.1:8080: exited with status 1",
+          "color": 15158332,
+          "timestamp": "2026-01-02T03:04:05.678Z"
+        }
+      ]
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://discord.com/api/webhooks/1234567890/AbC-dEf_123"
+  },
+  "email": {
+    "subject": "Serve failed",
+    "text": "Failed to serve s3:bucket over webdav on 127.0.0.1:8080: exited with status 1\n\n— Rclone UI v1.2.3",
+    "to": [
+      "ops@example.com",
+      "alice@example.com"
+    ]
+  },
+  "slack": {
+    "body": {
+      "text": "*Serve failed*\nFailed to serve s3:bucket over webdav on 127.0.0.1:8080: exited with status 1"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://hooks.slack.com/services/T000AAA/B000BBB/xyz123"
+  },
+  "telegram": {
+    "body": {
+      "chat_id": "-1001234567890",
+      "message_thread_id": "7",
+      "parse_mode": "HTML",
+      "text": "<b>Serve failed</b>\nFailed to serve s3:bucket over webdav on 127.0.0.1:8080: exited with status 1"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://api.telegram.org/bot123456:ABC-def_ghi/sendMessage"
+  },
+  "webhook": {
+    "body": {
+      "source": "rclone-ui",
+      "version": "1.2.3",
+      "event": "serve.failed",
+      "label": "Serve failed",
+      "severity": "error",
+      "title": "Serve failed",
+      "body": "Failed to serve s3:bucket over webdav on 127.0.0.1:8080: exited with status 1",
+      "timestamp": "2026-01-02T03:04:05.678Z",
+      "data": {
+        "type": "webdav",
+        "addr": "127.0.0.1:8080",
+        "source": "s3:bucket",
+        "error": "exited with status 1"
+      }
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "X-RcloneUI-Event": "serve.failed"
+    },
+    "url": "https://example.com/hooks/rclone"
+  }
+}

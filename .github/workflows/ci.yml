@@ -1,0 +1,120 @@
+name: ci
+
+# Every push and pull request on the go-time branch (the Wails rewrite) is tested on the three OSes
+# and built for all six targets.
+on:
+  push:
+    branches: [go-time]
+  pull_request:
+    branches: [go-time]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API and generated code
+    # macOS 15 on Apple silicon. GitHub retired its macOS 14 runners on November 2, 2026.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: actionlint, tidy modules, notices, generated code
+        run: build/check.sh api
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: tsc, biome, vitest
+        run: build/check.sh frontend
+
+  test:
+    name: Go tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Ubuntu 26.04, because older Ubuntu releases don't package gtk4-layer-shell.
+        os: [ubuntu-26.04, macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Linux build dependencies
+        # GTK 4 and WebKitGTK 6.0, which is Wails' default stack, and gtk4-layer-shell, which rcui
+        # links. The 26.04 runners have started without working name lookups ("Temporary failure
+        # resolving archive.ubuntu.com"), and once hung here for 25 minutes. So the step waits for
+        # a lookup to answer, tries three times, and gives up after 10 minutes.
+        if: runner.os == 'Linux'
+        timeout-minutes: 10
+        run: |
+          for _ in $(seq 1 30); do getent hosts archive.ubuntu.com >/dev/null && break; sleep 2; done
+          for try in 1 2 3; do
+            if sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev libgtk4-layer-shell-dev; then
+              exit 0
+            fi
+            echo "::warning::installing the build dependencies failed (try $try of 3)"
+            sleep 20
+          done
+          exit 1
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test -race ./...
+
+  build:
+    name: Build
+    # The release's build and packaging, unsigned (build.yml).
+    uses: ./.github/workflows/build.yml
+    with:
+      release: false
+
+  mounts-linux:
+    # Runs the mount tests that the test job skips, with RCUI_TEST_MOUNTS=1. They need fuse3
+    # (rclone's FUSE mount calls fusermount3) and a usable /dev/fuse.
+    name: Mounts (Linux FUSE)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: FUSE
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fuse3
+          test -c /dev/fuse
+          if [ ! -r /dev/fuse ] || [ ! -w /dev/fuse ]; then sudo chmod 0666 /dev/fuse; fi
+          ls -l /dev/fuse "$(command -v fusermount3)"
+      - name: Real mounts
+        env:
+          RCUI_TEST_MOUNTS: 1
+        run: go test -race -v ./core/mounts/
