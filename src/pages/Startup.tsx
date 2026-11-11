@@ -1,13 +1,23 @@
-import { Button, Divider } from '@heroui/react'
-import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import { platform } from '@tauri-apps/plugin-os'
-import { exit } from '@tauri-apps/plugin-process'
-import { AnimatePresence, motion } from 'framer-motion'
+import { Button, Kbd } from '@heroui/react'
+import { t } from '@lingui/core/macro'
+import { Trans } from '@lingui/react/macro'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
-import { useStore } from '../../store/memory'
-import { usePersistedStore } from '../../store/persisted'
+import { useSettings } from '../../lib/settings'
+import {
+    CoreState,
+    type CoreStatus,
+    core,
+    currentWindow,
+    launcher,
+    platform,
+    quit,
+} from '../../lib/shell'
+import { toneButton } from '../components/look/buttons'
+import { StatusDot } from '../components/look/Status'
+import { TONE_RGB } from '../components/look/tones'
 
+// A greeting in many languages, shown one after the other whatever the app's language is.
 const GREET = [
     'Hello',
     'こんにちは',
@@ -23,29 +33,21 @@ const GREET = [
     'مرحباً',
 ]
 
-const WAIT = [
-    'Just a moment',
-    '少々お待ちください',
-    'Un moment',
-    'Chwileczkę',
-    'Ett ögonblick',
-    'Juste un instant',
-    'Só um momento',
-    'Un attimo',
-    '请稍等一下',
-    'Einen Moment, bitte',
-    'Bir saniye lütfen',
-    'لحظة من فضلك',
-]
-
 export default function Startup() {
     const [titleIndex, setTitleIndex] = useState(0)
 
-    const startupStatus = useStore((state) => state.startupStatus)
-    const toolbarShortcut = usePersistedStore((state) => state.toolbarShortcut)
+    const [coreStatus, setCoreStatus] = useState<CoreStatus | null>(null)
+    useEffect(() => core.onState(setCoreStatus), [])
+    // Before the first status, and while a quit stops the core, the screen shows the core starting.
+    const state =
+        coreStatus?.state === CoreState.CoreReady || coreStatus?.state === CoreState.CoreFailed
+            ? coreStatus.state
+            : CoreState.CoreStarting
+    const { settings } = useSettings()
+    const launcherShortcut = settings?.general?.launcherShortcut
 
-    const shortcutDisplay = useMemo(() => {
-        const raw = toolbarShortcut ?? 'CmdOrCtrl+Shift+/'
+    const shortcutKeys = useMemo(() => {
+        const raw = launcherShortcut || launcher.defaultShortcut()
         return raw
             .split('+')
             .map((part) =>
@@ -57,221 +59,150 @@ export default function Startup() {
                       ? '⌘'
                       : part
             )
-            .join(' + ')
-    }, [toolbarShortcut])
+    }, [launcherShortcut])
+    const keys = shortcutKeys.map((key) => (
+        <Kbd key={key} className="px-2 py-0.5 font-sans text-base font-semibold">
+            {key}
+        </Kbd>
+    ))
+    const reduceMotion = useReducedMotion()
 
-    const isError = useMemo(
-        () => startupStatus === 'error' || startupStatus === 'fatal',
-        [startupStatus]
-    )
+    const isError = state === CoreState.CoreFailed
 
     useEffect(() => {
-        let intervalId: NodeJS.Timeout | null = null
-        if (startupStatus === 'initializing') {
-            intervalId = setInterval(() => {
-                setTitleIndex((previousIndex) => (previousIndex + 1) % GREET.length)
-            }, 1500)
-        } else if (startupStatus === 'updating') {
-            intervalId = setInterval(() => {
-                setTitleIndex((previousIndex) => (previousIndex + 1) % WAIT.length)
-            }, 2000)
-        }
-        return () => {
-            if (intervalId) {
-                clearInterval(intervalId)
-            }
-        }
-    }, [startupStatus])
+        if (state !== CoreState.CoreStarting) return
+        const intervalId = setInterval(() => {
+            setTitleIndex((previousIndex) => (previousIndex + 1) % GREET.length)
+        }, 1500)
+        return () => clearInterval(intervalId)
+    }, [state])
 
-    // Close window when it loses focus
-    // Wayland can report a transient focus loss while the window is being shown.
+    // Close the window when it loses focus, unless the core failed. In that case the error and its
+    // QUIT button stay until the user has seen them. Linux is skipped, because Wayland can report
+    // a brief focus loss while the window is being shown.
     useEffect(() => {
-        const currentWindow = getCurrentWindow()
-        const unlisten = currentWindow.onFocusChanged(async ({ payload: focused }) => {
-            if (!focused && platform() !== 'linux') {
+        if (state === CoreState.CoreFailed) return
+        return currentWindow.onBlur(async () => {
+            if (platform() !== 'linux') {
                 await currentWindow.hide()
-                await currentWindow.destroy()
+                await currentWindow.close()
             }
         })
+    }, [state])
 
-        return () => {
-            unlisten.then((fn) => fn())
-        }
-    }, [])
+    const fade = reduceMotion
+        ? { initial: false as const }
+        : {
+              initial: { opacity: 0, y: 6 },
+              animate: { opacity: 1, y: 0 },
+              exit: { opacity: 0, y: -6 },
+              transition: { type: 'spring' as const, duration: 0.4, bounce: 0 },
+          }
 
     return (
-        <div className="flex flex-col h-screen rounded-2xl bg-content1">
-            <img src="/banner.png" alt="Rclone UI" className="w-full h-auto p-5" />
+        // On macOS the window is transparent, so this rounded card is all of it. Elsewhere the
+        // window is opaque and the card fills it: rounded corners would show the window behind.
+        <div
+            className={`relative flex flex-col h-screen overflow-hidden bg-content1 ${platform() === 'macos' ? 'rounded-2xl' : ''}`}
+        >
+            <div
+                aria-hidden={true}
+                className="absolute inset-x-0 top-0 pointer-events-none h-80"
+                style={{
+                    background: `radial-gradient(60% 70% at 50% 0%, rgb(${TONE_RGB[isError ? 'red' : 'blue']} / 0.18), transparent 75%)`,
+                }}
+            />
+            <img src="/banner.png" alt="Rclone UI" className="relative w-full h-auto px-5 pt-5" />
 
-            <Divider />
-
-            <div className="flex flex-col w-full h-full justify-evenly">
-                <div className="flex flex-col items-center w-full gap-8 overflow-visible">
+            <div className="relative flex flex-col items-center justify-center flex-1 gap-5 px-10 pb-8 text-center">
+                <div className="flex flex-col items-center justify-center gap-2 min-h-16">
                     <AnimatePresence mode="wait">
                         {isError && (
-                            <motion.p
+                            <motion.div
                                 key="error"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="ml-2 text-2xl"
+                                {...fade}
+                                className="flex flex-col items-center gap-1.5"
                             >
-                                Could not complete the operation, please try again later.
-                            </motion.p>
+                                <p className="text-2xl font-semibold tracking-tight font-rounded">
+                                    <Trans>Could not complete the operation</Trans>
+                                </p>
+                                <p className="max-w-md text-sm leading-relaxed text-default-500 text-pretty">
+                                    {coreStatus?.error || t`Please try again later.`}
+                                </p>
+                            </motion.div>
                         )}
-                        {startupStatus === 'initialized' && (
+                        {state === CoreState.CoreReady && (
                             <motion.p
                                 key="initialized"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="ml-2 text-2xl"
+                                {...fade}
+                                className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xl font-medium tracking-tight font-rounded"
                             >
-                                Use the {shortcutDisplay} shortcut to open the Toolbar!
+                                <Trans comment="{keys} is the launcher's keyboard shortcut, shown as key caps.">
+                                    Use the{' '}
+                                    <span className="inline-flex items-center gap-1">{keys}</span>{' '}
+                                    shortcut to open the Launcher!
+                                </Trans>
                             </motion.p>
                         )}
-                        {startupStatus === 'updated' && (
-                            <motion.p
-                                key="updated"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="ml-2 text-2xl"
-                            >
-                                Rclone has just been updated, thanks for waiting!
-                            </motion.p>
-                        )}
-                        {startupStatus === 'initializing' && (
+                        {state === CoreState.CoreStarting && (
                             <motion.p
                                 key="initializing"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="ml-2 text-3xl"
+                                {...fade}
+                                className="text-[34px] font-semibold tracking-tight font-rounded"
                             >
                                 <span
                                     key={titleIndex}
-                                    className="inline-block align-middle animate-fade-in-up"
+                                    className="inline-block align-middle motion-safe:animate-fade-in-up"
                                 >
                                     {GREET[titleIndex]}
                                 </span>{' '}
                                 <span className="inline-block align-middle">👋</span>
                             </motion.p>
                         )}
-                        {startupStatus === 'updating' && (
-                            <motion.p
-                                key="updating"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="ml-2 text-3xl"
-                            >
-                                <span
-                                    key={titleIndex}
-                                    className="inline-block align-middle animate-fade-in-up"
-                                >
-                                    {WAIT[titleIndex]}
-                                </span>{' '}
-                                <span className="inline-block align-middle">👋</span>
-                            </motion.p>
-                        )}
                     </AnimatePresence>
                 </div>
-                <div className="flex flex-col items-center w-full bg-red-500/0">
+                <div className="flex flex-col items-center w-full">
                     <AnimatePresence mode="wait">
-                        {(startupStatus === 'initialized' || startupStatus === 'updated') && (
-                            <motion.div
-                                key="start-button"
-                                className="w-full max-w-md"
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                            >
+                        {state === CoreState.CoreReady && (
+                            <motion.div key="start-button" {...fade} className="w-full max-w-sm">
                                 <Button
-                                    className="w-full py-8 text-large"
-                                    variant="shadow"
+                                    className={`w-full h-12 text-base font-semibold rounded-2xl ${toneButton('blue')}`}
                                     color="primary"
                                     size="lg"
                                     onPress={async () => {
-                                        const currentWindow = getCurrentWindow()
-
                                         await currentWindow.hide()
 
-                                        await invoke('show_toolbar')
+                                        await launcher.show()
 
                                         await new Promise((resolve) => setTimeout(resolve, 690))
 
-                                        await currentWindow.destroy()
+                                        await currentWindow.close()
                                     }}
                                 >
-                                    TAP TO START
+                                    <Trans>Tap to start</Trans>
                                 </Button>
                             </motion.div>
                         )}
                         {isError && (
-                            <motion.div
-                                key="error-button"
-                                className="w-full max-w-md"
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                            >
+                            <motion.div key="error-button" {...fade} className="w-full max-w-sm">
                                 <Button
-                                    className="w-full py-8 text-large"
-                                    variant="shadow"
-                                    color="primary"
+                                    className="w-full h-12 text-base font-semibold rounded-2xl"
+                                    variant="flat"
                                     size="lg"
-                                    onPress={async () => {
-                                        if (startupStatus === 'error') {
-                                            await getCurrentWindow().hide()
-                                            await getCurrentWindow().destroy()
-                                        } else {
-                                            await exit(0)
-                                        }
-                                    }}
+                                    onPress={() => quit()}
                                 >
-                                    {startupStatus === 'error' ? 'OK' : 'QUIT'}
+                                    <Trans comment="Button: quits the app.">Quit</Trans>
                                 </Button>
                             </motion.div>
                         )}
-                        {startupStatus === 'initializing' && (
+                        {state === CoreState.CoreStarting && (
                             <motion.p
                                 key="initializing"
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                className="uppercase text-small"
+                                {...fade}
+                                className="flex items-center gap-2 text-sm text-default-500"
                             >
-                                <motion.span
-                                    animate={{ opacity: [1, 0.5, 1] }}
-                                    transition={{
-                                        repeat: Number.POSITIVE_INFINITY,
-                                        duration: 4,
-                                        ease: 'easeInOut',
-                                    }}
-                                >
-                                    Rclone is initializing
-                                </motion.span>
-                            </motion.p>
-                        )}
-                        {startupStatus === 'updating' && (
-                            <motion.p
-                                key="updating"
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                className="uppercase text-small"
-                            >
-                                <motion.span
-                                    animate={{ opacity: [1, 0.5, 1] }}
-                                    transition={{
-                                        repeat: Number.POSITIVE_INFINITY,
-                                        duration: 4,
-                                        ease: 'easeInOut',
-                                    }}
-                                >
-                                    Rclone is updating
-                                </motion.span>
+                                <StatusDot kind="active" />
+                                <Trans>Rclone is initializing…</Trans>
                             </motion.p>
                         )}
                     </AnimatePresence>

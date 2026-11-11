@@ -1,0 +1,4146 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=utf-8\n"
+"Language: zh-CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: core/mounts/automounts.go
+msgid "\"%s\" on %s is a file, not a folder."
+msgstr "%[2]s 上的“%[1]s”是文件，不是文件夹。"
+
+#. The values are a folder and the remote it was looked for on, as in "gdrive:".
+#: core/mounts/automounts.go
+msgid "\"%s\" was not found on %s."
+msgstr "在 %[2]s 上找不到“%[1]s”。"
+
+#. The time a transfer has left, in hours (%[1]d) and minutes (%[2]d).
+#: app/launcher/engine/providers/progress.go
+msgid "%[1]d h %[2]d min left"
+msgstr "剩余 %[1]d 小时 %[2]d 分钟"
+
+#. How many transfers run, and how many wait for their turn.
+#: app/launcher/engine/providers/running.go
+msgid "%[1]d running, %[2]d queued"
+msgstr "%[1]d 个正在运行，%[2]d 个排队中"
+
+#. A running transfer in a list: its operation's name ("Sync"), its sources, and where they go.
+#: core/services.go
+msgid "%[1]s %[2]s → %[3]s"
+msgstr "%[1]s %[2]s → %[3]s"
+
+#. A failed transfer. %[1]s is its operation, such as "Sync", and %[2]s its paths.
+#. The launcher's status when an action failed. %[1]s is the action's name, such as "Unmount", and %[2]s the error.
+#: app/launcher/engine/providers/running.go
+#: app/launcher/env.go
+msgid "%[1]s failed: %[2]s"
+msgstr "%[1]s失败：%[2]s"
+
+#: app/launcher/engine/providers/running.go
+msgid "%d Transfer"
+msgid_plural "%d Transfers"
+msgstr[0] "%d 个传输"
+
+#. The grey count at the right of a launcher's row: how many of its items are running.
+#: app/launcher/engine/providers/common.go
+msgid "%d active"
+msgid_plural "%d active"
+msgstr[0] "%d 个活动"
+
+#: core/transfers/service.go
+msgid "%d file couldn't be cleaned up from %s"
+msgid_plural "%d files couldn't be cleaned up from %s"
+msgstr[0] "%d 个文件无法从 %s 中清理"
+
+#: core/transfers/service.go
+msgid "%d file couldn't be copied from %s"
+msgid_plural "%d files couldn't be copied from %s"
+msgstr[0] "%d 个文件无法从 %s 复制"
+
+#: core/transfers/service.go
+msgid "%d file couldn't be copied to %s"
+msgid_plural "%d files couldn't be copied to %s"
+msgstr[0] "%d 个文件无法复制到 %s"
+
+#: core/transfers/service.go
+msgid "%d file couldn't be deleted from %s"
+msgid_plural "%d files couldn't be deleted from %s"
+msgstr[0] "%d 个文件无法从 %s 中删除"
+
+#: core/transfers/service.go
+msgid "%d file couldn't be downloaded to %s"
+msgid_plural "%d files couldn't be downloaded to %s"
+msgstr[0] "%d 个文件无法下载到 %s"
+
+#: core/transfers/service.go
+msgid "%d file couldn't be moved to %s"
+msgid_plural "%d files couldn't be moved to %s"
+msgstr[0] "%d 个文件无法移动到 %s"
+
+#: core/transfers/service.go
+msgid "%d file couldn't be synced to %s"
+msgid_plural "%d files couldn't be synced to %s"
+msgstr[0] "%d 个文件无法同步到 %s"
+
+#. Why a transfer failed. The values are how many files failed, and the first one's error.
+#: core/transfers/failure.go
+msgid "%d file failed. The first error: %s"
+msgid_plural "%d files failed. The first error: %s"
+msgstr[0] "%d 个文件失败。首个错误：%s"
+
+#: core/services.go
+msgid "%d file not uploaded yet"
+msgid_plural "%d files not uploaded yet"
+msgstr[0] "%d 个文件尚未上传"
+
+#: app/launcher/engine/providers/progress.go
+msgid "%d h ago"
+msgid_plural "%d h ago"
+msgstr[0] "%d 小时前"
+
+#. The time a transfer has left, in hours.
+#: app/launcher/engine/providers/progress.go
+msgid "%d h left"
+msgid_plural "%d h left"
+msgstr[0] "剩余 %d 小时"
+
+#. What was dropped on the launcher, inside a longer line such as "Copy 3 items to gdrive:".
+#: app/launcher/engine/providers/dropped.go
+msgid "%d item"
+msgid_plural "%d items"
+msgstr[0] "%d 项"
+
+#. The line above the launcher's rows while files are dropped on it. The last value is their names.
+#: app/launcher/launcher.go
+msgid "%d item dropped: %s"
+msgid_plural "%d items dropped: %s"
+msgstr[0] "已拖入 %d 项：%s"
+
+#: app/launcher/engine/providers/progress.go
+msgid "%d min ago"
+msgid_plural "%d min ago"
+msgstr[0] "%d 分钟前"
+
+#. The time a transfer has left, in minutes.
+#: app/launcher/engine/providers/progress.go
+msgid "%d min left"
+msgid_plural "%d min left"
+msgstr[0] "剩余 %d 分钟"
+
+#: app/launcher/engine/providers/running.go
+msgid "%d more running."
+msgid_plural "%d more running."
+msgstr[0] "还有 %d 个正在运行。"
+
+#. A transfer's error when some of its steps failed: how many failed, of how many. The plural form follows the first number. In English, "operations" is plural in both forms.
+#: core/transfers/status.go
+msgid "%d of %d operations failed"
+msgid_plural "%d of %d operations failed"
+msgstr[0] "%[2]d 项操作中有 %[1]d 项失败"
+
+#: app/launcher/engine/providers/running.go
+msgid "%d queued"
+msgid_plural "%d queued"
+msgstr[0] "%d 个排队中"
+
+#: app/launcher/engine/providers/running.go
+msgid "%d running"
+msgid_plural "%d running"
+msgstr[0] "%d 个正在运行"
+
+#: app/quit.go
+msgid "%d schedule"
+msgid_plural "%d schedules"
+msgstr[0] "%d 个定时任务"
+
+#: app/core.go
+msgid "%d transfer was interrupted."
+msgid_plural "%d transfers were interrupted."
+msgstr[0] "有 %d 个传输被中断。"
+
+#: app/quit.go
+msgid "%d watcher"
+msgid_plural "%d watchers"
+msgstr[0] "你的 %d 个监视器"
+
+#: core/files/service.go
+#: core/operations/rename.go
+msgid "%q already exists"
+msgstr "%q 已存在"
+
+#: core/files/service.go
+msgid "%q and %q differ only in case, which a provider that ignores case treats as one name. Rename them in separate batches."
+msgstr "%q 和 %q 只有大小写不同，不区分大小写的服务商会把它们视为同一个名称。请分批重命名。"
+
+#: core/files/service.go
+msgid "%q and %q would be the same name"
+msgstr "%q 和 %q 会变成同一个名称"
+
+#: core/settings/service.go
+msgid "%q is not a host"
+msgstr "%q 不是有效的主机"
+
+#: app/launcher/shortcut.go
+msgid "%q is not a key"
+msgstr "%q 不是按键"
+
+#. The value is an event's id, such as "job.failed".
+#: core/notifications/validate.go
+msgid "%q is not a notification event."
+msgstr "%q 不是通知事件。"
+
+#: core/settings/service.go
+msgid "%q is not a tray icon"
+msgstr "%q 不是有效的系统托盘图标"
+
+#: core/settings/service.go
+msgid "%q is not one of the app's languages"
+msgstr "%q 不是应用支持的语言"
+
+#. The folder, its temporary name, its new name, rclone's error, then the temporary and the new name again.
+#: core/operations/rename.go
+msgid "%q is now %q: renaming it to %q failed: %w. Retry, or rename %q to %q, to finish."
+msgstr "%q 现在名为 %q，重命名为 %q 失败：%w。请重试，或将 %q 重命名为 %q 以完成操作。"
+
+#. The file's name, the start of its temporary name, its new name, and rclone's error.
+#: core/operations/rename.go
+msgid "%q was moved to a temporary name starting %q and not renamed to %q: %w"
+msgstr "%q 已移到以 %q 开头的临时名称，但无法重命名为 %q：%w"
+
+#. The folder, its temporary name, and rclone's error.
+#: core/operations/rename.go
+msgid "%q was partly moved to %q: %w"
+msgstr "%q 只有部分内容移到了 %q：%w"
+
+#. A mount or a serve in the tray menu that is still starting, as in "gdrive: → M: (starting)".
+#: app/trayrunning.go
+msgid "%s (starting)"
+msgstr "%s（正在启动）"
+
+#. Why an automount was not mounted at start. The value is a sentence that says what is wrong with its folder.
+#: core/mounts/boot.go
+msgid "%s Fix its folder in the Automounts window."
+msgstr "%s请在“自动挂载”窗口中修改它的文件夹。"
+
+#. A transfer's sources in a notification: the first two, then how many more there are.
+#. The sources of a transfer. %s is the first one's path.
+#: app/launcher/engine/providers/running.go
+#: core/notifications/payloads.go
+#: core/transfers/service.go
+msgid "%s and %d more"
+msgid_plural "%s and %d more"
+msgstr[0] "%s 及另外 %d 项"
+
+#. Joins the last item of a list: "2 transfers and a serve".
+#: core/i18n/i18n.go
+msgid "%s and %s"
+msgstr "%s、%s"
+
+#. Two sources, then the path in the destination that both would get.
+#: core/operations/builders.go
+msgid "%s and %s would both go to %s. Copy them separately."
+msgstr "%s 和 %s 都会放到 %s。请分开复制。"
+
+#. Two sources, then the path in the destination that both would get.
+#: core/operations/builders.go
+msgid "%s and %s would both go to %s. Move them separately."
+msgstr "%s 和 %s 都会放到 %s。请分开移动。"
+
+#. Two sources, then the path in the destination that both would get.
+#: core/operations/builders.go
+msgid "%s and %s would both go to %s. Their names differ only in case, which a provider that ignores case treats as one name. Copy them separately."
+msgstr "%s 和 %s 都会放到 %s。它们的名称只有大小写不同，不区分大小写的服务商会把它们视为同一个名称。请分开复制。"
+
+#. Two sources, then the path in the destination that both would get.
+#: core/operations/builders.go
+msgid "%s and %s would both go to %s. Their names differ only in case, which a provider that ignores case treats as one name. Move them separately."
+msgstr "%s 和 %s 都会放到 %s。它们的名称只有大小写不同，不区分大小写的服务商会把它们视为同一个名称。请分开移动。"
+
+#: core/operations/flags.go
+msgid "%s applies to the whole app and can't be set for a single mount or serve"
+msgstr "%s 适用于整个应用，不能为单个挂载或服务单独设置"
+
+#: core/operations/options.go
+msgid "%s can't be set for one transfer, because rclone sets it once: for the whole app, or when it first opens a remote."
+msgstr "%s 不能只为一次传输设置，因为 rclone 只设置一次：要么对整个应用生效，要么在首次打开远程存储时设置。"
+
+#: core/operations/flags.go
+msgid "%s cannot be used here: Rclone UI runs and watches the mount itself"
+msgstr "此处不能使用 %s：Rclone UI 会自行运行并监控挂载"
+
+#: core/operations/flags.go
+msgid "%s cannot be used here: Rclone UI runs and watches the serve itself"
+msgstr "此处不能使用 %s：Rclone UI 会自行运行并监控服务"
+
+#: app/launcher/engine/providers/running.go
+#: app/trayrunning.go
+msgid "%s copied to clipboard"
+msgstr "%s 已复制到剪贴板"
+
+#: core/schedules/service.go
+msgid "%s copy"
+msgstr "%s 副本"
+
+#. The name of a duplicated schedule, when "{name} copy" is taken. "copy" means a duplicate here, not the operation.
+#: core/schedules/service.go
+msgid "%s copy %d"
+msgstr "%s 副本 %d"
+
+#. Why a serve failed to start. The values are its address and how long the app waited, as in "30s".
+#: core/serves/serves.go
+msgid "%s did not answer within %s"
+msgstr "%s 在 %s 内没有响应"
+
+#: core/files/service.go
+msgid "%s doesn't exist."
+msgstr "%s 不存在。"
+
+#. Why a mount or a serve could not start. The first value is its mount point or address, the second how its process ended.
+#: core/children/unit.go
+msgid "%s exited before it was ready: %w"
+msgstr "%s 的进程在就绪前已退出：%w"
+
+#. A failed transfer. %s is its operation, such as "Sync".
+#. The title of the notification for a schedule's failed run. The value is the schedule's name.
+#: app/launcher/engine/providers/running.go
+#: core/schedules/scheduler.go
+msgid "%s failed"
+msgstr "“%s”失败"
+
+#: core/browse/listing.go
+msgid "%s is a file, not a folder"
+msgstr "%s 是文件，不是文件夹"
+
+#: core/operations/builders.go
+msgid "%s is a file; a bisync needs two folders"
+msgstr "%s 是文件，双向同步需要两个文件夹"
+
+#: core/operations/builders.go
+msgid "%s is a file; a sync needs a folder"
+msgstr "%s 是文件，同步需要文件夹"
+
+#: core/operations/builders.go
+msgid "%s is a file; only folders can be purged"
+msgstr "%s 是文件，只有文件夹可以清除"
+
+#: core/operations/builders.go
+msgid "%s is a root: everything in it goes straight into %s, so it can’t be combined with other sources."
+msgstr "%s 是根目录：其中的所有内容会直接放入 %s，因此不能与其他源一起使用。"
+
+#: core/mounts/mounts.go
+msgid "%s is already a mount of Rclone UI."
+msgstr "%s 已被 Rclone UI 用作挂载点。"
+
+#: core/mounts/mounts.go
+msgid "%s is already mounted on a drive Rclone UI picked. Stop that mount first, or choose a drive letter for this one."
+msgstr "%s 已挂载到 Rclone UI 自动选择的磁盘上。请先停止那个挂载，或为这个挂载指定盘符。"
+
+#: core/mounts/mounts.go
+msgid "%s is inside %s, a mount of Rclone UI. Choose a folder outside it."
+msgstr "%s 位于 Rclone UI 的挂载点 %s 中。请选择挂载点以外的文件夹。"
+
+#: core/operations/options.go
+msgid "%s is not one of the options rclone takes here."
+msgstr "%s 不是 rclone 在此处接受的选项。"
+
+#: core/notifications/payloads.go
+msgid "%s is not reachable (network or sign-in problem) — not mounting to avoid an empty folder at %s"
+msgstr "无法访问 %s（网络或登录问题），因此暂不挂载，以免 %s 显示为空文件夹。"
+
+#. Why a mount or a serve could not start. The first value is its mount point or address, the second the reason.
+#: core/children/unit.go
+msgid "%s is not ready: %w"
+msgstr "%s 未就绪：%w"
+
+#: core/schedules/service.go
+msgid "%s is running already."
+msgstr "“%s”已在运行。"
+
+#: core/operations/flags.go
+msgid "%s is set by Rclone UI for every mount and serve"
+msgstr "%s 由 Rclone UI 为所有挂载和服务统一设置"
+
+#: core/operations/builders.go
+msgid "%s is the root of a remote. Choose the folders inside it."
+msgstr "%s 是远程存储的根目录。请选择其中的文件夹。"
+
+#. An option's name as it was written, then as rclone writes it, such as "dry-run is written dry_run here."
+#: core/operations/options.go
+msgid "%s is written %s here."
+msgstr "此处 %s 应写作 %s。"
+
+#. %s is a folder. A login shell is a terminal session that reads the user's profile.
+#: app/pathlink/linker.go
+msgid "%s isn't on your PATH yet: add it, or open a new login shell."
+msgstr "%s 还不在你的 PATH 中：请将它加入 PATH，或打开新的登录 shell。"
+
+#. The values are an automount's source and its mount point.
+#: core/mounts/boot.go
+msgid "%s mounted at %s, but listing it failed. The folder may appear empty until the connection recovers."
+msgstr "%s 已挂载到 %s，但无法列出其中的内容。连接恢复前，该文件夹可能显示为空。"
+
+#: core/operations/options.go
+msgid "%s must be at least 1"
+msgstr "%s 至少为 1"
+
+#. A transfer in a notification. The first value is the operation, as rclone names it.
+#: core/notifications/payloads.go
+msgid "%s of %s"
+msgstr "%s：%s"
+
+#. A transfer in a notification. The first value is the operation, as rclone names it.
+#: core/notifications/payloads.go
+msgid "%s of %s to %s"
+msgstr "%s：%s → %s"
+
+#. An option's name, a remote's name, then why the option's value can't be read.
+#: core/operations/connstr.go
+msgid "%s of %s: %w"
+msgstr "%s（%s 的选项）：%w"
+
+#. A notification target's error. The values are the service (Slack, Discord, Telegram) and the HTTP status.
+#: core/notifications/webhooks.go
+msgid "%s responded with status %d"
+msgstr "%s 返回了状态码 %d"
+
+#. A notification target's error. The values are the service (Slack, Discord, Telegram), the HTTP status and the reason it gave.
+#: core/notifications/webhooks.go
+msgid "%s responded with status %d: %s"
+msgstr "%s 返回了状态码 %d：%s"
+
+#. The address that was requested through the proxy, then the HTTP status, such as "407 Proxy Authentication Required".
+#: core/settings/proxytest.go
+msgid "%s responded with status %s"
+msgstr "%s 返回了状态 %s"
+
+#. A transfer in a notification, when only its destination is known. The first value is the operation, as rclone names it (copy, sync).
+#: core/notifications/payloads.go
+msgid "%s to %s"
+msgstr "%s → %s"
+
+#. The start of the quit dialog, followed by a list. %s names what is running: "2 transfers, a serve and 3 mounts".
+#: app/quit.go
+msgid "%s will be stopped:"
+msgstr "%s将停止："
+
+#. A failed transfer's notification: its sources and destination, and the error.
+#. A failed transfer's notification: what ran, and the error it failed with.
+#: core/notifications/payloads.go
+#: core/transfers/service.go
+msgid "%s — %s"
+msgstr "%s：%s"
+
+#. Joins the items of a list, before its last one: "a transfer, 2 mounts".
+#. Joins two items of a list, as in "Mount gdrive: at /mnt, Serve photos: over HTTP".
+#: core/config/service.go
+#: core/i18n/i18n.go
+msgid "%s, %s"
+msgstr "%s、%s"
+
+#: core/mounts/mounts.go
+msgid "%s, a mount of Rclone UI, is inside %s. Stop that mount first, or choose another folder."
+msgstr "Rclone UI 的挂载点 %s 位于 %s 中。请先停止那个挂载，或选择其他文件夹。"
+
+#. The first refused item of a batch rename, then how many more were refused.
+#: core/files/service.go
+msgid "%s, and %d more"
+msgid_plural "%s, and %d more"
+msgstr[0] "%s（另有 %d 项）"
+
+#. A notification about a schedule's run: the schedule's name, and what ran.
+#. A path, then why it can't be renamed to the name given.
+#. A path, then why it can't be used.
+#. A transfer's error: how many of its steps failed, and why.
+#. An operation of a template, then why it can't take one of the template's options.
+#: core/files/service.go
+#: core/notifications/payloads.go
+#: core/operations/describe.go
+#: core/templates/service.go
+#: core/transfers/failure.go
+msgid "%s: %s"
+msgstr "%s：%s"
+
+#. A setting's path, such as proxy.url, then why its value is refused.
+#: core/operations/options.go
+#: core/settings/service.go
+msgid "%s: %w"
+msgstr "%s：%w"
+
+#: app/launcher/shortcut.go
+msgid "%w (and the previous shortcut could not be restored: %v)"
+msgstr "%w（也无法恢复之前的快捷键：%v）"
+
+#: app/update/feed.go
+msgid "%w: the update feed is in format %d, and this Rclone UI reads format %d. Download the latest release from %s"
+msgstr "%w：更新源使用格式 %d，而此版本的 Rclone UI 只能读取格式 %d。请从 %s 下载最新版本"
+
+#. Why a transfer failed. The value is the file's error.
+#: core/transfers/failure.go
+msgid "1 file failed: %s"
+msgstr "1 个文件失败：%s"
+
+#: core/templates/service.go
+msgid "A Bisync takes one source. Remove the other sources, or the Bisync tag."
+msgstr "双向同步只能有一个源。请删除其他源，或从操作中移除“双向同步”。"
+
+#: core/templates/service.go
+msgid "A Mount takes one source. Remove the other sources, or the Mount tag."
+msgstr "挂载只能有一个源。请删除其他源，或从操作中移除“挂载”。"
+
+#: core/templates/service.go
+msgid "A Serve takes one source. Remove the other sources, or the Serve tag."
+msgstr "服务只能有一个源。请删除其他源，或从操作中移除“服务”。"
+
+#: core/templates/service.go
+msgid "A Sync takes one source. Remove the other sources, or the Sync tag."
+msgstr "同步只能有一个源。请删除其他源，或从操作中移除“同步”。"
+
+#. The flag is one of a storage backend's options, such as --drive-chunk-size.
+#: core/catalog/command.go
+msgid "A backend's option: set it on the remote."
+msgstr "这是后端选项：请在远程存储中设置。"
+
+#: core/operations/template.go
+msgid "A bisync doesn't use this option."
+msgstr "双向同步不使用此选项。"
+
+#: core/notifications/validate.go
+msgid "A bot token is required"
+msgstr "请填写机器人令牌"
+
+#: core/notifications/validate.go
+msgid "A chat ID is required"
+msgstr "请填写聊天 ID"
+
+#: core/operations/template.go
+msgid "A copy doesn't use this option."
+msgstr "复制不使用此选项。"
+
+#: core/notifications/catalog.go
+msgid "A copy, move, sync, bisync, delete or purge job was started manually"
+msgstr "手动启动了一项复制、移动、同步、双向同步、删除或清除任务"
+
+#: core/operations/template.go
+msgid "A delete doesn't use this option."
+msgstr "删除不使用此选项。"
+
+#. --immutable is an rclone option, which forbids changing files that exist.
+#: core/rclone/errors.go
+msgid "A file changed, which --immutable doesn't allow. (%s)"
+msgstr "有文件被更改，而 --immutable 不允许这样做。（%s）"
+
+#: core/rclone/errors.go
+msgid "A folder with that name already exists at the destination. (%s)"
+msgstr "目标中已存在同名文件夹。（%s）"
+
+#: core/notifications/catalog.go
+msgid "A job finished successfully, whether you or a schedule started it"
+msgstr "由你或定时任务启动的传输已成功完成"
+
+#: core/notifications/catalog.go
+msgid "A job finished with errors, whether you or a schedule started it"
+msgstr "由你或定时任务启动的传输已结束，但出现了错误"
+
+#: core/operations/template.go
+msgid "A mount doesn't use this option."
+msgstr "挂载不使用此选项。"
+
+#: core/mounts/stopped.go
+msgid "A mount of this source at this place is running and sending these uploads."
+msgstr "该源在此位置的挂载正在运行，正由它上传这些文件。"
+
+#: core/operations/template.go
+msgid "A move doesn't use this option."
+msgstr "移动不使用此选项。"
+
+#: core/rclone/names.go
+msgid "A name can't be a single letter: on Windows that is a drive."
+msgstr "名称不能只有一个字母：在 Windows 上，这代表一个磁盘。"
+
+#: core/files/service.go
+#: core/operations/builders.go
+msgid "A name cannot contain / or \\"
+msgstr "名称不能包含 / 或 \\"
+
+#: core/rclone/names.go
+msgid "A name may contain letters, digits, spaces and _ - . + @, and cannot start with - or a space, or end with one."
+msgstr "名称可以包含字母、数字、空格和 _ - . + @，但不能以 - 或空格开头，也不能以空格结尾。"
+
+#: core/notifications/catalog.go
+msgid "A new version of Rclone UI is available"
+msgstr "Rclone UI 有新版本可用"
+
+#: core/notifications/targets.go
+msgid "A notification's provider cannot change."
+msgstr "通知渠道的类型不能更改。"
+
+#: core/services.go
+msgid "A paired phone loses its connection"
+msgstr "已配对的手机会断开连接"
+
+#: core/operations/builders.go
+msgid "A path is missing"
+msgstr "缺少路径"
+
+#: core/files/service.go
+msgid "A path is missing."
+msgstr "缺少路径。"
+
+#: core/prefs/service.go
+msgid "A preference's key is 1 to 128 letters, digits and ._:-"
+msgstr "偏好设置的键须为 1 到 128 个字符，只能包含字母、数字和 ._:-"
+
+#: core/prefs/service.go
+msgid "A preference's value is JSON."
+msgstr "偏好设置的值必须是 JSON。"
+
+#: core/prefs/service.go
+msgid "A preference's value is at most 64 KiB."
+msgstr "偏好设置的值最多 64 KiB。"
+
+#: core/operations/template.go
+msgid "A purge doesn't use this option."
+msgstr "清除不使用此选项。"
+
+#: core/rclone/names.go
+#: core/remotes/rename.go
+msgid "A remote called %s already exists."
+msgstr "已存在名为 %s 的远程存储。"
+
+#: core/notifications/catalog.go
+msgid "A remote could not be mounted"
+msgstr "远程存储挂载失败"
+
+#: core/operations/builders.go
+msgid "A remote’s root cannot be deleted here"
+msgstr "此处不能删除远程存储的根目录"
+
+#: core/schedules/service.go
+msgid "A schedule called %s exists already."
+msgstr "已存在名为“%s”的定时任务。"
+
+#: core/schedules/service.go
+msgid "A schedule can run a copy, move, sync, bisync, delete or purge."
+msgstr "定时任务可以运行复制、移动、同步、双向同步、删除或清除。"
+
+#: core/operations/template.go
+msgid "A serve doesn't use this option."
+msgstr "服务不使用此选项。"
+
+#: core/serves/serves.go
+msgid "A serve of Rclone UI listens on %s already."
+msgstr "Rclone UI 已有一个服务在 %s 上监听。"
+
+#: core/notifications/catalog.go
+msgid "A serve stopped unexpectedly"
+msgstr "某个服务意外停止"
+
+#: core/remotes/session.go
+msgid "A session creates, updates or reconnects a remote."
+msgstr "会话用于创建、更新或重新连接远程存储。"
+
+#: core/operations/template.go
+msgid "A sync doesn't use this option."
+msgstr "同步不使用此选项。"
+
+#: core/operations/template.go
+msgid "A template does not run %s: apply it in its form."
+msgstr "模板不能直接运行 %s，请在该操作的窗口中应用它。"
+
+#: core/templates/service.go
+msgid "A template is not for %q."
+msgstr "模板不能用于 %q。"
+
+#: core/operations/template.go
+msgid "A template is not for %s."
+msgstr "模板不能用于 %s。"
+
+#: core/templates/service.go
+msgid "A template's ID is a short token of letters, digits and dashes."
+msgstr "模板 ID 应为由字母、数字和短横线组成的简短标识。"
+
+#. The value is the address that the test email went to.
+#: core/notifications/smtp.go
+msgid "A test email went to %s."
+msgstr "已向 %s 发送测试邮件。"
+
+#: core/notifications/catalog.go
+msgid "A test notification, sent from the Notifications window"
+msgstr "从“通知”窗口发送的测试通知"
+
+#: core/transfers/api.go
+msgid "A transfer starts from a page or the Commander."
+msgstr "传输只能从窗口或文件管理器启动。"
+
+#: core/schedules/service.go
+msgid "A watcher already keeps these two folders the same."
+msgstr "已有监视器在保持这两个文件夹一致。"
+
+#: core/watchers/service.go
+msgid "A watcher called %s exists already."
+msgstr "已存在名为“%s”的监视器。"
+
+#: core/notifications/catalog.go
+msgid "A watcher could not keep its two folders the same"
+msgstr "监视器无法让两个文件夹保持一致"
+
+#: core/notifications/validate.go
+msgid "A webhook URL is required"
+msgstr "请填写 Webhook URL"
+
+#: core/notifications/validate.go
+msgid "A webhook with this URL is already configured."
+msgstr "已有使用此 URL 的 Webhook。"
+
+#. A menu item that shows the app's About panel. %s is the app's name.
+#: app/menus/menus.go
+msgid "About %s"
+msgstr "关于 %s"
+
+#: app/app.go
+msgid "Access to GNOME's extensions to place the Launcher"
+msgstr "GNOME 扩展的访问权限，用于放置启动器"
+
+#: app/app.go
+msgid "Access to your autostart folder, to start when you log in"
+msgstr "自动启动文件夹的访问权限，用于登录时自动启动"
+
+#. A hint at the launcher's foot, after its key: it lists the row's actions.
+#: app/launcher/launcher.go
+msgid "Actions"
+msgstr "操作"
+
+#. The header of the list of a row's actions. %s is the row's title.
+#: app/launcher/launcher.go
+msgid "Actions for %s"
+msgstr "“%s”的操作"
+
+#. A group of the launcher's rows: what is running now.
+#: app/launcher/engine/types.go
+msgid "Active"
+msgstr "活动"
+
+#: core/rclone/errors.go
+msgid "Add a bucket or a container to the path, as in remote:bucket. (%s)"
+msgstr "请在路径中加上存储桶或容器，例如 remote:bucket。（%s）"
+
+#: app/launcher/engine/providers/remotes.go
+msgid "Add a remote to browse its files."
+msgstr "添加远程存储后即可浏览其中的文件。"
+
+#: app/launcher/engine/providers/running.go
+#: app/trayrunning.go
+msgid "Address Copied"
+msgstr "地址已复制"
+
+#: core/notifications/validate.go
+msgid "An email notification to these addresses is already configured."
+msgstr "已有发送到这些地址的邮件通知。"
+
+#. %[1]s is the path of the command, and %[2]s where its broken link points.
+#: app/pathlink/link_unix.go
+msgid "An rclone that isn't Rclone UI's is already at %[1]s (a link to %[2]s, which no longer exists). Rclone UI leaves it as it is: remove it first to use Rclone UI's."
+msgstr "%[1]s 处已有一个不属于 Rclone UI 的 rclone（它是指向 %[2]s 的链接，但目标已不存在）。Rclone UI 不会改动它：要使用 Rclone UI 的 rclone，请先将其删除。"
+
+#: app/pathlink/link_unix.go
+msgid "An rclone that isn't Rclone UI's is already at %s. Rclone UI leaves it as it is: remove it first to use Rclone UI's."
+msgstr "%s 处已有一个不属于 Rclone UI 的 rclone。Rclone UI 不会改动它：要使用 Rclone UI 的 rclone，请先将其删除。"
+
+#. %s is the path of another rclone program.
+#: app/pathlink/linker.go
+msgid "Another rclone, at %s, comes first on your PATH: `rclone` in a terminal runs that one."
+msgstr "位于 %s 的另一个 rclone 在 PATH 中排在前面：在终端中运行 `rclone` 会使用那一个。"
+
+#. A group of the launcher's rows: the app's own screens.
+#: app/launcher/engine/types.go
+msgid "App"
+msgstr "应用"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Appearance, language, updates, proxy and more."
+msgstr "外观、语言、更新、代理等。"
+
+#. The flag is one of the app's settings, such as --bwlimit, which applies to every run.
+#: core/catalog/command.go
+msgid "Applies to the whole app, not to a single operation."
+msgstr "适用于整个应用，不针对单个操作。"
+
+#: core/transfers/service.go
+msgid "At least %d file couldn't be cleaned up from %s"
+msgid_plural "At least %d files couldn't be cleaned up from %s"
+msgstr[0] "至少 %d 个文件无法从 %s 中清理"
+
+#: core/transfers/service.go
+msgid "At least %d file couldn't be copied from %s"
+msgid_plural "At least %d files couldn't be copied from %s"
+msgstr[0] "至少 %d 个文件无法从 %s 复制"
+
+#: core/transfers/service.go
+msgid "At least %d file couldn't be copied to %s"
+msgid_plural "At least %d files couldn't be copied to %s"
+msgstr[0] "至少 %d 个文件无法复制到 %s"
+
+#: core/transfers/service.go
+msgid "At least %d file couldn't be deleted from %s"
+msgid_plural "At least %d files couldn't be deleted from %s"
+msgstr[0] "至少 %d 个文件无法从 %s 中删除"
+
+#: core/transfers/service.go
+msgid "At least %d file couldn't be downloaded to %s"
+msgid_plural "At least %d files couldn't be downloaded to %s"
+msgstr[0] "至少 %d 个文件无法下载到 %s"
+
+#: core/transfers/service.go
+msgid "At least %d file couldn't be moved to %s"
+msgid_plural "At least %d files couldn't be moved to %s"
+msgstr[0] "至少 %d 个文件无法移动到 %s"
+
+#: core/transfers/service.go
+msgid "At least %d file couldn't be synced to %s"
+msgid_plural "At least %d files couldn't be synced to %s"
+msgstr[0] "至少 %d 个文件无法同步到 %s"
+
+#: core/files/service.go
+msgid "At most %d items can be renamed at once."
+msgstr "一次最多只能重命名 %d 项。"
+
+#: core/mounts/boot.go
+msgid "Automount failed"
+msgstr "自动挂载失败"
+
+#: core/mounts/boot.go
+msgid "Automount may look empty"
+msgstr "自动挂载可能显示为空"
+
+#. The values are an automount's source and its mount point.
+#: core/notifications/payloads.go
+msgid "Automount skipped"
+msgstr "已跳过自动挂载"
+
+#: app/launcher/engine/providers/navigation.go
+#: app/windows/titles.go
+msgid "Automounts"
+msgstr "自动挂载"
+
+#. The launcher's row that goes back from a list to the first one.
+#: app/launcher/engine/providers/common.go
+#: app/launcher/launcher.go
+msgid "Back"
+msgstr "返回"
+
+#. An operation's name, as History shows it.
+#: app/launcher/engine/providers/operations.go
+#: app/windows/titles.go
+#: core/transfers/names.go
+msgid "Bisync"
+msgstr "双向同步"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Bisync %s"
+msgstr "双向同步 %s"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Bisync %s ↔ %s"
+msgstr "双向同步 %s ↔ %s"
+
+#: app/launcher/engine/providers/paths.go
+msgid "Bisync From"
+msgstr "从这里双向同步"
+
+#: core/transfers/retry.go
+msgid "Bisync can't run: %v"
+msgstr "无法执行双向同步：%v"
+
+#: core/transfers/service.go
+msgid "Bisync failed"
+msgstr "双向同步失败"
+
+#: core/transfers/service.go
+msgid "Bisync finished"
+msgstr "双向同步已完成"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Bisync from %s"
+msgstr "从 %s 双向同步"
+
+#: core/schedules/scheduler.go
+msgid "Bisync needs a merge. Choose Merge again in the schedule's menu."
+msgstr "双向同步需要合并。请在定时任务的菜单中选择“重新合并”。"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Bisync to %s"
+msgstr "与 %s 双向同步"
+
+#. An operation of a template, then why it can't take one of the template's options.
+#: core/templates/service.go
+msgid "Bisync: %s"
+msgstr "双向同步：%s"
+
+#: app/menus/menus.go
+msgid "Bring All to Front"
+msgstr "前置全部窗口"
+
+#. An action that shows a folder's files in the Commander.
+#: app/launcher/engine/providers/common.go
+#: app/launcher/engine/providers/remotes.go
+msgid "Browse"
+msgstr "浏览"
+
+#. %s is a path that was copied to the clipboard.
+#. %s is a path.
+#: app/launcher/engine/providers/clipboard.go
+#: app/launcher/engine/providers/dropped.go
+#: app/launcher/engine/providers/paths.go
+#: app/launcher/engine/providers/remotes.go
+msgid "Browse %s"
+msgstr "浏览 %s"
+
+#. %s is a remote's name.
+#: app/launcher/engine/providers/paths.go
+msgid "Browse files and folders in %s."
+msgstr "浏览 %s 中的文件和文件夹。"
+
+#: app/launcher/engine/providers/paths.go
+msgid "Browse files and folders on this machine."
+msgstr "浏览这台电脑上的文件和文件夹。"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Browse remotes and this computer side by side."
+msgstr "并排浏览远程存储和这台电脑。"
+
+#: app/interaction/prompt_zenity.go
+#: app/launcher/launcher.go
+#: app/quit.go
+#: app/updateflow.go
+msgid "Cancel"
+msgstr "取消"
+
+#. The value is why the remote's top folder couldn't be listed.
+#: core/remotes/health.go
+msgid "Cannot list: %s"
+msgstr "无法列出内容：%s"
+
+#. Hints at the launcher's foot, after their keys, while it asks a question: Enter chooses the answer, Esc cancels.
+#: app/launcher/launcher.go
+msgid "Choose"
+msgstr "选择"
+
+#: core/notifications/validate.go
+msgid "Choose STARTTLS, SSL / TLS or None for the encryption."
+msgstr "请选择 STARTTLS、SSL / TLS 或“无”作为加密方式。"
+
+#. Follows the request that an update link made.
+#: app/updateflow.go
+msgid "Choose Update only if you asked for this, for example with the rcui update command."
+msgstr "只有在你自己请求了此操作时（例如使用 rcui update 命令）才选择“更新”。"
+
+#: core/remotes/session.go
+msgid "Choose the remote's type."
+msgstr "请选择远程存储的类型。"
+
+#: app/launcher/engine/providers/dropped.go
+msgid "Choose where, in the Copy window."
+msgstr "在“复制”窗口中选择目标位置。"
+
+#: app/launcher/engine/providers/dropped.go
+msgid "Choose where, in the Move window."
+msgstr "在“移动”窗口中选择目标位置。"
+
+#: app/launcher/engine/providers/dropped.go
+msgid "Choose where, in the Sync window."
+msgstr "在“同步”窗口中选择目标位置。"
+
+#. %s is a remote's name.
+#: app/launcher/engine/providers/operations.go
+#: app/launcher/engine/providers/running.go
+msgid "Clean up %s"
+msgstr "清理 %s"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Clean up %s? Trash and old file versions will be removed for good."
+msgstr "要清理 %s 吗？回收站和旧版本的文件将被永久删除。"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Clean up a remote: empty its trash, or delete old versions of files."
+msgstr "清理远程存储：清空回收站，或删除文件的旧版本。"
+
+#. An operation's name, as History shows it.
+#. The cleanup operation, which empties a remote's trash and removes old file versions.
+#: app/launcher/engine/providers/operations.go
+#: app/launcher/engine/providers/running.go
+#: core/transfers/names.go
+msgid "Cleanup"
+msgstr "清理"
+
+#. Why a cleanup (emptying a remote's trash) can't be retried. The value is the reason.
+#: core/transfers/retry.go
+msgid "Cleanup can't run: %v"
+msgstr "无法执行清理：%v"
+
+#. A notification's title: emptying a remote's trash has failed.
+#: core/transfers/service.go
+msgid "Cleanup failed"
+msgstr "清理失败"
+
+#. A notification's title: emptying a remote's trash has finished.
+#: core/transfers/service.go
+msgid "Cleanup finished"
+msgstr "清理已完成"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Cleanup of %s: started."
+msgstr "已开始清理 %s。"
+
+#. The Window menu's item that closes the window.
+#: app/menus/menus.go
+msgid "Close"
+msgstr "关闭"
+
+#. The app's two-pane file manager.
+#: app/launcher/engine/providers/navigation.go
+#: app/windows/titles.go
+msgid "Commander"
+msgstr "文件管理器"
+
+#. A hint at the launcher's foot, after the Tab key: it completes the typed path.
+#: app/launcher/launcher.go
+msgid "Complete"
+msgstr "补全"
+
+#. %s is a remote's root, such as "gdrive:". Tab puts it in the search box.
+#: app/launcher/engine/providers/remotes.go
+msgid "Complete to %s"
+msgstr "补全为 %s"
+
+#. The title of the prompt for the password that encrypts the rclone config file.
+#: app/configunlock.go
+msgid "Config Password"
+msgstr "配置密码"
+
+#. The address that was requested through the proxy, then the start of its answer.
+#: core/settings/proxytest.go
+msgid "Connected via proxy. Endpoint: %s. Snippet: %s"
+msgstr "已通过代理连接。地址：%s。响应片段：%s"
+
+#. The button that quits the app, in the dialog that says the proxy failed to connect.
+#: app/settings.go
+msgid "Continue"
+msgstr "继续"
+
+#. The title of the notification that something was copied to the clipboard.
+#: app/launcher/engine/providers/common.go
+msgid "Copied"
+msgstr "已复制"
+
+#: app/launcher/engine/providers/clipboard.go
+msgid "Copied: %s"
+msgstr "已复制：%s"
+
+#. An operation's name, as History shows it.
+#. The Copy operation, which copies files from a source to a destination.
+#: app/launcher/engine/providers/dropped.go
+#: app/launcher/engine/providers/operations.go
+#: app/windows/titles.go
+#: core/transfers/names.go
+msgid "Copy"
+msgstr "复制"
+
+#. %[1]s is what was dropped on the launcher (a file's name, or "3 items"), and %[2]s where it goes.
+#: app/launcher/engine/providers/dropped.go
+msgid "Copy %[1]s to %[2]s"
+msgstr "将 %[1]s 复制到 %[2]s"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Copy %s"
+msgstr "复制 %s"
+
+#. Under a folder, as a place for what was dropped on the launcher. %s is a file's name, or "3 items".
+#: app/launcher/engine/providers/completion.go
+msgid "Copy %s here"
+msgstr "将 %s 复制到这里"
+
+#. %s is what was dropped on the launcher: a file's name, or "3 items". The window that opens asks where it goes.
+#: app/launcher/engine/providers/dropped.go
+msgid "Copy %s to…"
+msgstr "将 %s 复制到…"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Copy %s → %s"
+msgstr "复制 %s → %s"
+
+#: app/launcher/engine/providers/running.go
+#: app/trayrunning.go
+msgid "Copy Address"
+msgstr "复制地址"
+
+#. A button that copies the command that grants the Flatpak's permissions, then quits the app.
+#: app/app.go
+msgid "Copy Command & Exit"
+msgstr "复制命令并退出"
+
+#. Actions on a path, which open the operation's window with the path as its source.
+#: app/launcher/engine/providers/clipboard.go
+#: app/launcher/engine/providers/paths.go
+msgid "Copy From"
+msgstr "从这里复制"
+
+#. An action that copies the files that were dropped on the launcher into the selected folder.
+#: app/launcher/engine/providers/dropped.go
+msgid "Copy Here"
+msgstr "复制到这里"
+
+#: app/launcher/engine/providers/running.go
+msgid "Copy Mount Point"
+msgstr "复制挂载点"
+
+#: app/launcher/engine/providers/remotes.go
+msgid "Copy Name"
+msgstr "复制名称"
+
+#: app/launcher/engine/providers/clipboard.go
+#: app/launcher/engine/providers/completion.go
+#: app/launcher/engine/providers/paths.go
+msgid "Copy Path"
+msgstr "复制路径"
+
+#: app/launcher/engine/providers/running.go
+msgid "Copy Source"
+msgstr "复制源路径"
+
+#: core/transfers/retry.go
+msgid "Copy can't run: %v"
+msgstr "无法执行复制：%v"
+
+#: core/transfers/service.go
+msgid "Copy failed"
+msgstr "复制失败"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Copy files from a source to a destination without deleting destination files."
+msgstr "将文件从源复制到目标，不删除目标中的文件。"
+
+#: core/transfers/service.go
+msgid "Copy finished"
+msgstr "复制已完成"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Copy from %s"
+msgstr "从 %s 复制"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Copy to %s"
+msgstr "复制到 %s"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Copy, Sync, Move, Bisync, and other rclone operations."
+msgstr "复制、同步、移动、双向同步，以及其他 rclone 操作。"
+
+#. An operation of a template, then why it can't take one of the template's options.
+#: core/templates/service.go
+msgid "Copy: %s"
+msgstr "复制：%s"
+
+#: core/filen/filen.go
+msgid "Could not reach Filen: %v"
+msgstr "无法连接 Filen：%v"
+
+#: core/rclone/errors.go
+msgid "Couldn't connect to the server. Check the internet connection. (%s)"
+msgstr "无法连接到服务器。请检查网络连接。（%s）"
+
+#. Why a transfer that was running before an update failed. The value is the reason.
+#: core/transfers/service.go
+msgid "Couldn't start again after the update: %v"
+msgstr "更新后无法重新开始：%v"
+
+#: core/favorites/service.go
+msgid "Couldn’t update the favorite %s: %s is already a favorite."
+msgstr "无法更新收藏 %s：%s 已在收藏中。"
+
+#: app/launcher/engine/providers/remotes.go
+msgid "Create a new remote."
+msgstr "新建一个远程存储。"
+
+#: app/app.go
+msgid "Cross-platform GUI for rclone & S3"
+msgstr "适用于 rclone 和 S3 的跨平台图形界面"
+
+#. The Edit menu's item that cuts the selection.
+#: app/menus/menus.go
+msgid "Cut"
+msgstr "剪切"
+
+#. An operation's name, as History shows it.
+#. The Edit menu's item that deletes the selection.
+#: app/launcher/engine/providers/operations.go
+#: app/launcher/engine/providers/paths.go
+#: app/menus/menus.go
+#: app/windows/titles.go
+#: core/transfers/names.go
+msgid "Delete"
+msgstr "删除"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Delete %s"
+msgstr "删除 %s"
+
+#. An operation's name, as History shows it.
+#: app/launcher/engine/providers/running.go
+#: core/transfers/names.go
+msgid "Delete Folder"
+msgstr "删除文件夹"
+
+#: app/launcher/engine/providers/running.go
+msgid "Delete Folder %s"
+msgstr "删除文件夹 %s"
+
+#: core/transfers/retry.go
+msgid "Delete can't run: %v"
+msgstr "无法执行删除：%v"
+
+#: core/transfers/service.go
+msgid "Delete failed"
+msgstr "删除失败"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Delete files or folders from a remote or local path."
+msgstr "从远程存储或本地路径删除文件或文件夹。"
+
+#: core/transfers/service.go
+msgid "Delete finished"
+msgstr "删除已完成"
+
+#. An operation of a template, then why it can't take one of the template's options.
+#: core/templates/service.go
+msgid "Delete: %s"
+msgstr "删除：%s"
+
+#: core/operations/mount.go
+msgid "Destination and source are required"
+msgstr "请选择源和目标"
+
+#: app/trayopen.go
+msgid "Did you know?"
+msgstr "小提示"
+
+#: app/app.go
+msgid "Disk access to manage your files"
+msgstr "磁盘访问权限，用于管理你的文件"
+
+#: app/configunlock.go
+msgid "Don't save"
+msgstr "不保存"
+
+#. A button in a plain Windows message box, which keeps its width: keep it short.
+#. An operation's name, as History shows it.
+#. The button that opens the release's page, to download the update by hand.
+#: app/launcher/engine/providers/operations.go
+#: app/updateflow.go
+#: app/webview2_windows.go
+#: app/windows/titles.go
+#: core/transfers/names.go
+msgid "Download"
+msgstr "下载"
+
+#. %[1]s is the file that a link points to, and %[2]s where it goes.
+#: app/launcher/engine/providers/operations.go
+msgid "Download %[1]s to %[2]s"
+msgstr "将 %[1]s 下载到 %[2]s"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Download %s"
+msgstr "下载 %s"
+
+#. An action on a folder, which opens the Download window with the folder as where the file goes.
+#: app/launcher/engine/providers/paths.go
+msgid "Download Here"
+msgstr "下载到这里"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Download a URL directly into a remote or local path."
+msgstr "将 URL 直接下载到远程存储或本地路径。"
+
+#: core/transfers/retry.go
+msgid "Download can't run: %v"
+msgstr "无法执行下载：%v"
+
+#: core/transfers/service.go
+msgid "Download failed"
+msgstr "下载失败"
+
+#: core/transfers/service.go
+msgid "Download finished"
+msgstr "下载已完成"
+
+#: app/launcher/engine/providers/clipboard.go
+msgid "Download the Link You Copied"
+msgstr "下载复制的链接"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Download to %s"
+msgstr "下载到 %s"
+
+#. The line above the launcher's rows while a file is dropped on it. %s is its name.
+#: app/launcher/launcher.go
+msgid "Dropped: %s"
+msgstr "已拖入：%s"
+
+#. An option of a transfer: it only shows what would change.
+#: core/schedules/api.go
+msgid "Dry run"
+msgstr "试运行"
+
+#. An action that opens a remote's settings, to change them.
+#: app/launcher/engine/providers/remotes.go
+msgid "Edit"
+msgstr "编辑"
+
+#. %s is a remote's name.
+#: app/launcher/engine/providers/remotes.go
+msgid "Edit %s"
+msgstr "编辑 %s"
+
+#: app/launcher/engine/providers/paths.go
+msgid "Edit Remote"
+msgstr "编辑远程存储"
+
+#: app/launcher/engine/providers/remotes.go
+msgid "Edit a remote."
+msgstr "编辑远程存储的设置。"
+
+#: core/notifications/validate.go
+msgid "Enter a port between 1 and 65535."
+msgstr "请输入 1 到 65535 之间的端口。"
+
+#: core/notifications/validate.go
+msgid "Enter at least one email address."
+msgstr "请至少输入一个邮箱地址。"
+
+#: core/notifications/validate.go
+msgid "Enter one or more email addresses, separated by commas."
+msgstr "请输入一个或多个邮箱地址，用逗号分隔。"
+
+#: core/notifications/validate.go
+msgid "Enter the chat ID as a number, as in 123456789 or -1001234567890, or @channelname for a public channel."
+msgstr "请输入数字形式的聊天 ID，例如 123456789 或 -1001234567890；公开频道可输入 @channelname。"
+
+#: core/notifications/validate.go
+msgid "Enter the from address, as in rclone-ui@example.com."
+msgstr "请输入发件人地址，例如 rclone-ui@example.com。"
+
+#: app/configunlock.go
+msgid "Enter the password of your rclone config."
+msgstr "请输入 rclone 配置的密码。"
+
+#: core/filen/filen.go
+msgid "Enter your Filen email and password above, then press Generate."
+msgstr "在上方输入你的 Filen 邮箱和密码，然后点击“生成”。"
+
+#. The title of the dialog that says the proxy failed to connect at start.
+#: app/settings.go
+msgid "Error"
+msgstr "错误"
+
+#. A scheduled bisync's error. The value is a folder.
+#: core/schedules/scheduler.go
+msgid "Every file in %s is gone, so the bisync stopped. If the folder is on a drive, check that it is connected. To bring the files back, choose Merge again."
+msgstr "%s 中的文件已全部消失，因此双向同步已停止。如果该文件夹位于外接磁盘上，请检查磁盘是否已连接。要恢复这些文件，请选择“重新合并”。"
+
+#: app/launcher/engine/providers/running.go
+msgid "Every mount is stopped."
+msgstr "已卸载全部挂载。"
+
+#: app/launcher/engine/providers/running.go
+msgid "Every serve is stopped."
+msgstr "已停止全部服务。"
+
+#. The button that quits the app instead of installing a required update.
+#. The title of the dialog that asks before the app quits while it has work running.
+#: app/app.go
+#: app/quit.go
+#: app/settings.go
+#: app/updateflow.go
+msgid "Exit"
+msgstr "退出"
+
+#. When a transfer failed, and why. %[1]s is how long ago, such as "10 min ago", and %[2]s the error.
+#: app/launcher/engine/providers/running.go
+msgid "Failed %[1]s: %[2]s"
+msgstr "%[1]s失败：%[2]s"
+
+#. When a transfer failed. %s is how long ago, such as "10 min ago".
+#: app/launcher/engine/providers/running.go
+msgid "Failed %s."
+msgstr "%s失败。"
+
+#: core/notifications/payloads.go
+msgid "Failed to mount %s: %s"
+msgstr "无法挂载 %s：%s"
+
+#: core/notifications/payloads.go
+msgid "Failed to serve %s over %s on %s: %s"
+msgstr "无法通过 %[2]s 在 %[3]s 上提供 %[1]s：%[4]s"
+
+#: core/filen/filen.go
+msgid "Filen answered in a way this version cannot read (%v)."
+msgstr "此版本无法读取 Filen 的响应（%v）。"
+
+#: core/filen/filen.go
+msgid "Filen did not answer in time."
+msgstr "Filen 未及时响应。"
+
+#: core/filen/filen.go
+msgid "Filen did not return an API key."
+msgstr "Filen 没有返回 API 密钥。"
+
+#: core/filen/filen.go
+msgid "Filen refused the login: %s"
+msgstr "Filen 拒绝了登录：%s"
+
+#. A group of the launcher's rows: typed paths and their folders.
+#: app/launcher/engine/types.go
+msgid "Files"
+msgstr "文件"
+
+#: core/operations/builders.go
+msgid "Filters are only supported when every selected source is a folder"
+msgstr "只有当所选的源都是文件夹时，才支持筛选条件"
+
+#. The title of the dialog that asks for the Flatpak's permissions.
+#: app/app.go
+msgid "Flatpak Permissions Required"
+msgstr "需要 Flatpak 权限"
+
+#: core/watchers/service.go
+msgid "Folder A and Folder B are the same folder."
+msgstr "文件夹 A 和文件夹 B 是同一个文件夹。"
+
+#: core/watchers/service.go
+msgid "Folder A and Folder B can't be inside each other."
+msgstr "文件夹 A 和文件夹 B 不能互相包含。"
+
+#. An option of a bisync: it runs even when many files were deleted.
+#: core/schedules/api.go
+msgid "Force"
+msgstr "force"
+
+#. The action that clears a VFS cache.
+#: app/launcher/engine/providers/running.go
+msgid "Forget"
+msgstr "清空"
+
+#: app/launcher/engine/providers/running.go
+msgid "Forget Every VFS Cache"
+msgstr "清空全部 VFS 缓存"
+
+#. %s is the remote whose cache it is, such as "gdrive:".
+#: app/launcher/engine/providers/running.go
+msgid "Forget the VFS cache of %s"
+msgstr "清空 %s 的 VFS 缓存"
+
+#: app/launcher/engine/providers/running.go
+msgid "Forget the local cache for one or all remotes."
+msgstr "清空单个或全部远程存储的本地缓存。"
+
+#: app/launcher/engine/providers/running.go
+msgid "Forgetting every VFS cache…"
+msgstr "正在清空全部 VFS 缓存…"
+
+#. %s is the remote whose cache it is, such as "gdrive:".
+#: app/launcher/engine/providers/running.go
+msgid "Forgetting the VFS cache of %s…"
+msgstr "正在清空 %s 的 VFS 缓存…"
+
+#: app/launcher/engine/providers/running.go
+msgid "Forgot every VFS cache."
+msgstr "已清空全部 VFS 缓存。"
+
+#: app/launcher/engine/providers/running.go
+msgid "Forgot the VFS cache of %s."
+msgstr "已清空 %s 的 VFS 缓存。"
+
+#: app/launcher/engine/providers/clipboard.go
+msgid "From the clipboard."
+msgstr "来自剪贴板。"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Get notified on Slack, Discord, Telegram, email or a webhook."
+msgstr "通过 Slack、Discord、Telegram、电子邮件或 Webhook 接收通知。"
+
+#: app/update/feed.go
+msgid "GitHub is answering no more requests from this network for now, so the newest beta can't be looked up. Try again in an hour."
+msgstr "GitHub 暂时不再响应来自此网络的请求，因此无法查询最新的测试版。请一小时后再试。"
+
+#: app/update/feed.go
+msgid "GitHub's list of releases answered %s (%s)"
+msgstr "GitHub 的版本列表返回了 %s（%s）"
+
+#: app/update/feed.go
+msgid "GitHub's list of releases isn't valid (%s): %w"
+msgstr "GitHub 的版本列表无效（%s）：%w"
+
+#: core/rclone/names.go
+msgid "Give the remote a name."
+msgstr "请为远程存储命名。"
+
+#: app/trayopen.go
+msgid "Good to know"
+msgstr "知道了"
+
+#: app/tray/tray.go
+msgid "Guide"
+msgstr "指南"
+
+#: app/launcher/engine/providers/navigation.go
+#: app/windows/titles.go
+msgid "Guides"
+msgstr "指南"
+
+#. A menu item that hides the app's windows. %s is the app's name.
+#: app/menus/menus.go
+msgid "Hide %s"
+msgstr "隐藏 %s"
+
+#: app/menus/menus.go
+msgid "Hide Others"
+msgstr "隐藏其他"
+
+#: app/launcher/engine/providers/navigation.go
+#: app/windows/titles.go
+msgid "History"
+msgstr "历史记录"
+
+#. The tray menu's History item while transfers run: their number, and how far along they are.
+#: app/traystate.go
+msgid "History (%d running · %d%%)"
+msgstr "历史记录（%d 个进行中 · %d%%）"
+
+#. The tray menu's History item while transfers run, with their number.
+#: app/traystate.go
+msgid "History (%d running)"
+msgstr "历史记录（%d 个进行中）"
+
+#: core/operations/builders.go
+msgid "Include rules are not supported with multiple sources"
+msgstr "有多个源时不支持包含规则"
+
+#. The body of the notification that Rclone UI quit unexpectedly: it is running again.
+#: app/core.go
+msgid "It was started again."
+msgstr "已重新启动。"
+
+#: core/notifications/targets.go
+msgid "Its events can't be read. Choose them again and save it."
+msgstr "无法读取它的事件。请重新选择事件并保存。"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Keep two folders the same, like Dropbox."
+msgstr "让两个文件夹保持一致，就像 Dropbox 那样。"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Keeps two folders the same, in both directions."
+msgstr "让两个文件夹保持一致，双向同步。"
+
+#: app/launcher/view/darwin/view.go
+#: app/launcher/view/windows/view.go
+msgid "Launcher"
+msgstr "启动器"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Learn more about what you can do with Rclone UI."
+msgstr "进一步了解 Rclone UI 能帮你做什么。"
+
+#: app/launcher/launcher.go
+msgid "Loading…"
+msgstr "正在加载…"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Make destination match source (deletes extra files)."
+msgstr "让目标与源保持一致（会删除多余的文件）。"
+
+#. A scheduled bisync's error. The value is a folder.
+#: core/schedules/scheduler.go
+msgid "Many files were deleted in %s, so the bisync stopped. If that was meant, run the Bisync page once with Force. To bring them back, choose Merge again."
+msgstr "%s 中删除了大量文件，因此双向同步已停止。如果这是有意的，请在“双向同步”窗口中开启 force 运行一次。要恢复这些文件，请选择“重新合并”。"
+
+#. %[1]s is the error from WebView2, and %[2]s the path of the app's log file.
+#: app/webview2_windows.go
+msgid "Microsoft Edge WebView2, which Rclone UI draws its windows with, failed to start, so Rclone UI will quit.\n\n%[1]s\n\nThe log has the details: %[2]s"
+msgstr "Rclone UI 用来显示窗口的 Microsoft Edge WebView2 无法启动，因此 Rclone UI 将退出。\n\n%[1]s\n\n详细信息见日志：%[2]s"
+
+#: app/menus/menus.go
+msgid "Minimize"
+msgstr "最小化"
+
+#: app/windows/titles.go
+msgid "Mobile & Remote Control"
+msgstr "手机与远程控制"
+
+#. An operation's name, as History shows it.
+#. The Mount operation, which mounts a remote as a local folder or drive.
+#: app/launcher/engine/providers/operations.go
+#: app/launcher/engine/providers/paths.go
+#: app/windows/titles.go
+#: core/transfers/names.go
+msgid "Mount"
+msgstr "挂载"
+
+#. A running mount in a list: its source, and its mount point.
+#: core/services.go
+msgid "Mount %[1]s at %[2]s"
+msgstr "将 %[1]s 挂载到 %[2]s"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Mount %s"
+msgstr "挂载 %s"
+
+#. A running mount that uses the config file, as in "Mount gdrive: at /Volumes/gdrive".
+#: core/services.go
+msgid "Mount %s at %s"
+msgstr "%s 的挂载（%s）"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Mount a remote each time Rclone UI starts."
+msgstr "每次 Rclone UI 启动时挂载一个远程存储。"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Mount a remote to the local filesystem with VFS options."
+msgstr "使用 VFS 选项，将远程存储挂载到本地文件系统。"
+
+#. A notification event, and the title of its notification.
+#. The values are a mount's source and the error.
+#: core/notifications/catalog.go
+#: core/notifications/payloads.go
+msgid "Mount failed"
+msgstr "挂载失败"
+
+#: app/launcher/engine/providers/remotes.go
+msgid "Mount it each time Rclone UI starts."
+msgstr "每次启动 Rclone UI 时自动挂载。"
+
+#. The state of a mount that is ready.
+#: app/launcher/engine/providers/running.go
+msgid "Mounted"
+msgstr "已挂载"
+
+#. A group of notification events, in the Notifications window.
+#: core/notifications/catalog.go
+msgid "Mounts & serves"
+msgstr "挂载和服务"
+
+#. The tray menu's submenu of running mounts, with their number.
+#: app/trayrunning.go
+msgid "Mounts (%d)"
+msgstr "挂载 (%d)"
+
+#. An operation's name, as History shows it.
+#: app/launcher/engine/providers/dropped.go
+#: app/launcher/engine/providers/operations.go
+#: app/windows/titles.go
+#: core/transfers/names.go
+msgid "Move"
+msgstr "移动"
+
+#: app/launcher/engine/providers/dropped.go
+msgid "Move %[1]s to %[2]s"
+msgstr "将 %[1]s 移动到 %[2]s"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Move %s"
+msgstr "移动 %s"
+
+#: app/launcher/engine/providers/dropped.go
+msgid "Move %s to…"
+msgstr "将 %s 移动到…"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Move %s → %s"
+msgstr "移动 %s → %s"
+
+#: app/launcher/engine/providers/paths.go
+msgid "Move From"
+msgstr "从这里移动"
+
+#. An action that moves the files that were dropped on the launcher into the selected folder.
+#: app/launcher/engine/providers/dropped.go
+msgid "Move Here"
+msgstr "移动到这里"
+
+#: core/transfers/retry.go
+msgid "Move can't run: %v"
+msgstr "无法执行移动：%v"
+
+#: core/transfers/service.go
+msgid "Move failed"
+msgstr "移动失败"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Move files from a source to a destination and delete them from the source."
+msgstr "将文件从源移动到目标，并从源中删除。"
+
+#: core/transfers/service.go
+msgid "Move finished"
+msgstr "移动已完成"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Move from %s"
+msgstr "从 %s 移动"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Move to %s"
+msgstr "移动到 %s"
+
+#. An operation of a template, then why it can't take one of the template's options.
+#: core/templates/service.go
+msgid "Move: %s"
+msgstr "移动：%s"
+
+#: core/notifications/validate.go
+msgid "Name and at least one address are required."
+msgstr "请填写名称和至少一个地址。"
+
+#: core/notifications/validate.go
+msgid "Name and webhook URL are required."
+msgstr "请填写名称和 Webhook URL。"
+
+#: core/files/service.go
+#: core/operations/builders.go
+msgid "Name cannot be empty"
+msgstr "名称不能为空"
+
+#: core/media/api.go
+#: core/media/read.go
+msgid "Name the file."
+msgstr "请指定文件。"
+
+#: core/notifications/validate.go
+msgid "Name, bot token and chat ID are required."
+msgstr "请填写名称、机器人令牌和聊天 ID。"
+
+#: app/launcher/engine/providers/remotes.go
+msgid "New Automount"
+msgstr "新建自动挂载"
+
+#: app/launcher/engine/providers/remotes.go
+msgid "New Remote"
+msgstr "新建远程存储"
+
+#. %s is a remote's name. An automount mounts it each time Rclone UI starts.
+#: app/launcher/engine/providers/remotes.go
+msgid "New automount for %s"
+msgstr "为 %s 新建自动挂载"
+
+#: app/launcher/engine/providers/running.go
+msgid "No VFS cache in use."
+msgstr "没有正在使用的 VFS 缓存。"
+
+#. A notification target's error. The value is how long the app waited, as in "15s".
+#: core/notifications/webhooks.go
+msgid "No answer within %s."
+msgstr "%s 内没有响应。"
+
+#: core/mounts/mounts.go
+msgid "No drive letter is free for the mount."
+msgstr "没有可用于挂载的空闲盘符。"
+
+#: core/rclone/errors.go
+msgid "No folders were deleted, because other files failed to transfer. (%s)"
+msgstr "由于其他文件传输失败，没有删除任何文件夹。（%s）"
+
+#. %[1]s is where Rclone UI runs from, and %[2]s the page of its releases.
+#: app/update/update.go
+msgid "No installer put %[1]s there, so it can't update itself. Download the latest release from %[2]s."
+msgstr "Rclone UI 不是通过安装程序安装到 %[1]s 的，因此无法自行更新。请从 %[2]s 下载最新版本。"
+
+#: app/update/update.go
+msgid "No installer put this copy there, so it can't update itself. Download the latest release from %s."
+msgstr "当前的 Rclone UI 不是通过安装程序安装的，因此无法自行更新。请从 %s 下载最新版本。"
+
+#: core/catalog/command.go
+msgid "No page sets this option."
+msgstr "没有页面可以设置此选项。"
+
+#: core/notifications/service.go
+#: core/notifications/validate.go
+msgid "No such provider."
+msgstr "不存在这种通知类型。"
+
+#: core/transfers/service.go
+msgid "No such transfer"
+msgstr "找不到该传输"
+
+#: app/launcher/engine/providers/operations.go
+msgid "None of the remotes here can be cleaned up."
+msgstr "这些远程存储都不支持清理。"
+
+#: core/transfers/reads.go
+msgid "Not a state that a transfer ends in"
+msgstr "这不是传输的结束状态"
+
+#: core/remotes/session.go
+msgid "Nothing happened for too long, so the session was stopped."
+msgstr "长时间没有操作，会话已停止。"
+
+#: app/launcher/launcher.go
+msgid "Nothing is running."
+msgstr "没有正在运行的内容。"
+
+#: core/operations/builders.go
+msgid "Nothing to rename"
+msgstr "没有要重命名的内容"
+
+#: core/files/service.go
+msgid "Nothing to rename."
+msgstr "没有要重命名的内容。"
+
+#: core/transfers/service.go
+msgid "Nothing to retry"
+msgstr "没有可重试的内容"
+
+#: core/browse/api.go
+msgid "Nothing to search for."
+msgstr "没有要搜索的内容。"
+
+#: core/rclone/errors.go
+msgid "Nothing was deleted, because other files failed to transfer. (%s)"
+msgstr "由于其他文件传输失败，没有删除任何内容。（%s）"
+
+#: core/services.go
+msgid "Nothing was running."
+msgstr "没有正在运行的项目。"
+
+#: core/notifications/targets.go
+msgid "Notification target not found."
+msgstr "找不到该通知渠道。"
+
+#: app/launcher/engine/providers/navigation.go
+#: app/windows/titles.go
+msgid "Notifications"
+msgstr "通知"
+
+#. The default button of a dialog that only informs.
+#: app/interaction/interaction.go
+#: app/interaction/prompt_zenity.go
+#: app/updateflow.go
+msgid "OK"
+msgstr "确定"
+
+#: core/mounts/support_other.go
+msgid "Only Windows installs WinFsp."
+msgstr "WinFsp 只能在 Windows 上安装。"
+
+#: core/schedules/service.go
+msgid "Only a bisync's folders can be merged."
+msgstr "只有双向同步的文件夹才能合并。"
+
+#: core/transfers/api.go
+msgid "Only a copy or a move has landings."
+msgstr "只有复制和移动会显示内容将放在哪里。"
+
+#: core/transfers/api.go
+msgid "Only an operation page's form has a command."
+msgstr "只有操作窗口中的表单才有对应的命令。"
+
+#: core/catalog/command.go
+msgid "Only rclone's command line reads it."
+msgstr "仅用于 rclone 命令行。"
+
+#: core/transfers/service.go
+msgid "Only the failed items of a transfer that has ended can be retried"
+msgstr "只有已结束的传输才能重试失败的项目。"
+
+#. An action that opens a mounted folder in the file manager.
+#: app/launcher/engine/providers/running.go
+#: app/tray/tray.go
+#: app/trayrunning.go
+msgid "Open"
+msgstr "打开"
+
+#. An action that opens a window. %s is the window's name, for a window that has no message of its own.
+#: app/launcher/engine/providers/common.go
+msgid "Open %s"
+msgstr "打开“%s”"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Automounts"
+msgstr "打开“自动挂载”"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Bisync"
+msgstr "打开“双向同步”"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Open Commander"
+msgstr "打开文件管理器"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Copy"
+msgstr "打开“复制”"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Delete"
+msgstr "打开“删除”"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Download"
+msgstr "打开“下载”"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Open GitHub"
+msgstr "打开 GitHub"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Guides"
+msgstr "打开指南"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open History"
+msgstr "打开历史记录"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Mount"
+msgstr "打开“挂载”"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Move"
+msgstr "打开“移动”"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Notifications"
+msgstr "打开“通知”"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Purge"
+msgstr "打开“清除”"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Remote Control"
+msgstr "打开“远程控制”"
+
+#: app/launcher/engine/providers/remotes.go
+msgid "Open Remotes"
+msgstr "打开远程存储"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Schedules"
+msgstr "打开定时任务"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Serve"
+msgstr "打开“服务”"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Settings"
+msgstr "打开设置"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Sync"
+msgstr "打开“同步”"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Templates"
+msgstr "打开模板"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Watchers"
+msgstr "打开“监视器”"
+
+#: app/launcher/engine/providers/common.go
+msgid "Open Wizard"
+msgstr "打开向导"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Open an issue or star the GitHub repo (we appreciate it)."
+msgstr "提交 Issue，或给 GitHub 仓库点个 Star（非常感谢）。"
+
+#: app/launcher/engine/providers/running.go
+msgid "Open in Browser"
+msgstr "在浏览器中打开"
+
+#: app/launcher/engine/providers/dropped.go
+msgid "Open it in the Commander."
+msgstr "在文件管理器中打开。"
+
+#. The description of the launcher's shortcut, which the desktop shows in its keyboard settings.
+#: app/launcher/shortcut_linux.go
+msgid "Open the Rclone UI launcher"
+msgstr "打开 Rclone UI 启动器"
+
+#. A group of the launcher's rows: copy, sync, mount, and so on.
+#: app/launcher/engine/types.go
+msgid "Operations"
+msgstr "操作"
+
+#: app/launcher/engine/providers/dropped.go
+msgid "Over HTTP, WebDAV, SFTP and more."
+msgstr "支持 HTTP、WebDAV、SFTP 等协议。"
+
+#: app/menus/menus.go
+msgid "Paste"
+msgstr "粘贴"
+
+#: app/menus/menus.go
+msgid "Paste and Match Style"
+msgstr "粘贴并匹配样式"
+
+#: core/browse/api.go
+msgid "Pick an entry inside the folder."
+msgstr "请选择文件夹中的项目。"
+
+#: core/mounts/automounts.go
+msgid "Please choose a mount point"
+msgstr "请选择挂载点"
+
+#: core/mounts/automounts.go
+msgid "Please choose a remote"
+msgstr "请选择远程存储"
+
+#: core/operations/builders.go
+msgid "Please choose a remote to clean up"
+msgstr "请选择要清理的远程存储"
+
+#: core/schedules/cron.go
+msgid "Please choose when the schedule runs."
+msgstr "请选择定时任务的运行时间。"
+
+#: core/operations/builders.go
+msgid "Please enter a URL"
+msgstr "请输入网址"
+
+#: core/operations/builders.go
+msgid "Please enter a filename"
+msgstr "请输入文件名"
+
+#: core/schedules/service.go
+msgid "Please enter a name for the schedule"
+msgstr "请输入定时任务名称"
+
+#: core/templates/service.go
+msgid "Please enter a name for the template"
+msgstr "请输入模板名称"
+
+#: core/watchers/service.go
+msgid "Please enter a name for the watcher"
+msgstr "请输入监视器名称"
+
+#. Followed by the command. "It" or "them" are the permissions listed above.
+#: app/app.go
+msgid "Please grant it with this command, in your terminal:"
+msgid_plural "Please grant them with this command, in your terminal:"
+msgstr[0] "在终端中运行以下命令，即可授予权限："
+
+#: core/watchers/service.go
+msgid "Please select Folder A"
+msgstr "请选择文件夹 A"
+
+#: core/watchers/service.go
+msgid "Please select Folder B"
+msgstr "请选择文件夹 B"
+
+#: core/operations/builders.go
+msgid "Please select a destination path"
+msgstr "请选择目标路径"
+
+#: core/operations/builders.go
+msgid "Please select a source path"
+msgstr "请选择源路径"
+
+#: core/operations/serve.go
+msgid "Please select both a source and serve type"
+msgstr "请选择源和服务类型"
+
+#. %d is a port number. Another program on this computer already listens on it.
+#: core/agents/server.go
+msgid "Port %d is in use by another program. Choose another port."
+msgstr "端口 %d 已被其他程序占用。请选择其他端口。"
+
+#. An operation's name, as History shows it.
+#: app/launcher/engine/providers/operations.go
+#: app/launcher/engine/providers/paths.go
+#: app/windows/titles.go
+#: core/transfers/names.go
+msgid "Purge"
+msgstr "清除"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Purge %s"
+msgstr "清除 %s"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Purge an entire path from a remote, deleting everything."
+msgstr "清除远程存储上的整个路径，删除其中的全部内容。"
+
+#: core/transfers/retry.go
+msgid "Purge can't run: %v"
+msgstr "无法执行清除：%v"
+
+#: core/transfers/service.go
+msgid "Purge failed"
+msgstr "清除失败"
+
+#: core/transfers/service.go
+msgid "Purge finished"
+msgstr "清除已完成"
+
+#. An operation of a template, then why it can't take one of the template's options.
+#: core/templates/service.go
+msgid "Purge: %s"
+msgstr "清除：%s"
+
+#. The state of a transfer that waits for its turn.
+#: app/launcher/engine/providers/running.go
+msgid "Queued"
+msgstr "排队中"
+
+#. The button that quits the app.
+#: app/core.go
+#: app/launcher/engine/providers/navigation.go
+#: app/quit.go
+#: app/tray/tray.go
+#: app/webview2_windows.go
+msgid "Quit"
+msgstr "退出"
+
+#. A menu item that quits the app. %s is the app's name.
+#: app/menus/menus.go
+msgid "Quit %s"
+msgstr "退出 %s"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Quit the application."
+msgstr "退出应用。"
+
+#: core/notifications/payloads.go
+msgid "Rclone UI %s is available (this is %s)."
+msgstr "Rclone UI %s 已推出（当前版本为 %s）。"
+
+#: app/webview2_windows.go
+msgid "Rclone UI Can't Show Its Windows"
+msgstr "Rclone UI 无法显示窗口"
+
+#: app/core.go
+msgid "Rclone UI Can't Start"
+msgstr "Rclone UI 无法启动"
+
+#: app/webview2_windows.go
+msgid "Rclone UI Needs WebView2"
+msgstr "Rclone UI 需要 WebView2"
+
+#: app/updateflow.go
+msgid "Rclone UI could not check for the update: %s\n\nPlease try again, or tap \"Download\" to download the update manually."
+msgstr "Rclone UI 无法检查更新：%s\n\n请重试，或点击“下载”手动下载更新。"
+
+#: app/updateflow.go
+msgid "Rclone UI could not download the update: %s\n\nPlease try again, or tap \"Download\" to download the update manually."
+msgstr "Rclone UI 无法下载更新：%s\n\n请重试，或点击“下载”手动下载更新。"
+
+#: app/updateflow.go
+msgid "Rclone UI could not install the update: %s\n\nPlease try again, or tap \"Download\" to download the update manually."
+msgstr "Rclone UI 无法安装更新：%s\n\n请重试，或点击“下载”手动下载更新。"
+
+#: app/core.go
+msgid "Rclone UI could not start again: %v. Start it yourself."
+msgstr "Rclone UI 无法重新启动：%v。请手动启动。"
+
+#. A notification event, and the title of its notification.
+#: core/notifications/catalog.go
+#: core/notifications/payloads.go
+msgid "Rclone UI crashed"
+msgstr "Rclone UI 崩溃了"
+
+#: app/pathlink/link_other.go
+msgid "Rclone UI doesn't add rclone to PATH on this system."
+msgstr "在此系统上，Rclone UI 不会将 rclone 添加到 PATH。"
+
+#: app/webview2_windows.go
+msgid "Rclone UI draws its windows with Microsoft Edge WebView2, which isn't installed on this computer.\n\nDownload and install WebView2, then open Rclone UI again."
+msgstr "Rclone UI 使用 Microsoft Edge WebView2 显示窗口，但这台电脑上没有安装 WebView2。\n\n请下载并安装 WebView2，然后重新打开 Rclone UI。"
+
+#: core/mounts/support.go
+msgid "Rclone UI has no WinFsp installer here. Download it from %s."
+msgstr "这个 Rclone UI 没有附带 WinFsp 安装程序。请从 %s 下载。"
+
+#: app/updateflow.go
+msgid "Rclone UI is up to date."
+msgstr "Rclone UI 已是最新版本。"
+
+#. Followed by a list of the permissions that the Flatpak needs.
+#: app/app.go
+msgid "Rclone UI needs:"
+msgstr "Rclone UI 需要："
+
+#. Followed by a list of the permissions that the Flatpak needs, after an update that needs more.
+#: app/app.go
+msgid "Rclone UI now also needs:"
+msgstr "Rclone UI 现在还需要："
+
+#: app/core.go
+msgid "Rclone UI quit unexpectedly"
+msgstr "Rclone UI 意外退出"
+
+#: core/notifications/payloads.go
+msgid "Rclone UI quit unexpectedly %d time in a row and was started again."
+msgid_plural "Rclone UI quit unexpectedly %d times in a row and was started again."
+msgstr[0] "Rclone UI 连续 %d 次意外退出，已重新启动。"
+
+#. The last value is the error that the app's previous run ended with.
+#: core/notifications/payloads.go
+msgid "Rclone UI quit unexpectedly %d time in a row and was started again. %s"
+msgid_plural "Rclone UI quit unexpectedly %d times in a row and was started again. %s"
+msgstr[0] "Rclone UI 连续 %d 次意外退出，已重新启动。%s"
+
+#: core/notifications/payloads.go
+msgid "Rclone UI quit unexpectedly and was started again."
+msgstr "Rclone UI 意外退出，已重新启动。"
+
+#. The value is the error that the app's previous run ended with.
+#: core/notifications/payloads.go
+msgid "Rclone UI quit unexpectedly and was started again. %s"
+msgstr "Rclone UI 意外退出，已重新启动。%s"
+
+#: app/update/installtype_darwin.go
+msgid "Rclone UI runs from a read-only volume (its disk image?): copy it to Applications and open it from there to update it."
+msgstr "Rclone UI 正在从只读卷（可能是它的磁盘映像）运行：请将它复制到“应用程序”文件夹并从那里打开，才能更新。"
+
+#: app/pathlink/link_linux.go
+msgid "Rclone UI runs in a Flatpak sandbox, which a terminal can't run it from. `flatpak run --command=rcui %s <rclone arguments>` runs its rclone."
+msgstr "Rclone UI 运行在 Flatpak 沙盒中，无法从终端运行。要使用它的 rclone，请运行 `flatpak run --command=rcui %s <rclone 参数>`。"
+
+#. The text of macOS's administrator prompt, which asks for the password.
+#: app/pathlink/link_unix.go
+msgid "Rclone UI wants to add rclone to your PATH."
+msgstr "Rclone UI 想要将 rclone 添加到你的 PATH。"
+
+#. The text of macOS's administrator prompt, which asks for the password.
+#: app/update/install_darwin.go
+msgid "Rclone UI wants to install an update."
+msgstr "Rclone UI 想要安装更新。"
+
+#. The text of macOS's administrator prompt, which asks for the password.
+#: app/pathlink/link_unix.go
+msgid "Rclone UI wants to remove rclone from your PATH."
+msgstr "Rclone UI 想要从你的 PATH 中移除 rclone。"
+
+#. The running version, then the older one that a link asked for, such as 4.0.1.
+#: app/updateflow.go
+msgid "Rclone UI was asked to change from version %s to %s, an older version."
+msgstr "收到了将 Rclone UI 从 %s 版改为 %s 版的请求，这是一个较旧的版本。"
+
+#. The running version, which a link asked to install again.
+#: app/updateflow.go
+msgid "Rclone UI was asked to install version %s again."
+msgstr "收到了重新安装 Rclone UI %s 版的请求。"
+
+#. The running version, then the newer one that a link asked for, such as 4.0.2.
+#: app/updateflow.go
+msgid "Rclone UI was asked to update from version %s to %s."
+msgstr "收到了将 Rclone UI 从 %s 版更新到 %s 版的请求。"
+
+#. %q is what an update link asked for, which isn't a version.
+#: app/updateflow.go
+msgid "Rclone UI was asked to update to %q, but that is not an Rclone UI version, like 4.0.2."
+msgstr "收到了更新到 %q 的请求，但这不是 Rclone UI 的版本号（例如 4.0.2）。"
+
+#: app/update/update.go
+msgid "Rclone UI was installed from Flathub: update it through your software manager (or `flatpak update %s`)."
+msgstr "Rclone UI 是从 Flathub 安装的：请通过软件管理器更新（或运行 `flatpak update %s`）。"
+
+#. rclone's own reason follows, in English.
+#: core/location/location.go
+msgid "Rclone cannot read this path: %s."
+msgstr "Rclone 无法读取此路径：%s。"
+
+#: core/remotes/health.go
+msgid "Rclone did not answer within %s."
+msgstr "Rclone 在 %s 内没有响应。"
+
+#: core/remotes/session.go
+msgid "Rclone has no backend called %s."
+msgstr "Rclone 没有名为 %s 的后端。"
+
+#: core/catalog/catalog.go
+msgid "Rclone has no such backend: %s"
+msgstr "Rclone 没有这个后端：%s"
+
+#: core/catalog/command.go
+msgid "Rclone has no such flag."
+msgstr "Rclone 没有这个选项。"
+
+#: app/menus/menus.go
+msgid "Redo"
+msgstr "重做"
+
+#. The screen that lets a phone use Rclone UI: the Mobile & Remote Control window, by its short name.
+#: app/launcher/engine/providers/navigation.go
+msgid "Remote Control"
+msgstr "远程控制"
+
+#. A group of the launcher's rows: the configured remotes.
+#: app/launcher/engine/types.go
+#: app/windows/titles.go
+msgid "Remotes"
+msgstr "远程存储"
+
+#. An operation's name, as History shows it.
+#: app/launcher/engine/providers/running.go
+#: core/transfers/names.go
+msgid "Rename"
+msgstr "重命名"
+
+#: app/launcher/engine/providers/running.go
+msgid "Rename %s"
+msgstr "重命名 %s"
+
+#. The title and the button of the dialog that asks before a restart stops what is running.
+#: app/services.go
+msgid "Restart"
+msgstr "重启"
+
+#: app/app.go
+msgid "Restart Rclone UI afterwards."
+msgstr "完成后重新打开 Rclone UI。"
+
+#. An option of a bisync: it merges the two folders again.
+#: core/schedules/api.go
+msgid "Resync"
+msgstr "重新同步"
+
+#: app/launcher/engine/providers/common.go
+msgid "Return to the menu."
+msgstr "返回菜单。"
+
+#. An action that shows a file or folder in the file manager (Finder, Explorer).
+#: app/launcher/engine/providers/paths.go
+msgid "Reveal"
+msgstr "在文件夹中显示"
+
+#. Hints at the launcher's foot, after their keys: Enter runs the action, Esc goes back.
+#. The launcher's row that opens the Wizard, which asks what to do and finds the operation for it.
+#. The title of the window that asks what to do and finds the operation for it.
+#: app/launcher/engine/providers/operations.go
+#: app/launcher/launcher.go
+#: app/windows/titles.go
+msgid "Run"
+msgstr "运行"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Run a copy, a sync or another operation at set times."
+msgstr "在设定的时间运行复制、同步或其他操作。"
+
+#. The state of a transfer that runs.
+#: app/launcher/engine/providers/running.go
+msgid "Running"
+msgstr "运行中"
+
+#: core/services.go
+msgid "Runs again when Rclone UI starts."
+msgstr "Rclone UI 启动时会再次运行。"
+
+#: core/notifications/smtp.go
+msgid "SMTP is not set up. Save the mail server in the Notifications window first."
+msgstr "尚未设置 SMTP。请先在“通知”窗口中保存邮件服务器。"
+
+#. An operation's name, as History shows it.
+#. The operation that saves a file that was edited in the app.
+#: app/configunlock.go
+#: app/launcher/engine/providers/running.go
+#: core/transfers/names.go
+msgid "Save"
+msgstr "保存"
+
+#: app/launcher/engine/providers/running.go
+msgid "Save %s"
+msgstr "保存 %s"
+
+#. Asked after the config was unlocked. The buttons are "Save" and "Don't save".
+#: app/configunlock.go
+msgid "Save the password in the system keychain?"
+msgstr "要将密码保存到系统钥匙串吗？"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Save your settings and apply them quickly."
+msgstr "保存你的设置，并快速应用。"
+
+#: app/launcher/engine/providers/navigation.go
+#: app/windows/titles.go
+msgid "Schedules"
+msgstr "定时任务"
+
+#: app/launcher/launcher.go
+msgid "Search actions…"
+msgstr "搜索操作…"
+
+#. The placeholder of the launcher's search box.
+#: app/launcher/launcher.go
+msgid "Search commands, remotes, or paste a URL"
+msgstr "搜索命令、远程存储，或粘贴 URL"
+
+#: app/menus/menus.go
+msgid "Select All"
+msgstr "全选"
+
+#: core/browse/usage.go
+msgid "Select a folder on the remote or disk to scan."
+msgstr "请选择要扫描的远程存储或磁盘上的文件夹。"
+
+#: core/notifications/validate.go
+msgid "Select at least one event. To keep these addresses without notifications, use the Enabled switch instead."
+msgstr "请至少选择一个事件。如果想保留这些地址但暂停通知，请改用“启用”开关。"
+
+#: core/notifications/validate.go
+msgid "Select at least one event. To keep this webhook without notifications, use the Enabled switch instead."
+msgstr "请至少选择一个事件。如果想保留此 Webhook 但暂停通知，请改用“启用”开关。"
+
+#. An operation's name, as History shows it.
+#. The Serve operation, which serves a remote over HTTP, WebDAV, SFTP and more.
+#: app/launcher/engine/providers/dropped.go
+#: app/launcher/engine/providers/operations.go
+#: app/launcher/engine/providers/paths.go
+#: app/windows/titles.go
+#: core/transfers/names.go
+msgid "Serve"
+msgstr "服务"
+
+#. %[1]s is a path, and %[2]s a protocol such as WEBDAV.
+#: app/launcher/engine/providers/operations.go
+msgid "Serve %[1]s over %[2]s"
+msgstr "通过 %[2]s 提供 %[1]s"
+
+#. A running serve in a list: its source, its protocol (HTTP, WebDAV…) and its address.
+#: core/services.go
+msgid "Serve %[1]s over %[2]s at %[3]s"
+msgstr "通过 %[2]s 在 %[3]s 提供 %[1]s"
+
+#. %s is the name of the folder that was dropped on the launcher.
+#: app/launcher/engine/providers/dropped.go
+#: app/launcher/engine/providers/operations.go
+msgid "Serve %s"
+msgstr "通过网络提供 %s"
+
+#. A running serve that uses the config file, as in "Serve gdrive: over HTTP at 127.0.0.1:8080".
+#: core/services.go
+msgid "Serve %s over %s at %s"
+msgstr "%[1]s 的 %[2]s 服务（%[3]s）"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Serve a remote over HTTP, WebDAV, SFTP, FTP and Restic."
+msgstr "通过 HTTP、WebDAV、SFTP、FTP 和 Restic 提供远程存储。"
+
+#. A notification event, and the title of its notification.
+#. The values are what is served, the protocol (webdav, http), the address and the error.
+#: core/notifications/catalog.go
+#: core/notifications/payloads.go
+msgid "Serve failed"
+msgstr "服务出错"
+
+#. The tray menu's submenu of running serves, with their number.
+#: app/trayrunning.go
+msgid "Serves (%d)"
+msgstr "服务 (%d)"
+
+#: app/menus/menus.go
+msgid "Services"
+msgstr "服务"
+
+#. The state of a serve that is ready.
+#: app/launcher/engine/providers/running.go
+msgid "Serving"
+msgstr "服务中"
+
+#: core/operations/serve.go
+msgid "Serving over %s isn't available on this computer"
+msgstr "这台电脑不支持通过 %s 提供服务"
+
+#: core/operations/mapper.go
+#: core/operations/options.go
+msgid "Set \"metadata\": true to use the metadata mapper"
+msgstr "要使用元数据映射器，请设置 \"metadata\": true"
+
+#: app/launcher/engine/providers/navigation.go
+#: app/windows/titles.go
+msgid "Settings"
+msgstr "设置"
+
+#: app/launcher/engine/providers/running.go
+#: app/menus/menus.go
+msgid "Show All"
+msgstr "全部显示"
+
+#: app/launcher/engine/providers/running.go
+msgid "Show All Running"
+msgstr "显示全部活动"
+
+#: app/launcher/engine/providers/running.go
+msgid "Show Caches"
+msgstr "显示缓存"
+
+#: app/core.go
+msgid "Show Data Folder"
+msgstr "显示数据文件夹"
+
+#: app/launcher/engine/providers/remotes.go
+msgid "Show Remotes"
+msgstr "显示远程存储"
+
+#: app/launcher/engine/providers/remotes.go
+msgid "Show all configured remotes."
+msgstr "显示所有已配置的远程存储。"
+
+#: app/updateflow.go
+msgid "Skip This Version"
+msgstr "跳过此版本"
+
+#: core/serves/serves.go
+msgid "Something already listens on %s."
+msgstr "已有其他程序在 %s 上监听。"
+
+#: core/mounts/mounts.go
+msgid "Something is already mounted at %s."
+msgstr "%s 上已挂载了其他内容。"
+
+#: core/operations/describe.go
+msgid "Source does not exist, %s is missing"
+msgstr "源不存在：找不到 %s"
+
+#: core/browse/api.go
+msgid "Specify the folder to count."
+msgstr "请指定要统计的文件夹。"
+
+#: core/browse/api.go
+msgid "Specify the folder to list."
+msgstr "请指定要列出的文件夹。"
+
+#: core/browse/api.go
+msgid "Specify the folder to search."
+msgstr "请指定要搜索的文件夹。"
+
+#: app/menus/menus.go
+msgid "Speech"
+msgstr "语音"
+
+#: app/menus/menus.go
+msgid "Start Speaking"
+msgstr "开始朗读"
+
+#. The state of a mount or a serve that is starting.
+#: app/launcher/engine/providers/running.go
+msgid "Starting"
+msgstr "正在启动"
+
+#: core/services.go
+msgid "Starts again after an update."
+msgstr "更新后会重新开始。"
+
+#. The action that stops a serve.
+#: app/launcher/engine/providers/running.go
+#: app/trayrunning.go
+msgid "Stop"
+msgstr "停止"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stop %d transfer?"
+msgid_plural "Stop %d transfers?"
+msgstr[0] "要停止 %d 个传输吗？"
+
+#. %s is a serve: its protocol and what it serves, such as "HTTP gdrive:".
+#: app/launcher/engine/providers/running.go
+msgid "Stop %s"
+msgstr "停止 %s"
+
+#. %s names what is running: "2 transfers, a serve and 3 mounts".
+#: app/launcher/engine/providers/running.go
+msgid "Stop %s."
+msgstr "停止 %s。"
+
+#. %s is a transfer, such as "Copy gdrive:Photos → /Users/me/Photos".
+#. %s names what is running: "2 transfers, a serve and 3 mounts".
+#: app/launcher/engine/providers/running.go
+msgid "Stop %s?"
+msgstr "要停止 %s 吗？"
+
+#: app/trayrunning.go
+msgid "Stop All"
+msgstr "全部停止"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stop All Serves"
+msgstr "停止全部服务"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stop All Transfers"
+msgstr "停止全部传输"
+
+#. The launcher's row and action that stop everything that is running.
+#: app/launcher/engine/providers/running.go
+msgid "Stop Everything"
+msgstr "全部停止"
+
+#: app/menus/menus.go
+msgid "Stop Speaking"
+msgstr "停止朗读"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stop Transfer"
+msgstr "停止传输"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stop all %d serves?"
+msgid_plural "Stop all %d serves?"
+msgstr[0] "要停止全部 %d 个服务吗？"
+
+#: app/launcher/view/darwin/view.go
+msgid "Stop everything"
+msgstr "全部停止"
+
+#: app/launcher/view/darwin/view.go
+msgid "Stop everything (⌘.)"
+msgstr "全部停止（⌘.）"
+
+#. %[1]s is what is served, such as "gdrive:", and %[2]s its protocol, such as HTTP.
+#: app/launcher/engine/providers/running.go
+msgid "Stop serving %[1]s over %[2]s?"
+msgstr "要停止通过 %[2]s 提供 %[1]s 吗？"
+
+#. The value lists the mounts, serves and other things that use the config file.
+#: core/config/service.go
+msgid "Stop these first. They use this config and would undo the change: %s"
+msgstr "请先停止以下项目。它们正在使用此配置，会撤销这次更改：%s"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stopped %d transfer."
+msgid_plural "Stopped %d transfers."
+msgstr[0] "已停止 %d 个传输。"
+
+#. %s names what was stopped: "2 transfers, a serve and 3 mounts".
+#: core/services.go
+msgid "Stopped %s."
+msgstr "%s已停止。"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stopped a transfer."
+msgstr "已停止传输。"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stopped the serve at %s."
+msgstr "已停止 %s 上的服务。"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stopping %d transfer…"
+msgid_plural "Stopping %d transfers…"
+msgstr[0] "正在停止 %d 个传输…"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stopping a transfer…"
+msgstr "正在停止传输…"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stopping every serve…"
+msgstr "正在停止全部服务…"
+
+#: app/launcher/engine/providers/running.go
+msgid "Stopping everything…"
+msgstr "正在全部停止…"
+
+#. %s is the address that a serve listens at, such as 127.0.0.1:8080.
+#: app/launcher/engine/providers/running.go
+msgid "Stopping the serve at %s…"
+msgstr "正在停止 %s 上的服务…"
+
+#. A group of the launcher's rows: what the clipboard suggests.
+#: app/launcher/engine/types.go
+msgid "Suggested"
+msgstr "建议"
+
+#. An operation's name, as History shows it.
+#: app/launcher/engine/providers/dropped.go
+#: app/launcher/engine/providers/operations.go
+#: app/windows/titles.go
+#: core/transfers/names.go
+msgid "Sync"
+msgstr "同步"
+
+#: app/launcher/engine/providers/dropped.go
+msgid "Sync %[1]s to %[2]s"
+msgstr "将 %[1]s 同步到 %[2]s"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Sync %s"
+msgstr "同步 %s"
+
+#: app/launcher/engine/providers/dropped.go
+msgid "Sync %s to…"
+msgstr "将 %s 同步到…"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Sync %s → %s"
+msgstr "同步 %s → %s"
+
+#: app/launcher/engine/providers/paths.go
+msgid "Sync From"
+msgstr "从这里同步"
+
+#: app/launcher/engine/providers/dropped.go
+msgid "Sync Here"
+msgstr "同步到这里"
+
+#: core/transfers/retry.go
+msgid "Sync can't run: %v"
+msgstr "无法执行同步：%v"
+
+#: core/transfers/service.go
+msgid "Sync failed"
+msgstr "同步失败"
+
+#: core/transfers/service.go
+msgid "Sync finished"
+msgstr "同步已完成"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Sync from %s"
+msgstr "从 %s 同步"
+
+#: app/launcher/engine/providers/operations.go
+msgid "Sync to %s"
+msgstr "同步到 %s"
+
+#. An operation of a template, then why it can't take one of the template's options.
+#: core/templates/service.go
+msgid "Sync: %s"
+msgstr "同步：%s"
+
+#. A group of notification events, in the Notifications window: the app itself.
+#: core/notifications/catalog.go
+msgid "System"
+msgstr "系统"
+
+#: app/launcher/engine/providers/navigation.go
+#: app/windows/titles.go
+msgid "Templates"
+msgstr "模板"
+
+#. The title of the notification that "Send Test" sends.
+#: core/notifications/catalog.go
+msgid "Test notification"
+msgstr "测试通知"
+
+#: core/notifications/service.go
+msgid "Test notification sent successfully."
+msgstr "测试通知已发送。"
+
+#: core/config/service.go
+msgid "That command can't be read."
+msgstr "无法解析该命令。"
+
+#. rclone's own words follow in brackets, in English.
+#: core/rclone/errors.go
+msgid "That file doesn't exist. (%s)"
+msgstr "该文件不存在。（%s）"
+
+#: core/rclone/errors.go
+msgid "That file or folder doesn't exist. (%s)"
+msgstr "该文件或文件夹不存在。（%s）"
+
+#. rclone's own words follow in brackets, in English.
+#: core/rclone/errors.go
+msgid "That folder doesn't exist. (%s)"
+msgstr "该文件夹不存在。（%s）"
+
+#: core/rclone/errors.go
+msgid "That folder isn't empty. (%s)"
+msgstr "该文件夹不是空的。（%s）"
+
+#: core/rclone/errors.go
+msgid "That is a file, not a folder. (%s)"
+msgstr "这是文件，不是文件夹。（%s）"
+
+#: core/rclone/errors.go
+msgid "That is a folder, not a file. (%s)"
+msgstr "这是文件夹，不是文件。（%s）"
+
+#: core/remotes/rename.go
+msgid "That is the remote's name already."
+msgstr "远程存储已经是这个名称。"
+
+#: core/rclone/errors.go
+msgid "That isn't a regular file. (%s)"
+msgstr "这不是普通文件。（%s）"
+
+#: core/rclone/configstore.go
+msgid "That password doesn't open the config."
+msgstr "该密码无法打开此配置。"
+
+#: core/remotes/service.go
+msgid "That remote doesn’t exist."
+msgstr "该远程存储不存在。"
+
+#: core/rclone/errors.go
+msgid "That remote isn't in the config file. (%s)"
+msgstr "配置文件中没有该远程存储。（%s）"
+
+#: core/filen/filen.go
+msgid "That two-factor code was not accepted. Enter the current one."
+msgstr "该验证码未被接受。请输入当前的验证码。"
+
+#: core/config/service.go
+msgid "That's the config file itself. Choose another file."
+msgstr "这就是配置文件本身，请选择其他文件。"
+
+#: core/operations/form.go
+msgid "The %s form can’t be read: %v"
+msgstr "无法读取 %s 表单：%v"
+
+#. The name of a group of options (such as vfs), an option's name, and the error from the JSON reader.
+#: core/operations/args.go
+msgid "The %s option %s is not valid JSON: %v"
+msgstr "%s 选项 %s 不是有效的 JSON：%v"
+
+#: core/mounts/support.go
+msgid "The Flatpak can't mount: install Rclone UI's deb, rpm or AppImage to mount remotes."
+msgstr "Flatpak 版本无法挂载。要挂载远程存储，请安装 Rclone UI 的 deb、rpm 或 AppImage 版本。"
+
+#: core/notifications/validate.go
+msgid "The URL must use http:// or https://"
+msgstr "URL 必须以 http:// 或 https:// 开头"
+
+#: core/mounts/support_windows.go
+msgid "The WinFsp installer could not start: %v."
+msgstr "无法启动 WinFsp 安装程序：%v。"
+
+#: core/mounts/support_windows.go
+msgid "The WinFsp installer failed with code %d."
+msgstr "WinFsp 安装程序运行失败，错误代码为 %d。"
+
+#: app/pathlink/link_darwin.go
+msgid "The administrator prompt failed: %s"
+msgstr "管理员授权失败：%s"
+
+#: app/pathlink/link_darwin.go
+msgid "The administrator prompt was cancelled."
+msgstr "已取消管理员授权。"
+
+#: core/agents/server.go
+msgid "The agents' token is missing. Make a new one in Settings."
+msgstr "智能体的令牌丢失了。请在设置中生成新令牌。"
+
+#: core/notifications/catalog.go
+msgid "The app quit unexpectedly, and was started again"
+msgstr "应用意外退出，已重新启动"
+
+#. The value is the other automount's source, as in "gdrive:Photos".
+#: core/mounts/automounts.go
+msgid "The automount of %s:%s already uses this mount point."
+msgstr "%s:%s 的自动挂载已在使用此挂载点。"
+
+#: core/remotes/session.go
+msgid "The changes were saved, but the rename failed: %w"
+msgstr "更改已保存，但重命名失败：%w"
+
+#. The value is pflag's English reason, such as "flag needs an argument: --transfers".
+#: core/catalog/command.go
+msgid "The command line cannot be read: %s."
+msgstr "无法解析命令行：%s。"
+
+#: core/catalog/command.go
+msgid "The command line cannot be read: a quote is not closed."
+msgstr "无法解析命令行：有引号未闭合。"
+
+#. The value is the reason, often in rclone's words.
+#: core/config/service.go
+msgid "The config file can't be read, so its password can't change: %s"
+msgstr "无法读取配置文件，因此无法更改其密码：%s"
+
+#: core/config/service.go
+msgid "The config file's password was changed outside the app, so your changes were not saved. Unlock the config with its new password, then save again."
+msgstr "配置文件的密码已在应用之外更改，因此你的更改未保存。请用新密码解锁配置，然后再次保存。"
+
+#: core/rclone/errors.go
+msgid "The connection to the server was lost. (%s)"
+msgstr "与服务器的连接已断开。（%s）"
+
+#: core/rclone/errors.go
+msgid "The file is too small for this remote's multipart upload. (%s)"
+msgstr "文件太小，无法使用此远程存储的分段上传。（%s）"
+
+#: app/update/installtype_linux.go
+msgid "The folder %s isn't writable: move the AppImage to a folder you own to update it."
+msgstr "无法写入文件夹 %s：请将 AppImage 移到你自己的文件夹中，才能更新。"
+
+#. Why the files weren't deleted in the other folder, then the error from listing the folder.
+#: core/watchers/scheduler.go
+msgid "The folder that was empty could not be checked, so nothing was deleted: %w"
+msgstr "无法检查原本为空的文件夹，因此未删除任何内容：%w"
+
+#: core/watchers/scheduler.go
+msgid "The folder that was empty has files again, so nothing was deleted. Resync merges the two folders and deletes nothing."
+msgstr "原本为空的文件夹中又有了文件，因此未删除任何内容。“重新同步”会合并两个文件夹，不删除任何内容。"
+
+#: core/mounts/prepare.go
+msgid "The mount point is not a folder."
+msgstr "挂载点不是文件夹。"
+
+#: core/operations/mount.go
+msgid "The mount point must be a folder on this computer"
+msgstr "挂载点必须是这台电脑上的文件夹"
+
+#: core/mounts/prepare.go
+msgid "The mount point’s folder couldn’t be made. Try making it yourself first."
+msgstr "无法创建挂载点文件夹。请先手动创建。"
+
+#: core/rclone/errors.go
+msgid "The name is too long for this remote. (%s)"
+msgstr "名称太长，此远程存储不支持。（%s）"
+
+#. An option's name, the remote's name, and the error from the JSON reader.
+#: core/operations/args.go
+msgid "The option %s of %s is not valid JSON: %v"
+msgstr "%[2]s 的选项 %[1]s 不是有效的 JSON：%[3]v"
+
+#. The value is the keychain's error.
+#: core/config/service.go
+msgid "The password was set, but the password couldn't be saved to the keychain: %s"
+msgstr "密码已设置，但无法保存到钥匙串：%s"
+
+#: core/settings/service.go
+msgid "The port is a number from 1024 to 65535."
+msgstr "端口必须是 1024 到 65535 之间的数字。"
+
+#: core/remotes/session.go
+msgid "The remote could not be saved: %w"
+msgstr "无法保存远程存储：%w"
+
+#: core/services.go
+msgid "The remote tunnel"
+msgstr "远程隧道"
+
+#: core/browse/api.go
+msgid "The scan has no folder %s."
+msgstr "扫描结果中没有文件夹 %s。"
+
+#: core/mounts/prepare.go
+msgid "The selected directory could not be removed. On Windows the mount point must not exist yet: remove it, or choose another one."
+msgstr "无法删除所选文件夹。在 Windows 上，挂载点必须是尚不存在的文件夹：请删除它，或选择其他挂载点。"
+
+#: core/mounts/prepare.go
+msgid "The selected directory must be empty to mount a remote."
+msgstr "所选文件夹必须为空才能挂载远程存储。"
+
+#: core/rclone/errors.go
+msgid "The server can't be reached. Check the internet connection. (%s)"
+msgstr "无法访问服务器。请检查网络连接。（%s）"
+
+#: core/rclone/errors.go
+msgid "The server didn't answer in time. Check the internet connection. (%s)"
+msgstr "服务器未及时响应。请检查网络连接。（%s）"
+
+#: core/rclone/errors.go
+msgid "The server refused the connection. (%s)"
+msgstr "服务器拒绝了连接。（%s）"
+
+#: core/rclone/errors.go
+msgid "The server sent the whole file instead of the part that was asked for. (%s)"
+msgstr "服务器发送了整个文件，而不是所请求的部分。（%s）"
+
+#: core/rclone/errors.go
+msgid "The server's address couldn't be found. Check the internet connection. (%s)"
+msgstr "找不到服务器地址。请检查网络连接。（%s）"
+
+#: core/rclone/errors.go
+msgid "The service is limiting requests. Try again later. (%s)"
+msgstr "服务正在限制请求频率。请稍后重试。（%s）"
+
+#: core/remotes/session.go
+msgid "The session is not waiting for an answer."
+msgstr "会话当前没有在等待回答。"
+
+#: core/rclone/errors.go
+msgid "The source and the destination overlap, so files can't be synced or moved between them. Exclude the destination with a filter rule. (%s)"
+msgstr "源和目标相互重叠，无法在两者之间同步或移动文件。请用筛选规则排除目标。（%s）"
+
+#: core/notifications/webhooks.go
+msgid "The target's URL cannot be called."
+msgstr "无法访问此通知渠道的 URL。"
+
+#: core/operations/template.go
+msgid "The template needs one source to run."
+msgstr "模板只能有一个源才能运行。"
+
+#: core/operations/template.go
+#: core/templates/service.go
+msgid "The value of %s is not valid JSON."
+msgstr "%s 的值不是有效的 JSON。"
+
+#: core/mounts/support.go
+msgid "There is no /dev/fuse: a container needs --device /dev/fuse --cap-add SYS_ADMIN."
+msgstr "找不到 /dev/fuse：容器需要使用 --device /dev/fuse --cap-add SYS_ADMIN 启动。"
+
+#: core/mounts/automounts.go
+msgid "There is no remote named %s."
+msgstr "没有名为 %s 的远程存储。"
+
+#: core/rclone/errors.go
+msgid "There is no space left on the disk. (%s)"
+msgstr "磁盘空间已用完。（%s）"
+
+#: core/rclone/errors.go
+msgid "These remotes can't copy the file between them directly. (%s)"
+msgstr "这两个远程存储之间无法直接复制该文件。（%s）"
+
+#: core/rclone/errors.go
+msgid "These remotes can't move the file between them directly. (%s)"
+msgstr "这两个远程存储之间无法直接移动该文件。（%s）"
+
+#: core/rclone/errors.go
+msgid "These remotes can't move the folder between them directly. (%s)"
+msgstr "这两个远程存储之间无法直接移动该文件夹。（%s）"
+
+#: core/mounts/stopped.go
+msgid "These uploads are no longer pending."
+msgstr "这些文件已不再等待上传。"
+
+#. The start of the quit dialog, followed by a list of what is running.
+#: app/quit.go
+msgid "These will be stopped:"
+msgstr "以下项目将停止："
+
+#: core/filen/filen.go
+msgid "This Filen account uses two-factor authentication: enter the code from your authenticator app."
+msgstr "此 Filen 账户已开启双重验证：请输入身份验证器应用中的验证码。"
+
+#: core/mounts/automounts.go
+msgid "This automount was deleted."
+msgstr "此自动挂载已被删除。"
+
+#: core/notifications/validate.go
+msgid "This bot already sends to this chat."
+msgstr "此机器人已在向这个聊天发送消息。"
+
+#. The value is the reason, a sentence such as "WinFsp is not installed."
+#: core/mounts/mounts.go
+msgid "This computer cannot mount: %s"
+msgstr "这台电脑无法挂载：%s"
+
+#: app/pathlink/link_windows.go
+msgid "This copy of Rclone UI has no bin\\rclone.exe next to it. The installer and the portable zip bring that rclone command."
+msgstr "当前 Rclone UI 所在的文件夹中没有 bin\\rclone.exe。安装程序和便携版 zip 都带有这个 rclone 命令。"
+
+#: core/notifications/validate.go
+msgid "This doesn't look like a Discord webhook URL. Expected https://discord.com/api/webhooks/…"
+msgstr "这看起来不是 Discord Webhook URL。应以 https://discord.com/api/webhooks/… 开头"
+
+#: core/notifications/validate.go
+msgid "This doesn't look like a Slack webhook URL. Expected https://hooks.slack.com/services/…"
+msgstr "这看起来不是 Slack Webhook URL。应以 https://hooks.slack.com/services/… 开头"
+
+#: core/notifications/validate.go
+msgid "This doesn't look like a bot token. Enter the token that BotFather sent, as in 123456789:AAH…"
+msgstr "这看起来不是机器人令牌。请输入 BotFather 发给你的令牌，例如 123456789:AAH…"
+
+#. The value is a single letter, such as C, which Windows uses for a drive.
+#: core/location/location.go
+msgid "This host is not Windows, so %[1]s: would be read as a remote called %[1]s. Use a path that starts with /."
+msgstr "这台电脑不是 Windows 系统，因此 %[1]s: 会被当作名为 %[1]s 的远程存储。请使用以 / 开头的路径。"
+
+#: app/update/update.go
+msgid "This is a portable copy of Rclone UI, which doesn't update itself. Download the new release's portable zip, and replace rcui.exe, winfsp.msi and the bin folder with the ones in it. Your data folder and rclone.conf stay as they are."
+msgstr "这是便携版 Rclone UI，不会自动更新。请下载新版本的便携版 zip，并用其中的文件替换 rcui.exe、winfsp.msi 和 bin 文件夹。你的数据文件夹和 rclone.conf 保持不变。"
+
+#. The value is the name of the notification target that the test goes to.
+#: core/notifications/payloads.go
+msgid "This is a test notification from Rclone UI for \"%s\"."
+msgstr "这是 Rclone UI 发给“%s”的测试通知。"
+
+#: core/notifications/payloads.go
+msgid "This is a test notification from Rclone UI."
+msgstr "这是来自 Rclone UI 的测试通知。"
+
+#: core/location/location.go
+msgid "This is not a full path. Use one that starts with /."
+msgstr "这不是完整路径。请使用以 / 开头的路径。"
+
+#: core/location/location.go
+msgid "This is not a full path. Use one that starts with a drive, as in C:\\."
+msgstr "这不是完整路径。请使用以盘符开头的路径，例如 C:\\。"
+
+#: core/notifications/validate.go
+msgid "This is not a valid URL"
+msgstr "这不是有效的 URL"
+
+#: core/files/service.go
+msgid "This is the root. Pick an entry inside it."
+msgstr "这是根目录。请选择其中的项目。"
+
+#: core/mounts/mounts.go
+msgid "This mount is not running any more."
+msgstr "此挂载已不再运行。"
+
+#: core/vfs/service.go
+msgid "This mount or serve is not running any more."
+msgstr "此挂载或服务已不再运行。"
+
+#: core/mounts/prepare.go
+msgid "This mount point is a link. A mount needs a folder, not a link to one."
+msgstr "此挂载点是一个链接。挂载需要的是文件夹，而不是指向文件夹的链接。"
+
+#: core/operations/template.go
+msgid "This operation doesn't use this option."
+msgstr "此操作不使用此选项。"
+
+#: core/transfers/api.go
+msgid "This operation doesn’t start from a page."
+msgstr "此操作不能从窗口启动。"
+
+#: core/rclone/errors.go
+msgid "This remote can only change a file's modification time by uploading the file again. (%s)"
+msgstr "此远程存储只能通过重新上传文件来更改其修改时间。（%s）"
+
+#: core/rclone/errors.go
+msgid "This remote can't change a file's modification time. (%s)"
+msgstr "此远程存储无法更改文件的修改时间。（%s）"
+
+#: core/rclone/errors.go
+msgid "This remote can't delete a folder and everything in it at once. (%s)"
+msgstr "此远程存储无法一次删除文件夹及其中的全部内容。（%s）"
+
+#: core/rclone/errors.go
+msgid "This remote can't list its top folder. Add a folder or a bucket to the path. (%s)"
+msgstr "此远程存储无法列出其顶层文件夹。请在路径中加上文件夹或存储桶。（%s）"
+
+#: core/rclone/errors.go
+msgid "This remote can't make a public link to a folder. (%s)"
+msgstr "此远程存储无法为文件夹创建公开链接。（%s）"
+
+#: core/rclone/errors.go
+msgid "This remote can't store empty files. (%s)"
+msgstr "此远程存储无法存储空文件。（%s）"
+
+#: core/rclone/errors.go
+msgid "This remote doesn't support that. (%s)"
+msgstr "此远程存储不支持该操作。（%s）"
+
+#: core/rclone/errors.go
+msgid "This remote has no such command. (%s)"
+msgstr "此远程存储没有该命令。（%s）"
+
+#: core/browse/api.go
+msgid "This scan is no longer available. Scan again to see the disk usage."
+msgstr "这次扫描的结果已不可用。请重新扫描以查看空间占用。"
+
+#: core/schedules/cron.go
+msgid "This schedule never runs."
+msgstr "此定时任务永远不会运行。"
+
+#: core/schedules/service.go
+msgid "This schedule was deleted."
+msgstr "此定时任务已被删除。"
+
+#: core/serves/serves.go
+msgid "This serve is not running any more."
+msgstr "此服务已不再运行。"
+
+#: core/templates/service.go
+msgid "This template has no paths to run for this operation: apply it in its form."
+msgstr "此模板没有可用于此操作的路径，请在该操作的窗口中应用它。"
+
+#: core/templates/service.go
+msgid "This template no longer exists."
+msgstr "此模板已不存在。"
+
+#. rclone's own words follow in brackets, in English.
+#: core/rclone/errors.go
+msgid "This took too long, so it was stopped. (%s)"
+msgstr "耗时过长，已停止。（%s）"
+
+#. Why a transfer can't be retried. The value is the reason.
+#: core/transfers/retry.go
+msgid "This transfer can't run: %v"
+msgstr "无法执行此传输：%v"
+
+#: core/transfers/service.go
+msgid "This transfer is not running"
+msgstr "此传输未在进行"
+
+#: core/watchers/service.go
+msgid "This watcher no longer exists."
+msgstr "此监视器已不存在。"
+
+#. %s is a remote's type, such as "drive" or "s3".
+#: app/launcher/engine/providers/dropped.go
+msgid "To the %s remote. Press Tab to open subfolders."
+msgstr "%s 类型的远程存储。按 Tab 可打开子文件夹。"
+
+#. A transfer whose operation has no name.
+#: app/launcher/engine/providers/running.go
+msgid "Transfer"
+msgstr "传输"
+
+#. A transfer whose operation has no name. %s is its paths.
+#: app/launcher/engine/providers/running.go
+msgid "Transfer %s"
+msgstr "传输 %s"
+
+#. A notification event, and the title of its notification.
+#: core/notifications/catalog.go
+msgid "Transfer completed"
+msgstr "传输已完成"
+
+#. A notification event, and the title of its notification.
+#: core/notifications/catalog.go
+#: core/transfers/service.go
+msgid "Transfer failed"
+msgstr "传输失败"
+
+#: core/transfers/service.go
+msgid "Transfer finished"
+msgstr "传输已完成"
+
+#. A notification event, and the title of its notification.
+#: core/notifications/catalog.go
+msgid "Transfer started"
+msgstr "传输已开始"
+
+#. A group of notification events, in the Notifications window.
+#: core/notifications/catalog.go
+msgid "Transfers"
+msgstr "传输"
+
+#: app/core.go
+msgid "Try Again"
+msgstr "重试"
+
+#: core/browse/api.go
+msgid "Two folders are needed."
+msgstr "需要两个文件夹。"
+
+#: app/menus/menus.go
+msgid "Undo"
+msgstr "撤销"
+
+#. The value is the keychain's error.
+#: core/config/service.go
+msgid "Unlocked, but the password couldn't be saved to the keychain: %s"
+msgstr "已解锁，但无法将密码保存到钥匙串：%s"
+
+#. The action that stops a mount.
+#: app/launcher/engine/providers/running.go
+#: app/trayrunning.go
+msgid "Unmount"
+msgstr "卸载"
+
+#. %s is the folder or drive that a remote is mounted at.
+#: app/launcher/engine/providers/running.go
+msgid "Unmount %s"
+msgstr "卸载 %s"
+
+#. %s is the folder or drive that a remote is mounted at.
+#: app/launcher/engine/providers/running.go
+msgid "Unmount %s?"
+msgstr "要卸载 %s 吗？"
+
+#: app/launcher/engine/providers/running.go
+#: app/trayrunning.go
+msgid "Unmount All"
+msgstr "全部卸载"
+
+#: app/launcher/engine/providers/running.go
+msgid "Unmount all %d mounts?"
+msgid_plural "Unmount all %d mounts?"
+msgstr[0] "要卸载全部 %d 个挂载吗？"
+
+#: app/launcher/engine/providers/running.go
+msgid "Unmounted %s."
+msgstr "已卸载 %s。"
+
+#: app/launcher/engine/providers/running.go
+msgid "Unmounting %s…"
+msgstr "正在卸载 %s…"
+
+#: app/launcher/engine/providers/running.go
+msgid "Unmounting everything…"
+msgstr "正在全部卸载…"
+
+#. The button that installs an update.
+#. The title of the dialog that asks before an update stops what is running.
+#: app/updateflow.go
+msgid "Update"
+msgstr "更新"
+
+#: app/updateflow.go
+msgid "Update Available"
+msgstr "有可用更新"
+
+#. The second button is "OK", which closes the dialog.
+#: app/updateflow.go
+msgid "Update Failed"
+msgstr "无法更新"
+
+#: app/updateflow.go
+msgid "Update Refused"
+msgstr "已拒绝更新"
+
+#: app/updateflow.go
+msgid "Update Required"
+msgstr "需要更新"
+
+#: app/updateflow.go
+msgid "Update and Restart"
+msgstr "更新并重启"
+
+#. A notification event, and the title of its notification.
+#. The values are the new version and the version that runs now.
+#: core/notifications/catalog.go
+#: core/notifications/payloads.go
+msgid "Update available"
+msgstr "有可用更新"
+
+#: app/updateflow.go
+msgid "Updates are not available in this build."
+msgstr "此构建版本不提供更新。"
+
+#: core/schedules/cron.go
+msgid "Use 5 fields, or @hourly, @daily, @weekly or @monthly."
+msgstr "请使用 5 个字段，或 @hourly、@daily、@weekly、@monthly。"
+
+#: core/settings/bwlimit.go
+msgid "Use a speed such as 10M (10 MiB/s), or an upload and a download speed such as 10M:2M."
+msgstr "请输入速度，例如 10M（10 MiB/s），或分别输入上传和下载速度，例如 10M:2M。"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Use rclone from your phone."
+msgstr "在手机上使用 rclone。"
+
+#. A notification event, and the title of its notification.
+#. A watcher's failure: its name, and the error.
+#: core/notifications/catalog.go
+#: core/notifications/payloads.go
+msgid "Watcher failed"
+msgstr "监视器出错"
+
+#: app/launcher/engine/providers/navigation.go
+#: app/windows/titles.go
+msgid "Watchers"
+msgstr "监视器"
+
+#. A notification target's error. The value is the HTTP status.
+#: core/notifications/webhooks.go
+msgid "Webhook responded with status %d"
+msgstr "Webhook 返回了状态码 %d"
+
+#. A notification target's error. The values are the HTTP status and the reason that the webhook's server gave.
+#: core/notifications/webhooks.go
+msgid "Webhook responded with status %d: %s"
+msgstr "Webhook 返回了状态码 %d：%s"
+
+#. The placeholder of the launcher's search box while files are dropped on it.
+#: app/launcher/launcher.go
+msgid "Where to? Type a remote or a folder"
+msgstr "放到哪里？输入远程存储或文件夹"
+
+#: app/quit.go
+msgid "While Rclone UI is closed, your %d schedule won't run. It starts again when you open it."
+msgid_plural "While Rclone UI is closed, your %d schedules won't run. They start again when you open it."
+msgstr[0] "Rclone UI 关闭期间，你的 %d 个定时任务不会运行。再次打开 Rclone UI 后会恢复运行。"
+
+#: app/quit.go
+msgid "While Rclone UI is closed, your %d watcher won't run. It starts again when you open it."
+msgid_plural "While Rclone UI is closed, your %d watchers won't run. They start again when you open it."
+msgstr[0] "Rclone UI 关闭期间，你的 %d 个监视器不会运行。再次打开 Rclone UI 后会恢复运行。"
+
+#. The quit dialog's last line, when watchers and schedules won't run: "your watcher and 2 schedules", "your 2 watchers and 1 schedule".
+#: app/quit.go
+msgid "While Rclone UI is closed, your %s and %s won't run. They start again when you open it."
+msgstr "Rclone UI 关闭期间，%s和 %s不会运行。再次打开 Rclone UI 后会恢复运行。"
+
+#: app/quit.go
+msgid "While Rclone UI is closed, your schedule won't run. It starts again when you open it."
+msgstr "Rclone UI 关闭期间，你的定时任务不会运行。再次打开 Rclone UI 后会恢复运行。"
+
+#: app/quit.go
+msgid "While Rclone UI is closed, your watcher won't run. It starts again when you open it."
+msgstr "Rclone UI 关闭期间，你的监视器不会运行。再次打开 Rclone UI 后会恢复运行。"
+
+#: core/mounts/support.go
+msgid "WinFsp is not installed."
+msgstr "未安装 WinFsp。"
+
+#: core/mounts/support_windows.go
+msgid "WinFsp wasn't installed."
+msgstr "WinFsp 没有安装。"
+
+#. The Window menu of the menu bar.
+#: app/menus/menus.go
+msgid "Window"
+msgstr "窗口"
+
+#. %s is the new version, such as 4.0.2.
+#: app/updateflow.go
+msgid "You are running an outdated version of Rclone UI. Please update to the latest version (%s)."
+msgstr "你正在使用旧版本的 Rclone UI。请更新到最新版本（%s）。"
+
+#: app/app.go
+msgid "You are running the flatpak version of Rclone UI, which is sandboxed."
+msgstr "你正在使用 Flatpak 版 Rclone UI，它运行在沙盒中。"
+
+#: app/trayopen.go
+msgid "You can also open the Launcher using the shortcut %s."
+msgstr "你也可以用快捷键 %s 打开启动器。"
+
+#: core/rclone/errors.go
+msgid "You don't have permission to do that. (%s)"
+msgstr "你没有执行此操作的权限。（%s）"
+
+#: app/settings.go
+msgid "You have a proxy set, but it failed to connect. Do you want to continue anyway?"
+msgstr "你设置了代理，但无法连接。仍要继续吗？"
+
+#: app/launcher/engine/providers/navigation.go
+msgid "Your running and past transfers."
+msgstr "正在进行和已结束的传输。"
+
+#. The Window menu's item that resizes the window to fit its content, as macOS names it.
+#: app/menus/menus.go
+msgid "Zoom"
+msgstr "缩放"
+
+#. A prompt's button. The underscore marks the letter that Alt presses it with: keep one.
+#: app/interaction/prompt_linux.go
+msgid "_Cancel"
+msgstr "取消(_C)"
+
+#. A prompt's button. The underscore marks the letter that Alt presses it with: keep one.
+#: app/interaction/prompt_linux.go
+msgid "_OK"
+msgstr "确定(_O)"
+
+#. %s is the path of another rclone program.
+#: app/pathlink/linker.go
+msgid "`rclone` in a terminal now runs Rclone UI's rclone, not the one at %s."
+msgstr "现在在终端中运行 `rclone` 会使用 Rclone UI 的 rclone，而不是位于 %s 的那个。"
+
+#: core/favorites/service.go
+msgid "a favourite needs a path"
+msgstr "收藏项需要路径"
+
+#: core/launcher/service.go
+msgid "a launcher result needs a key"
+msgstr "启动器结果需要一个键"
+
+#. Part of a list of what is running, as in "Stop a transfer and 3 mounts?".
+#: core/services.go
+msgid "a mount"
+msgid_plural "%d mounts"
+msgstr[0] "%d 个挂载"
+
+#: core/browse/api.go
+msgid "a root"
+msgstr "是根目录"
+
+#. Part of a list of what is running, as in "Stop 2 transfers and a serve?".
+#: core/services.go
+msgid "a serve"
+msgid_plural "%d serves"
+msgstr[0] "%d 个服务"
+
+#. Part of a list of what is running, as in "Stop 2 transfers and a mount?".
+#: core/services.go
+msgid "a transfer"
+msgid_plural "%d transfers"
+msgstr[0] "%d 个传输"
+
+#. Words that, typed in the launcher, list everything that is running, separated by commas. The launcher types the first one itself, so it must be one word.
+#: app/launcher/engine/providers/running.go
+msgid "active, running"
+msgstr "活动，运行中，进行中，正在运行"
+
+#. Why a transfer failed. The values are how many files failed at least, and the first one's error.
+#: core/transfers/failure.go
+msgid "at least %d file failed. The first error: %s"
+msgid_plural "at least %d files failed. The first error: %s"
+msgstr[0] "至少 %d 个文件失败。首个错误：%s"
+
+#. Words that, typed in the launcher, list every remote to mount when Rclone UI starts, separated by commas.
+#: app/launcher/engine/providers/remotes.go
+msgid "auto, automount, startup"
+msgstr "自动，自动挂载，开机，启动时"
+
+#. Search words for the launcher's Automounts row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "automounts, automount, auto mount, mount at login, startup"
+msgstr "自动挂载，开机挂载，登录时挂载，启动时挂载，开机启动"
+
+#. A merge is a bisync option. The values are rclone's critical error and its abort, in English.
+#: core/operations/bisyncerr.go
+msgid "bisync needs a merge: %s: %w"
+msgstr "双向同步需要合并：%s：%w"
+
+#. A resync is a bisync option. The values are rclone's critical error and its abort, in English.
+#: core/operations/bisyncerr.go
+msgid "bisync needs a resync: %s: %w"
+msgstr "双向同步需要重新同步：%s：%w"
+
+#. A resync is a bisync option. The value is rclone's error, in English.
+#: core/operations/bisyncerr.go
+msgid "bisync needs a resync: %w"
+msgstr "双向同步需要重新同步：%w"
+
+#: core/notifications/payloads.go
+msgid "bisync of %s to %s"
+msgstr "%s 与 %s 双向同步"
+
+#. Search words for the launcher's Bisync row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/operations.go
+msgid "bisync, two-way"
+msgstr "双向，双向同步，两边同步"
+
+#. Words that, typed in the launcher, list every remote to browse, separated by commas. The first one is the command itself.
+#: app/launcher/engine/providers/remotes.go
+msgid "browse, explore, open, view, files"
+msgstr "浏览，打开，查看，文件"
+
+#. Search words for the launcher's row that browses a typed path, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/paths.go
+msgid "browse, open, view, files"
+msgstr "浏览，打开，查看，文件"
+
+#. A transfer in a notification: the remote whose trash was cleaned up.
+#: core/notifications/payloads.go
+msgid "cleanup of %s"
+msgstr "清理 %s"
+
+#. Search words for the launcher's Cleanup rows, separated by commas. Add any word that people would type to find them.
+#: app/launcher/engine/providers/operations.go
+msgid "cleanup, clean, trash"
+msgstr "清理，回收站，废纸篓，清空回收站"
+
+#. Search words for the launcher's Commander row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "commander, explorer, navigator, navigate, browse, files"
+msgstr "文件管理器，资源管理器，浏览，导航，文件，双栏"
+
+#: core/operations/options.go
+msgid "compare_dest and copy_dest can’t be used together"
+msgstr "compare_dest 和 copy_dest 不能同时使用"
+
+#: core/notifications/payloads.go
+msgid "copy of %s"
+msgstr "复制 %s"
+
+#: core/notifications/payloads.go
+msgid "copy of %s to %s"
+msgstr "将 %s 复制到 %s"
+
+#. Search words for the launcher's Copy row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/operations.go
+msgid "copy, cp"
+msgstr "复制，拷贝"
+
+#: app/update/download.go
+msgid "could not create the download folder: %w"
+msgstr "无法创建下载文件夹：%w"
+
+#: app/update/feed.go
+msgid "could not reach GitHub's list of releases: %w"
+msgstr "无法访问 GitHub 的版本列表：%w"
+
+#: app/update/feed.go
+msgid "could not reach the update feed: %w"
+msgstr "无法连接到更新源：%w"
+
+#: app/update/install_linux.go
+msgid "could not replace %s: %w"
+msgstr "无法替换 %s：%w"
+
+#: app/update/install_windows.go
+msgid "could not start the installer: %w"
+msgstr "无法启动安装程序：%w"
+
+#: app/update/install_linux.go
+msgid "could not write next to %s: %w"
+msgstr "无法在 %s 所在的文件夹中写入：%w"
+
+#. A transfer in a notification: what was deleted.
+#: core/notifications/payloads.go
+msgid "delete of %s"
+msgstr "删除 %s"
+
+#. Search words for the launcher's Delete row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/operations.go
+msgid "delete, remove, rm"
+msgstr "删除，移除，删掉"
+
+#: app/update/download.go
+msgid "download failed: %w"
+msgstr "下载失败：%w"
+
+#: app/update/download.go
+msgid "download failed: got %d of %d bytes"
+msgstr "下载失败：收到 %d 字节，应为 %d 字节"
+
+#: app/update/download.go
+msgid "download failed: the server answered %s"
+msgstr "下载失败：服务器返回 %s"
+
+#: core/notifications/payloads.go
+msgid "download of %s to %s"
+msgstr "将 %s 下载到 %s"
+
+#. Search words for the launcher's Download row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/operations.go
+msgid "download, url, copyurl, copyto"
+msgstr "下载，链接，网址"
+
+#. Words that, typed in the launcher, list every remote to edit, separated by commas.
+#: app/launcher/engine/providers/remotes.go
+msgid "edit, change, update"
+msgstr "编辑，修改，更改"
+
+#. Search words for the launcher's row that edits a remote, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/remotes.go
+msgid "edit, change, update, remote, settings"
+msgstr "编辑，修改，更改，远程存储，设置"
+
+#: app/launcher/shortcut.go
+msgid "empty shortcut"
+msgstr "快捷键为空"
+
+#. The first value is 1 or 2, for rclone's Path1 or Path2. Then rclone's critical error and its abort, in English.
+#: core/operations/bisyncerr.go
+msgid "every file was deleted on Path%s since the last sync: %s: %w"
+msgstr "自上次同步以来，Path%s 中的所有文件都已删除：%s：%w"
+
+#. How the process of a mount or a serve ended, when it ended without an error.
+#: core/children/process.go
+msgid "exited with status 0"
+msgstr "以状态 0 退出"
+
+#. Search words for the launcher's rows of failed transfers, separated by commas. Add any word that people would type to find them.
+#: app/launcher/engine/providers/running.go
+msgid "failed, error, history, transfers"
+msgstr "失败，错误，出错，历史记录，传输"
+
+#. Search words for the launcher's GitHub row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "github, issue, bug, feature"
+msgstr "问题，反馈，错误，漏洞，功能，建议"
+
+#. Search words for the launcher's Guides row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "guides, help, how to, learn, tutorial, docs, getting started"
+msgstr "指南，帮助，教程，怎么用，学习，文档，入门，新手"
+
+#. Search words for the launcher's History row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "history, transfers, jobs, tasks"
+msgstr "历史记录，历史，传输，任务，作业"
+
+#: core/operations/options.go
+msgid "interactive can’t be used here: Rclone UI has no terminal to ask in"
+msgstr "此处不能使用 interactive：Rclone UI 没有可用于询问的终端"
+
+#: core/remotes/session.go
+msgid "internal error: %v"
+msgstr "内部错误：%v"
+
+#. Follows an option's name, as in "exclude: is not a list".
+#: core/rclone/options.go
+msgid "is not a list"
+msgstr "不是列表"
+
+#. Why a mount failed to start. The value is how long the app waited, as in "30s".
+#: core/mounts/mounts.go
+msgid "it was not mounted within %s"
+msgstr "%s 内未完成挂载"
+
+#. Why a mount or a serve could not start: the app's own check failed.
+#: core/children/unit.go
+msgid "its check before the start panicked"
+msgstr "启动前的检查意外崩溃"
+
+#. Why a mount or a serve could not start: the app's own check failed.
+#: core/children/unit.go
+msgid "its readiness check panicked"
+msgstr "就绪检查意外崩溃"
+
+#: app/launcher/engine/providers/progress.go
+msgid "just now"
+msgstr "刚刚"
+
+#: app/launcher/engine/providers/progress.go
+msgid "less than a minute left"
+msgstr "剩余不到 1 分钟"
+
+#. A line of the config file, the remote's name on it, and why that name can't be used.
+#: core/config/text.go
+msgid "line %d: [%s]: %s"
+msgstr "第 %d 行：[%s]：%s"
+
+#. "[section]" is the syntax of a config file, as in [gdrive].
+#: core/config/text.go
+msgid "line %d: a key before the first [section]"
+msgstr "第 %d 行：第一个 [节] 之前出现了键"
+
+#: core/config/text.go
+msgid "line %d: a section needs a name"
+msgstr "第 %d 行：节需要名称"
+
+#. "[section]" and "key = value" are the syntax of a config file.
+#: core/config/text.go
+msgid "line %d: expected [section] or key = value"
+msgstr "第 %d 行：应为 [节] 或 键 = 值"
+
+#: core/config/text.go
+msgid "line %d: it holds a NUL character, which a config can't hold"
+msgstr "第 %d 行：包含 NUL 字符，配置中不能有这种字符"
+
+#: app/pathlink/link_darwin.go
+msgid "macOS runs this Rclone UI from a temporary copy: move it to Applications and open it from there first."
+msgstr "macOS 正在从临时副本运行 Rclone UI：请先将它移到“应用程序”文件夹，再从那里打开。"
+
+#: app/update/installtype_darwin.go
+msgid "macOS runs this Rclone UI from a temporary copy: move it to Applications and open it from there to update it."
+msgstr "macOS 正在从临时副本运行 Rclone UI：请将它移到“应用程序”文件夹并从那里打开，才能更新。"
+
+#: core/browse/api.go
+#: core/media/api.go
+#: core/media/read.go
+msgid "missing"
+msgstr "缺失"
+
+#. Search words for the launcher's Mount row, separated by commas. Add any word that people would type to find it.
+#. What uses a VFS cache, shown in lower case before its name: "mount · /Volumes/gdrive".
+#: app/launcher/engine/providers/operations.go
+#: app/launcher/engine/providers/running.go
+msgid "mount"
+msgstr "挂载"
+
+#. Search words for the launcher's row that adds an automount of a remote, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/remotes.go
+msgid "mount, auto, automount, startup"
+msgstr "挂载，自动，自动挂载，开机，启动时"
+
+#. Search words for the launcher's rows of running mounts, separated by commas. Add any word that people would type to find them.
+#: app/launcher/engine/providers/running.go
+msgid "mount, mounted, unmount, stop, open"
+msgstr "挂载，已挂载，卸载，停止，打开"
+
+#: core/notifications/payloads.go
+msgid "move of %s"
+msgstr "移动 %s"
+
+#: core/notifications/payloads.go
+msgid "move of %s to %s"
+msgstr "将 %s 移动到 %s"
+
+#. Search words for the launcher's Move row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/operations.go
+msgid "move, mv"
+msgstr "移动，剪切，转移"
+
+#: core/settings/service.go
+msgid "must be \"stable\" or \"beta\""
+msgstr "必须是 \"stable\" 或 \"beta\""
+
+#: core/settings/proxytest.go
+#: core/settings/service.go
+msgid "must be an http://, https:// or socks5:// URL with a host"
+msgstr "必须是包含主机的 http://、https:// 或 socks5:// URL"
+
+#. Search words for the launcher's New Remote row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/remotes.go
+msgid "new, remote, create, add"
+msgstr "新建，远程存储，创建，添加，新增"
+
+#: core/rclone/configstore.go
+msgid "no characters in password"
+msgstr "密码不能为空"
+
+#: app/launcher/shortcut.go
+msgid "no key"
+msgstr "缺少按键"
+
+#: app/update/feed.go
+msgid "no stable or beta release of Rclone UI yet"
+msgstr "Rclone UI 还没有稳定版或测试版"
+
+#: app/update/feed.go
+msgid "no stable release of Rclone UI yet"
+msgstr "Rclone UI 还没有稳定版"
+
+#: app/update/update.go
+msgid "no such release"
+msgstr "没有这个版本"
+
+#: app/update/update.go
+msgid "not an Rclone UI version, like 4.0.2"
+msgstr "不是 Rclone UI 的版本号（例如 4.0.2）"
+
+#. Why rclone's last save of the config file failed.
+#: core/config/service.go
+msgid "not saved: %s"
+msgstr "未保存：%s"
+
+#. Search words for the launcher's Notifications row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "notifications, alerts, webhooks, email"
+msgstr "通知，提醒，警报，邮件，电子邮件，推送"
+
+#. Stands for the folder that lost its files, when bisync didn't say which, as in "Many files were deleted in one of the folders".
+#: core/schedules/scheduler.go
+msgid "one of the folders"
+msgstr "其中一个文件夹"
+
+#: core/operations/options.go
+msgid "partial_suffix can be at most 16 characters"
+msgstr "partial_suffix 最多 16 个字符"
+
+#: core/rclone/configstore.go
+msgid "password contains invalid utf8 characters"
+msgstr "密码包含无效的 UTF-8 字符"
+
+#. A transfer in a notification: the folder that was purged (deleted with all it holds).
+#: core/notifications/payloads.go
+msgid "purge of %s"
+msgstr "清除 %s"
+
+#. Search words for the launcher's Purge row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/operations.go
+msgid "purge, empty"
+msgstr "清除，清空，全部删除"
+
+#. Search words for the launcher's Quit row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "quit, exit, close"
+msgstr "退出，关闭，结束"
+
+#. Search words for the launcher's Remote Control row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "remote control, mobile, phone, tunnel, qr"
+msgstr "远程控制，遥控，手机，移动端，隧道，二维码，扫码"
+
+#. Search words for the launcher's Show Remotes row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/remotes.go
+msgid "remotes, list, show, config"
+msgstr "远程存储，列表，显示，查看，配置"
+
+#. The address that was requested through the proxy, then the error, in English.
+#: core/settings/proxytest.go
+msgid "request to %s failed: %s"
+msgstr "请求 %s 失败：%s"
+
+#. Search words for the launcher's Schedules row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "schedules, schedule, cron, every day, nightly, backup, timer"
+msgstr "定时任务，定时，计划任务，每天，每晚，备份，计时器"
+
+#. What uses a VFS cache, shown in lower case before its name: "serve · http 127.0.0.1:8080".
+#: app/launcher/engine/providers/running.go
+msgid "serve"
+msgstr "服务"
+
+#. Search words for the launcher's Serve row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/operations.go
+msgid "serve, http, webdav, sftp, ftp, restic, dlna, nfs, s3"
+msgstr "服务，服务器，共享，网络"
+
+#. Search words for the launcher's rows of running serves, separated by commas. Add any word that people would type to find them.
+#: app/launcher/engine/providers/running.go
+msgid "serve, serving, stop, address"
+msgstr "服务，服务中，停止，地址"
+
+#. Search words for the launcher's Settings row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "settings, preferences, proxy, about"
+msgstr "设置，偏好设置，选项，代理，关于"
+
+#. %[1]q is a keyboard shortcut, and %[2]q the part of it that should be a modifier key (Ctrl, Alt, Shift…).
+#: app/launcher/shortcut.go
+msgid "shortcut %[1]q: %[2]q is not a modifier"
+msgstr "快捷键 %[1]q：%[2]q 不是修饰键"
+
+#: app/launcher/shortcut.go
+msgid "shortcut %q has no modifier"
+msgstr "快捷键 %q 缺少修饰键"
+
+#: app/launcher/launcher.go
+msgid "something went wrong"
+msgstr "出了点问题"
+
+#. Search words for the launcher's Stop Everything row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/running.go
+msgid "stop, everything, all, emergency, panic, kill"
+msgstr "停止，全部，一键停止，紧急，强制停止，结束"
+
+#. Search words for the launcher's Stop All Serves row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/running.go
+msgid "stop, serves, all"
+msgstr "停止，服务，全部"
+
+#: core/notifications/payloads.go
+msgid "sync of %s"
+msgstr "同步 %s"
+
+#: core/notifications/payloads.go
+msgid "sync of %s to %s"
+msgstr "将 %s 同步到 %s"
+
+#. Search words for the launcher's Sync row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/operations.go
+msgid "sync, synchronise, synchronize"
+msgstr "同步，同步文件夹"
+
+#. Follows an option's name, as in "transfers: takes a text, a number or a switch".
+#: core/rclone/options.go
+msgid "takes a text, a number or a switch"
+msgstr "只接受文本、数字或开关"
+
+#. Follows an option's name, as in "transfers: takes one value, not a list".
+#: core/rclone/options.go
+msgid "takes one value, not a list"
+msgstr "只接受单个值，不接受列表"
+
+#. Search words for the launcher's Templates row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "templates, examples, presets"
+msgstr "模板，示例，预设"
+
+#: core/remotes/session.go
+msgid "that remote session is over"
+msgstr "该远程存储会话已结束"
+
+#: app/update/install_darwin.go
+msgid "the administrator prompt failed: %s"
+msgstr "管理员授权失败：%s"
+
+#: app/update/install_darwin.go
+#: app/update/install_linux.go
+#: app/update/install_windows.go
+msgid "the administrator prompt was cancelled"
+msgstr "已取消管理员授权"
+
+#. Why the remote tunnel did not start.
+#: core/transfers/service.go
+#: core/tunnel/service.go
+msgid "the app is shutting down"
+msgstr "应用正在退出"
+
+#. The config file's path, then its state: needs_password or error.
+#: core/rclone/configstore.go
+msgid "the config file %s changed outside the app and can't be read (%s)"
+msgstr "配置文件 %s 在应用外被修改，无法读取（%s）"
+
+#. The config file's path, then its state: needs_password or error.
+#: core/rclone/configstore.go
+msgid "the config file %s is not loaded (%s)"
+msgstr "配置文件 %s 未加载（%s）"
+
+#: core/rclone/configstore.go
+msgid "the config file is not encrypted"
+msgstr "配置文件未加密"
+
+#: core/config/service.go
+msgid "the config is encrypted: enter its password"
+msgstr "配置已加密：请输入密码"
+
+#: core/config/service.go
+msgid "the config was saved with an old password while the password changed (a sign-in refreshing), so its password is unchanged: try again"
+msgstr "更改密码期间，配置又以旧密码保存了一次（某个登录正在刷新），因此密码未更改：请重试"
+
+#. The value is the error of the file's write, often the system's, in English.
+#: core/config/service.go
+msgid "the config wasn't saved, and its password is unchanged: %s"
+msgstr "配置未保存，密码也未更改：%s"
+
+#. Why the remote tunnel did not start. The value is the keychain's error.
+#: core/tunnel/service.go
+msgid "the config's password: %w"
+msgstr "rclone 配置的密码：%w"
+
+#: app/launcher/engine/providers/completion.go
+#: app/trayrunning.go
+msgid "the core is not ready"
+msgstr "核心服务尚未就绪"
+
+#. %s is a keyboard shortcut, in the desktop's syntax.
+#: app/launcher/shortcut_linux.go
+msgid "the desktop didn't bind %s: %w"
+msgstr "桌面环境未能绑定 %s：%w"
+
+#: app/launcher/shortcut_linux.go
+msgid "the desktop's portal has no global shortcuts: %w"
+msgstr "桌面门户不支持全局快捷键：%w"
+
+#: app/update/download.go
+msgid "the download isn't a %s artifact"
+msgstr "下载的文件不是有效的 %s 包"
+
+#: app/update/feed.go
+msgid "the feed of Rclone UI %s describes %s"
+msgstr "Rclone UI %s 的更新源描述的是 %s 版本"
+
+#: app/update/update.go
+msgid "the release has no download for this platform"
+msgstr "该版本没有适用于此平台的下载"
+
+#. Part of a list of what is running, as in "Stop a mount and the remote tunnel?".
+#: core/services.go
+msgid "the remote tunnel"
+msgstr "远程隧道"
+
+#: app/update/download.go
+msgid "the server sent nothing for a minute"
+msgstr "服务器一分钟内没有发送任何数据"
+
+#. Stands for the address of rclone's sign-in listener, in "Another app is using the port rclone signs in on (…)".
+#: core/remotes/api.go
+msgid "the sign-in port"
+msgstr "登录端口"
+
+#. Why a mount, a serve or the tunnel went down: the app's own supervisor failed.
+#: core/children/unit.go
+msgid "the supervisor panicked: %v"
+msgstr "监控程序意外崩溃：%v"
+
+#. Why the remote tunnel did not start.
+#: core/tunnel/service.go
+msgid "the tunnel had no address in time"
+msgstr "隧道未能及时获得地址"
+
+#: app/update/untar.go
+msgid "the update archive is damaged: %w"
+msgstr "更新包已损坏：%w"
+
+#: app/update/untar.go
+msgid "the update archive is too large"
+msgstr "更新包过大"
+
+#: app/update/feed.go
+msgid "the update feed answered %s (%s)"
+msgstr "更新源返回 %s（%s）"
+
+#: app/update/feed.go
+msgid "the update feed didn't answer within 30 seconds"
+msgstr "更新源在 30 秒内没有响应"
+
+#: app/update/feed.go
+msgid "the update feed isn't valid (%s): %w"
+msgstr "更新源无效（%s）：%w"
+
+#: app/update/feed.go
+msgid "the update feed names no valid version (%s): %q"
+msgstr "更新源中没有有效的版本号（%s）：%q"
+
+#: app/update/untar.go
+msgid "the update isn't a .tar.gz: %w"
+msgstr "更新包不是 .tar.gz 文件：%w"
+
+#: app/update/untar.go
+msgid "the update isn't an app bundle: %w"
+msgstr "更新包不是应用程序包：%w"
+
+#: app/update/update.go
+msgid "this copy of Rclone UI can't update itself"
+msgstr "当前安装的 Rclone UI 无法自行更新"
+
+#. Path1 and Path2 are rclone's names for the two folders of a bisync. "force" is the bisync option of that name.
+#: core/operations/bisyncerr.go
+msgid "too many deletes on Path1: bisync stopped before deleting the same files on Path2. Run it with force to delete them there too"
+msgstr "Path1 中删除的文件过多：双向同步在删除 Path2 中的相同文件之前已停止。如果也要在那里删除，请使用 force 运行"
+
+#. Path1 and Path2 are rclone's names for the two folders of a bisync. "force" is the bisync option of that name.
+#: core/operations/bisyncerr.go
+msgid "too many deletes on Path2: bisync stopped before deleting the same files on Path1. Run it with force to delete them there too"
+msgstr "Path2 中删除的文件过多：双向同步在删除 Path1 中的相同文件之前已停止。如果也要在那里删除，请使用 force 运行"
+
+#. "force" is the bisync option of that name.
+#: core/operations/bisyncerr.go
+msgid "too many deletes: bisync stopped before deleting the same files on the other side. Run it with force to delete them there too"
+msgstr "删除的文件过多：双向同步在删除另一侧的相同文件之前已停止。如果也要在那里删除，请使用 force 运行"
+
+#. Search words for the launcher's rows of the running transfers, separated by commas. Add any word that people would type to find them.
+#: app/launcher/engine/providers/running.go
+msgid "transfers, history, jobs, stop, cancel"
+msgstr "传输，历史记录，任务，停止，取消"
+
+#: app/update/update.go
+msgid "unknown feed format"
+msgstr "未知的更新源格式"
+
+#. Search words for the launcher's Unmount All row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/running.go
+msgid "unmount, stop, mounts, all"
+msgstr "卸载，停止，挂载，全部"
+
+#. Search words for the launcher's VFS cache rows, separated by commas. VFS is rclone's virtual file system. Add any word that people would type to find them.
+#: app/launcher/engine/providers/running.go
+msgid "vfs, cache, forget"
+msgstr "缓存，清空缓存，清除缓存，忘记"
+
+#. The one watcher in "your watcher and 2 schedules".
+#: app/quit.go
+msgid "watcher"
+msgstr "你的监视器"
+
+#. Search words for the launcher's Watchers row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/navigation.go
+msgid "watchers, watch, keep in sync, dropbox, folders"
+msgstr "监视器，监视，保持同步，自动同步，文件夹"
+
+#. Search words for the launcher's Run row, separated by commas. Add any word that people would type to find it.
+#: app/launcher/engine/providers/operations.go
+msgid "wizard, run, operation, start, new"
+msgstr "向导，运行，操作，开始，新建"
+
+#: core/operations/args.go
+msgid "‘%s’ and ‘%s’ are the same option"
+msgstr "“%s”和“%s”是同一个选项"
+
+#. An option's name, then a remote's name.
+#: core/operations/connstr.go
+msgid "‘%s’ cannot be an option of %s"
+msgstr "“%s”不能作为 %s 的选项"
+
+#: core/notifications/validate.go
+msgid "‘%s’ is not an email address."
+msgstr "“%s”不是有效的邮箱地址。"
+
+#: core/operations/connstr.go
+msgid "‘%s’ is not an option of %s (a %s remote)"
+msgstr "“%s”不是 %s（%s 远程存储）的选项"
+
+#: core/operations/options.go
+msgid "‘%s’ is not an rclone filter option"
+msgstr "“%s”不是 rclone 的筛选选项"
+
+#: core/operations/options.go
+msgid "‘%s’ is not an rclone option"
+msgstr "“%s”不是 rclone 选项"
+
+#. An option's name, then the name of one of rclone's blocks of options, such as main or filter.
+#: core/operations/sdk.go
+msgid "‘%s’ is not one of rclone's %s options"
+msgstr "“%s”不属于 rclone 的 %s 选项"
+
+#. An option's name, then the name of the group of options in the form, such as vfs.
+#: core/operations/flags.go
+#: core/operations/sdk.go
+msgid "‘%s’ is not one of the %s options"
+msgstr "“%s”不属于 %s 选项"
+
+#: core/operations/connstr.go
+msgid "‘%s’ would change rclone’s options for everything the app runs; override.%s changes them for %s alone"
+msgstr "“%s”会更改 rclone 用于整个应用的选项；override.%s 只更改 %s 的选项"
+
+#. The end of a list that is cut short.
+#: app/quit.go
+msgid "…and %d more"
+msgid_plural "…and %d more"
+msgstr[0] "…还有 %d 项"
+
+#. The Edit menu's item that copies the selection to the clipboard.
+#: app/menus/menus.go
+msgctxt "menu bar"
+msgid "Copy"
+msgstr "拷贝"
+
+#: app/menus/menus.go
+msgctxt "menu bar"
+msgid "Edit"
+msgstr "编辑"

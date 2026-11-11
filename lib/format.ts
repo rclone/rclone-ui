@@ -1,25 +1,162 @@
-const RE_WINDOWS_DRIVE = /^[a-zA-Z]:([/\\]|$)/
-const RE_WINDOWS_DRIVE_WITH_SLASH = /^([a-zA-Z]:)\/?/
-const RE_LOCAL_WINDOWS_PATH = /^:local:([a-zA-Z]:\/?.*)$/
-const RE_LOCAL_PREFIX = /^:local:/
-const RE_PATH_SEPARATOR = /[/\\]/
+import { plural, t } from '@lingui/core/macro'
+import { useEffect, useState } from 'react'
+import { locale } from './i18n'
+import { baseName, currentHost, type Host, parsePath, readablePath } from './paths'
 
+/**
+ * A number as the app's language writes it: "1,234.5" in English, "1.234,5" in Spanish. A value
+ * that rclone reads (a size such as 10M, a duration) is never written this way: it keeps
+ * rclone's syntax in every language.
+ */
+export function formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
+    return new Intl.NumberFormat(locale(), options).format(value)
+}
+
+/**
+ * A date, a time or both as the app's language writes it, with `Intl.DateTimeFormat`'s options.
+ * Without options it is the date and the time in the language's usual short form.
+ */
+export function formatDate(
+    at: number | string | Date,
+    options: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short' }
+): string {
+    return new Intl.DateTimeFormat(locale(), options).format(new Date(at))
+}
+
+/**
+ * Compares two texts as the app's language sorts them, with numbers inside them in order
+ * ("file2" before "file10") and without regard to case or accents.
+ */
+export function compareText(a: string, b: string): number {
+    return sorter().compare(a, b)
+}
+
+let sorting: { locale: string; collator: Intl.Collator } | undefined
+
+/** The collator of the window's language, made once. */
+function sorter(): Intl.Collator {
+    const lang = locale()
+    if (sorting?.locale !== lang) {
+        const collator = new Intl.Collator(lang, { numeric: true, sensitivity: 'base' })
+        sorting = { locale: lang, collator }
+    }
+    return sorting.collator
+}
+
+/**
+ * A text in lower case by the rules of the app's language, for matching what the user types
+ * against what the window shows. Names that only the code reads (a key, a file extension) are
+ * lower-cased with toLowerCase.
+ */
+export function foldCase(text: string): string {
+    return text.toLocaleLowerCase(locale())
+}
+
+/** A size in bytes, in the largest unit that fits: "512 B", "1.5 KB", "20 MB", "3.25 GB". */
 export function formatBytes(bytes: number) {
     if (!Number.isFinite(bytes)) return '0 B'
-
-    if (bytes < 1024) {
-        return `${Math.round(bytes)} B`
+    const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const
+    let value = bytes
+    let unit = 0
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024
+        unit++
     }
+    // Bytes are whole. The other units show two decimals at most, and no trailing zeros.
+    const digits = unit === 0 ? 0 : 2
+    const number = formatNumber(value, { maximumFractionDigits: digits, useGrouping: false })
+    return `${number} ${units[unit]}`
+}
 
-    if (bytes < 1024 * 1024) {
-        return `${Number.parseFloat((bytes / 1024).toFixed(2))} KB`
+type Unit = 'day' | 'hour' | 'minute' | 'second'
+
+const UNITS: [unit: Unit, ms: number][] = [
+    ['day', 86_400_000],
+    ['hour', 3_600_000],
+    ['minute', 60_000],
+    ['second', 1000],
+]
+
+/** A length of time in one unit: "1 minute", "5 hours". */
+function counted(count: number, unit: Unit): string {
+    switch (unit) {
+        case 'day':
+            return plural(count, { one: '# day', other: '# days' })
+        case 'hour':
+            return plural(count, { one: '# hour', other: '# hours' })
+        case 'minute':
+            return plural(count, { one: '# minute', other: '# minutes' })
+        default:
+            return plural(count, { one: '# second', other: '# seconds' })
     }
+}
 
-    if (bytes < 1024 * 1024 * 1024) {
-        return `${Number.parseFloat((bytes / 1024 / 1024).toFixed(2))} MB`
+/**
+ * How long ago a moment was, or how long until it comes: "less than a minute ago", "5 minutes
+ * ago", "in 3 hours". It gives the largest unit, rounded. `precise` gives the two largest units,
+ * cut ("1 hour, 5 minutes ago"). An invalid time gives "". Pass `now` from useNow so that the
+ * text stays current.
+ */
+export function timeAgo(at: number | string | Date, now = Date.now(), precise = false): string {
+    const time = new Date(at).getTime()
+    if (Number.isNaN(time)) return ''
+    const delta = now - time
+    const length = precise ? twoUnits(Math.abs(delta)) : oneUnit(Math.abs(delta))
+    if (length === null) {
+        if (precise) return t`just now`
+        return delta >= 0 ? t`less than a minute ago` : t`in less than a minute`
     }
+    return delta >= 0
+        ? t({ message: `${length} ago`, comment: 'How long ago: "5 minutes ago".' })
+        : t({ message: `in ${length}`, comment: 'How long until: "in 5 minutes".' })
+}
 
-    return `${Number.parseFloat((bytes / 1024 / 1024 / 1024).toFixed(2))} GB`
+/** The largest unit, rounded, from minutes up (59.7 minutes is 1 hour). Null under 30 s. */
+function oneUnit(ms: number): string | null {
+    const minutes = Math.round(ms / 60_000)
+    if (minutes < 1) return null
+    if (minutes < 60) return counted(minutes, 'minute')
+    const hours = Math.round(ms / 3_600_000)
+    if (hours < 24) return counted(hours, 'hour')
+    return counted(Math.round(ms / 86_400_000), 'day')
+}
+
+/** The two largest units, cut. Null under a second. */
+function twoUnits(ms: number): string | null {
+    let left = ms
+    const parts: string[] = []
+    for (const [unit, size] of UNITS) {
+        if (parts.length === 2) break
+        const count = Math.floor(left / size)
+        if (count === 0) {
+            if (parts.length > 0) break
+            continue
+        }
+        left -= count * size
+        parts.push(counted(count, unit))
+    }
+    if (parts.length === 0) return null
+    if (parts.length === 1) return parts[0]
+    const [larger, smaller] = parts
+    return t({
+        message: `${larger}, ${smaller}`,
+        comment: 'Two lengths of time together: "1 hour, 5 minutes".',
+    })
+}
+
+/**
+ * The current time, which changes every `intervalMs` (30 s by default), so that a component that
+ * shows timeAgo re-renders and its text stays current. null stops the updates.
+ */
+export function useNow(intervalMs: number | null = 30_000): number {
+    const [now, setNow] = useState(() => Date.now())
+    useEffect(() => {
+        if (intervalMs === null) return
+        setNow(Date.now())
+        const id = setInterval(() => setNow(Date.now()), intervalMs)
+        return () => clearInterval(id)
+    }, [intervalMs])
+    return now
 }
 
 export function replaceSmartQuotes(value: string) {
@@ -34,174 +171,32 @@ export function replaceSmartQuotes(value: string) {
     return value.replace(/[‘’‚“”„]/g, (match) => replacements[match])
 }
 
-export function getRemoteName(path?: string) {
-    if (!path?.includes(':')) return null // Return null for local paths
-    if (path.startsWith(':local:')) {
-        return ':local'
-    }
-    // Windows drive letter check (C:\, D:/, etc.)
-    if (RE_WINDOWS_DRIVE.test(path)) {
-        return null
-    }
-    return path.split(':')[0]
+/**
+ * Returns the remote that a path names, or null for a local path or one that rclone would refuse.
+ * Paths are parsed by `lib/paths.ts`, which follows rclone's own rules. `:local` is the local
+ * backend written as a remote, a drive letter on a Windows host is local, and a colon inside a
+ * file name doesn't make the path a remote.
+ */
+export function getRemoteName(path?: string, host: Host = currentHost()) {
+    if (!path) return null
+    const parsed = parsePath(path, host)
+    return parsed.kind === 'remote' ? parsed.name : null
 }
 
+/**
+ * Shows a path as it was typed. `short` returns its last segment. `long` returns the whole path,
+ * shortened in the middle to `<first>/.../<parent>/<name>` (see `readablePath` in `lib/paths.ts`).
+ * Nothing is added: the slash after a remote's colon is kept or left out as the user typed it.
+ */
 export function buildReadablePath(path: string, type: 'short' | 'long' = 'long') {
     if (!path) {
         return ''
     }
 
+    // The last name, as rclone reads the path on this host. A root is shown as itself.
     if (type === 'short') {
-        return path.split(RE_PATH_SEPARATOR).filter(Boolean).pop() ?? ''
+        return baseName(path) || path
     }
 
-    // 'long' = a compact readable path (toolbar command-palette style): an optional container
-    // (remote-name or Windows drive, each with its colon), then the path abbreviated to
-    // "<first>/.../<parent>/<name>" (fewer joints for short paths). A plain local (Unix) path has no
-    // container, so its own first segment (/Users, /Volumes, /mnt, …) is the leading item. Never
-    // colon-split blindly — that mangles Unix paths.
-    const remote = getRemoteName(path)
-    let prefix = ''
-    let rest = path
-
-    if (remote && remote !== ':local') {
-        prefix = `${remote}:`
-        rest = path.slice(path.indexOf(':') + 1)
-    } else {
-        rest = path.replace(RE_LOCAL_PREFIX, '') // defensive; :local: isn't stored but keeps C:/ intact
-        const drive = rest.match(RE_WINDOWS_DRIVE_WITH_SLASH)
-        if (drive) {
-            prefix = drive[1]
-            rest = rest.slice(drive[0].length)
-        }
-    }
-
-    const body = abbreviateSegments(rest.split(RE_PATH_SEPARATOR).filter(Boolean))
-    return `${prefix}/${body}`
-}
-
-// Keep the first, immediate-parent, and last path segments, collapsing anything between to "…".
-function abbreviateSegments(segments: string[]): string {
-    if (segments.length <= 3) {
-        return segments.join('/')
-    }
-    return `${segments[0]}/.../${segments[segments.length - 2]}/${segments[segments.length - 1]}`
-}
-
-export function buildReadablePathMultiple(
-    paths: string[],
-    type: 'short' | 'long',
-    truncate: boolean = false
-) {
-    console.log('[buildReadablePathMultiple] paths', paths)
-
-    if (paths.length < 2) {
-        return buildReadablePath(paths[0], type)
-    }
-
-    const readablePath = `${buildReadablePath(paths[0], type)} + ${paths.length - 1} more`
-
-    if (truncate) {
-        let [start, end] = readablePath.split(' + ')
-
-        if (start.length <= 30) {
-            return readablePath
-        }
-
-        start = start.slice(0, 47) + '...'
-
-        return `${start} + ${end}`
-    }
-
-    return readablePath
-}
-
-export function getConfigParentFolder(path: string) {
-    console.log('[getConfigParentFolder] path', path)
-    if (path.endsWith('\\rclone.conf')) {
-        console.log('[getConfigParentFolder] path ends with \\rclone.conf')
-        return path.slice(0, -11)
-    }
-
-    if (path.endsWith('/rclone.conf')) {
-        console.log('[getConfigParentFolder] path ends with /rclone.conf')
-        return path.slice(0, -11)
-    }
-
-    console.log('[getConfigParentFolder] path does not end with \\rclone.conf or /rclone.conf')
-    return path
-}
-
-export function getFsInfo(fs: string, sep = '/') {
-    let normalizedFs = fs.replace(/\\/g, '/')
-
-    const localWindowsMatch = normalizedFs.match(RE_LOCAL_WINDOWS_PATH)
-    if (localWindowsMatch) {
-        normalizedFs = localWindowsMatch[1]
-    }
-
-    console.log('[getFsInfo] ', normalizedFs)
-
-    const fsRemote = getRemoteName(normalizedFs)
-    console.log('[getFsInfo] ', normalizedFs, 'fsRemote', fsRemote)
-
-    let root: string
-    let path: string
-
-    if (fsRemote) {
-        root = `${fsRemote}:`
-        path = normalizedFs.replace(fsRemote, '').split(':')[1]
-    } else {
-        const windowsDriveMatch = normalizedFs.match(RE_WINDOWS_DRIVE_WITH_SLASH)
-        if (windowsDriveMatch) {
-            root = `:local:${windowsDriveMatch[1]}/`
-            path = normalizedFs.slice(windowsDriveMatch[0].length)
-        } else {
-            root = ':local:'
-            path = normalizedFs
-        }
-    }
-
-    console.log('[getFsInfo] ', normalizedFs, 'root', root)
-    console.log('[getFsInfo] ', normalizedFs, 'path', path)
-
-    let type = 'file'
-
-    if (normalizedFs.endsWith('/') || normalizedFs.endsWith('\\')) {
-        type = 'folder'
-    }
-
-    while (path.startsWith('/')) {
-        path = path.slice(1)
-    }
-
-    while (path.endsWith('/') || path.endsWith('\\')) {
-        path = path.slice(0, -1)
-    }
-
-    const dirPath = `${path}${sep}`
-
-    const name = path.split('/').pop()!
-
-    console.log('[getFsInfo] ', normalizedFs, 'name', name)
-    console.log('[getFsInfo] ', normalizedFs, 'fullFilePath', `${root}${path}`)
-    console.log('[getFsInfo] ', normalizedFs, 'fullDirPath', `${root}${dirPath}`)
-    console.log('[getFsInfo] ', normalizedFs, 'type', type)
-    console.log('[getFsInfo] ', normalizedFs, 'remoteName', fsRemote || ':local')
-    console.log('[getFsInfo] ', normalizedFs, 'isRemote', !!fsRemote)
-    console.log('[getFsInfo] ', normalizedFs, 'root', root || '/')
-    console.log('[getFsInfo] ', normalizedFs, 'filePath', path)
-    console.log('[getFsInfo] ', normalizedFs, 'dirPath', dirPath)
-
-    return {
-        isRemote: !!fsRemote,
-        root,
-        filePath: path,
-        dirPath,
-        fullFilePath: `${root}${path}`,
-        fullDirPath: `${root}${dirPath}`,
-        name,
-        type,
-        remoteName: fsRemote || ':local',
-    }
+    return readablePath(path)
 }

@@ -1,0 +1,70 @@
+{
+  "discord": {
+    "body": {
+      "username": "Rclone UI",
+      "embeds": [
+        {
+          "title": "Update available",
+          "description": "Rclone UI 3.1.0 is available (this is 3.0.2).",
+          "color": 3447003,
+          "timestamp": "2026-01-02T03:04:05.678Z"
+        }
+      ]
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://discord.com/api/webhooks/1234567890/AbC-dEf_123"
+  },
+  "email": {
+    "subject": "Update available",
+    "text": "Rclone UI 3.1.0 is available (this is 3.0.2).\n\n— Rclone UI v1.2.3",
+    "to": [
+      "ops@example.com",
+      "alice@example.com"
+    ]
+  },
+  "slack": {
+    "body": {
+      "text": "*Update available*\nRclone UI 3.1.0 is available (this is 3.0.2)."
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://hooks.slack.com/services/T000AAA/B000BBB/xyz123"
+  },
+  "telegram": {
+    "body": {
+      "chat_id": "-1001234567890",
+      "message_thread_id": "7",
+      "parse_mode": "HTML",
+      "text": "<b>Update available</b>\nRclone UI 3.1.0 is available (this is 3.0.2)."
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://api.telegram.org/bot123456:ABC-def_ghi/sendMessage"
+  },
+  "webhook": {
+    "body": {
+      "source": "rclone-ui",
+      "version": "1.2.3",
+      "event": "app.update-available",
+      "label": "Update available",
+      "severity": "info",
+      "title": "Update available",
+      "body": "Rclone UI 3.1.0 is available (this is 3.0.2).",
+      "timestamp": "2026-01-02T03:04:05.678Z",
+      "data": {
+        "version": "3.1.0",
+        "current": "3.0.2",
+        "notes": "Faster listings & fixes"
+      }
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "X-RcloneUI-Event": "app.update-available"
+    },
+    "url": "https://example.com/hooks/rclone"
+  }
+}
