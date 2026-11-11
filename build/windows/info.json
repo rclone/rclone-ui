@@ -1,0 +1,15 @@
+{
+    "fixed": {
+        "file_version": "@FILEVERSION@"
+    },
+    "info": {
+        "0000": {
+            "ProductVersion": "@VERSION@",
+            "CompanyName": "Rclone",
+            "FileDescription": "Rclone UI",
+            "LegalCopyright": "© Rclone",
+            "ProductName": "Rclone UI",
+            "OriginalFilename": "rcui.exe"
+        }
+    }
+}

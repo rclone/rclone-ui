@@ -1,28 +1,38 @@
+import { t } from '@lingui/core/macro'
 import { useEffect, useState } from 'react'
 
-// One shared fetch per wasm asset, reused across mounts (incl. StrictMode remounts).
+// One shared fetch per wasm asset, reused across mounts (including StrictMode remounts).
 const wasmCache = new Map<string, Promise<void>>()
 
+async function fetchWasm(wasmUrl: string): Promise<ArrayBuffer> {
+    const res = await fetch(wasmUrl)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return res.arrayBuffer()
+}
+
 /**
- * Fetches a viewer library's wasm (a same-origin, bundled asset — no CORS) and hands
- * it to that library's `setWasmSource` as an **ArrayBuffer**, then reports readiness.
+ * Fetches a viewer library's wasm (a bundled asset on the same origin), passes it to that
+ * library's `setWasmSource` as an ArrayBuffer, and then reports `ready`.
  *
- * These libraries parse inside a Web Worker and forward the configured wasm source to
- * it. A string URL makes the worker fetch the wasm itself, which it can't resolve in
- * the Tauri webview — so we pass raw bytes instead: the buffer is structured-cloned to
- * the worker and instantiated directly. Gate the viewer on the returned flag so the
- * source is configured before the library spins up its worker.
+ * These libraries parse inside a Web Worker and pass the configured wasm source on to it. The
+ * bytes are passed rather than a URL, because the worker would have to resolve a URL itself.
+ * Don't render the viewer until `ready` is set, so the source is configured before the library
+ * starts its worker. If the wasm can't be loaded, `error` is set, because otherwise the viewer
+ * would wait for the wasm forever.
  */
 export default function usePreviewWasm(
     wasmUrl?: string,
     setWasmSource?: (source: ArrayBuffer) => void
-): boolean {
-    const [ready, setReady] = useState(false)
+): { ready: boolean; error: string | null } {
+    const [state, setState] = useState<{ ready: boolean; error: string | null }>({
+        ready: false,
+        error: null,
+    })
 
     useEffect(() => {
-        // Nothing to configure — e.g. PdfPreview loads its own wasm via the engine.
+        // Nothing to configure. For example, PdfPreview loads its own wasm through its engine.
         if (!wasmUrl || !setWasmSource) {
-            setReady(true)
+            setState({ ready: true, error: null })
             return
         }
 
@@ -30,20 +40,21 @@ export default function usePreviewWasm(
 
         let promise = wasmCache.get(wasmUrl)
         if (!promise) {
-            promise = fetch(wasmUrl)
-                .then((res) => res.arrayBuffer())
-                .then((buffer) => setWasmSource(buffer))
+            promise = fetchWasm(wasmUrl).then((buffer) => setWasmSource(buffer))
             wasmCache.set(wasmUrl, promise)
         }
+        const attempt = promise
 
-        promise
+        attempt
             .then(() => {
-                if (!cancelled) setReady(true)
+                if (!cancelled) setState({ ready: true, error: null })
             })
-            .catch(() => {
+            .catch((error: unknown) => {
                 // Drop the failed attempt so a later mount can retry the fetch.
-                wasmCache.delete(wasmUrl)
-                // Leave `ready` false; the viewer stays on its loading state.
+                if (wasmCache.get(wasmUrl) === attempt) wasmCache.delete(wasmUrl)
+                if (cancelled) return
+                const detail = error instanceof Error ? error.message : String(error)
+                setState({ ready: false, error: t`The viewer could not load (${detail}).` })
             })
 
         return () => {
@@ -51,5 +62,5 @@ export default function usePreviewWasm(
         }
     }, [wasmUrl, setWasmSource])
 
-    return ready
+    return state
 }

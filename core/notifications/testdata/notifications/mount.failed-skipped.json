@@ -1,0 +1,70 @@
+{
+  "discord": {
+    "body": {
+      "username": "Rclone UI",
+      "embeds": [
+        {
+          "title": "Automount skipped",
+          "description": "gdrive:Work is not reachable (network or sign-in problem) — not mounting to avoid an empty folder at /mnt/work",
+          "color": 15158332,
+          "timestamp": "2026-01-02T03:04:05.678Z"
+        }
+      ]
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://discord.com/api/webhooks/1234567890/AbC-dEf_123"
+  },
+  "email": {
+    "subject": "Automount skipped",
+    "text": "gdrive:Work is not reachable (network or sign-in problem) — not mounting to avoid an empty folder at /mnt/work\n\n— Rclone UI v1.2.3",
+    "to": [
+      "ops@example.com",
+      "alice@example.com"
+    ]
+  },
+  "slack": {
+    "body": {
+      "text": "*Automount skipped*\ngdrive:Work is not reachable (network or sign-in problem) — not mounting to avoid an empty folder at /mnt/work"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://hooks.slack.com/services/T000AAA/B000BBB/xyz123"
+  },
+  "telegram": {
+    "body": {
+      "chat_id": "-1001234567890",
+      "message_thread_id": "7",
+      "parse_mode": "HTML",
+      "text": "<b>Automount skipped</b>\ngdrive:Work is not reachable (network or sign-in problem) — not mounting to avoid an empty folder at /mnt/work"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://api.telegram.org/bot123456:ABC-def_ghi/sendMessage"
+  },
+  "webhook": {
+    "body": {
+      "source": "rclone-ui",
+      "version": "1.2.3",
+      "event": "mount.failed",
+      "label": "Mount failed",
+      "severity": "error",
+      "title": "Automount skipped",
+      "body": "gdrive:Work is not reachable (network or sign-in problem) — not mounting to avoid an empty folder at /mnt/work",
+      "timestamp": "2026-01-02T03:04:05.678Z",
+      "data": {
+        "source": "gdrive:Work",
+        "destination": "/mnt/work",
+        "error": "directory not found"
+      }
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "X-RcloneUI-Event": "mount.failed"
+    },
+    "url": "https://example.com/hooks/rclone"
+  }
+}

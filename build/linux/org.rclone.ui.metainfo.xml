@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.rclone.ui</id>
+
+  <name>Rclone UI</name>
+  <summary>The GUI for rclone.</summary>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>Apache-2.0</project_license>
+
+  <developer id="org.rclone">
+    <name>Rclone</name>
+  </developer>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
+
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+
+  <description>
+    <p>
+      The best way to manage your rclone remotes &amp; tasks in a light and easy way.
+    </p>
+    <p>
+      Free to use &amp; open source.
+    </p>
+	<p>
+      Stop remembering flags, copy pasting commands, and wasting time.
+    </p>
+    <p>
+      Features:
+    </p>
+	<ol>
+		<li>✅ Cross platform running on Windows, Linux, macOS (x64, Arm and Apple Silicon)</li>
+		<li>✅ rclone built in, using rclone's own config file</li>
+		<li>✅ A file browser for every remote, side by side</li>
+		<li>✅ Copy, Sync, Move, Delete, Bisync, Mount, Serve, and more</li>
+		<li>✅ Transfers and their history (see every background operation)</li>
+		<li>✅ Watchers that keep two folders in sync</li>
+		<li>✅ Schedules that run a copy, sync or other operation at set times</li>
+		<li>✅ Templates for the operations you run often</li>
+		<li>✅ A launcher that opens anything from a shortcut</li>
+		<li>✅ Notifications by email, webhook and more</li>
+		<li>✅ Proxy support</li>
+		<li>✅ Encrypt your rclone config, with a password or a password command</li>
+	</ol>
+	<p>
+		No tracking, no ads.
+    	<em>Do more with Rclone!</em>
+    </p>
+  </description>
+
+  <categories>
+	<category>System</category>
+	<category>Network</category>
+  </categories>
+
+  <keywords>
+	<keyword>Rclone</keyword>
+	<keyword>S3</keyword>
+	<keyword>Google Drive</keyword>
+	<keyword>OneDrive</keyword>
+	<keyword>FTP</keyword>
+	<keyword>SFTP</keyword>
+	<keyword>WebDAV</keyword>
+	<keyword>Rsync</keyword>
+	<keyword>File Manager</keyword>
+  </keywords>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#0a0325</color>
+	<color type="primary" scheme_preference="dark">#0a0325</color>
+  </branding>
+
+  <content_rating type="oars-1.1" />
+
+  <url type="bugtracker">https://github.com/rclone/rclone-ui/issues</url>
+  <url type="homepage">https://github.com/rclone/rclone-ui</url>
+  <url type="vcs-browser">https://github.com/rclone/rclone-ui</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/rclone/rclone-ui/main/build/linux/screenshots/1-commander.png</image>
+      <caption>Browse your remotes side by side</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/rclone/rclone-ui/main/build/linux/screenshots/2-launcher.png</image>
+      <caption>Open anything from a shortcut</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/rclone/rclone-ui/main/build/linux/screenshots/3-copy.png</image>
+      <caption>Copy, Sync, Move, Mount, Serve and more</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/rclone/rclone-ui/main/build/linux/screenshots/4-remotes.png</image>
+      <caption>Manage your remotes</caption>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="4.0.0" date="2026-11-07">
+      <url type="details">https://github.com/rclone/rclone-ui/releases/tag/v4.0.0</url>
+      <description>
+        <p>The first release.</p>
+      </description>
+    </release>
+  </releases>
+
+  <launchable type="desktop-id">org.rclone.ui.desktop</launchable>
+</component>

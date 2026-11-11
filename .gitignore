@@ -1,5 +1,4 @@
-# Logs
-logs
+/logs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,15 +6,17 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+/node_modules
+/dist
+/dist-ssr
 *.local
 
 # Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+/.vscode/*
+!/.vscode/extensions.json
+/.idea
+/.zed/
+/.claude/
 .DS_Store
 *.suo
 *.ntvs*
@@ -23,13 +24,17 @@ dist-ssr
 *.sln
 *.sw?
 
-.env*
-!.env.example
-.cursorignore
-.work
-.work/*
-scripts/release.md
-src-tauri/binaries/*
-!src-tauri/binaries/.gitkeep
-/public/out.js
-video
+/.env*
+!/.env.example
+/.cursorignore
+/.work
+/video/
+
+# The embedded, compressed Vite build (tools/zstdassets)
+/app/assets/dist/
+/build/bin/
+/build/dist/
+*.syso
+
+# The ads proposal, the presentation images and the tools that make them
+/.showcase/

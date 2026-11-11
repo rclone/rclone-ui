@@ -1,0 +1,8 @@
+{
+  "uuid": "launcher@rclone.org",
+  "name": "Rclone UI Launcher",
+  "description": "Places Rclone UI's launcher on the screen, keeps it above the other windows and gives it the focus, which GNOME lets no app do for itself.",
+  "version": 1,
+  "shell-version": ["45", "46", "47", "48", "49", "50", "51"],
+  "url": "https://github.com/rclone/rclone-ui"
+}

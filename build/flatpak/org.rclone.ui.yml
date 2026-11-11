@@ -1,0 +1,73 @@
+# The Flathub manifest of Rclone UI. It builds rcui from the release's tag offline: Go's modules
+# (vendor/) and the built pages (app/assets/dist) come from the release's Rclone-UI-*-vendor.tar.gz,
+# which the release workflow makes from the same commit. The release attaches this file with
+# @VERSION@, @COMMIT@ and @SHA256@ filled in, for the Flathub repository.
+app-id: org.rclone.ui
+runtime: org.gnome.Platform
+# GNOME 51 has GTK 4 and WebKitGTK 6.0, which is Wails' default stack. Its Go extension (from the
+# 26.08 Freedesktop SDK) is new enough for go.mod.
+runtime-version: '51'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.golang
+command: rcui
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # The tray, OS notifications, and the keychain (config passwords, the mail server's).
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.secrets
+build-options:
+  append-path: /usr/lib/sdk/golang/bin
+  env:
+    CGO_ENABLED: '1'
+    GOTOOLCHAIN: local
+    GOFLAGS: -mod=vendor -trimpath
+modules:
+  # gtk4-layer-shell, which rcui links for the launcher. The launcher uses it where the
+  # compositor has layer-shell (KDE Plasma, COSMIC, the wlroots compositors). The GNOME runtime
+  # doesn't have it.
+  - name: gtk4-layer-shell
+    buildsystem: meson
+    config-opts:
+      - -Dintrospection=false
+      - -Dvapi=false
+      - -Dexamples=false
+      - -Ddocs=false
+      - -Dtests=false
+    post-install:
+      - install -Dm644 -t /app/share/licenses/gtk4-layer-shell LICENSE
+    sources:
+      - type: archive
+        url: https://github.com/wmww/gtk4-layer-shell/archive/refs/tags/v1.3.0.tar.gz
+        sha256: 1ebb01ab14e98afd1727f68f64981c37bd23305b1f131f5667c02b94cf593192
+        x-checker-data:
+          type: json
+          url: https://api.github.com/repos/wmww/gtk4-layer-shell/releases/latest
+          version-query: .tag_name | sub("^v"; "")
+          url-query: '"https://github.com/wmww/gtk4-layer-shell/archive/refs/tags/v" + $version + ".tar.gz"'
+  - name: rclone-ui
+    buildsystem: simple
+    build-commands:
+      # Built like every release, with build.sh's tags and versions. The pages come from the
+      # vendor archive, and go list -m reads rclone's version from vendor/.
+      - APP_VERSION=@VERSION@ bash build/build.sh --skip-frontend
+      - install -Dm755 build/bin/linux-*/rcui /app/bin/rcui
+      - sed -e 's|^Exec=.*|Exec=rcui %u|' build/linux/org.rclone.ui.desktop > org.rclone.ui.desktop
+      - install -Dm644 org.rclone.ui.desktop /app/share/applications/org.rclone.ui.desktop
+      - install -Dm644 build/linux/org.rclone.ui.metainfo.xml /app/share/metainfo/org.rclone.ui.metainfo.xml
+      - for size in 32 128 256 512; do install -Dm644 build/linux/icons/${size}x${size}.png /app/share/icons/hicolor/${size}x${size}/apps/org.rclone.ui.png; done
+      - install -Dm644 -t /app/share/licenses/org.rclone.ui LICENSE public/THIRD_PARTY_NOTICES.txt
+    sources:
+      - type: git
+        url: https://github.com/rclone/rclone-ui.git
+        tag: v@VERSION@
+        commit: '@COMMIT@'
+      - type: archive
+        url: https://github.com/rclone/rclone-ui/releases/download/v@VERSION@/Rclone-UI-@VERSION@-vendor.tar.gz
+        sha256: '@SHA256@'
+        strip-components: 0

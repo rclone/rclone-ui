@@ -1,0 +1,280 @@
+name: build
+
+# Builds and packages the six targets. The ci workflow and the release workflows both call it, so
+# what ci checks is what a release publishes.
+#
+# With release set, the packages are signed (each OS gets only its own secrets), one failed target
+# stops the rest, and the artifacts are named dist-<goos>-<goarch>, which the release workflows
+# read. Without it, the packages are unsigned and the artifacts are named rcui-<goos>-<goarch>.
+#
+# With a version, the build and its packages take that version in place of package.json's
+# (release-beta uses it for its numbered betas).
+on:
+  workflow_call:
+    inputs:
+      release:
+        description: sign the packages, with the caller's secrets (secrets inherit)
+        type: boolean
+        default: false
+      version:
+        description: the version to build, in place of package.json's
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
+    strategy:
+      fail-fast: ${{ inputs.release }}
+      matrix:
+        include:
+          # macOS 15 on Apple silicon, which also builds the Intel app. GitHub retired its macOS 14
+          # runners on November 2, 2026.
+          - { runner: macos-15, goos: darwin, goarch: arm64 }
+          - { runner: macos-15, goos: darwin, goarch: amd64 }
+          - { runner: windows-latest, goos: windows, goarch: amd64 }
+          - { runner: windows-11-arm, goos: windows, goarch: arm64 }
+          # Linux builds in Debian 13, the oldest Linux that the app supports. A binary needs the
+          # glibc and the GTK it was built against, or newer, so this one also runs on Ubuntu
+          # 26.04 and the rest. GitHub has no Debian runners, so it runs in a container.
+          - { runner: ubuntu-24.04, container: 'debian:13', goos: linux, goarch: amd64 }
+          - { runner: ubuntu-24.04-arm, container: 'debian:13', goos: linux, goarch: arm64 }
+    runs-on: ${{ matrix.runner }}
+    # Empty for macOS and Windows, which build on the runner itself.
+    container: ${{ matrix.container }}
+    env:
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+      # build.sh and package.sh read it. Empty, they take package.json's version.
+      APP_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Linux build and packaging dependencies
+        # The container is a bare Debian, so this step comes first. It installs git for the
+        # checkout, a C compiler and pkg-config for cgo, GTK 4 and WebKitGTK 6.0 (Wails' default
+        # stack), gtk4-layer-shell, which rcui links, and the tools that packaging uses. Nothing
+        # mounts the AppImage, so FUSE isn't needed.
+        if: runner.os == 'Linux'
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates curl xz-utils file \
+            build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libgtk4-layer-shell-dev
+
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Let git read the checkout
+        # The container runs as root and the checkout belongs to the runner's user, so git
+        # refuses the repository, and go build fails when it stamps the binary with the commit.
+        # The checkout action only trusts the folder while it runs.
+        if: runner.os == 'Linux'
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+
+      - name: Apple certificate
+        if: inputs.release && matrix.goos == 'darwin'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm certificate.p12
+          # The valid identities only: an expired certificate, or one of another type, has none.
+          identities=$(security find-identity -v -p codesigning build.keychain)
+          id=$(awk -F'"' '/Developer ID Application/ {print $2; exit}' <<<"$identities")
+          if [ -z "$id" ]; then
+            echo "$identities"
+            echo "::error::APPLE_CERTIFICATE has no valid Developer ID Application identity"
+            exit 1
+          fi
+          echo "APPLE_SIGNING_IDENTITY=$id" >> "$GITHUB_ENV"
+
+      # The Windows signing tool, at a fixed version and its own lock file. Rust first: the Arm
+      # runner may have none.
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        if: inputs.release && matrix.goos == 'windows'
+      - name: Windows signing tool
+        if: inputs.release && matrix.goos == 'windows'
+        run: cargo install trusted-signing-cli --version 0.11.0 --locked
+
+      - name: NSIS
+        # NSIS's strlen_8192 build, so that the uninstaller can take <install>\bin off a PATH
+        # longer than 1024 characters (project.nsi). It goes first on PATH on both runners,
+        # because windows-latest's own makensis is the standard build, and windows-11-arm may
+        # have none. NSIS is an x86 program, which Windows on Arm runs emulated. The strlen_8192
+        # zip holds only makensis and the stubs, so it is extracted over NSIS's standard zip,
+        # which has the rest.
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          NSIS_VERSION: '3.12'
+          NSIS_SHA256: 56581f90db321581c5381193d796fffcf2d24b2f8fed2160a6c6a3baa67f2c4f
+          NSIS_STRLEN_8192_SHA256: 44ebb4bfd5b763e295855718dbcf374fc396d03870ea038a0844abcbe1ff0c3a
+        run: |
+          function Get-Pinned($name, $sha256) {
+            $zip = Join-Path $env:RUNNER_TEMP $name
+            curl.exe -fsSL -o $zip "https://downloads.sourceforge.net/project/nsis/NSIS%203/$env:NSIS_VERSION/$name"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $sum = (Get-FileHash -Algorithm SHA256 $zip).Hash
+            if ($sum -ne $sha256) { throw "$name has sha256 $sum, not $sha256" }
+            $zip
+          }
+          $nsis = Join-Path $env:RUNNER_TEMP "nsis-$env:NSIS_VERSION"
+          Expand-Archive (Get-Pinned "nsis-$env:NSIS_VERSION.zip" $env:NSIS_SHA256) -DestinationPath $env:RUNNER_TEMP
+          Expand-Archive (Get-Pinned "nsis-$env:NSIS_VERSION-strlen_8192.zip" $env:NSIS_STRLEN_8192_SHA256) -DestinationPath $nsis -Force
+          Add-Content $env:GITHUB_PATH $nsis
+
+      - name: Build
+        shell: bash
+        env:
+          # A repository variable, not a secret, because the key can only add events.
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+        run: build/build.sh
+      - name: gtk4-layer-shell loads before libwayland-client
+        # gtk4-layer-shell replaces some of libwayland-client's functions with its own, and that
+        # only works when the dynamic linker loads it before libwayland-client. The linker loads
+        # the libraries that rcui names (NEEDED) in their order, and only then the libraries that
+        # those need. So rcui must name gtk4-layer-shell, and must not name libwayland-client
+        # before it.
+        if: runner.os == 'Linux'
+        # bash, because the container's default shell is sh, which has no <( ).
+        shell: bash
+        run: |
+          layer=0 wayland=0 i=0
+          while read -r lib; do
+            i=$((i + 1))
+            echo "$i $lib"
+            case $lib in
+              libgtk4-layer-shell.so.0) layer=$i ;;
+              libwayland-client.so.0) wayland=$i ;;
+            esac
+          done < <(readelf -d "build/bin/$GOOS-$GOARCH/rcui" | sed -n 's/.*(NEEDED).*\[\(.*\)\]$/\1/p')
+          if [ "$layer" = 0 ]; then
+            echo "::error::rcui doesn't link libgtk4-layer-shell.so.0"
+            exit 1
+          fi
+          if [ "$wayland" != 0 ] && [ "$wayland" -lt "$layer" ]; then
+            echo "::error::rcui names libwayland-client.so.0 before libgtk4-layer-shell.so.0"
+            exit 1
+          fi
+      - name: Vet
+        # After the build, because go vet embeds the pages that the build made.
+        shell: bash
+        run: build/build.sh --vet
+
+      - name: Roles answer
+        # Runs the binary where the runner's CPU can run it, and checks that it has our update
+        # command and not rclone's selfupdate.
+        if: matrix.goarch == 'amd64' && runner.arch == 'X64' || matrix.goarch == 'arm64' && runner.arch == 'ARM64'
+        shell: bash
+        run: |
+          exe=build/bin/$GOOS-$GOARCH/rcui
+          [ "$GOOS" = windows ] && exe+=.exe
+          # expect PATTERN ARG... runs the binary with ARG... and fails unless a line of its output
+          # matches PATTERN. It reads the whole output before it greps, because grep -q exits at
+          # its first match, and a pipe that was still writing to it would fail under pipefail.
+          expect() {
+            local out
+            out=$("$exe" "${@:2}")
+            echo "$out"
+            grep -q "$1" <<<"$out" || { echo "::error::rcui ${*:2}: no line matches $1"; return 1; }
+          }
+          expect 'go/tags:.*noselfupdate' version
+          # build.sh sets the version through -ldflags -X, which Go ignores when the path is wrong.
+          expect "^yours: *Rclone UI [0-9]" update --check
+          # The production feed answers in a format this build reads, or isn't there yet (before
+          # the first stable release). A failed check prints no latest: line.
+          expect "^latest: " update --check
+          expect "Rclone UI" update --help
+
+      - name: Package
+        # Signed in a release only. Each OS gets its own secrets and no other's: secrets can't
+        # appear in an if, so each is empty unless the release builds for its OS.
+        shell: bash
+        env:
+          # A release fails without its macOS secrets rather than sign ad hoc (package.sh).
+          APP_RELEASE_CHECK: ${{ inputs.release && '1' || '' }}
+          APPLE_ID: ${{ inputs.release && matrix.goos == 'darwin' && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ inputs.release && matrix.goos == 'darwin' && secrets.APPLE_ID_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ inputs.release && matrix.goos == 'darwin' && secrets.APPLE_TEAM_ID || '' }}
+          AZURE_CLIENT_ID: ${{ inputs.release && matrix.goos == 'windows' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ inputs.release && matrix.goos == 'windows' && secrets.AZURE_CLIENT_SECRET || '' }}
+          AZURE_TENANT_ID: ${{ inputs.release && matrix.goos == 'windows' && secrets.AZURE_TENANT_ID || '' }}
+          # Azure Trusted Signing, with the release's account and certificate profile.
+          SIGN_COMMAND: ${{ inputs.release && matrix.goos == 'windows' && 'trusted-signing-cli -e https://eus.codesigning.azure.net -a sign-1 -c Sign1 -d Rclone %1' || '' }}
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: build/package.sh
+
+      - name: Portable zip answers
+        # Checks the portable zip. It must unpack to one folder that has the empty data folder,
+        # which makes the copy portable. rclone runs first, before anything else has made
+        # rclone.conf, and it must use the rclone.conf in the copy's folder and create it. Then
+        # update --check must say that the copy is portable. Windows' own tar (bsdtar) unpacks the
+        # zip.
+        if: runner.os == 'Windows' && (matrix.goarch == 'amd64' && runner.arch == 'X64' || matrix.goarch == 'arm64' && runner.arch == 'ARM64')
+        shell: bash
+        run: |
+          arch=x64
+          [ "$GOARCH" = arm64 ] && arch=arm64
+          zips=(build/dist/Rclone-UI-*-windows-"$arch"-portable.zip)
+          dir=$(cygpath -u "$RUNNER_TEMP")/portable
+          rm -rf "$dir"
+          mkdir -p "$dir"
+          "$(cygpath -S)/tar.exe" -xf "${zips[0]}" -C "$dir"
+          root="$dir/Rclone UI"
+          for f in rcui.exe bin/rclone.exe winfsp.msi README.txt LICENSE.txt THIRD_PARTY_NOTICES.txt; do
+            [ -f "$root/$f" ] || { echo "::error::the portable zip has no $f"; exit 1; }
+          done
+          [ -d "$root/data" ] || { echo "::error::the portable zip has no data folder"; exit 1; }
+          [ ! -e "$root/rclone.conf" ] || { echo "::error::the portable zip has an rclone.conf"; exit 1; }
+          out=$("$root/bin/rclone.exe" config file)
+          echo "$out"
+          got=$(tail -n 1 <<<"$out")
+          want=$(cygpath -w "$root/rclone.conf")
+          [ "$got" = "$want" ] || { echo "::error::the portable rclone uses $got, not $want"; exit 1; }
+          [ -f "$root/rclone.conf" ] || { echo "::error::the first run didn't create rclone.conf"; exit 1; }
+          out=$("$root/rcui.exe" update --check)
+          echo "$out"
+          grep -q '^yours: .*(portable)$' <<<"$out" || { echo "::error::update --check doesn't say the copy is portable"; exit 1; }
+
+      - name: Authenticode signatures
+        # What a release ships signed: the installer (signed inside makensis), and the binaries
+        # package.sh signed before it.
+        if: inputs.release && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bin = "build/bin/$env:GOOS-$env:GOARCH"
+          $arch = if ($env:GOARCH -eq 'arm64') { 'arm64' } else { 'x64' }
+          $setup = (Get-ChildItem "build/dist/Rclone-UI-*-windows-$arch-setup.exe").FullName
+          foreach ($f in $setup, "$bin/rcui.exe", "$bin/bin/rclone.exe") {
+            $sig = Get-AuthenticodeSignature $f
+            if ($sig.Status -ne 'Valid') { throw "${f}: $($sig.Status): $($sig.StatusMessage)" }
+            "${f}: $($sig.SignerCertificate.Subject)"
+          }
+
+      - name: AppImage answers
+        if: runner.os == 'Linux'
+        run: build/linux/check-appimage.sh build/dist/Rclone-UI-*.AppImage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.release && 'dist' || 'rcui' }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: build/dist/
+          retention-days: 7

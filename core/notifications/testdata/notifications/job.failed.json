@@ -1,0 +1,76 @@
+{
+  "discord": {
+    "body": {
+      "username": "Rclone UI",
+      "embeds": [
+        {
+          "title": "Transfer failed",
+          "description": "delete of s3:old/a.txt, s3:old/b.txt — 2 files failed: 403 Forbidden",
+          "color": 15158332,
+          "timestamp": "2026-01-02T03:04:05.678Z"
+        }
+      ]
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://discord.com/api/webhooks/1234567890/AbC-dEf_123"
+  },
+  "email": {
+    "subject": "Transfer failed",
+    "text": "delete of s3:old/a.txt, s3:old/b.txt — 2 files failed: 403 Forbidden\n\n— Rclone UI v1.2.3",
+    "to": [
+      "ops@example.com",
+      "alice@example.com"
+    ]
+  },
+  "slack": {
+    "body": {
+      "text": "*Transfer failed*\ndelete of s3:old/a.txt, s3:old/b.txt — 2 files failed: 403 Forbidden"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://hooks.slack.com/services/T000AAA/B000BBB/xyz123"
+  },
+  "telegram": {
+    "body": {
+      "chat_id": "-1001234567890",
+      "message_thread_id": "7",
+      "parse_mode": "HTML",
+      "text": "<b>Transfer failed</b>\ndelete of s3:old/a.txt, s3:old/b.txt — 2 files failed: 403 Forbidden"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://api.telegram.org/bot123456:ABC-def_ghi/sendMessage"
+  },
+  "webhook": {
+    "body": {
+      "source": "rclone-ui",
+      "version": "1.2.3",
+      "event": "job.failed",
+      "label": "Transfer failed",
+      "severity": "error",
+      "title": "Transfer failed",
+      "body": "delete of s3:old/a.txt, s3:old/b.txt — 2 files failed: 403 Forbidden",
+      "timestamp": "2026-01-02T03:04:05.678Z",
+      "data": {
+        "jobid": 43,
+        "operation": "delete",
+        "sources": [
+          "s3:old/a.txt",
+          "s3:old/b.txt"
+        ],
+        "destination": null,
+        "durationSeconds": 0,
+        "error": "2 files failed: 403 Forbidden"
+      }
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "X-RcloneUI-Event": "job.failed"
+    },
+    "url": "https://example.com/hooks/rclone"
+  }
+}

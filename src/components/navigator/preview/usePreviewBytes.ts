@@ -1,96 +1,184 @@
-// Native HTTP client: runs the request from Rust so it isn't blocked by the
-// webview's cross-origin (CORS) policy, the same way lib/rclone/client.ts fetches.
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+// Previews are fetched from the core's signed media URLs (media.ts). The signature in the URL is
+// the only credential, so the page holds none of its own. The media server allows the app's
+// pages through CORS.
+
+import { t } from '@lingui/core/macro'
 import { useEffect, useState } from 'react'
+import { formatBytes } from '../../../../lib/format'
 
 export interface PreviewBytes {
     buffer: ArrayBuffer | null
     isLoading: boolean
     error: string | null
-    // Download progress in 0..1, or null when the total size is unknown (no Content-Length).
+    // Download progress from 0 to 1, or null when the total size is unknown (no Content-Length).
     progress: number | null
+    /** The file is longer than `maxBytes`, so the buffer holds only its start. */
+    truncated: boolean
 }
 
 /**
- * Downloads a preview target's bytes via the native (Tauri) HTTP client and hands
- * back an ArrayBuffer. Fetching the bytes ourselves — instead of letting a viewer
- * load by URL — avoids the webview CORS block against the rclone serve origin, so
- * any viewer that accepts a buffer can render local and remote files alike.
- *
- * The body is read as a stream so `progress` can track bytes-received / Content-Length
- * for a download progress bar; it stays null when the server sends no Content-Length.
+ * Reads up to `max` bytes of a stream into one buffer, and calls `onProgress` with the number of
+ * bytes read after each chunk. `done` is true when the stream ended within `max`. When it isn't,
+ * the caller stops the download.
  */
-export default function usePreviewBytes(url: string, authHeader?: string): PreviewBytes {
-    const [state, setState] = useState<PreviewBytes>({
-        buffer: null,
-        isLoading: true,
-        error: null,
-        progress: null,
-    })
+export async function readAtMost(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    max: number,
+    onProgress?: (received: number) => void
+): Promise<{ bytes: Uint8Array; done: boolean }> {
+    const chunks: Uint8Array[] = []
+    let received = 0
+    let result = await reader.read()
+    while (!result.done) {
+        const room = max - received
+        if (result.value.byteLength > room) {
+            // This chunk goes past `max`, so keep its start and stop reading.
+            chunks.push(result.value.subarray(0, room))
+            received = max
+            break
+        }
+        chunks.push(result.value)
+        received += result.value.byteLength
+        onProgress?.(received)
+        result = await reader.read()
+    }
+    const bytes = new Uint8Array(received)
+    let offset = 0
+    for (const chunk of chunks) {
+        bytes.set(chunk, offset)
+        offset += chunk.byteLength
+    }
+    return { bytes, done: !!result.done }
+}
+
+const LOADING: PreviewBytes = {
+    buffer: null,
+    isLoading: true,
+    error: null,
+    progress: null,
+    truncated: false,
+}
+
+export type ReadOf = PreviewBytes & { url: string | null }
+
+/**
+ * Returns the read for `url`, or the loading state while the stored read belongs to another URL.
+ * The effect that starts a new read runs after the render that requested it, and that render
+ * must not pass the previous file's bytes to a viewer as if they were the new file's.
+ */
+export function readFor(read: ReadOf, url: string | null): PreviewBytes {
+    return url !== null && read.url === url ? read : LOADING
+}
+
+function tooLargeMessage(maxBytes: number): string {
+    const max = formatBytes(maxBytes)
+    return t`The file is larger than the limit for previews (${max}).`
+}
+
+/**
+ * Downloads the bytes of the file to preview and returns them as an ArrayBuffer, so any viewer
+ * that accepts a buffer can render local and remote files alike. `maxBytes` keeps only the start
+ * of the file, such as the first part of a large log for the text viewer. The download stops
+ * there and `truncated` is set. With `whole` (for documents, which no viewer can open when cut
+ * short), a file larger than `maxBytes` is an error instead. While there is no URL yet (because
+ * it is still being signed), the state is loading.
+ *
+ * The body is read as a stream so that `progress` can follow the bytes received.
+ */
+export default function usePreviewBytes(
+    url: string | null,
+    {
+        maxBytes = Number.POSITIVE_INFINITY,
+        whole = false,
+    }: { maxBytes?: number; whole?: boolean } = {}
+): PreviewBytes {
+    const [read, setRead] = useState<ReadOf>({ ...LOADING, url: null })
 
     useEffect(() => {
-        setState({ buffer: null, isLoading: true, error: null, progress: null })
+        if (url === null) return
+        setRead({ ...LOADING, url })
 
         const abortController = new AbortController()
         let cancelled = false
+        const tooLarge = () => {
+            abortController.abort()
+            setRead({ ...LOADING, isLoading: false, error: tooLargeMessage(maxBytes), url })
+        }
 
         const run = async () => {
             try {
-                const res = await tauriFetch(url, {
-                    headers: authHeader ? { Authorization: authHeader } : undefined,
+                const res = await fetch(url, {
+                    credentials: 'same-origin',
                     signal: abortController.signal,
                 })
                 if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
                 const totalHeader = res.headers.get('content-length')
-                const total = totalHeader ? Number.parseInt(totalHeader, 10) : 0
+                const length = totalHeader ? Number.parseInt(totalHeader, 10) : 0
+                if (whole && length > maxBytes) {
+                    if (!cancelled) tooLarge()
+                    return
+                }
+                const total = Math.min(length, maxBytes)
 
                 // No streamable body: fall back to reading the buffer directly.
                 if (!res.body) {
-                    const buffer = await res.arrayBuffer()
-                    if (!cancelled) {
-                        setState({ buffer, isLoading: false, error: null, progress: 1 })
+                    const all = await res.arrayBuffer()
+                    const truncated = all.byteLength > maxBytes
+                    if (cancelled) return
+                    if (whole && truncated) {
+                        tooLarge()
+                        return
                     }
+                    setRead({
+                        buffer: truncated ? all.slice(0, maxBytes) : all,
+                        isLoading: false,
+                        error: null,
+                        progress: 1,
+                        truncated,
+                        url,
+                    })
                     return
                 }
 
-                const reader = res.body.getReader()
-                const chunks: Uint8Array[] = []
-                let received = 0
                 let lastPercent = -1
-
-                let result = await reader.read()
-                while (!result.done) {
-                    const chunk = result.value
-                    chunks.push(chunk)
-                    received += chunk.byteLength
-                    // Throttle to whole-percent changes so we don't re-render per chunk.
-                    if (total > 0 && !cancelled) {
+                const { bytes, done } = await readAtMost(
+                    res.body.getReader(),
+                    maxBytes,
+                    (received) => {
+                        // Throttle to whole-percent changes so we don't re-render per chunk.
+                        if (total <= 0 || cancelled) return
                         const percent = Math.floor(Math.min(received / total, 1) * 100)
                         if (percent !== lastPercent) {
                             lastPercent = percent
-                            setState((s) => ({ ...s, progress: percent / 100 }))
+                            setRead((s) => ({ ...s, progress: percent / 100 }))
                         }
                     }
-                    result = await reader.read()
+                )
+                if (cancelled) return
+                if (whole && !done) {
+                    tooLarge()
+                    return
                 }
-
-                const merged = new Uint8Array(received)
-                let offset = 0
-                for (const chunk of chunks) {
-                    merged.set(chunk, offset)
-                    offset += chunk.byteLength
-                }
-                if (!cancelled) {
-                    setState({ buffer: merged.buffer, isLoading: false, error: null, progress: 1 })
-                }
+                // Only the start is kept, so stop downloading the rest of the file.
+                if (!done) abortController.abort()
+                setRead({
+                    buffer: bytes.buffer as ArrayBuffer,
+                    isLoading: false,
+                    error: null,
+                    progress: 1,
+                    truncated: !done,
+                    url,
+                })
             } catch (err) {
                 if (cancelled || abortController.signal.aborted) return
-                setState({
+                setRead({
                     buffer: null,
                     isLoading: false,
                     error: (err as Error).message,
                     progress: null,
+                    truncated: false,
+                    url,
                 })
             }
         }
@@ -101,7 +189,7 @@ export default function usePreviewBytes(url: string, authHeader?: string): Previ
             cancelled = true
             abortController.abort()
         }
-    }, [url, authHeader])
+    }, [url, maxBytes, whole])
 
-    return state
+    return readFor(read, url)
 }

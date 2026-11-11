@@ -1,52 +1,146 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss" source(none);
 
-/* Hide scrollbar for Chrome, Safari and Opera */
-::-webkit-scrollbar {
-    display: none;
-}
+/* The files whose classes are generated: the pages, the shared code, and HeroUI's components. */
+@source "../index.html";
+@source "../src";
+@source "../lib";
+@source "../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
 
-/* Hide scrollbar for IE, Edge and Firefox */
-* {
-    -ms-overflow-style: none; /* IE and Edge */
-    scrollbar-width: none; /* Firefox */
-    cursor: default !important;
-}
+@plugin "./hero.ts";
 
-@layer utilities {
-    .show-scrollbar {
-        -ms-overflow-style: auto !important;
-        scrollbar-width: thin !important;
+/* Dark mode follows the `dark` class on <html> (index.html and src/main.tsx). */
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+    /* The rounded system face (SF Pro Rounded on macOS), for a few large titles. Elsewhere it is
+       the system face. */
+    --font-rounded: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+
+    --animate-caret: caret 1.1s steps(1, end) infinite;
+
+    @keyframes caret {
+        50% {
+            opacity: 0;
+        }
     }
 
-    .show-scrollbar::-webkit-scrollbar {
+    /* ToneProgress's stripe for work of unknown length. */
+    @keyframes tone-progress {
+        0% {
+            left: -35%;
+        }
+        100% {
+            left: 100%;
+        }
+    }
+
+    --animate-fade-in-up: fade-in-up 900ms cubic-bezier(0.22, 1, 0.36, 1);
+
+    @keyframes fade-in-up {
+        0% {
+            opacity: 0;
+            transform: translateY(24px);
+        }
+        60% {
+            opacity: 1;
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+}
+
+/* Tailwind CSS v4 makes `currentcolor` the default border color. These styles keep the v3 default
+   (gray-200). Before removing them, give an explicit border color to every element that depends
+   on the default. */
+@layer base {
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentcolor);
+    }
+}
+
+@utility show-scrollbar {
+    -ms-overflow-style: auto !important;
+    scrollbar-width: thin !important;
+
+    &::-webkit-scrollbar {
         display: block;
         width: 8px;
         height: 8px;
     }
 
-    .show-scrollbar::-webkit-scrollbar-track {
+    &::-webkit-scrollbar-track {
         background: transparent;
     }
 
-    .show-scrollbar::-webkit-scrollbar-thumb {
+    &::-webkit-scrollbar-thumb {
         background: hsl(var(--heroui-default-300));
         border-radius: 4px;
     }
 
-    .show-scrollbar::-webkit-scrollbar-thumb:hover {
+    &::-webkit-scrollbar-thumb:hover {
         background: hsl(var(--heroui-default-400));
     }
 }
 
-html[data-tauri-dragging="true"],
-html[data-tauri-dragging="true"] * {
-    cursor: grabbing !important;
+@layer utilities {
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    ::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Hide scrollbar for IE, Edge and Firefox */
+    * {
+        -ms-overflow-style: none; /* IE and Edge */
+        scrollbar-width: none; /* Firefox */
+        cursor: default !important;
+    }
+}
+
+/* Filled buttons look lit from above, like the icon tiles: a sheen at the top and a small shadow.
+   In the components layer, so a button that sets its own gradient (look/buttons.ts) keeps it. */
+@layer components {
+    button:is(.bg-primary, .bg-secondary, .bg-success, .bg-warning, .bg-danger) {
+        background-image: linear-gradient(rgb(255 255 255 / 0.16), rgb(255 255 255 / 0));
+        box-shadow:
+            inset 0 1px 0 rgb(255 255 255 / 0.22),
+            0 1px 2px rgb(0 0 0 / 0.18);
+    }
+}
+
+/* Fields never show a focus ring. A text field counts as keyboard-focused even when it is clicked,
+   so the ring would show on every click. The caret, and the field's own color while it has the
+   focus, already show where typing goes. Other controls keep their ring for the keyboard. */
+[data-slot="input-wrapper"] {
+    --tw-ring-shadow: 0 0 #0000 !important;
+    --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+
+/* Zappicon draws its lines as filled shapes 1.5 wide and has no heavier weight: a half-unit stroke
+   around each shape makes them 2 wide. Its svgs are the only ones drawn this way
+   (an xmlns, the 24 grid, filled with the text color). */
+svg[xmlns][viewBox="0 0 24 24"][fill="currentColor"] path {
+    stroke: currentColor;
+    stroke-width: 0.5px;
+    stroke-linejoin: round;
 }
 
 html {
     overscroll-behavior: none;
+}
+
+/* A window's tone (--tone, as RGB channels) washing down from its top left, behind its content.
+   main.tsx sets it from the window's look (WINDOWS in src/routes.ts). */
+.tone-wash {
+    background-image: radial-gradient(70% 320px at 20% 0%, rgb(var(--tone) / 0.13), transparent);
+}
+.dark .tone-wash {
+    background-image: radial-gradient(70% 320px at 20% 0%, rgb(var(--tone) / 0.2), transparent);
 }
 
 body {
