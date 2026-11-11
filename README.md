@@ -1,3 +1,5 @@
+> Development has moved to an internal repository.
+
 # Rclone Cloud
 
 A web interface for [rclone](https://rclone.org): remotes, transfers, mounts, schedules and
