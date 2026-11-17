@@ -6,9 +6,10 @@ import { message } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { CheckIcon, CopyIcon } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { isCloudflaredInstalled } from '../../../lib/cloudflared/common'
 import { provisionCloudflared } from '../../../lib/cloudflared/init'
+import { type RcSession, getLocalSession } from '../../../lib/rclone/session'
 import { useStore } from '../../../store/memory'
 import BaseSection from './BaseSection'
 
@@ -16,14 +17,22 @@ export default function MobileSection() {
     const cloudflaredTunnel = useStore((state) => state.cloudflaredTunnel)
 
     const [error, setError] = useState<string | null>(null)
-    const [copied, setCopied] = useState(false)
+    const [copied, setCopied] = useState<string | null>(null)
+
+    const [session, setSession] = useState<RcSession | null>(null)
+    useEffect(() => {
+        getLocalSession().then(setSession, (e) => {
+            console.error('[MobileSection] failed to get the rc password', e)
+            setError('Failed to get the password of the local rclone')
+        })
+    }, [])
 
     const [animationParent] = useAutoAnimate()
 
-    const handleCopyUrl = async (url: string) => {
-        await navigator.clipboard.writeText(url)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+    const handleCopy = async (field: string, value: string) => {
+        await navigator.clipboard.writeText(value)
+        setCopied(field)
+        setTimeout(() => setCopied((current) => (current === field ? null : current)), 2000)
     }
 
     const provisionCloudflaredMutation = useMutation({
@@ -141,35 +150,60 @@ export default function MobileSection() {
             </div>
 
             <div ref={animationParent}>
-                {cloudflaredTunnel && (
+                {cloudflaredTunnel && session && (
                     <div className="flex flex-col items-center gap-4">
                         <p className="text-medium text-neutral-400">Scan the QR Code</p>
                         <div className="p-4 bg-white rounded-lg">
                             <QRCodeSVG
-                                value={JSON.stringify({ url: cloudflaredTunnel.url })}
+                                value={JSON.stringify({
+                                    url: cloudflaredTunnel.url,
+                                    user: session.user,
+                                    pass: session.pass,
+                                })}
                                 size={200}
                                 level="M"
                             />
                         </div>
-                        <Input
-                            isReadOnly={true}
-                            value={cloudflaredTunnel.url}
-                            size="lg"
-                            className="max-w-lg mt-7"
-                            endContent={
-                                <button
-                                    type="button"
-                                    onClick={() => handleCopyUrl(cloudflaredTunnel.url)}
-                                    className="transition-colors text-neutral-400 hover:text-neutral-200"
-                                >
-                                    {copied ? (
-                                        <CheckIcon size={18} className="text-success" />
-                                    ) : (
-                                        <CopyIcon size={18} />
-                                    )}
-                                </button>
-                            }
-                        />
+                        <div className="flex flex-col w-full max-w-lg gap-3 mt-7">
+                            {(
+                                [
+                                    ['url', 'URL', cloudflaredTunnel.url],
+                                    ['user', 'User', session.user],
+                                    ['pass', 'Password', session.pass],
+                                ] as const
+                            ).map(([field, label, value]) => (
+                                <Input
+                                    key={field}
+                                    isReadOnly={true}
+                                    label={label}
+                                    labelPlacement="outside-left"
+                                    value={value}
+                                    size="lg"
+                                    classNames={{
+                                        base: 'w-full',
+                                        mainWrapper: 'flex-1',
+                                        label: 'w-20',
+                                    }}
+                                    endContent={
+                                        <button
+                                            type="button"
+                                            aria-label={`Copy ${label}`}
+                                            onClick={() => handleCopy(field, value)}
+                                            className="transition-colors text-neutral-400 hover:text-neutral-200"
+                                        >
+                                            {copied === field ? (
+                                                <CheckIcon size={18} className="text-success" />
+                                            ) : (
+                                                <CopyIcon size={18} />
+                                            )}
+                                        </button>
+                                    }
+                                />
+                            ))}
+                        </div>
+                        <p className="max-w-lg text-sm text-center text-neutral-500">
+                            The password changes when Rclone UI restarts.
+                        </p>
                     </div>
                 )}
 

@@ -1,6 +1,5 @@
 import * as Sentry from '@sentry/browser'
 import { message } from '@tauri-apps/plugin-dialog'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import pRetry from 'p-retry'
 import { selectActiveConfigFile, useHostStore } from '../../store/host'
@@ -30,6 +29,7 @@ import {
     toConfigParam,
     toFilterParam,
 } from './requests'
+import { getAuthHeader, rcFetch } from './session'
 
 const RE_BACKSLASH = /\\/g
 const RE_DASH = /-/g
@@ -1036,16 +1036,13 @@ export async function uploadEmptyFile(fs: string, remote: string) {
     const currentHost = selectCurrentHost(usePersistedStore.getState())
     if (!currentHost) throw new Error('No current host')
 
-    let authHeader = ''
-    if (currentHost.authUser && currentHost.authPassword) {
-        authHeader = `Basic ${btoa(`${currentHost.authUser}:${currentHost.authPassword}`)}`
-    }
+    const authHeader = await getAuthHeader(currentHost)
 
     const body = new FormData()
     body.append('file0', new File([], '.empty'))
 
     const params = new URLSearchParams({ fs, remote })
-    const response = await tauriFetch(`${currentHost.url}/operations/uploadfile?${params}`, {
+    const response = await rcFetch(`${currentHost.url}/operations/uploadfile?${params}`, {
         method: 'POST',
         headers: authHeader ? { 'Authorization': authHeader } : undefined,
         body,

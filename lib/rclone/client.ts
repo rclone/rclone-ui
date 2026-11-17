@@ -1,5 +1,4 @@
 import { ask, message } from '@tauri-apps/plugin-dialog'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import pRetry from 'p-retry'
 import createRCDClient, {
     type AsyncJobResponse,
@@ -13,6 +12,7 @@ import createRCDClient, {
 import { claimReconnectDialog } from '../../store/memory'
 import { selectCurrentHost, usePersistedStore } from '../../store/persisted'
 import { UserCancelledError } from '../errors'
+import { getAuthHeader, rcFetch } from './session'
 
 const RE_RECONNECT = /rclone config reconnect (\S+?):/
 
@@ -50,34 +50,34 @@ async function handleReconnectIfNeeded(errorMessage: string) {
     }
 }
 
-// const client = createRCDClient({
-//     baseUrl: 'http://localhost:5572',
-//     fetch: (request: Request) => tauriFetch(request),
-// })
+let client: Promise<RCDClient> | null = null
 
-let client: RCDClient | null = null
+async function createClient() {
+    const currentHost = selectCurrentHost(usePersistedStore.getState())
+    if (!currentHost) {
+        console.error('[rclone] No current host')
+        throw new Error('No current host')
+    }
+
+    const authHeader = await getAuthHeader(currentHost)
+
+    return createRCDClient({
+        baseUrl: currentHost.url,
+        headers: authHeader
+            ? {
+                  'Authorization': authHeader,
+              }
+            : undefined,
+        fetch: (request: Request) => rcFetch(request),
+    })
+}
 
 function getClient() {
     if (!client) {
-        const currentHost = selectCurrentHost(usePersistedStore.getState())
-        if (!currentHost) {
-            console.error('[rclone] No current host')
-            throw new Error('No current host')
-        }
-
-        let authHeader = ''
-        if (currentHost.authUser && currentHost.authPassword) {
-            authHeader = `Basic ${btoa(`${currentHost.authUser}:${currentHost.authPassword}`)}`
-        }
-
-        client = createRCDClient({
-            baseUrl: currentHost.url,
-            headers: authHeader
-                ? {
-                      'Authorization': authHeader,
-                  }
-                : undefined,
-            fetch: (request: Request) => tauriFetch(request),
+        const pending = createClient()
+        client = pending
+        pending.catch(() => {
+            if (client === pending) client = null
         })
     }
     return client

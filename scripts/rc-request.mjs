@@ -15,6 +15,8 @@ Options:
       --data-file <file>      Path to file containing JSON payload
   -h, --help                  Show this help message
 
+The rc's user and password are read from RCLONE_RC_USER and RCLONE_RC_PASS.
+
 Examples:
   node scripts/rc-request.mjs /rc/noop
   node scripts/rc-request.mjs -q _async=true /job/list
@@ -150,6 +152,10 @@ async function main() {
     const url = buildUrl(args.baseUrl, args.path, args.query)
     const payload = parseJsonMaybe(args.data)
     const headers = new Headers()
+    if (process.env.RCLONE_RC_USER) {
+        const credentials = `${process.env.RCLONE_RC_USER}:${process.env.RCLONE_RC_PASS ?? ''}`
+        headers.set('Authorization', `Basic ${Buffer.from(credentials).toString('base64')}`)
+    }
 
     const requestInit = {
         method: args.method,

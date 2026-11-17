@@ -1,4 +1,5 @@
 import { Button, Divider, Drawer, DrawerBody, DrawerContent, DrawerHeader, cn } from '@heroui/react'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import {
     DownloadIcon,
     FileIcon as FileIconLucide,
@@ -22,7 +23,8 @@ import FileIcon, { getFileType, isPreviewable } from '../FileIcon'
 import type { Entry } from '../types'
 import { getFileExtension } from '../utils'
 import PreviewProLock from './PreviewProLock'
-import { PreviewLoading, type PreviewViewerProps } from './previewStates'
+import { PreviewError, PreviewLoading, type PreviewViewerProps } from './previewStates'
+import { useAuthHeader, useMediaUrl } from './usePreviewAccess'
 
 // Lazy-loaded so each viewer's heavy WASM/WebGL bundle only loads when a matching
 // file is actually opened, keeping them out of the main + Commander bundle.
@@ -70,7 +72,7 @@ function buildLocalFs(fullPath: string): { fs: string; path: string } {
     return { fs: ':local:/', path: normalized.replace(LEADING_SLASHES_RE, '') }
 }
 
-function buildPreviewUrl(entry: Entry, hostUrl: string, auth?: string): string {
+function buildPreviewUrl(entry: Entry, hostUrl: string): string {
     const normalizedHost = hostUrl.replace(TRAILING_SLASH_RE, '')
 
     let url: string
@@ -82,10 +84,6 @@ function buildPreviewUrl(entry: Entry, hostUrl: string, auth?: string): string {
             ? entry.fullPath.split(':/').slice(1).join('/')
             : entry.fullPath
         url = `${normalizedHost}/[${entry.remote}:]/${pathPart}`
-    }
-
-    if (auth) {
-        url = `${url}?auth=${encodeURIComponent(auth)}`
     }
 
     return url
@@ -100,8 +98,6 @@ export default function PreviewDrawer({
 }) {
     const currentHost = useCurrentHost()
     const hostUrl = currentHost?.url
-    const authUser = currentHost?.authUser
-    const authPassword = currentHost?.authPassword
 
     // File previews are a PRO feature — without a valid license we tease the preview
     // behind an upsell overlay instead of unlocking it.
@@ -110,14 +106,8 @@ export default function PreviewDrawer({
     // When expanded, the drawer widens to ~90% of the window (the Commander).
     const [expanded, setExpanded] = useState(false)
 
-    const auth = useMemo(() => {
-        if (authUser) {
-            return btoa(`${authUser}:${authPassword ?? ''}`)
-        }
-        return undefined
-    }, [authUser, authPassword])
-
-    const authHeader = auth ? `Basic ${auth}` : undefined
+    const auth = useAuthHeader(currentHost)
+    const authHeader = auth.header
 
     const fileType = item ? getFileType(item) : 'unknown'
     const canPreview = item ? isPreviewable(item) : false
@@ -127,13 +117,17 @@ export default function PreviewDrawer({
 
     const previewUrl = useMemo(() => {
         if (!item || !hostUrl) return null
-        return buildPreviewUrl(item, hostUrl, auth)
-    }, [item, hostUrl, auth])
+        return buildPreviewUrl(item, hostUrl)
+    }, [item, hostUrl])
+
+    const media = useMediaUrl(previewUrl, authHeader, item?.name ?? '', auth.ready)
 
     const handleDownload = useCallback(() => {
-        if (!previewUrl) return
-        window.open(previewUrl, '_blank')
-    }, [previewUrl])
+        if (!media.url) return
+        openUrl(`${media.url}?download=1`).catch((error) => {
+            console.error('[PreviewDrawer] failed to open the download', error)
+        })
+    }, [media.url])
 
     const handleClose = useCallback(() => {
         setExpanded(false)
@@ -197,6 +191,10 @@ export default function PreviewDrawer({
             return unsupportedFallback
         }
 
+        if (!auth.ready) {
+            return <PreviewLoading />
+        }
+
         // Documents (pdf/docx/xlsx/pptx) route to their dedicated inline viewer;
         // unsupported document sub-formats (e.g. .odt) fall through to download.
         const ext = getFileExtension(item.name)
@@ -225,12 +223,20 @@ export default function PreviewDrawer({
             )
         }
 
+        if (['image', 'video', 'audio'].includes(fileType) && !media.url) {
+            return media.error ? (
+                <PreviewError message={media.error} onDownload={handleDownload} />
+            ) : (
+                <PreviewLoading />
+            )
+        }
+
         switch (fileType) {
             case 'image':
                 return (
                     <div className="flex items-center justify-center w-full h-full p-4">
                         <img
-                            src={previewUrl}
+                            src={media.url ?? undefined}
                             alt={item.name}
                             className="object-contain max-w-full max-h-full rounded-lg"
                         />
@@ -242,7 +248,7 @@ export default function PreviewDrawer({
                     <div className="flex items-center justify-center w-full h-full p-4">
                         {/* biome-ignore lint/a11y/useMediaCaption: <explanation> */}
                         <video
-                            src={previewUrl}
+                            src={media.url ?? undefined}
                             controls={true}
                             className="max-w-full max-h-full rounded-lg"
                             autoPlay={false}
@@ -258,7 +264,11 @@ export default function PreviewDrawer({
                         <FileIcon entry={item} size="lg" />
                         <p className="text-lg font-medium">{item.name}</p>
                         {/* biome-ignore lint/a11y/useMediaCaption: <explanation> */}
-                        <audio src={previewUrl} controls={true} className="w-full max-w-md">
+                        <audio
+                            src={media.url ?? undefined}
+                            controls={true}
+                            className="w-full max-w-md"
+                        >
                             Your browser does not support the audio tag.
                         </audio>
                     </div>

@@ -1,7 +1,7 @@
+import { useEffect, useState } from 'react'
 // Native HTTP client: runs the request from Rust so it isn't blocked by the
 // webview's cross-origin (CORS) policy, the same way lib/rclone/client.ts fetches.
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
-import { useEffect, useState } from 'react'
+import { rcFetch } from '../../../../lib/rclone/session'
 
 export interface PreviewBytes {
     buffer: ArrayBuffer | null
@@ -36,7 +36,7 @@ export default function usePreviewBytes(url: string, authHeader?: string): Previ
 
         const run = async () => {
             try {
-                const res = await tauriFetch(url, {
+                const res = await rcFetch(url, {
                     headers: authHeader ? { Authorization: authHeader } : undefined,
                     signal: abortController.signal,
                 })

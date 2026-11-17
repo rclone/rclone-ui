@@ -342,9 +342,11 @@ pub async fn spawn_rclone(
 
     let mut cmd = Command::new(&path);
     cmd.args(&args);
-    for (k, v) in &env {
+    for (k, v) in env.iter().filter(|(k, _)| !crate::rc_session::is_rc_variable(k)) {
         cmd.env(k, v);
     }
+    let session = app.state::<crate::rc_session::RcSession>();
+    crate::rc_session::set_rc_credentials(&mut cmd, &session.user, &session.pass);
     // Nothing consumes daemon stdio; null it to avoid pipe-fill and extra threads.
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::null());

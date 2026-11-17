@@ -15,7 +15,9 @@ mod window;
 #[cfg(target_os = "linux")]
 mod jenky;
 mod local_fs;
+mod media;
 mod notifications;
+mod rc_session;
 mod scheduler;
 mod zookeeper;
 
@@ -848,6 +850,8 @@ pub fn run() {
 
     let mut app = builder
         .manage(local_fs::LocalFsState::default())
+        .manage(rc_session::RcSession::new())
+        .manage(media::MediaServer::default())
         .manage::<zookeeper::SharedDaemonState>(std::sync::Mutex::new(
             zookeeper::DaemonState::default(),
         ))
@@ -894,6 +898,9 @@ pub fn run() {
 			extract_tgz,
             zookeeper::exec_rclone,
             zookeeper::spawn_rclone,
+            rc_session::rc_session,
+            media::media_register,
+            media::media_release,
             zookeeper::kill_rclone_daemon,
             zookeeper::validate_rclone_binary,
             zookeeper::rclone_config_path,

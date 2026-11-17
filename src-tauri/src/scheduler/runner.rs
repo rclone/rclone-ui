@@ -509,8 +509,8 @@ fn execute(
         Ok(p) => p,
         Err(e) => return RunOutcome::setup(e),
     };
-    let user = random_token("user");
-    let pass = random_token("pass");
+    let user = "rclone-ui".to_string();
+    let pass = crate::rc_session::random_secret();
     let base = format!("http://127.0.0.1:{}", port);
 
     log.line(&format!("starting transient daemon: {} (port {})", binary, port));
@@ -525,24 +525,17 @@ fn execute(
         .ok();
 
     let rc_addr = format!("127.0.0.1:{}", port);
-    let mut daemon_args = vec![
-        "rcd",
-        "--rc-addr",
-        &rc_addr,
-        "--rc-user",
-        &user,
-        "--rc-pass",
-        &pass,
-    ];
+    let mut daemon_args = vec!["rcd", "--rc-addr", &rc_addr];
     if spec.verbose_logging {
         daemon_args.extend(["--log-level", "INFO"]);
     }
 
     let mut cmd = Command::new(&binary);
     cmd.args(&daemon_args);
-    for (k, v) in &env {
+    for (k, v) in env.iter().filter(|(k, _)| !crate::rc_session::is_rc_variable(k)) {
         cmd.env(k, v);
     }
+    crate::rc_session::set_rc_credentials(&mut cmd, &user, &pass);
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::null());
     cmd.stderr(match daemon_log {
@@ -802,23 +795,6 @@ fn pick_port() -> Result<u16, String> {
         }
     }
     Err("could not allocate a local port".to_string())
-}
-
-fn random_token(salt: &str) -> String {
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(format!(
-        "{:?}-{}-{}",
-        SystemTime::now(),
-        std::process::id(),
-        salt
-    ));
-    hasher
-        .finalize()
-        .iter()
-        .take(12)
-        .map(|b| format!("{:02x}", b))
-        .collect()
 }
 
 /// Guarantees the transient daemon dies with the run — graceful /core/quit, then kill. The Drop

@@ -152,6 +152,7 @@ async function checkHostReachability(): Promise<void> {
     const checkReachability = async (): Promise<boolean> => {
         try {
             const hostInfo = await getHostInfo({
+                id: currentHost.id,
                 url: currentHost.url,
                 authUser: currentHost.authUser,
                 authPassword: currentHost.authPassword,
@@ -433,10 +434,6 @@ async function startRclone() {
     try {
         rclone = await initRclone([
             'rcd',
-            // ...(platform() === 'macos'
-            //     ? ['--rc-no-auth'] // webkit doesn't allow for credentials in the url
-            //     : ['--rc-user', 'admin', '--rc-pass', sessionPassword]),
-            '--rc-no-auth',
             '--rc-serve',
             '--rc-job-expire-duration',
             '24h',
@@ -824,6 +821,7 @@ async function checkRclone() {
     let currentHost = selectCurrentHost(usePersistedStore.getState()) ?? makeLocalHost()
 
     let hostInfo = await getHostInfo({
+        id: currentHost.id,
         url: currentHost.url,
         authUser: currentHost.authUser,
         authPassword: currentHost.authPassword,
@@ -840,6 +838,7 @@ async function checkRclone() {
         currentHost = makeLocalHost()
 
         hostInfo = await getHostInfo({
+            id: currentHost.id,
             url: currentHost.url,
             authUser: currentHost.authUser,
             authPassword: currentHost.authPassword,

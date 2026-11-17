@@ -27,7 +27,7 @@ tauri-plugin-log = "2.8.0"
 tauri-plugin-dialog = "2.7.1"
 tauri-plugin-fs = "2.5.1"
 tauri-plugin-opener = "2.5.4"
-tauri-plugin-http = "2.5.9"
+tauri-plugin-http = { version = "2.5.9", features = ["unsafe-headers"] }
 tauri-plugin-store = "2.4.3"
 tauri-plugin-process = "2.3.1"
 tauri-plugin-notification = { version = "2.3.3", features = [ "windows7-compat" ] }
@@ -43,7 +43,14 @@ tauri-plugin-single-instance = { version = "2.4.2", features = ["deep-link"] }
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-clipboard-manager = "2.3.2"
 tauri-plugin-prevent-default = "5"
-reqwest = { version = "0.13", features = ["json"] }
+reqwest = { version = "0.13", features = ["json", "stream"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+tokio = { version = "1", features = ["net", "time"] }
+futures-util = "0.3"
+bytes = "1"
+percent-encoding = "2"
 sysinfo = "0.37"
 tinyfiledialogs = { package = "tinyfiledialogs-rs", version = "3.21.3", features = ["windows-hidpi"] }
 tauri-plugin-deep-link = "2.4.9"
