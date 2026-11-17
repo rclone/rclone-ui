@@ -58,6 +58,14 @@ async function buildExternal() {
                 })
                 await Promise.all(jsFiles.map((file) => unlink(file).catch(() => {})))
             })(),
+            // Remove emitted types/*.js files introduced when runtime TypeScript imports a type module.
+            (async () => {
+                const jsFiles = await glob('**/*.js', {
+                    cwd: join(projectRoot, 'types'),
+                    absolute: true,
+                })
+                await Promise.all(jsFiles.map((file) => unlink(file).catch(() => {})))
+            })(),
             // Remove main.js
             unlink(join(projectRoot, 'main.js')).catch(() => {}), // Ignore if file doesn't exist
         ])

@@ -2,6 +2,7 @@ import type { RcloneFeatures } from '../types/rclone'
 
 export type ToolbarCommandId =
     | 'copy'
+    | 'copy-verify'
     | 'move'
     | 'sync'
     | 'mount'

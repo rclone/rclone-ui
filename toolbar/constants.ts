@@ -2,6 +2,8 @@ import type { ToolbarCommandId } from './types'
 
 const COPY_DESCRIPTION =
     'Copy files from a source to a destination without deleting destination files.'
+const COPY_VERIFY_DESCRIPTION =
+    'Copy files and verify the destination with a read-only rclone check.'
 const MOVE_DESCRIPTION =
     'Move files from a source to a destination and delete them from the source.'
 const SYNC_DESCRIPTION =
@@ -29,6 +31,7 @@ const COMMANDER_DESCRIPTION = 'Open the Commander screen.'
 
 export const COMMAND_CONFIG = {
     copy: { route: '/copy', windowLabel: 'Copy' },
+    'copy-verify': { route: '/copy-verify', windowLabel: 'Copy-Verify' },
     move: { route: '/move', windowLabel: 'Move' },
     sync: { route: '/sync', windowLabel: 'Sync' },
     mount: { route: '/mount', windowLabel: 'Mount' },
@@ -55,6 +58,7 @@ export const COMMAND_CONFIG = {
 
 export const COMMAND_DESCRIPTIONS: Record<ToolbarCommandId, string> = {
     copy: COPY_DESCRIPTION,
+    'copy-verify': COPY_VERIFY_DESCRIPTION,
     move: MOVE_DESCRIPTION,
     sync: SYNC_DESCRIPTION,
     mount: MOUNT_DESCRIPTION,
@@ -81,6 +85,7 @@ export const COMMAND_DESCRIPTIONS: Record<ToolbarCommandId, string> = {
 
 export const COMMAND_KEYWORDS: Record<ToolbarCommandId, string[]> = {
     copy: ['copy', 'cp'],
+    'copy-verify': ['copy', 'verify', 'checksum'],
     move: ['move', 'mv'],
     sync: ['sync', 'synchronise', 'synchronize'],
     mount: ['mount'],

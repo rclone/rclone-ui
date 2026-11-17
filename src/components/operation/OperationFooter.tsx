@@ -34,6 +34,7 @@ export default function OperationFooter({
     startIsPending,
     onStart,
     onSchedule,
+    showSchedule = true,
     dryRunIsPending,
     onDryRun,
     startBlocked,
@@ -56,6 +57,7 @@ export default function OperationFooter({
     startIsPending: boolean
     onStart: () => void
     onSchedule: () => void
+    showSchedule?: boolean
     // Present only on pages with a dry-run mutation (Copy/Sync/Move/Delete).
     dryRunIsPending?: boolean
     onDryRun?: () => void
@@ -199,7 +201,7 @@ export default function OperationFooter({
                         </Button>
                     </Tooltip>
                 ) : null}
-                {schedulingAvailable ? (
+                {showSchedule && schedulingAvailable ? (
                     <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
                         <Button
                             size="lg"

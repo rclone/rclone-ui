@@ -412,7 +412,12 @@ function buildTransferInputs(
     return inputs
 }
 
-export function buildCopyRequests(args: CopyArgs): RcRequest[] {
+/**
+ * Builds the effective copy inputs without wrapping them in an RC request. Copy + Verify uses
+ * this exact fan-out so the existing Copy route and the new workflow cannot disagree about which
+ * source objects are submitted.
+ */
+export function buildCopyInputs(args: CopyArgs): BatchInput[] {
     assertIncludeRules(args.sources, args.options.filter)
     assertFolderFilters(args.sources, args.options.filter)
     const configParam = toConfigParam({
@@ -420,13 +425,21 @@ export function buildCopyRequests(args: CopyArgs): RcRequest[] {
         ...(args.options.config || {}),
     })
     const filterParam = toFilterParam(args.options.filter)
-    const inputs = buildTransferInputs(
+    return buildTransferInputs(
         args,
         { folder: 'sync/copy', file: 'operations/copyfile' },
         configParam,
         filterParam,
         { createEmptySrcDirs: true }
     )
+}
+
+export function buildCopyRequests(args: CopyArgs): RcRequest[] {
+    const inputs = buildCopyInputs(args)
+    const configParam = toConfigParam({
+        ...(args.options.copy || {}),
+        ...(args.options.config || {}),
+    })
     return [
         {
             endpoint: '/job/batch',

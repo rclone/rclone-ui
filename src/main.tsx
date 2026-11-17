@@ -95,6 +95,10 @@ const router = createBrowserRouter([
         element: <Copy />,
     },
     {
+        path: '/copy-verify',
+        element: <Copy mode="copy-verify" />,
+    },
+    {
         path: '/move',
         element: <Move />,
     },

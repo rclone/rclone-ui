@@ -42,6 +42,7 @@ export default function CommandsDropdown({
                 <DropdownSection title={title ? undefined : 'Run another command'}>
                     <DropdownItem key="download">Download</DropdownItem>
                     <DropdownItem key="copy">Copy</DropdownItem>
+                    <DropdownItem key="copy-verify">Copy + Verify</DropdownItem>
                     <DropdownItem key="move">Move</DropdownItem>
                     <DropdownItem key="delete">Delete</DropdownItem>
                     <DropdownItem key="sync">Sync</DropdownItem>

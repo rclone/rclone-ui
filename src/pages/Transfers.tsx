@@ -7,10 +7,14 @@ import { startTransition, useCallback, useMemo, useState } from 'react'
 import { buildReadablePathMultiple, formatBytes } from '../../lib/format'
 import { useIsPreview } from '../../lib/preview'
 import { listTransfers } from '../../lib/rclone/api'
+import { useHostStore } from '../../store/host'
 import { usePersistedStore } from '../../store/persisted'
+import { type CopyVerifyOperation, isCopyVerifyTerminal } from '../../types/copyVerify'
 import type { JobItem } from '../../types/jobs'
 import CommandsDropdown from '../components/CommandsDropdown'
 import JobDetailsDrawer from '../components/JobDetailsDrawer'
+import CopyVerifyCard from '../components/copyVerify/CopyVerifyCard'
+import CopyVerifyDetailsDrawer from '../components/copyVerify/CopyVerifyDetailsDrawer'
 
 export default function Transfers() {
     const { isOpen, onOpen, onClose } = useDisclosure({
@@ -35,7 +39,10 @@ export default function Transfers() {
         },
     })
     const [selectedJob, setSelectedJob] = useState<JobItem | null>(null)
+    const [selectedOperation, setSelectedOperation] = useState<CopyVerifyOperation | null>(null)
     const acknowledgements = usePersistedStore((state) => state.acknowledgements)
+    const copyVerifyOperations = useHostStore((state) => state.copyVerifyOperations)
+    const copyVerifyDisclosure = useDisclosure()
 
     const handleSelectJob = useCallback(
         (job: JobItem) => {
@@ -60,6 +67,31 @@ export default function Transfers() {
         [transfersQuery.data]
     )
 
+    const internalJobIds = useMemo(() => {
+        const ids = new Set<number>()
+        for (const operation of copyVerifyOperations) {
+            if (operation.copyJob) ids.add(operation.copyJob.jobId)
+            for (const job of [...operation.verificationJobs, ...operation.repairJobs])
+                ids.add(job.jobId)
+        }
+        return ids
+    }, [copyVerifyOperations])
+
+    const visibleTransfers = useMemo(
+        () => ({
+            active: transfers.active.filter((job) => !internalJobIds.has(job.id)),
+            inactive: transfers.inactive.filter((job) => !internalJobIds.has(job.id)),
+        }),
+        [internalJobIds, transfers]
+    )
+
+    const activeCopyVerify = copyVerifyOperations.filter(
+        (operation) => !isCopyVerifyTerminal(operation)
+    )
+    const inactiveCopyVerify = copyVerifyOperations.filter((operation) =>
+        isCopyVerifyTerminal(operation)
+    )
+
     if (transfersQuery.isLoading) {
         return (
             <div className="flex flex-col items-center justify-center h-screen">
@@ -68,7 +100,12 @@ export default function Transfers() {
         )
     }
 
-    if (!transfers || (transfers.active.length === 0 && transfers.inactive.length === 0)) {
+    if (
+        !transfers ||
+        (visibleTransfers.active.length === 0 &&
+            visibleTransfers.inactive.length === 0 &&
+            copyVerifyOperations.length === 0)
+    ) {
         return (
             <div className="flex flex-col items-center justify-center w-full h-screen gap-8">
                 <h1 className="text-2xl font-bold">No transfers found</h1>
@@ -93,12 +130,32 @@ export default function Transfers() {
                 variant="underlined"
             >
                 <Tab key="active" title="ACTIVE">
-                    {transfers.active.map((job) => (
+                    {activeCopyVerify.map((operation) => (
+                        <CopyVerifyCard
+                            key={operation.id}
+                            operation={operation}
+                            onSelect={(selected) => {
+                                setSelectedOperation(selected)
+                                copyVerifyDisclosure.onOpen()
+                            }}
+                        />
+                    ))}
+                    {visibleTransfers.active.map((job) => (
                         <JobCard key={job.id} job={job} onSelect={handleSelectJob} />
                     ))}
                 </Tab>
                 <Tab key="inactive" title="INACTIVE">
-                    {transfers.inactive.map((job) => (
+                    {inactiveCopyVerify.map((operation) => (
+                        <CopyVerifyCard
+                            key={operation.id}
+                            operation={operation}
+                            onSelect={(selected) => {
+                                setSelectedOperation(selected)
+                                copyVerifyDisclosure.onOpen()
+                            }}
+                        />
+                    ))}
+                    {visibleTransfers.inactive.map((job) => (
                         <JobCard key={job.id} job={job} onSelect={handleSelectJob} />
                     ))}
                 </Tab>
@@ -115,6 +172,20 @@ export default function Transfers() {
                     onClose={onClose}
                     selectedJob={selectedJob}
                     onSelectJob={handleSelectJob}
+                />
+            )}
+            {selectedOperation && (
+                <CopyVerifyDetailsDrawer
+                    operation={
+                        copyVerifyOperations.find(
+                            (operation) => operation.id === selectedOperation.id
+                        ) ?? selectedOperation
+                    }
+                    isOpen={copyVerifyDisclosure.isOpen}
+                    onClose={() => {
+                        copyVerifyDisclosure.onClose()
+                        setSelectedOperation(null)
+                    }}
                 />
             )}
         </>

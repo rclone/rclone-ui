@@ -1,12 +1,16 @@
 import { useMutation } from '@tanstack/react-query'
+import { ask } from '@tauri-apps/plugin-dialog'
 import { AlertOctagonIcon, FoldersIcon, PlayIcon } from 'lucide-react'
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { startCopyVerify } from '../../lib/copyVerify/commands'
 import { onErrorDialog } from '../../lib/errors'
 import { getOptionsSubtitle } from '../../lib/flags'
+import { getRemoteName } from '../../lib/format'
 import { useFlags } from '../../lib/hooks'
 import { startCopy, startDryRun } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
+import type { CopyArgs } from '../../lib/rclone/requests'
 import { useSchedulingAvailable } from '../../lib/scheduler'
 import { usePersistedStore } from '../../store/persisted'
 import OperationWindowContent from '../components/OperationWindowContent'
@@ -53,7 +57,16 @@ Tap the folder icon in the bottom bar to load or save option presets. Templates 
 4. START THE COPY
 Once paths are selected, tap "START COPY" to begin. You can monitor progress on the Transfers page.`
 
-export default function Copy() {
+const COPY_VERIFY_HELP_CONTENT = `Copies the source(s) to the destination, then runs a read-only rclone check.
+
+Copy + Verify never deletes extra destination files. Verification reports missing, differing, and unreadable files so you can review them before repairing.
+
+Select the source(s) and destination, configure any options, and tap "START COPY + VERIFY". This workflow is manual-only; its progress and verification report are available from Transfers.`
+
+export type CopyMode = 'copy' | 'copy-verify'
+
+export default function Copy({ mode = 'copy' }: { mode?: CopyMode }) {
+    const isCopyVerify = mode === 'copy-verify'
     const [searchParams] = useSearchParams()
     const { globalFlags, filterFlags, configFlags, copyFlags } = useFlags()
 
@@ -93,7 +106,7 @@ export default function Copy() {
         [sources, dest]
     )
 
-    const buildArgs = () => ({
+    const buildArgs = (): CopyArgs => ({
         sources: sources!,
         destination: dest!,
         options: {
@@ -110,14 +123,15 @@ export default function Copy() {
                 throw new Error('Please select both a source and destination path')
             }
 
-            return startCopy(buildArgs())
+            const args = buildArgs()
+            return isCopyVerify ? startCopyVerify(args) : startCopy(args)
         },
         onSuccess: () => {
-            if (cronExpression) {
+            if (!isCopyVerify && cronExpression) {
                 scheduleTaskMutation.mutate()
             }
         },
-        onError: onErrorDialog('Copy', 'Failed to start copy', {
+        onError: onErrorDialog(isCopyVerify ? 'Copy + Verify' : 'Copy', 'Failed to start copy', {
             capture: false,
             log: ['Error starting copy:'],
         }),
@@ -165,9 +179,9 @@ export default function Copy() {
         if (!dest) return 'Please select a destination path'
         if (sources.some((s) => s === dest)) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        if (cronExpression) return 'START AND SCHEDULE COPY'
-        return 'START COPY'
-    }, [startCopyMutation.isPending, sources, dest, jsonError, cronExpression])
+        if (!isCopyVerify && cronExpression) return 'START AND SCHEDULE COPY'
+        return isCopyVerify ? 'START COPY + VERIFY' : 'START COPY'
+    }, [startCopyMutation.isPending, sources, dest, jsonError, cronExpression, isCopyVerify])
 
     const buttonIcon = useMemo(() => {
         if (startCopyMutation.isPending) return
@@ -209,7 +223,7 @@ export default function Copy() {
                     />
                 ),
             },
-            ...(schedulingAvailable
+            ...(!isCopyVerify && schedulingAvailable
                 ? [
                       {
                           key: 'cron',
@@ -275,10 +289,31 @@ export default function Copy() {
             selectedRemotes,
             cronExpression,
             schedulingAvailable,
+            isCopyVerify,
         ]
     )
 
-    const handleStart = useCallback(() => startCopyMutation.mutate(), [startCopyMutation.mutate])
+    const handleStart = useCallback(async () => {
+        if (
+            isCopyVerify &&
+            sources?.some((source) => {
+                const remoteName = getRemoteName(source)
+                return !remoteName || remoteName === ':local'
+            }) &&
+            dest &&
+            getRemoteName(dest) !== null &&
+            getRemoteName(dest) !== ':local'
+        ) {
+            const confirmed = await ask('This operation may replace differing destination files.', {
+                title: 'Copy + Verify',
+                kind: 'warning',
+                okLabel: 'Continue',
+                cancelLabel: 'Cancel',
+            })
+            if (!confirmed) return
+        }
+        startCopyMutation.mutate()
+    }, [dest, isCopyVerify, sources, startCopyMutation.mutate])
 
     const handleSchedule = useCallback(
         () => scheduleTaskMutation.mutate(),
@@ -345,8 +380,9 @@ export default function Copy() {
                     startIsPending={startCopyMutation.isPending}
                     onStart={handleStart}
                     onSchedule={handleSchedule}
-                    dryRunIsPending={dryRunMutation.isPending}
-                    onDryRun={handleDryRun}
+                    showSchedule={!isCopyVerify}
+                    dryRunIsPending={isCopyVerify ? undefined : dryRunMutation.isPending}
+                    onDryRun={isCopyVerify ? undefined : handleDryRun}
                     startBlocked={
                         !!jsonError ||
                         !sources ||
@@ -356,11 +392,11 @@ export default function Copy() {
                     }
                     buttonText={buttonText}
                     buttonIcon={buttonIcon}
-                    newLabel="NEW COPY"
+                    newLabel={isCopyVerify ? 'NEW COPY + VERIFY' : 'NEW COPY'}
                     onResetPaths={handleResetPaths}
                     onResetOptions={handleResetOptions}
                     onResetAll={handleResetAll}
-                    helpContent={HELP_CONTENT}
+                    helpContent={isCopyVerify ? COPY_VERIFY_HELP_CONTENT : HELP_CONTENT}
                 />
             </OperationWindowFooter>
         </div>
