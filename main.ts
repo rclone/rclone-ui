@@ -11,7 +11,6 @@ import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { type Update, check } from '@tauri-apps/plugin-updater'
 import pRetry from 'p-retry'
 import { defaultOptions } from 'tauri-plugin-sentry-api'
-import { type CopyVerifyCoordinator, initCopyVerifyCoordinator } from './lib/copyVerify/coordinator'
 import { getDeepLinkUrl, handleDeepLinkUrl } from './lib/deep'
 import { CLOSE_APP, RELAUNCH_APP, RESTART_RCLONE, type RestartRclonePayload } from './lib/events'
 import { LOCAL_HOST_ID, RC_PORT, getHostInfo, makeLocalHost } from './lib/hosts'
@@ -39,25 +38,6 @@ import { useStore } from './store/memory'
 import { selectCurrentHost, usePersistedStore } from './store/persisted'
 
 let rcloneListenersRegistered = false
-let copyVerifyCoordinator: CopyVerifyCoordinator | null = null
-let mainHostStoreReady = false
-
-usePersistedStore.subscribe((state, previousState) => {
-    if (
-        !mainHostStoreReady ||
-        !state.currentHostId ||
-        state.currentHostId === previousState.currentHostId
-    )
-        return
-    switchCopyVerifyHostStore(state.currentHostId).catch((error) =>
-        console.error('[main] failed to switch Copy + Verify host store', error)
-    )
-})
-
-async function switchCopyVerifyHostStore(hostId: string): Promise<void> {
-    await copyVerifyCoordinator?.markHostChanged()
-    await initHostStore(hostId)
-}
 
 // Mirrors zookeeper.rs RcloneEvent — only 'close' is emitted.
 type RcloneDaemonEvent = {
@@ -152,7 +132,6 @@ async function initializeHostStore() {
     const hostId = usePersistedStore.getState().currentHostId || LOCAL_HOST_ID
 
     await initHostStore(hostId)
-    mainHostStoreReady = true
 
     console.log('[initializeHostStore] initialized for', hostId)
 }
@@ -426,7 +405,6 @@ async function registerRcloneWindowListeners() {
             // Loop so a request that arrived (and applied its state) mid-restart still takes effect.
             do {
                 useStore.setState({ rcloneRestartPending: false })
-                await copyVerifyCoordinator?.markDaemonRestarted()
                 await killRcloneDaemon()
 
                 // Jobids do not survive a daemon restart — polling them would only 404.
@@ -936,9 +914,6 @@ waitForHydration()
     .then(() => checkAlreadyRunning())
     .then(() => startRclone())
     .then(() => checkRclone())
-    .then(async () => {
-        copyVerifyCoordinator = await initCopyVerifyCoordinator()
-    })
     .then(() => reconcileNotificationTargets())
     .then(() => initJobWatcher())
     .then(() => handleDeepLink())

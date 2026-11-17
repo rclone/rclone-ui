@@ -56,11 +56,6 @@ async function buildExternal() {
                 const jsFiles = await findJsFiles(join(projectRoot, 'store'))
                 await Promise.all(jsFiles.map((file) => unlink(file).catch(() => {})))
             })(),
-            // Remove emitted types/*.js files introduced when runtime TypeScript imports a type module.
-            (async () => {
-                const jsFiles = await findJsFiles(join(projectRoot, 'types'))
-                await Promise.all(jsFiles.map((file) => unlink(file).catch(() => {})))
-            })(),
             // Remove main.js
             unlink(join(projectRoot, 'main.js')).catch(() => {}), // Ignore if file doesn't exist
         ])

@@ -85,60 +85,6 @@ const actions: ToolbarActionDefinition[] = [
         },
     },
     {
-        id: 'copy-verify',
-        label: 'Copy + Verify',
-        description: COMMAND_DESCRIPTIONS['copy-verify'],
-        keywords: COMMAND_KEYWORDS['copy-verify'],
-        getDefaultResult: () =>
-            createBaseResult('Copy + Verify', COMMAND_DESCRIPTIONS['copy-verify'], {}, 49),
-        getResults: ({ query, paths }) => {
-            if (query && !matchesKeyword(query, COMMAND_KEYWORDS['copy-verify'])) return []
-
-            if (paths.length === 0) {
-                return [
-                    createBaseResult('Copy + Verify', COMMAND_DESCRIPTIONS['copy-verify'], {}, 49),
-                ]
-            }
-
-            const results: ToolbarActionResult[] = []
-            if (paths.length === 2) {
-                const [source, destination] = paths
-                results.push(
-                    createBaseResult(
-                        `Copy + Verify ${source.readable} → ${destination.readable}`,
-                        COMMAND_DESCRIPTIONS['copy-verify'],
-                        {
-                            initialSource: normalizePathForArgs(source),
-                            initialDestination: normalizePathForArgs(destination),
-                        },
-                        199
-                    )
-                )
-            }
-
-            for (let index = 0; index < paths.length; index += 1) {
-                const path = paths[index]
-                const isDestination = paths.length > 1 && index === paths.length - 1
-                const args: ToolbarActionArgs = isDestination
-                    ? { initialDestination: normalizePathForArgs(path) }
-                    : { initialSource: normalizePathForArgs(path) }
-                results.push(
-                    createBaseResult(
-                        `Copy + Verify ${path.readable}`,
-                        COMMAND_DESCRIPTIONS['copy-verify'],
-                        args,
-                        isDestination ? 154 : 159
-                    )
-                )
-            }
-
-            return results
-        },
-        onPress: async (args, context) => {
-            await openCommandWindow('copy-verify', args, context)
-        },
-    },
-    {
         id: 'move',
         label: 'Move',
         description: COMMAND_DESCRIPTIONS.move,
@@ -1350,7 +1296,6 @@ function buildCommandParams(id: ConfiguredCommandId, args: ToolbarActionArgs): U
 
     switch (id) {
         case 'copy':
-        case 'copy-verify':
         case 'move':
         case 'sync':
         case 'bisync':

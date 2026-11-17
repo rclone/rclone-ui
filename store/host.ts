@@ -1,9 +1,7 @@
 import { LazyStore } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { pruneTerminalOperations } from '../lib/copyVerify/history'
 import type { ConfigFile } from '../types/config'
-import type { CopyVerifyOperation, CopyVerifyUpdate } from '../types/copyVerify'
 import type { ScheduledTask } from '../types/schedules'
 import { createTauriStateStorage, waitForStoreHydration } from './lib'
 
@@ -70,7 +68,7 @@ export interface RemoteConfig {
     }
 }
 
-export interface HostState {
+interface HostState {
     remoteConfigs: Record<string, RemoteConfig>
     setRemoteConfig: (remote: string, config: RemoteConfig) => void
     mergeRemoteConfig: (remote: string, config: RemoteConfig) => void
@@ -118,11 +116,6 @@ export interface HostState {
     // Atomically set both the intent and the ownership marker (a single store write, so a crash can
     // never land between them and desync intent from what we actually linked).
     setConfigSyncState: (state: { intent: boolean; linkTarget: string | null }) => void
-
-    copyVerifyOperations: CopyVerifyOperation[]
-    addCopyVerifyOperation: (operation: CopyVerifyOperation) => void
-    updateCopyVerifyOperation: (id: string, update: CopyVerifyUpdate) => void
-    pruneCopyVerifyOperations: (now?: number) => void
 }
 
 export const useHostStore = create<HostState>()(
@@ -195,39 +188,12 @@ export const useHostStore = create<HostState>()(
             syncConfigLinkTarget: null,
             setConfigSyncState: ({ intent, linkTarget }) =>
                 set((_) => ({ syncConfigToSystem: intent, syncConfigLinkTarget: linkTarget })),
-
-            copyVerifyOperations: [],
-            addCopyVerifyOperation: (operation) =>
-                set((state) => ({
-                    copyVerifyOperations: state.copyVerifyOperations.some(
-                        (existing) => existing.id === operation.id
-                    )
-                        ? state.copyVerifyOperations
-                        : [...state.copyVerifyOperations, operation],
-                })),
-            updateCopyVerifyOperation: (id, update) =>
-                set((state) => ({
-                    copyVerifyOperations: state.copyVerifyOperations.map((operation) =>
-                        operation.id === id
-                            ? {
-                                  ...operation,
-                                  ...update,
-                                  id: operation.id,
-                                  updatedAt: new Date().toISOString(),
-                              }
-                            : operation
-                    ),
-                })),
-            pruneCopyVerifyOperations: (now = Date.now()) =>
-                set((state) => ({
-                    copyVerifyOperations: pruneTerminalOperations(state.copyVerifyOperations, now),
-                })),
         }),
         {
             name: 'host-store',
             storage: createJSONStorage(() => createTauriStateStorage(() => activeStore)),
             skipHydration: true,
-            version: 3,
+            version: 2,
             migrate: (persistedState, version) => {
                 if (!persistedState) {
                     return persistedState
@@ -266,15 +232,6 @@ export const useHostStore = create<HostState>()(
                                 binaryPath: 'app-default',
                             })
                         ),
-                    }
-                }
-
-                if (version < 3) {
-                    state = {
-                        ...state,
-                        copyVerifyOperations: Array.isArray(state.copyVerifyOperations)
-                            ? state.copyVerifyOperations
-                            : [],
                     }
                 }
 
