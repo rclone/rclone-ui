@@ -853,7 +853,11 @@ fn unzip_hardened(zip_path: &Path, out_dir: &Path) -> Result<(), String> {
             .ok_or_else(|| "Unsafe path in archive".to_string())?;
         let outpath = out_dir.join(&name);
 
-        if entry.name().ends_with('/') || entry.name().ends_with('\\') {
+        let is_dir = {
+            let entry_name = entry.name().map_err(|e| e.to_string())?;
+            entry_name.ends_with('/') || entry_name.ends_with('\\')
+        };
+        if is_dir {
             std::fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
             continue;
         }
@@ -2199,5 +2203,79 @@ mod config_sync_tests {
         assert_eq!(std::fs::read_to_string(&system).unwrap(), "[native]\n");
         assert!(st2.backup_path.is_none());
         assert!(st2.enabled && !st2.managed);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    fn scratch_dir() -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("rcui-unzip-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_zip(path: &Path, entries: &[(&str, &[u8], u32)]) {
+        let mut writer = zip::ZipWriter::new(std::fs::File::create(path).unwrap());
+        for (name, data, mode) in entries {
+            let options = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated)
+                .unix_permissions(*mode);
+            if name.ends_with('/') {
+                writer.add_directory(*name, options).unwrap();
+            } else {
+                writer.start_file(*name, options).unwrap();
+                writer.write_all(data).unwrap();
+            }
+        }
+        writer.finish().unwrap();
+    }
+
+    #[test]
+    fn unzip_extracts_files_and_modes() {
+        let dir = scratch_dir();
+        let archive = dir.join("rclone.zip");
+        let out = dir.join("out");
+        std::fs::create_dir_all(&out).unwrap();
+        write_zip(
+            &archive,
+            &[
+                ("rclone-v1-osx/", b"", 0o755),
+                ("rclone-v1-osx/rclone", b"binary contents", 0o755),
+                ("rclone-v1-osx/README.txt", b"readme", 0o644),
+            ],
+        );
+
+        unzip_hardened(&archive, &out).unwrap();
+
+        let binary = find_binary(&out).unwrap();
+        assert_eq!(std::fs::read(&binary).unwrap(), b"binary contents");
+        assert_eq!(
+            std::fs::read(out.join("rclone-v1-osx/README.txt")).unwrap(),
+            b"readme"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&binary).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o755);
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn unzip_rejects_paths_outside_the_output() {
+        let dir = scratch_dir();
+        let archive = dir.join("outside.zip");
+        let out = dir.join("out");
+        std::fs::create_dir_all(&out).unwrap();
+        write_zip(&archive, &[("../outside.txt", b"outside", 0o644)]);
+
+        assert!(unzip_hardened(&archive, &out).is_err());
+        assert!(!dir.join("outside.txt").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

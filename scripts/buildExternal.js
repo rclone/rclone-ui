@@ -1,10 +1,14 @@
 import { execSync } from 'child_process'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
-import { rename, unlink } from 'fs/promises'
-import { glob } from 'glob'
+import { readdir, rename, unlink } from 'fs/promises'
 
 console.log('[buildExternal] building with node', process.version)
+
+async function findJsFiles(dir) {
+    const entries = await readdir(dir, { recursive: true })
+    return entries.filter((entry) => entry.endsWith('.js')).map((entry) => join(dir, entry))
+}
 
 // Get the project root directory
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -44,26 +48,17 @@ async function buildExternal() {
         await Promise.all([
             // Remove lib/*.js files - preserve .ts files
             (async () => {
-                const jsFiles = await glob('**/*.js', {
-                    cwd: join(projectRoot, 'lib'),
-                    absolute: true,
-                })
+                const jsFiles = await findJsFiles(join(projectRoot, 'lib'))
                 await Promise.all(jsFiles.map((file) => unlink(file).catch(() => {})))
             })(),
             // Remove store/*.js files - preserve .ts files
             (async () => {
-                const jsFiles = await glob('**/*.js', {
-                    cwd: join(projectRoot, 'store'),
-                    absolute: true,
-                })
+                const jsFiles = await findJsFiles(join(projectRoot, 'store'))
                 await Promise.all(jsFiles.map((file) => unlink(file).catch(() => {})))
             })(),
             // Remove emitted types/*.js files introduced when runtime TypeScript imports a type module.
             (async () => {
-                const jsFiles = await glob('**/*.js', {
-                    cwd: join(projectRoot, 'types'),
-                    absolute: true,
-                })
+                const jsFiles = await findJsFiles(join(projectRoot, 'types'))
                 await Promise.all(jsFiles.map((file) => unlink(file).catch(() => {})))
             })(),
             // Remove main.js

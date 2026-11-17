@@ -34,7 +34,7 @@ tauri-plugin-notification = { version = "2.3.3", features = [ "windows7-compat" 
 tauri-plugin-os = "2.3.2"
 tauri-plugin-global-shortcut = "2.3.1"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
-zip = "0.6.6"
+zip = { version = "9.0.5", default-features = false, features = ["deflate-flate2"] }
 machine-uid = "0.6.0"
 tauri-plugin-sentry = "0.5.0"
 sentry = "0.42"
