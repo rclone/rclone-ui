@@ -32,6 +32,7 @@ import {
 import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useDebounce } from 'use-debounce'
 import { formatErrorMessage } from '../../lib/errors'
+import type { AddTemplatePayload } from '../../lib/events'
 import {
     FLAG_CATEGORIES,
     findFlagOption,
@@ -64,9 +65,13 @@ function stripQuotes(value: string): string {
 export default function TemplateAddDrawer({
     isOpen,
     onClose,
+    initialValues,
 }: {
     isOpen: boolean
     onClose: () => void
+    // Deep-link prefill (rclone://add-template?cmd=…). A fresh object arrives per link, so a
+    // repeated identical link still re-applies.
+    initialValues?: AddTemplatePayload | null
 }) {
     const {
         globalFlags,
@@ -85,6 +90,12 @@ export default function TemplateAddDrawer({
 
     const [name, setName] = useState('')
     const [tags, setTags] = useState<string[]>([])
+
+    useEffect(() => {
+        if (!isOpen || !initialValues) return
+        setImportString(initialValues.cmd ?? '')
+        setName(initialValues.name ?? '')
+    }, [isOpen, initialValues])
 
     const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
     const [copyOptionsJson, setCopyOptionsJson] = useState<string>('{}')
@@ -152,6 +163,11 @@ export default function TemplateAddDrawer({
         },
         onSuccess: () => {
             onClose()
+            // Clearing the command matters: re-importing the same command later hits the cached
+            // parseFlags query (same `data` reference), so the section-populate effect would not
+            // re-fire against the freshly reset sections.
+            setImportString('')
+            setImportedCount(null)
             setName('')
             setTags([])
             setMountOptionsJson('{}')
@@ -324,6 +340,7 @@ export default function TemplateAddDrawer({
                                             label="Import from command"
                                             labelPlacement="outside"
                                             placeholder="rclone copy --vfs-cache-mode writes ..."
+                                            value={importString}
                                             onValueChange={(value) => setImportString(value)}
                                             size="lg"
                                             data-focus-visible="false"
@@ -364,6 +381,7 @@ export default function TemplateAddDrawer({
                                             label="Name"
                                             labelPlacement="outside"
                                             placeholder="My Template"
+                                            value={name}
                                             onValueChange={(value) => setName(value)}
                                             size="lg"
                                             data-focus-visible="false"

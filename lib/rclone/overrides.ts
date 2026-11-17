@@ -1,5 +1,15 @@
 export const OWN_OAUTH_TYPES = ['drive', 'google photos']
 
+export const INTERACTIVE_CONFIG_TYPES = [
+    'jottacloud',
+    'onedrive',
+    'zoho',
+    'seafile',
+    'sugarsync',
+    'iclouddrive',
+    'internxt',
+]
+
 export const OVERRIDES = {
     alias: {
         Description: 'ALIAS',

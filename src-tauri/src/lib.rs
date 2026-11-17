@@ -12,8 +12,12 @@ mod shortcut;
 #[path = "../common/window.rs"]
 mod window;
 
+#[cfg(target_os = "linux")]
+mod jenky;
 mod local_fs;
+mod media;
 mod notifications;
+mod rc_session;
 mod scheduler;
 mod zookeeper;
 
@@ -395,19 +399,27 @@ async fn prompt_text(
 
         let default_value = default.unwrap_or_default();
         let is_sensitive = sensitive.unwrap_or(false);
+
+        // AppleScript string literals can't contain a raw newline, so a multi-line message (e.g. a
+        // numbered choice list) must have its newlines turned into the `\n` escape sequence. Escape
+        // backslashes and quotes first so the conversions don't collide.
+        let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
+        let esc_message = esc(&message)
+            .replace("\r\n", "\\n")
+            .replace('\n', "\\n")
+            .replace('\r', "\\n");
+        let esc_title = esc(&title);
+        let esc_default = esc(&default_value);
+
         let script = if is_sensitive {
             format!(
                 r#"display dialog "{}" with title "{}" default answer "{}" with hidden answer"#,
-                message.replace("\"", "\\\""),
-                title.replace("\"", "\\\""),
-                default_value.replace("\"", "\\\""),
+                esc_message, esc_title, esc_default,
             )
         } else {
             format!(
                 r#"display dialog "{}" with title "{}" default answer "{}""#,
-                message.replace("\"", "\\\""),
-                title.replace("\"", "\\\""),
-                default_value.replace("\"", "\\\""),
+                esc_message, esc_title, esc_default,
             )
         };
 
@@ -446,11 +458,19 @@ async fn prompt_text(
         let default_value = default.unwrap_or_default();
         let is_sensitive = sensitive.unwrap_or(false);
 
-        // Use PowerShell to create a simple text input dialog
+        // Use PowerShell to create a simple text input dialog. PowerShell single-quoted strings keep
+        // literal newlines, so a multi-line message (e.g. a numbered choice list) renders across
+        // lines in the label — we just have to grow the label/form to fit its line count.
         let ps_default = default_value.replace('\'', "''");
         let ps_title = title.replace('\'', "''");
         let ps_message = message.replace('\'', "''");
         let ps_password_flag = if is_sensitive { "$true" } else { "$false" };
+
+        let line_count = message.lines().count().max(1) as i32;
+        let label_height = (line_count * 18 + 8).clamp(40, 380);
+        let textbox_y = 15 + label_height + 8;
+        let button_y = textbox_y + 34;
+        let form_height = button_y + 70;
 
         let powershell_script = format!(
             r#"
@@ -459,7 +479,7 @@ async fn prompt_text(
 
             $form = New-Object System.Windows.Forms.Form
             $form.Text = '{title}'
-            $form.Size = New-Object System.Drawing.Size(350, 180)
+            $form.Size = New-Object System.Drawing.Size(350, {form_height})
             $form.StartPosition = 'CenterScreen'
             $form.FormBorderStyle = 'FixedDialog'
             $form.MaximizeBox = $false
@@ -468,19 +488,19 @@ async fn prompt_text(
 
             $label = New-Object System.Windows.Forms.Label
             $label.Location = New-Object System.Drawing.Point(10, 15)
-            $label.Size = New-Object System.Drawing.Size(320, 40)
+            $label.Size = New-Object System.Drawing.Size(320, {label_height})
             $label.Text = '{message}'
             $form.Controls.Add($label)
 
             $textBox = New-Object System.Windows.Forms.TextBox
-            $textBox.Location = New-Object System.Drawing.Point(10, 60)
+            $textBox.Location = New-Object System.Drawing.Point(10, {textbox_y})
             $textBox.Size = New-Object System.Drawing.Size(320, 20)
             $textBox.Text = '{default}'
             $textBox.UseSystemPasswordChar = {password}
             $form.Controls.Add($textBox)
 
             $okButton = New-Object System.Windows.Forms.Button
-            $okButton.Location = New-Object System.Drawing.Point(175, 100)
+            $okButton.Location = New-Object System.Drawing.Point(175, {button_y})
             $okButton.Size = New-Object System.Drawing.Size(75, 23)
             $okButton.Text = 'OK'
             $okButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
@@ -488,7 +508,7 @@ async fn prompt_text(
             $form.Controls.Add($okButton)
 
             $cancelButton = New-Object System.Windows.Forms.Button
-            $cancelButton.Location = New-Object System.Drawing.Point(255, 100)
+            $cancelButton.Location = New-Object System.Drawing.Point(255, {button_y})
             $cancelButton.Size = New-Object System.Drawing.Size(75, 23)
             $cancelButton.Text = 'Cancel'
             $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
@@ -505,7 +525,11 @@ async fn prompt_text(
             title = ps_title,
             message = ps_message,
             default = ps_default,
-            password = ps_password_flag
+            password = ps_password_flag,
+            form_height = form_height,
+            label_height = label_height,
+            textbox_y = textbox_y,
+            button_y = button_y,
         );
 
         let output = Command::new("powershell")
@@ -590,14 +614,14 @@ async fn start_cloudflared_tunnel(app: tauri::AppHandle) -> Result<(u32, String)
         .path()
         .app_local_data_dir()
         .map_err(|e| format!("Failed to get app local data directory: {}", e))?;
-    
+
     #[cfg(target_os = "windows")]
     let binary_name = "cloudflared.exe";
     #[cfg(not(target_os = "windows"))]
     let binary_name = "cloudflared";
-    
+
     let cloudflared_path = app_local_data_dir.join(binary_name);
-    
+
     if !cloudflared_path.exists() {
         return Err("Cloudflared binary not found".to_string());
     }
@@ -655,14 +679,14 @@ async fn start_cloudflared_tunnel(app: tauri::AppHandle) -> Result<(u32, String)
 #[tauri::command]
 async fn stop_cloudflared_tunnel(pid: u32) -> Result<(), String> {
     use std::time::Duration;
-    
+
     // Cloudflared takes ~5s to gracefully shut down, so give it enough time
     match kill_pid(pid, Some(6000)).await {
         Ok(()) => Ok(()),
         Err(e) => {
             // Wait a bit for the process to fully terminate
             std::thread::sleep(Duration::from_millis(200));
-            
+
             // Even if we get an error, the process might have stopped
             // Check one more time if the process is actually gone
             #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -672,31 +696,31 @@ async fn stop_cloudflared_tunnel(pid: u32) -> Result<(), String> {
                     .status()
                     .map(|s| s.success())
                     .unwrap_or(false);
-                
+
                 if !alive {
                     // Process is gone, consider it a success
                     return Ok(());
                 }
             }
-            
+
             #[cfg(target_os = "windows")]
             {
                 let output = std::process::Command::new("tasklist")
                     .args(&["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
                     .output();
-                
+
                 if let Ok(output) = output {
                     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-                    if stdout.trim().is_empty() 
-                        || stdout.contains("No tasks are running") 
-                        || !stdout.contains(&pid.to_string()) 
+                    if stdout.trim().is_empty()
+                        || stdout.contains("No tasks are running")
+                        || !stdout.contains(&pid.to_string())
                     {
                         // Process is gone, consider it a success
                         return Ok(());
                     }
                 }
             }
-            
+
             // As a last resort, check if a process with this PID is still a cloudflared process
             let system = System::new_all();
             let mut cloudflared_still_running = false;
@@ -819,8 +843,15 @@ pub fn run() {
             }));
     }
 
+    #[cfg(target_os = "linux")]
+    {
+        builder = builder.plugin(jenky::init());
+    }
+
     let mut app = builder
         .manage(local_fs::LocalFsState::default())
+        .manage(rc_session::RcSession::new())
+        .manage(media::MediaServer::default())
         .manage::<zookeeper::SharedDaemonState>(std::sync::Mutex::new(
             zookeeper::DaemonState::default(),
         ))
@@ -867,6 +898,9 @@ pub fn run() {
 			extract_tgz,
             zookeeper::exec_rclone,
             zookeeper::spawn_rclone,
+            rc_session::rc_session,
+            media::media_register,
+            media::media_release,
             zookeeper::kill_rclone_daemon,
             zookeeper::validate_rclone_binary,
             zookeeper::rclone_config_path,
@@ -904,6 +938,9 @@ pub fn run() {
         .setup(|app| {
             #[cfg(target_os = "linux")]
             {
+                // The quirk decided before the log plugin was live; restate it into the log file.
+                log::info!("jenky: {}", jenky::summary());
+
                 // Flatpak/Flathub sandbox typically cannot write to system desktop/mime locations.
                 // Deep-link registration is best-effort; never fail app startup.
                 if is_flatpak() {
@@ -914,7 +951,7 @@ pub fn run() {
                         log::warn!("deep-link registration failed (continuing): {}", err);
                     }
                 }
-				
+
                 let cache_dir = app.path().cache_dir()?;
                 let package_info = app.package_info();
                 let app_name = package_info.name.as_str();
@@ -950,5 +987,9 @@ pub fn run() {
 
     #[cfg(target_os = "macos")]
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-    app.run(|_app, _event| {})
+    app.run(|app, event| {
+        if let tauri::RunEvent::Exit = event {
+            zookeeper::kill_rclone_daemon_on_exit(app);
+        }
+    })
 }

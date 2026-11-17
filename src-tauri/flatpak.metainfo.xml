@@ -1,27 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>com.rcloneui.RcloneUI</id>
-  
+
   <name>Rclone UI</name>
   <summary>The GUI for rclone.</summary>
-  
+
   <metadata_license>MIT</metadata_license>
   <project_license>Apache-2.0</project_license>
-  
+
   <developer id="com.rcloneui">
     <name>Rclone UI</name>
   </developer>
-  
+
   <supports>
     <control>pointing</control>
     <control>keyboard</control>
     <control>touch</control>
   </supports>
-  
+
   <requires>
     <display_length compare="ge">360</display_length>
   </requires>
-  
+
   <description>
     <p>
       The best way to manage your rclone remotes &amp; tasks in a light and easy way.
@@ -53,7 +53,7 @@
     	<em>Do more with Rclone!</em>
     </p>
   </description>
-  
+
   <categories>
 	<category>System</category>
 	<category>Network</category>
@@ -70,18 +70,18 @@
 	<keyword>Rsync</keyword>
 	<keyword>File Manager</keyword>
   </keywords>
-	
+
   <branding>
     <color type="primary" scheme_preference="light">#0a0325</color>
 	<color type="primary" scheme_preference="dark">#0a0325</color>
   </branding>
-	
+
   <content_rating type="oars-1.1" />
-	
+
   <url type="bugtracker">https://github.com/rclone-ui/rclone-ui/issues</url>
   <url type="homepage">https://github.com/rclone-ui/rclone-ui</url>
   <url type="vcs-browser">https://github.com/rclone-ui/rclone-ui</url>
-  
+
   <screenshots>
     <screenshot type="default">
       <image>https://rcloneui.com/flathub-1.png</image>
@@ -112,18 +112,18 @@
       <caption>Customizable</caption>
     </screenshot>
   </screenshots>
-	
+
   <releases>
-    <release version="3.7.1" date="2026-07-14">
-      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v3.7.1</url>
+    <release version="3.7.6" date="2026-11-17">
+      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v3.7.6</url>
       <description>
-	    <p>3.7.1 Release</p>
+	    <p>3.7.6 Release</p>
     	<ul>
 		  <li>Improved Linux stability and overall performance.</li>
         </ul>
       </description>
     </release>
   </releases>
-  
+
   <launchable type="desktop-id">com.rcloneui.RcloneUI.desktop</launchable>
 </component>

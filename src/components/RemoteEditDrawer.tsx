@@ -8,7 +8,7 @@ import { onErrorDialog } from '../../lib/errors'
 import { useRemoteConfig } from '../../lib/hooks'
 import queryClient from '../../lib/query'
 import rclone from '../../lib/rclone/client'
-import { OVERRIDES, OWN_OAUTH_TYPES } from '../../lib/rclone/overrides'
+import { INTERACTIVE_CONFIG_TYPES, OVERRIDES, OWN_OAUTH_TYPES } from '../../lib/rclone/overrides'
 import RemoteField from './RemoteField'
 
 export default function RemoteEditDrawer({
@@ -99,12 +99,19 @@ export default function RemoteEditDrawer({
             console.log('[RemoteEditDrawer] updatedRemoteConfig', updatedRemoteConfig)
 
             if (Object.keys(updatedRemoteConfig).length > 0) {
+                const isInteractiveType = INTERACTIVE_CONFIG_TYPES.includes(
+                    remoteConfig?.type ?? ''
+                )
                 await rclone('/config/update', {
                     params: {
                         query: {
                             name: remoteName,
                             parameters: JSON.stringify(updatedRemoteConfig),
-                            opt: JSON.stringify({ obscure: true }),
+                            opt: JSON.stringify(
+                                isInteractiveType
+                                    ? { obscure: true, nonInteractive: true }
+                                    : { obscure: true }
+                            ),
                         },
                     },
                 })

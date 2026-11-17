@@ -91,7 +91,7 @@ export default function NotificationsSection() {
                             />
                         ))}
                         <DummyProviderCard
-                            label="Telegram (bot-less)"
+                            label="Telegram (botless)"
                             description="Get messages without your own bot"
                             icon={<TelegramIcon className="text-sky-500 size-8 shrink-0" />}
                             onPress={() =>
@@ -166,6 +166,7 @@ function ProviderCard({
             onPress={onPress}
             className="h-24 bg-content2"
             data-focus-visible="false"
+            data-provider={provider}
         >
             <CardBody className="relative flex flex-row items-center gap-3 px-4">
                 <ProviderIcon

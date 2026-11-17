@@ -1,7 +1,7 @@
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import pRetry from 'p-retry'
 import createRCDClient from 'rclone-sdk'
+import { getAuthHeader, rcFetch } from './rclone/session'
 
 export interface Host {
     id: 'local' | string
@@ -41,10 +41,12 @@ export const LABEL_FOR_OS = {
 } as const
 
 export async function getHostInfo({
+    id,
     url,
     authUser,
     authPassword,
 }: {
+    id?: Host['id']
     url: string
     authUser?: string
     authPassword?: string
@@ -58,10 +60,7 @@ export async function getHostInfo({
         return null
     }
 
-    let authHeader = ''
-    if (authUser && authPassword) {
-        authHeader = `Basic ${btoa(`${authUser}:${authPassword}`)}`
-    }
+    const authHeader = await getAuthHeader({ id, authUser, authPassword })
 
     const rcloneClient = createRCDClient({
         baseUrl: url,
@@ -70,7 +69,7 @@ export async function getHostInfo({
                   'Authorization': authHeader,
               }
             : undefined,
-        fetch: (request: Request) => tauriFetch(request),
+        fetch: (request: Request) => rcFetch(request),
     })
 
     console.log('[getHostInfo] rcloneClient', rcloneClient)

@@ -1,3 +1,4 @@
+import { useAutoAnimate } from '@formkit/auto-animate/react'
 import {
     Button,
     Card,
@@ -10,6 +11,7 @@ import {
     Spinner,
 } from '@heroui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import {
@@ -21,7 +23,15 @@ import {
     SettingsIcon,
     Trash2Icon,
 } from 'lucide-react'
-import { type ReactNode, startTransition, useEffect, useMemo, useState } from 'react'
+import {
+    type ReactNode,
+    startTransition,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { onErrorDialog } from '../../../lib/errors'
 import { formatBytes } from '../../../lib/format'
@@ -33,10 +43,60 @@ import RemoteCreateDrawer from '../../components/RemoteCreateDrawer'
 import RemoteEditDrawer from '../../components/RemoteEditDrawer'
 import BaseSection from './BaseSection'
 
+const REMOTE_ROW_SIZE = 90
+const SECTION_HEADER_SIZE = 36
+
+type RemoteRow = { type: 'header'; key: string } | { type: 'remote'; remote: string }
+
+// Section a remote falls under. Letters group by their uppercase initial; digits collapse into '0-9'
+// and everything else into '#', both of which sort ahead of A–Z.
+function sectionKeyFor(name: string): string {
+    const first = name[0]?.toUpperCase() ?? '#'
+    if (first >= 'A' && first <= 'Z') return first
+    if (first >= '0' && first <= '9') return '0-9'
+    return '#'
+}
+
+function sectionRank(key: string): number {
+    if (key === '#') return 0
+    if (key === '0-9') return 1
+    return 2
+}
+
+// Groups the (already alphabetically sorted) remotes into '#' / '0-9' / A–Z sections, emitting a header
+// row before each run. Buckets keep their incoming order, so remotes stay sorted within a section.
+function buildRemoteRows(remotes: string[]): RemoteRow[] {
+    const buckets = new Map<string, string[]>()
+    for (const remote of remotes) {
+        const key = sectionKeyFor(remote)
+        const bucket = buckets.get(key)
+        if (bucket) bucket.push(remote)
+        else buckets.set(key, [remote])
+    }
+
+    const orderedKeys = [...buckets.keys()].sort((a, b) => {
+        const rank = sectionRank(a) - sectionRank(b)
+        return rank !== 0 ? rank : a.localeCompare(b)
+    })
+
+    const rows: RemoteRow[] = []
+    for (const key of orderedKeys) {
+        rows.push({ type: 'header', key })
+        for (const remote of buckets.get(key) ?? []) {
+            rows.push({ type: 'remote', remote })
+        }
+    }
+    return rows
+}
+
 export default function RemotesSection() {
     const queryClient = useQueryClient()
     const [searchParams] = useSearchParams()
     const licenseValid = usePersistedStore((state) => state.licenseValid)
+
+    const [editingDrawerOpen, setEditingDrawerOpen] = useState(false)
+    const [creatingDrawerOpen, setCreatingDrawerOpen] = useState(false)
+    const [autoMountDrawerOpen, setAutoMountDrawerOpen] = useState(false)
 
     const remotesQuery = useQuery({
         queryKey: ['remotes', 'list', 'all'],
@@ -48,6 +108,7 @@ export default function RemotesSection() {
             return remotes
         },
         staleTime: 1000 * 60, // 1 minute
+        enabled: !editingDrawerOpen && !creatingDrawerOpen && !autoMountDrawerOpen,
     })
 
     const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data])
@@ -64,11 +125,79 @@ export default function RemotesSection() {
         [sortedRemotes, searchQuery]
     )
 
-    const [pickedRemote, setPickedRemote] = useState<string | null>(null)
+    // Virtualize the remotes list: each RemoteCard is a fixed-height (h-20 = 80px) card with a
+    // gap-2.5 (10px) between rows, so a row slot is 90px. Section headers are shorter. Each card also
+    // fires its own queries, so windowing keeps a long list from mounting every card (and its request
+    // fan-out) at once.
+    const scrollRef = useRef<HTMLDivElement>(null)
 
-    const [editingDrawerOpen, setEditingDrawerOpen] = useState(false)
-    const [creatingDrawerOpen, setCreatingDrawerOpen] = useState(false)
-    const [autoMountDrawerOpen, setAutoMountDrawerOpen] = useState(false)
+    // Past 10 remotes, break the list into '#' / '0-9' / A–Z sections (a bare letter row, no box).
+    const showSections = filteredRemotes.length > 10
+
+    const rows = useMemo<RemoteRow[]>(
+        () =>
+            showSections
+                ? buildRemoteRows(filteredRemotes)
+                : filteredRemotes.map((remote) => ({ type: 'remote', remote })),
+        [filteredRemotes, showSections]
+    )
+
+    const rowVirtualizer = useVirtualizer({
+        count: rows.length,
+        getScrollElement: () => scrollRef.current,
+        estimateSize: (index) =>
+            rows[index].type === 'header' ? SECTION_HEADER_SIZE : REMOTE_ROW_SIZE,
+        overscan: 6,
+    })
+
+    // Entrance animation for the list's first appearance only. Inactive tab
+    // panels are display:none, so the scroll element measures 0 until the
+    // Remotes tab is shown; rows are held back until then, animate in as they
+    // are added, and auto-animate is switched off afterwards so scrolling
+    // (rows mounting/unmounting) and later edits stay instant.
+    const [animateListRef, setListAnimated] = useAutoAnimate()
+    const listEl = useRef<HTMLDivElement | null>(null)
+    // Stable identity: a fresh callback each render would re-attach the ref
+    // (null → el) every time, and auto-animate's ref sets state → render loop.
+    const listRef = useCallback(
+        (el: HTMLDivElement | null) => {
+            listEl.current = el
+            animateListRef(el)
+        },
+        [animateListRef]
+    )
+    const listVisible = (rowVirtualizer.scrollRect?.height ?? 0) > 0
+    // auto-animate also FLIP-animates the list container itself on every
+    // mutation, from the position it last measured. Attached while the panel
+    // is hidden it would cache a 0×0 rect and, on the first mutation, slide the
+    // whole list in from the panel's corner. So the controller is attached
+    // only once the list is visible, and the rows are added one commit later —
+    // the mutation auto-animate needs to see for the rows' entrance.
+    const [rowsReady, setRowsReady] = useState(false)
+    useEffect(() => {
+        if (listVisible) setRowsReady(true)
+    }, [listVisible])
+    const virtualItems = listVisible && rowsReady ? rowVirtualizer.getVirtualItems() : []
+    const hasAnimatedIn = useRef(false)
+    useEffect(() => {
+        if (hasAnimatedIn.current || virtualItems.length === 0) return
+        hasAnimatedIn.current = true
+        let cancelled = false
+        // Disabling cancels in-flight animations, so wait for the entrance
+        // animations (created by auto-animate's mutation observer, a
+        // microtask after this commit) to finish before switching it off.
+        const id = setTimeout(async () => {
+            const entrances = listEl.current?.getAnimations({ subtree: true }) ?? []
+            await Promise.allSettled(entrances.map((animation) => animation.finished))
+            if (!cancelled) setListAnimated(false)
+        }, 0)
+        return () => {
+            cancelled = true
+            clearTimeout(id)
+        }
+    }, [virtualItems.length, setListAnimated])
+
+    const [pickedRemote, setPickedRemote] = useState<string | null>(null)
 
     const deleteRemoteMutation = useMutation({
         mutationFn: async (remote: string) => {
@@ -109,7 +238,7 @@ export default function RemotesSection() {
         if (remotes.length === 0 && !creatingDrawerOpen) {
             return withRoot(
                 <div className="flex flex-col items-center justify-center gap-8">
-                    <h1 className="text-2xl font-bold">No remotes found</h1>
+                    <h1 className="text-2xl font-bold">Add your first remote!</h1>
                     <Button
                         onPress={() => setCreatingDrawerOpen(true)}
                         color="primary"
@@ -201,7 +330,7 @@ export default function RemotesSection() {
             {Placeholder}
 
             {!Placeholder && (
-                <div className="flex flex-col gap-2.5 px-4 pb-10">
+                <div className="flex flex-col gap-2.5 px-4">
                     {sortedRemotes.length > 5 && (
                         <Input
                             placeholder="Search remotes..."
@@ -216,36 +345,80 @@ export default function RemotesSection() {
                             classNames={{ inputWrapper: 'bg-content2/60' }}
                         />
                     )}
-                    {filteredRemotes.map((remote) => (
-                        <RemoteCard
-                            key={remote}
-                            remote={remote}
-                            onAutoMountPress={() => {
-                                startTransition(() => {
-                                    setPickedRemote(remote)
-                                    setAutoMountDrawerOpen(true)
-                                })
+                    <div
+                        ref={scrollRef}
+                        className="overflow-y-auto overscroll-none max-h-[calc(100dvh-14rem)] pb-10"
+                    >
+                        <div
+                            ref={listVisible ? listRef : undefined}
+                            style={{
+                                height: `${rowVirtualizer.getTotalSize()}px`,
+                                position: 'relative',
+                                width: '100%',
                             }}
-                            onConfigPress={() => {
-                                startTransition(() => {
-                                    setPickedRemote(remote)
-                                    setEditingDrawerOpen(true)
-                                })
-                            }}
-                            onDeletePress={async () => {
-                                const confirmation = await ask(
-                                    `Are you sure you want to remove ${remote}? This action cannot be reverted.`,
-                                    { title: `Removing ${remote}`, kind: 'warning' }
-                                )
+                        >
+                            {virtualItems.map((virtualRow) => {
+                                const row = rows[virtualRow.index]
+                                // Offset via `top`, not translateY: the entrance
+                                // animation drives `transform` and would override it.
+                                const style = {
+                                    position: 'absolute',
+                                    top: `${virtualRow.start}px`,
+                                    left: 0,
+                                    width: '100%',
+                                    height: `${virtualRow.size}px`,
+                                } as const
 
-                                if (!confirmation) {
-                                    return
+                                if (row.type === 'header') {
+                                    return (
+                                        <div key={`h-${row.key}`} style={style}>
+                                            <div className="flex items-end h-full px-1 pb-1">
+                                                <span className="text-xs font-semibold tracking-wide uppercase text-default-400">
+                                                    {row.key}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )
                                 }
 
-                                deleteRemoteMutation.mutate(remote)
-                            }}
-                        />
-                    ))}
+                                const remote = row.remote
+                                return (
+                                    <div key={`r-${remote}`} className="pb-2.5" style={style}>
+                                        <RemoteCard
+                                            remote={remote}
+                                            onAutoMountPress={() => {
+                                                startTransition(() => {
+                                                    setPickedRemote(remote)
+                                                    setAutoMountDrawerOpen(true)
+                                                })
+                                            }}
+                                            onConfigPress={() => {
+                                                startTransition(() => {
+                                                    setPickedRemote(remote)
+                                                    setEditingDrawerOpen(true)
+                                                })
+                                            }}
+                                            onDeletePress={async () => {
+                                                const confirmation = await ask(
+                                                    `Are you sure you want to remove ${remote}? This action cannot be reverted.`,
+                                                    {
+                                                        title: `Removing ${remote}`,
+                                                        kind: 'warning',
+                                                    }
+                                                )
+
+                                                if (!confirmation) {
+                                                    return
+                                                }
+
+                                                deleteRemoteMutation.mutate(remote)
+                                            }}
+                                        />
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -335,9 +508,10 @@ function RemoteCard({
     return (
         <Card
             key={remote}
+            data-remote={remote}
             shadow="sm"
             isBlurred={true}
-            className="h-20 border-[0.5px] dark:border-none border-divider bg-content3/50 dark:bg-content2/90"
+            className="w-full h-20 border-[0.5px] dark:border-none border-divider bg-content3/50 dark:bg-content2/90"
             isPressable={true}
             onPress={onConfigPress}
         >

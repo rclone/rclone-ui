@@ -1,6 +1,6 @@
 import { Button, Checkbox, Listbox, ListboxItem, cn } from '@heroui/react'
 import { platform } from '@tauri-apps/plugin-os'
-import { DownloadIcon, EyeIcon, PencilIcon, Share2Icon, StarIcon, Trash2Icon } from 'lucide-react'
+import { DownloadIcon, PencilIcon, Share2Icon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useCallback } from 'react'
 import { formatBytes } from '../../../lib/format.ts'
 import FileIcon from './FileIcon'
@@ -28,6 +28,7 @@ export default function FileList({
     onRename,
     onDelete,
     listHeight,
+    columnTemplate,
 }: {
     items: (VirtualizedEntry | PaddingItem)[]
     isLoading: boolean
@@ -49,6 +50,8 @@ export default function FileList({
     onRename?: (entry: Entry) => void
     onDelete?: (entry: Entry) => void
     listHeight: number
+    /** The panel header's grid template — rows must line up with it (see useNameColumnResize). */
+    columnTemplate: string
 }) {
     const showCheckbox = selectionMode === 'checkbox' || selectionMode === 'both'
 
@@ -163,10 +166,6 @@ export default function FileList({
         )
     }
 
-    const gridCols = showPreviewColumn
-        ? 'grid-cols-[2.5rem_1fr_6rem_9rem_11rem]'
-        : 'grid-cols-[2.5rem_1fr_6rem_9rem_2.5rem]'
-
     return (
         <Listbox
             items={items}
@@ -218,9 +217,10 @@ export default function FileList({
                     >
                         <div
                             className={cn(
-                                `grid ${gridCols} items-center hover:bg-content2 py-2 border-b border-divider group transition-colors w-full h-full`,
+                                'grid items-center hover:bg-content2 py-2 border-b border-divider group transition-colors w-full h-full',
                                 isSelected ? 'bg-primary-50 hover:bg-primary-100' : ''
                             )}
+                            style={{ gridTemplateColumns: columnTemplate }}
                             draggable={draggable}
                             onDragStart={(e) => handleDragStart(entry, e)}
                             onDragEnd={handleDragEnd}
@@ -243,7 +243,13 @@ export default function FileList({
 
                             <div
                                 className="flex items-center h-full gap-2 pl-2 overflow-hidden cursor-pointer"
-                                onClick={() => onNavigate(entry)}
+                                // Folders navigate in; files open the preview (falls back
+                                // to onNavigate — a no-op for files — where preview is off).
+                                onClick={() =>
+                                    entry.isDir || !onPreviewClick
+                                        ? onNavigate(entry)
+                                        : onPreviewClick(entry)
+                                }
                             >
                                 <FileIcon entry={entry} size="md" />
                                 <span className="truncate !cursor-pointer" title={entry.fullPath}>
@@ -278,17 +284,6 @@ export default function FileList({
                                                     isFavorited && 'fill-warning'
                                                 )}
                                             />
-                                        </Button>
-                                    )}
-                                    {!entry.isDir && onPreviewClick && (
-                                        <Button
-                                            isIconOnly={true}
-                                            size="sm"
-                                            variant="light"
-                                            className="transition-opacity duration-300 opacity-0 group-hover:opacity-100"
-                                            onPress={() => onPreviewClick(entry)}
-                                        >
-                                            <EyeIcon className="size-5" />
                                         </Button>
                                     )}
                                     {onDownload && (

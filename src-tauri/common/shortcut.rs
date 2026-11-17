@@ -140,6 +140,8 @@ pub fn show_toolbar_window(app_handle: &AppHandle) -> Result<(), tauri::Error> {
         // #[cfg(target_os = "windows")]
         // refresh_toolbar_bounds(&window)?;
         window.set_focus()?;
+        window.set_skip_taskbar(true)?;
+        window.set_always_on_top(true)?;
         #[cfg(target_os = "linux")]
         focus_window_linux(app_handle, &window);
     }
@@ -159,6 +161,8 @@ fn open_toolbar(app_handle: &AppHandle) -> Result<(), tauri::Error> {
             // #[cfg(target_os = "windows")]
             // refresh_toolbar_bounds(&window)?;
             window.set_focus()?;
+            window.set_skip_taskbar(true)?;
+            window.set_always_on_top(true)?;
             #[cfg(target_os = "linux")]
             focus_window_linux(app_handle, &window);
         }

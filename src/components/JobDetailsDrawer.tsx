@@ -17,6 +17,7 @@ import { platform } from '@tauri-apps/plugin-os'
 import { ExternalLinkIcon, RefreshCwIcon, SearchCheckIcon, SquareIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { formatBytes } from '../../lib/format'
+import { useIsPreview } from '../../lib/preview'
 import { notify } from '../../lib/notifications'
 import { startBatch } from '../../lib/rclone/api'
 import rclone from '../../lib/rclone/client'
@@ -35,6 +36,7 @@ export default function JobDetailsDrawer({
     onSelectJob?: (job: JobItem) => void
 }) {
     const queryClient = useQueryClient()
+    const isPreview = useIsPreview()
     const [retryStatus, setRetryStatus] = useState<
         Map<string, { status: 'pending' | 'started' | 'error'; jobId?: number; error?: string }>
     >(new Map())
@@ -302,6 +304,7 @@ export default function JobDetailsDrawer({
                                     >
                                         <Progress
                                             value={item.percentage}
+                                            disableAnimation={isPreview}
                                             classNames={{
                                                 base: 'overflow-hidden rounded-full max-w-lg',
                                             }}

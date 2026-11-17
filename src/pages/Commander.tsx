@@ -23,6 +23,7 @@ import { ask, save } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+    ArrowLeftRightIcon,
     CheckCircle2Icon,
     ChevronDownIcon,
     ChevronUpIcon,
@@ -30,21 +31,30 @@ import {
     ExternalLinkIcon,
     LoaderIcon,
     MoveIcon,
+    PencilIcon,
     SearchCheckIcon,
     XCircleIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { onErrorDialog, reportError } from '../../lib/errors'
 import { getFsInfo } from '../../lib/format'
 // import { Document, Page, pdfjs } from 'react-pdf'
 import { formatBytes } from '../../lib/format.ts'
 import { notify } from '../../lib/notifications'
+import { useIsPreview } from '../../lib/preview'
 import { startCopy, startMove } from '../../lib/rclone/api'
 import rclone from '../../lib/rclone/client'
 import { openWindow } from '../../lib/window'
-import { FileIcon } from '../components/navigator'
-import { FilePanel, type FilePanelHandle } from '../components/navigator'
+import {
+    BatchRenameDrawer,
+    CompareDrawer,
+    FileIcon,
+    FilePanel,
+    type FilePanelHandle,
+    type PanelLocation,
+    renamePath,
+} from '../components/navigator'
 import type { Entry, SelectItem } from '../components/navigator/types'
 
 export default function Browser() {
@@ -69,6 +79,54 @@ export default function Browser() {
         setTrackedJobIds((prev) => new Set([...prev, jobId]))
     }, [])
 
+    const refreshPanels = useCallback(() => {
+        leftPanelRef.current?.refresh()
+        rightPanelRef.current?.refresh()
+    }, [])
+
+    // Where each panel is and what it has selected, for the Compare / Batch Rename actions.
+    const [leftLoc, setLeftLoc] = useState<PanelLocation | null>(null)
+    const [rightLoc, setRightLoc] = useState<PanelLocation | null>(null)
+    const handleLeftNavigate = useCallback((remote: string, path: string) => {
+        setLeftLoc({ remote, path })
+    }, [])
+    const handleRightNavigate = useCallback((remote: string, path: string) => {
+        setRightLoc({ remote, path })
+    }, [])
+    const [leftSel, setLeftSel] = useState<SelectItem[]>([])
+    const [rightSel, setRightSel] = useState<SelectItem[]>([])
+
+    const [compareOpen, setCompareOpen] = useState(false)
+    const compareDisabledReason = [leftLoc, rightLoc].every(
+        (loc) => loc?.remote && loc.remote !== 'UI_FAVORITES'
+    )
+        ? undefined
+        : 'Open a folder in both panels to compare.'
+
+    // Batch Rename needs a selection of at least 2 items in exactly one panel. The items are
+    // snapshotted on open so the drawer keeps them through its closing animation.
+    const renameSel = leftSel.length > 0 ? leftSel : rightSel
+    const renameDisabledReason =
+        leftSel.length > 0 && rightSel.length > 0
+            ? 'Select items in only one panel to batch rename.'
+            : renameSel.length < 2
+              ? 'Select at least 2 items in one panel to batch rename.'
+              : undefined
+    const [batchRenameOpen, setBatchRenameOpen] = useState(false)
+    const [batchRenameItems, setBatchRenameItems] = useState<SelectItem[]>([])
+    const handleOpenBatchRename = useCallback(() => {
+        setBatchRenameItems(renameSel)
+        setBatchRenameOpen(true)
+    }, [renameSel])
+
+    // Renamed entries have new keys, so the old selection is stale either way.
+    const handleBatchRenameDone = useCallback(() => {
+        for (const ref of [leftPanelRef, rightPanelRef]) {
+            ref.current?.refresh()
+            ref.current?.clearSelection()
+        }
+    }, [])
+
     const remotesQuery = useQuery({
         queryKey: ['remotes', 'list', 'all'],
         queryFn: async () => await rclone('/config/listremotes').then((r) => r?.remotes),
@@ -77,17 +135,22 @@ export default function Browser() {
 
     const remotes = remotesQuery.data ?? []
     const firstRemote = remotes[0] ?? null
+
+    const rightPanelTarget = useMemo(() => {
+        const raw = new URLSearchParams(window.location.search).get('path')
+        if (!raw) return null
+        if (raw.includes(':/')) {
+            const [remote, ...rest] = raw.split(':/')
+            return { remote, path: rest.join('/') }
+        }
+        return { remote: 'UI_LOCAL_FS', path: raw }
+    }, [])
     const handleDrop = useCallback(
         (items: SelectItem[], destination: string, _sourceSide: 'left' | 'right') => {
             setDropOperation({ items, destination })
         },
         []
     )
-
-    const handleOperationComplete = useCallback(() => {
-        leftPanelRef.current?.refresh()
-        rightPanelRef.current?.refresh()
-    }, [])
 
     const handleDownload = useCallback(
         async (entry: Entry) => {
@@ -138,87 +201,63 @@ export default function Browser() {
         setContextMenu(null)
     }, [])
 
-    const handleDelete = useCallback(async (entry: Entry) => {
-        const confirmed = await ask(`Are you sure you want to delete "${entry.name}"?`, {
-            title: 'Confirm Delete',
-            kind: 'warning',
-        })
-        if (!confirmed) return
-
-        try {
-            const source = entry.fullPath + (entry.isDir ? '/' : '')
-            const info = getFsInfo(source)
-            const endpoint = entry.isDir ? '/operations/purge' : '/operations/deletefile'
-
-            await rclone(endpoint as any, {
-                params: {
-                    query: {
-                        fs: info.root,
-                        remote: info.filePath,
-                    },
-                },
+    const handleDelete = useCallback(
+        async (entry: Entry) => {
+            const confirmed = await ask(`Are you sure you want to delete "${entry.name}"?`, {
+                title: 'Confirm Delete',
+                kind: 'warning',
             })
+            if (!confirmed) return
 
-            leftPanelRef.current?.refresh()
-            rightPanelRef.current?.refresh()
-        } catch (error) {
-            await reportError(error, {
-                title: 'Error',
-                fallback: 'Delete failed',
-                capture: false,
-            })
-        }
-    }, [])
+            try {
+                const source = entry.fullPath + (entry.isDir ? '/' : '')
+                const info = getFsInfo(source)
+                const endpoint = entry.isDir ? '/operations/purge' : '/operations/deletefile'
 
-    const handleRename = useCallback(async (entry: Entry) => {
-        const newName = await invoke<string | null>('prompt', {
-            title: 'Rename',
-            message: `Enter a new name for "${entry.name}"`,
-            default: entry.name,
-            sensitive: false,
-        })
-        if (!newName || newName === entry.name) return
-
-        try {
-            const info = getFsInfo(entry.fullPath)
-            const parentDir = info.filePath.includes('/')
-                ? info.filePath.slice(0, info.filePath.lastIndexOf('/') + 1)
-                : ''
-            const dstRemote = `${parentDir}${newName}`
-
-            if (entry.isDir) {
-                await rclone('/sync/move' as any, {
+                await rclone(endpoint as any, {
                     params: {
                         query: {
-                            srcFs: `${info.root}${info.filePath}/`,
-                            dstFs: `${info.root}${dstRemote}/`,
-                            deleteEmptySrcDirs: true,
+                            fs: info.root,
+                            remote: info.filePath,
                         },
                     },
                 })
-            } else {
-                await rclone('/operations/movefile' as any, {
-                    params: {
-                        query: {
-                            srcFs: info.root,
-                            srcRemote: info.filePath,
-                            dstFs: info.root,
-                            dstRemote,
-                        },
-                    },
+
+                refreshPanels()
+            } catch (error) {
+                await reportError(error, {
+                    title: 'Error',
+                    fallback: 'Delete failed',
+                    capture: false,
                 })
             }
+        },
+        [refreshPanels]
+    )
 
-            leftPanelRef.current?.refresh()
-            rightPanelRef.current?.refresh()
-        } catch (error) {
-            await reportError(error, {
-                title: 'Error',
-                fallback: 'Rename failed',
-                capture: false,
+    const handleRename = useCallback(
+        async (entry: Entry) => {
+            const newName = await invoke<string | null>('prompt', {
+                title: 'Rename',
+                message: `Enter a new name for "${entry.name}"`,
+                default: entry.name,
+                sensitive: false,
             })
-        }
-    }, [])
+            if (!newName || newName === entry.name) return
+
+            try {
+                await renamePath(entry.fullPath, entry.isDir, newName)
+                refreshPanels()
+            } catch (error) {
+                await reportError(error, {
+                    title: 'Error',
+                    fallback: 'Rename failed',
+                    capture: false,
+                })
+            }
+        },
+        [refreshPanels]
+    )
 
     const handleShare = useCallback(async (entry: Entry) => {
         try {
@@ -252,14 +291,13 @@ export default function Browser() {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'r' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault()
-                leftPanelRef.current?.refresh()
-                rightPanelRef.current?.refresh()
+                refreshPanels()
             }
         }
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [])
+    }, [refreshPanels])
 
     useEffect(() => {
         if (contextMenu) {
@@ -281,6 +319,8 @@ export default function Browser() {
                         allowFiles={true}
                         allowMultiple={true}
                         showPreviewColumn={true}
+                        onSelectionChange={setLeftSel}
+                        onNavigate={handleLeftNavigate}
                         onDrop={(items, dest) => handleDrop(items, dest, 'left')}
                         onDownload={handleDownload}
                         onShare={handleShare}
@@ -297,11 +337,14 @@ export default function Browser() {
                     <FilePanel
                         ref={rightPanelRef}
                         sidebarPosition="right"
-                        initialRemote={firstRemote ?? 'UI_LOCAL_FS'}
+                        initialRemote={rightPanelTarget?.remote ?? firstRemote ?? 'UI_LOCAL_FS'}
+                        initialPath={rightPanelTarget?.path}
                         selectionMode="both"
                         allowFiles={true}
                         allowMultiple={true}
                         showPreviewColumn={true}
+                        onSelectionChange={setRightSel}
+                        onNavigate={handleRightNavigate}
                         onDrop={(items, dest) => handleDrop(items, dest, 'right')}
                         onDownload={handleDownload}
                         onShare={handleShare}
@@ -313,13 +356,33 @@ export default function Browser() {
                 </Panel>
             </Group>
 
-            <TransfersBar trackedJobIds={trackedJobIds} />
+            <TransfersBar
+                trackedJobIds={trackedJobIds}
+                onOpenCompare={() => setCompareOpen(true)}
+                compareDisabledReason={compareDisabledReason}
+                onOpenBatchRename={handleOpenBatchRename}
+                renameDisabledReason={renameDisabledReason}
+            />
+
+            <CompareDrawer
+                isOpen={compareOpen}
+                left={leftLoc}
+                right={rightLoc}
+                onClose={() => setCompareOpen(false)}
+            />
+
+            <BatchRenameDrawer
+                isOpen={batchRenameOpen}
+                items={batchRenameItems}
+                onClose={() => setBatchRenameOpen(false)}
+                onDone={handleBatchRenameDone}
+            />
 
             <OperationDialog
                 items={dropOperation?.items ?? null}
                 destination={dropOperation?.destination ?? null}
                 onClose={() => setDropOperation(null)}
-                onComplete={handleOperationComplete}
+                onComplete={refreshPanels}
                 onJobStarted={handleJobStarted}
             />
 
@@ -350,7 +413,50 @@ export default function Browser() {
     )
 }
 
-function TransfersBar({ trackedJobIds }: { trackedJobIds: Set<number> }) {
+// An icon action in the bar's header row. The wrapping div keeps the tooltip working (and
+// explaining) when the button is disabled, and stops the click from toggling the bar.
+function BarAction({
+    label,
+    disabledReason,
+    onPress,
+    children,
+}: {
+    label: string
+    disabledReason?: string
+    onPress: () => void
+    children: ReactNode
+}) {
+    return (
+        <Tooltip content={disabledReason ?? label} size="sm">
+            <div onClick={(e) => e.stopPropagation()}>
+                <Button
+                    isIconOnly={true}
+                    size="sm"
+                    variant="light"
+                    aria-label={label}
+                    isDisabled={!!disabledReason}
+                    onPress={onPress}
+                >
+                    {children}
+                </Button>
+            </div>
+        </Tooltip>
+    )
+}
+
+function TransfersBar({
+    trackedJobIds,
+    onOpenCompare,
+    compareDisabledReason,
+    onOpenBatchRename,
+    renameDisabledReason,
+}: {
+    trackedJobIds: Set<number>
+    onOpenCompare: () => void
+    compareDisabledReason?: string
+    onOpenBatchRename: () => void
+    renameDisabledReason?: string
+}) {
     const [isExpanded, setIsExpanded] = useState(false)
     const jobIds = Array.from(trackedJobIds)
 
@@ -413,18 +519,33 @@ function TransfersBar({ trackedJobIds }: { trackedJobIds: Set<number> }) {
                 className="flex items-center justify-between h-10 px-4 cursor-pointer select-none hover:bg-content2"
                 onClick={toggleExpanded}
             >
-                <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium">Transfers</span>
-                    {inProgressCount > 0 && (
-                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary-100 text-primary-700">
-                            {inProgressCount} active
-                        </span>
-                    )}
-                    {!hasTransfers && (
-                        <span className="text-sm text-default-400">No active transfers</span>
-                    )}
+                <div className="flex items-center gap-2">
+                    <BarAction
+                        label="Batch Rename"
+                        disabledReason={renameDisabledReason}
+                        onPress={onOpenBatchRename}
+                    >
+                        <PencilIcon className="size-4" />
+                    </BarAction>
+                    <BarAction
+                        label="Compare"
+                        disabledReason={compareDisabledReason}
+                        onPress={onOpenCompare}
+                    >
+                        <ArrowLeftRightIcon className="size-4" />
+                    </BarAction>
                 </div>
                 <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                        {inProgressCount > 0 && (
+                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary-100 text-primary-700">
+                                {inProgressCount} active
+                            </span>
+                        )}
+                        {!hasTransfers && (
+                            <span className="text-sm text-default-400">No active transfers</span>
+                        )}
+                    </div>
                     <Tooltip content="Open Transfers page" size="sm">
                         <Button
                             isIconOnly={true}
@@ -513,6 +634,7 @@ function TransferItem({
     }
     status: 'transferring' | 'checking' | 'done' | 'error'
 }) {
+    const isPreview = useIsPreview()
     const fileName = item.name?.split('/').pop() || item.name || 'Unknown'
 
     return (
@@ -551,6 +673,7 @@ function TransferItem({
                     <div className="flex items-center gap-2">
                         <Progress
                             value={item.percentage || 0}
+                            disableAnimation={isPreview}
                             size="sm"
                             color={status === 'checking' ? 'warning' : 'primary'}
                             className="flex-1"

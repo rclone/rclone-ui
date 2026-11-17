@@ -1,0 +1,8 @@
+name: release-beta
+on:
+  workflow_dispatch:
+jobs:
+  note:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "Start this workflow from the go-time branch." && exit 1

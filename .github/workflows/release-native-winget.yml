@@ -1,4 +1,4 @@
-name: Publish release to WinGet
+name: release-native-winget
 
 on:
   workflow_dispatch:

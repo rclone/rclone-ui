@@ -9,6 +9,7 @@ import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { type Update, check } from '@tauri-apps/plugin-updater'
+import pRetry from 'p-retry'
 import { defaultOptions } from 'tauri-plugin-sentry-api'
 import { type CopyVerifyCoordinator, initCopyVerifyCoordinator } from './lib/copyVerify/coordinator'
 import { getDeepLinkUrl, handleDeepLinkUrl } from './lib/deep'
@@ -19,6 +20,7 @@ import {
     clearWatchedJobs,
     dispatchNotification,
     initJobWatcher,
+    notify,
     reconcileNotificationTargets,
 } from './lib/notifications'
 import queryClient from './lib/query'
@@ -26,11 +28,12 @@ import { listTransfers, startMount } from './lib/rclone/api'
 import rcloneClient from './lib/rclone/client'
 import { compareVersions } from './lib/rclone/common'
 import { initRclone } from './lib/rclone/init'
+import { AutomountSourceError, listMountSource, probeMountSource } from './lib/rclone/mount'
 import { reconcileConfigSync } from './lib/rclone/versions'
 import { initScheduler } from './lib/scheduler'
 import { initTray } from './lib/tray'
 import { openSmallWindow } from './lib/window'
-import { initHostStore, useHostStore } from './store/host'
+import { type RemoteConfig, initHostStore, useHostStore } from './store/host'
 import { waitForStoreHydration } from './store/lib'
 import { useStore } from './store/memory'
 import { selectCurrentHost, usePersistedStore } from './store/persisted'
@@ -170,6 +173,7 @@ async function checkHostReachability(): Promise<void> {
     const checkReachability = async (): Promise<boolean> => {
         try {
             const hostInfo = await getHostInfo({
+                id: currentHost.id,
                 url: currentHost.url,
                 authUser: currentHost.authUser,
                 authPassword: currentHost.authPassword,
@@ -452,10 +456,6 @@ async function startRclone() {
     try {
         rclone = await initRclone([
             'rcd',
-            // ...(platform() === 'macos'
-            //     ? ['--rc-no-auth'] // webkit doesn't allow for credentials in the url
-            //     : ['--rc-user', 'admin', '--rc-pass', sessionPassword]),
-            '--rc-no-auth',
             '--rc-serve',
             '--rc-job-expire-duration',
             '24h',
@@ -580,45 +580,69 @@ async function startupMounts() {
     })
     console.log('[startupMounts] remotes', remotes)
 
+    const jobs: { remote: string; mountOnStart: NonNullable<RemoteConfig['mountOnStart']> }[] = []
     for (const remote of remotes) {
-        console.log('[startupMounts] remote', remote)
-
         const remoteConfig = remoteConfigList[remote]
         if (!remoteConfig) {
             console.log('[startupMounts] remote config not found', remote)
             continue
         }
-        console.log('[startupMounts] remote config found', remoteConfig)
         if (remoteConfig.mountOnStart?.enabled && remoteConfig.mountOnStart?.mountPoint) {
-            console.log(
-                '[startupMounts] remote config mount on start enabled',
-                remoteConfig.mountOnStart
-            )
+            console.log('[startupMounts] automount enabled', remote, remoteConfig.mountOnStart)
+            jobs.push({ remote, mountOnStart: remoteConfig.mountOnStart })
+        }
+    }
+    if (jobs.length === 0) {
+        return
+    }
+
+    const runJobs = async () => {
+        for (const { remote, mountOnStart } of jobs) {
+            const {
+                mountPoint,
+                remotePath,
+                mountOptions,
+                vfsOptions,
+                filterOptions,
+                configOptions,
+            } = mountOnStart
+            const source = `${remote}:${remotePath}`
+
             try {
-                const {
-                    mountPoint,
-                    remotePath,
-                    mountOptions,
-                    vfsOptions,
-                    filterOptions,
-                    configOptions,
-                } = remoteConfig.mountOnStart
+                await pRetry(() => probeMountSource(source), {
+                    retries: 7,
+                    factor: 2,
+                    minTimeout: 1_000,
+                    maxTimeout: 15_000,
+                    shouldRetry: ({ error }: { error: unknown }) =>
+                        !(error instanceof AutomountSourceError),
+                })
+            } catch (error) {
+                console.error('[startupMounts] source probe failed, not mounting', source, error)
+                const body =
+                    error instanceof AutomountSourceError
+                        ? error.message
+                        : `${source} is not reachable (network or sign-in problem) — not mounting to avoid an empty folder at ${mountPoint}`
+                dispatchNotification('mount.failed', {
+                    title: 'Automount skipped',
+                    body,
+                    data: {
+                        source,
+                        destination: mountPoint,
+                        error: error instanceof Error ? error.message : String(error),
+                    },
+                })
+                await notify({ title: 'Automount skipped', body })
+                continue
+            }
 
+            try {
                 console.log('[startupMounts] starting mount', {
-                    source: `${remote}:${remotePath}`,
+                    source,
                     destination: mountPoint,
-                    options: {
-                        mount: mountOptions,
-                        vfs: vfsOptions,
-                        filter: filterOptions,
-                        config: configOptions,
-                    },
                 })
-
-                console.log('[startupMounts] starting mount')
-
                 await startMount({
-                    source: `${remote}:${remotePath}`,
+                    source,
                     destination: mountPoint,
                     options: {
                         mount: mountOptions,
@@ -627,24 +651,30 @@ async function startupMounts() {
                         config: configOptions,
                     },
                 })
-
                 console.log('[startupMounts] mount started')
+                try {
+                    await listMountSource(source)
+                } catch (error) {
+                    console.warn('[startupMounts] mounted but listing failed', source, error)
+                    await notify({
+                        title: 'Automount warning',
+                        body: `${source} mounted at ${mountPoint}, but listing it failed — the folder may appear empty until the connection recovers`,
+                    })
+                }
             } catch (error) {
                 console.error('Error mounting remote:', error)
                 Sentry.captureException(error)
-                await message(
-                    error instanceof Error
-                        ? error.message
-                        : `Failed to mount ${remote} on startup.`,
-                    {
-                        title: 'Automount Error',
-                        kind: 'error',
-                        okLabel: 'Got it',
-                    }
-                )
+                await notify({
+                    title: 'Automount Error',
+                    body:
+                        error instanceof Error
+                            ? error.message
+                            : `Failed to mount ${remote} on startup.`,
+                })
             }
         }
     }
+    runJobs().catch((error) => console.error('[startupMounts] unexpected failure', error))
 }
 
 async function showStartup() {
@@ -813,6 +843,7 @@ async function checkRclone() {
     let currentHost = selectCurrentHost(usePersistedStore.getState()) ?? makeLocalHost()
 
     let hostInfo = await getHostInfo({
+        id: currentHost.id,
         url: currentHost.url,
         authUser: currentHost.authUser,
         authPassword: currentHost.authPassword,
@@ -829,6 +860,7 @@ async function checkRclone() {
         currentHost = makeLocalHost()
 
         hostInfo = await getHostInfo({
+            id: currentHost.id,
             url: currentHost.url,
             authUser: currentHost.authUser,
             authPassword: currentHost.authPassword,

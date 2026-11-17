@@ -12,6 +12,7 @@ import {
     useDisclosure,
 } from '@heroui/react'
 import { useMutation } from '@tanstack/react-query'
+import { listen } from '@tauri-apps/api/event'
 import { ask, save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
@@ -24,8 +25,9 @@ import {
     TrashIcon,
     XIcon,
 } from 'lucide-react'
-import { startTransition, useEffect, useMemo, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { ADD_TEMPLATE, type AddTemplatePayload } from '../../lib/events'
 import { usePersistedStore } from '../../store/persisted'
 import type { Template } from '../../types/template'
 import TemplateAddDrawer from '../components/TemplateAddDrawer'
@@ -34,7 +36,13 @@ import TemplateEditDrawer from '../components/TemplateEditDrawer'
 export default function Templates() {
     const [searchParams] = useSearchParams()
 
-    const { isOpen, onOpen, onOpenChange } = useDisclosure()
+    const { isOpen, onOpen, onClose: onAddClose } = useDisclosure()
+    // Deep-link prefill for the add drawer (rclone://add-template?cmd=…), see lib/deep.ts.
+    const [addPayload, setAddPayload] = useState<AddTemplatePayload | null>(null)
+    const handleAddClose = useCallback(() => {
+        onAddClose()
+        setAddPayload(null)
+    }, [onAddClose])
     const {
         isOpen: isEditOpen,
         onOpen: onEditOpen,
@@ -160,9 +168,27 @@ export default function Templates() {
     useEffect(() => {
         const action = searchParams.get('action')
         if (action === 'add') {
+            const cmd = searchParams.get('cmd')?.trim() || undefined
+            const name = searchParams.get('name')?.trim() || undefined
+            if (cmd || name) {
+                setAddPayload({ cmd, name })
+            }
             onOpen()
         }
     }, [searchParams, onOpen])
+
+    // A deep link arriving while this window is already open can't change its URL, so the main
+    // window forwards the payload over the event bus instead (lib/deep.ts).
+    useEffect(() => {
+        const unlisten = listen<AddTemplatePayload>(ADD_TEMPLATE, (event) => {
+            const { cmd, name } = event.payload ?? {}
+            setAddPayload(cmd || name ? { cmd, name } : null)
+            onOpen()
+        })
+        return () => {
+            unlisten.then((fn) => fn())
+        }
+    }, [onOpen])
 
     return (
         <div className={cn('flex flex-col h-screen', platform() === 'macos' && 'pt-7')}>
@@ -379,7 +405,11 @@ export default function Templates() {
                 />
             </Tooltip>
 
-            <TemplateAddDrawer isOpen={isOpen} onClose={onOpenChange} />
+            <TemplateAddDrawer
+                isOpen={isOpen}
+                onClose={handleAddClose}
+                initialValues={addPayload}
+            />
             {selectedTemplate && (
                 <TemplateEditDrawer
                     isOpen={isEditOpen}

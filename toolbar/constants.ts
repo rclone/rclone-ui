@@ -84,8 +84,8 @@ export const COMMAND_DESCRIPTIONS: Record<ToolbarCommandId, string> = {
 }
 
 export const COMMAND_KEYWORDS: Record<ToolbarCommandId, string[]> = {
-    copy: ['copy', 'cp', 'transfer'],
-    'copy-verify': ['copy', 'verify', 'checksum', 'transfer'],
+    copy: ['copy', 'cp'],
+    'copy-verify': ['copy', 'verify', 'checksum'],
     move: ['move', 'mv'],
     sync: ['sync', 'synchronise', 'synchronize'],
     mount: ['mount'],
@@ -98,7 +98,7 @@ export const COMMAND_KEYWORDS: Record<ToolbarCommandId, string[]> = {
     browse: ['browse', 'explore', 'open', 'view', 'files'],
     settings: ['settings', 'config', 'preferences'],
     github: ['github', 'issue', 'bug', 'feature'],
-    transfers: ['transfer', 'job', 'task'],
+    transfers: ['transfer', 'job', 'task', 'history'],
     schedules: ['schedule', 'cron', 'task'],
     templates: ['template', 'example'],
     remoteCreate: ['new', 'remote', 'create'],

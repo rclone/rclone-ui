@@ -5,9 +5,10 @@ import { message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { ChevronDown, ChevronUp, RefreshCcwIcon } from 'lucide-react'
 import { type Key, startTransition, useCallback, useMemo, useState } from 'react'
+import { UserCancelledError } from '../../lib/errors'
 import rclone from '../../lib/rclone/client'
-import { OVERRIDES, OWN_OAUTH_TYPES } from '../../lib/rclone/overrides'
-import type { BackendOption } from '../../types/rclone'
+import { createRemoteInteractive } from '../../lib/rclone/interactive'
+import { INTERACTIVE_CONFIG_TYPES, OVERRIDES, OWN_OAUTH_TYPES } from '../../lib/rclone/overrides'
 import RemoteField from './RemoteField'
 
 export default function RemoteCreateDrawer({
@@ -51,7 +52,7 @@ export default function RemoteCreateDrawer({
     const currentBackendFields = useMemo(
         () =>
             currentBackend
-                ? (currentBackend.Options as BackendOption[]).filter((opt) => {
+                ? currentBackend.Options.filter((opt) => {
                       if (!opt.Provider) return true
                       if (opt.Provider.includes(config.provider) && !opt.Provider.startsWith('!'))
                           return true
@@ -85,6 +86,10 @@ export default function RemoteCreateDrawer({
         }: { name: string; type: string; parameters: Record<string, any> }) => {
             console.log('[RemoteCreateDrawer] newRemoteConfig', name, type, parameters)
 
+            if (INTERACTIVE_CONFIG_TYPES.includes(type)) {
+                return createRemoteInteractive({ name, type, parameters })
+            }
+
             await rclone('/config/create', {
                 params: {
                     query: {
@@ -109,6 +114,10 @@ export default function RemoteCreateDrawer({
         },
         onError: async (error) => {
             console.error('Failed to create remote:', error)
+
+            if (error instanceof UserCancelledError) {
+                return
+            }
 
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
 

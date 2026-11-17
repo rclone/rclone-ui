@@ -1,0 +1,70 @@
+name: release-cloud-docker
+
+# Publishes the cloud branch's container image, and only the cloud branch's: no git tag and no
+# GitHub release. Run it by hand ("Run workflow"): it builds cloud's latest commit and pushes
+# ghcr.io/<owner>/rclone-cloud as its Cargo.toml version, latest, and sha-<commit>. A version that
+# is already published is refused: bump Cargo.toml on cloud to publish again.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cloud
+      - name: The commit and its version
+        id: cloud
+        run: |
+          sha="$(git rev-parse HEAD)"
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
+          if [ -z "$version" ]; then
+            echo "::error::no version in Cargo.toml at $sha"
+            exit 1
+          fi
+          echo "Publishing rclone-cloud $version from cloud at $sha"
+          {
+            echo "sha=$sha"
+            echo "short=${sha:0:7}"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: A version already published is refused
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/rclone-cloud:${{ steps.cloud.outputs.version }}
+        run: |
+          if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "::error::$IMAGE is already published; bump the version in Cargo.toml on cloud"
+            exit 1
+          fi
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/rclone-cloud
+          tags: |
+            type=raw,value=${{ steps.cloud.outputs.version }}
+            type=raw,value=latest
+            type=raw,value=sha-${{ steps.cloud.outputs.short }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.cloud.outputs.sha }}
+            org.opencontainers.image.version=${{ steps.cloud.outputs.version }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

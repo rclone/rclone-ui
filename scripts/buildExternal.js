@@ -15,7 +15,10 @@ async function buildExternal() {
         // Compile TypeScript using local tsc
         console.log('[buildExternal] Compiling TypeScript...')
         execSync(
-            'npx tsc main.ts --target es2020 --module esnext --moduleResolution bundler --listEmittedFiles',
+            // skipLibCheck mirrors tsconfig.json: a bare-CLI tsc ignores tsconfig and
+            // auto-includes every node_modules/@types package, and Remotion's transitive
+            // @types/dom-webcodecs collides with the WebCodecs types TS now bundles in lib.dom.
+            'npx tsc main.ts --target es2020 --module esnext --moduleResolution bundler --skipLibCheck --listEmittedFiles',
             {
                 stdio: 'inherit',
                 cwd: projectRoot,

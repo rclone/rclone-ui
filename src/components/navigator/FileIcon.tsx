@@ -117,6 +117,23 @@ const CODE_EXTENSIONS = new Set([
     'vb',
     'asm',
     's',
+    // Markup / web / query / misc — all highlighted by the CodeMirror langs pack.
+    'html',
+    'htm',
+    'xml',
+    'css',
+    'scss',
+    'sass',
+    'less',
+    'sql',
+    'vue',
+    'svelte',
+    'dart',
+    'gradle',
+    'groovy',
+    'proto',
+    'diff',
+    'patch',
 ])
 
 const CONFIG_EXTENSIONS = new Set([
@@ -190,7 +207,11 @@ export function isPreviewable(entry: Entry): boolean {
         type === 'video' ||
         type === 'audio' ||
         type === 'text' ||
-        type === 'document'
+        type === 'code' ||
+        type === 'config' ||
+        type === 'document' ||
+        type === 'spreadsheet' ||
+        type === 'presentation'
     )
 }
 

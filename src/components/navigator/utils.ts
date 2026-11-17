@@ -158,21 +158,25 @@ export async function listRemotePath(
     return { list: deduped, baseDir: base }
 }
 
-export async function searchPath(
+// Resolves a navigator location to the `fs` + relative dir pair the /operations/* endpoints take:
+// local paths go through getFsInfo to the `:local:` backend rooted at `/`, remotes to `remote:`.
+function resolveFs(remote: string | 'UI_LOCAL_FS', dir: string) {
+    if (remote !== 'UI_LOCAL_FS') return { fs: `${remote}:`, base: normalizeRemoteDir(dir) }
+    const info = getFsInfo(dir)
+    return { fs: info.root === ':local:' ? ':local:/' : info.root, base: info.filePath }
+}
+
+// Lists `dir` through /operations/list with the given `opt` (and optional `_filter`) objects. Some
+// backends want a trailing slash on the directory and others reject it, so a failed bare call is
+// retried slashed. Entries are deduped by path since a few backends report the same object twice.
+export async function listPath(
     remote: string | 'UI_LOCAL_FS',
     dir: string,
-    term: string,
-    signal: AbortSignal
-) {
-    const isLocal = remote === 'UI_LOCAL_FS'
-    const localInfo = isLocal ? getFsInfo(dir) : null
-    const fs = localInfo
-        ? localInfo.root === ':local:'
-            ? ':local:/'
-            : localInfo.root
-        : `${remote}:`
-    const base = localInfo ? localInfo.filePath : normalizeRemoteDir(dir)
-    const escapedTerm = term.replace(RE_RCLONE_GLOB_META, '\\$&')
+    opt: Record<string, unknown>,
+    signal: AbortSignal,
+    filter?: Record<string, unknown>
+): Promise<any[]> {
+    const { fs, base } = resolveFs(remote, dir)
 
     const run = async (target: string) => {
         const result = await rclone('/operations/list', {
@@ -180,15 +184,8 @@ export async function searchPath(
                 query: {
                     fs,
                     remote: target,
-                    opt: JSON.stringify({
-                        recurse: true,
-                        noModTime: false,
-                        noMimeType: true,
-                    }),
-                    _filter: JSON.stringify({
-                        IncludeRule: [`*${escapedTerm}*`],
-                        IgnoreCase: true,
-                    }),
+                    opt: JSON.stringify(opt),
+                    ...(filter ? { _filter: JSON.stringify(filter) } : {}),
                 } as any,
             },
             signal,
@@ -203,8 +200,7 @@ export async function searchPath(
         if (signal.aborted || !base) throw error
         list = await run(`${base}/`)
     }
-
-    if (!Array.isArray(list)) throw new Error('Invalid search response')
+    if (!Array.isArray(list)) throw new Error('Invalid list response')
 
     const seen = new Set<string>()
     return (list as any[]).filter((item) => {
@@ -213,6 +209,49 @@ export async function searchPath(
         seen.add(path)
         return true
     })
+}
+
+export function searchPath(
+    remote: string | 'UI_LOCAL_FS',
+    dir: string,
+    term: string,
+    signal: AbortSignal
+) {
+    const escapedTerm = term.replace(RE_RCLONE_GLOB_META, '\\$&')
+    return listPath(remote, dir, { recurse: true, noModTime: false, noMimeType: true }, signal, {
+        IncludeRule: [`*${escapedTerm}*`],
+        IgnoreCase: true,
+    })
+}
+
+// Renames a file or folder in place. Folders go through sync/move (the RC API has no directory
+// rename). Both endpoints silently overwrite — or merge into — an existing target, so the
+// destination is stat'ed first and the rename refused when something is already there.
+export async function renamePath(fullPath: string, isDir: boolean, newName: string) {
+    const { root, filePath } = getFsInfo(fullPath)
+    const fs = root === ':local:' ? ':local:/' : root
+    const dstRemote = [...filePath.split('/').slice(0, -1), newName].join('/')
+
+    const existing = await rclone('/operations/stat', {
+        params: { query: { fs, remote: dstRemote } },
+    })
+    if (existing?.item) throw new Error(`"${newName}" already exists`)
+
+    if (isDir) {
+        await rclone('/sync/move' as any, {
+            params: {
+                query: {
+                    srcFs: `${fs}${filePath}/`,
+                    dstFs: `${fs}${dstRemote}/`,
+                    deleteEmptySrcDirs: true,
+                },
+            },
+        })
+    } else {
+        await rclone('/operations/movefile' as any, {
+            params: { query: { srcFs: fs, srcRemote: filePath, dstFs: fs, dstRemote } },
+        })
+    }
 }
 
 export async function listLocalPath(dir: string) {

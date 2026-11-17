@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { LOCAL_HOST_ID } from '../../../lib/hosts'
+import { useIsPreview } from '../../../lib/preview'
 import rclone from '../../../lib/rclone/client'
 import { useStore } from '../../../store/memory'
 import { useCurrentHost, usePersistedStore } from '../../../store/persisted'
@@ -36,6 +37,7 @@ import RemotesSection from './RemotesSection'
 
 export default function Settings() {
     const [searchParams] = useSearchParams()
+    const isPreview = useIsPreview()
     const settingsPass = usePersistedStore((state) => state.settingsPass)
     const currentHost = useCurrentHost()
     const isRestartingRclone = useStore((state) => state.isRestartingRclone)
@@ -144,8 +146,10 @@ export default function Settings() {
                 className="flex-shrink-0 h-screen px-2 py-4 overflow-y-auto border-r w-52 dark:bg-transparent bg-content2 border-divider dark:border-neutral-700"
                 classNames={{
                     // pb clears the fixed version bar (and the connected-host strip above it) so the
-                    // last tabs stay reachable once the list scrolls.
-                    tabList: 'w-full gap-3 pb-10' + (platform() === 'macos' ? ' pt-6' : ''),
+                    // last tabs stay reachable once the list scrolls. pt-6 clears macOS's
+                    tabList:
+                        'w-full gap-3 pb-10' +
+                        (platform() === 'macos' && !isPreview ? ' pt-6' : ''),
                     tab: 'h-14 justify-start rounded-large',
                     tabContent: 'pl-8',
                 }}
@@ -316,19 +320,21 @@ export default function Settings() {
                 >
                     <ProxySection />
                 </Tab>
-                <Tab
-                    key="license"
-                    title={
-                        <div className="flex items-center gap-2">
-                            <MedalIcon className="w-5 h-5" />
-                            <span>License</span>
-                        </div>
-                    }
-                    data-focus-visible="false"
-                    className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
-                >
-                    <LicenseSection />
-                </Tab>
+                {!isPreview && (
+                    <Tab
+                        key="license"
+                        title={
+                            <div className="flex items-center gap-2">
+                                <MedalIcon className="w-5 h-5" />
+                                <span>License</span>
+                            </div>
+                        }
+                        data-focus-visible="false"
+                        className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
+                    >
+                        <LicenseSection />
+                    </Tab>
+                )}
                 <Tab
                     key="about"
                     title={
@@ -352,10 +358,15 @@ export default function Settings() {
             )}
             <div className="absolute bottom-0 left-0 flex flex-col h-12 gap-4 p-4 border-t border-r w-52 bg-content3 dark:bg-content1 border-divider dark:border-neutral-700">
                 <p
-                    className="text-[10px] text-center text-neutral-500 hover:text-neutral-400 cursor-pointer"
+                    className={cn(
+                        'text-[10px] text-center  cursor-pointer',
+                        isPreview
+                            ? 'text-white font-semibold'
+                            : 'text-neutral-500 hover:text-neutral-400 '
+                    )}
                     onClick={() => openUrl('https://github.com/rclone-ui/rclone-ui')}
                 >
-                    UI v{uiVersion}, CLI v{cliVersion}
+                    {isPreview ? 'rcloneui.com' : `UI v${uiVersion}, CLI v${cliVersion}`}
                 </p>
             </div>
         </div>

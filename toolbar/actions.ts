@@ -10,7 +10,7 @@ import type { fetchMountList, fetchServeList } from '../lib/rclone/api'
 import rclone from '../lib/rclone/client'
 import { SERVE_TYPES } from '../lib/rclone/constants'
 import { openFullWindow } from '../lib/window'
-import { selectCurrentHost, usePersistedStore } from '../store/persisted'
+import { usePersistedStore } from '../store/persisted'
 import { COMMAND_CONFIG, COMMAND_DESCRIPTIONS, COMMAND_KEYWORDS } from './constants'
 import type {
     ToolbarActionArgs,
@@ -842,41 +842,15 @@ const actions: ToolbarActionDefinition[] = [
                 return
             }
 
-            const currentHost = selectCurrentHost(usePersistedStore.getState())
-            const hostUrl = currentHost?.url
-
-            if (!hostUrl) {
-                await notify({
-                    title: 'Error',
-                    body: 'No host URL found',
-                })
-                return
-            }
-
             try {
-                let auth: string | undefined
-                const authUser = currentHost?.authUser
-
-                if (authUser) {
-                    const authPassword = currentHost?.authPassword
-                    auth = btoa(`${authUser}:${authPassword ?? ''}`)
-                }
-
-                const normalizedHostUrl = hostUrl.replace(TRAILING_SLASH_REGEX, '')
-                const browseTargetUrl = `${normalizedHostUrl}/[${remote}:]/`
-                let fullUrl = `browse.html?url=${encodeURIComponent(browseTargetUrl)}`
-
-                if (auth) {
-                    fullUrl += `&auth=${encodeURIComponent(auth)}`
-                }
-
                 await openFullWindow({
-                    name: 'Browse',
-                    url: fullUrl,
+                    name: 'Commander',
+                    url: `/commander?path=${encodeURIComponent(`${remote}:/`)}`,
+                    hideTitleBar: true,
                 })
             } catch (error) {
                 captureException(error)
-                await message('Could not open browse window. Please try again.', {
+                await message('Could not open Commander window. Please try again.', {
                     title: 'Error',
                     kind: 'error',
                     okLabel: 'OK',

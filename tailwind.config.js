@@ -6,6 +6,7 @@ export default {
         './index.html',
         './src/**/*.{js,ts,jsx,tsx}',
         './lib/**/*.{js,ts,jsx,tsx}',
+        './video/**/*.{js,ts,jsx,tsx}',
         './node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}',
     ],
     theme: {

@@ -18,13 +18,6 @@ export interface BackendOption {
     Type: string
 }
 
-export interface Backend {
-    Name: string
-    Description: string
-    Options: BackendOption[]
-    Prefix: string
-}
-
 export type FlagValue = string | number | boolean | string[] | null
 
 // Response shape of the rclone RC `operations/fsinfo` endpoint. The SDK types `Features` only as

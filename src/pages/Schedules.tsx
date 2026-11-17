@@ -224,8 +224,11 @@ function TaskCard({
             className="p-2 border-b border-divider"
         >
             <CardHeader>
+                {/* The name column is the only one allowed to shrink (it truncates);
+                    the run chips and action buttons keep their natural width so the
+                    buttons stay pinned to the right edge whatever the labels say. */}
                 <div className="flex flex-row items-start justify-between w-full h-10 gap-4">
-                    <div className="flex flex-row justify-start flex-1 gap-2">
+                    <div className="flex flex-row justify-start flex-1 min-w-0 gap-2">
                         <Chip
                             isCloseable={false}
                             size="lg"
@@ -261,11 +264,11 @@ function TaskCard({
                                 </Chip>
                             </Tooltip>
                         )}
-                        <div className="flex flex-col gap-0">
-                            <p className="w-64 text-sm font-bold truncate text-start">
+                        <div className="flex flex-col gap-0 min-w-0">
+                            <p className="max-w-64 text-sm font-bold truncate text-start">
                                 {task.name || 'Untitled Schedule'}
                             </p>
-                            <div className="text-sm text-gray-500 text-start">
+                            <div className="text-sm text-gray-500 text-start truncate">
                                 {buildReadablePath(source, 'short')} {'→'}{' '}
                                 {'destination' in task.args
                                     ? buildReadablePath(task.args.destination, 'short')
@@ -273,7 +276,7 @@ function TaskCard({
                             </div>
                         </div>
                     </div>
-                    <div className="flex flex-row justify-center w-1/2 gap-2">
+                    <div className="flex flex-row justify-center gap-2 shrink-0">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                             <Tooltip
                                 content={
@@ -344,7 +347,7 @@ function TaskCard({
                             <p className="text-xs text-gray-500">Next run</p>
                         </div>
                     </div>
-                    <div className="flex flex-row justify-end gap-2">
+                    <div className="flex flex-row justify-end gap-2 shrink-0">
                         <Tooltip content="Run now" placement="bottom" size="lg" color="foreground">
                             <Button
                                 isIconOnly={true}

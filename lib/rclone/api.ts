@@ -4,6 +4,7 @@ import { platform } from '@tauri-apps/plugin-os'
 import pRetry from 'p-retry'
 import { selectActiveConfigFile, useHostStore } from '../../store/host'
 import { type WatchedJob, useStore } from '../../store/memory'
+import { selectCurrentHost, usePersistedStore } from '../../store/persisted'
 import type { JobItem } from '../../types/jobs'
 import type { FlagValue } from '../../types/rclone'
 import { UserCancelledError, formatErrorMessage } from '../errors'
@@ -28,6 +29,7 @@ import {
     toConfigParam,
     toFilterParam,
 } from './requests'
+import { getAuthHeader, rcFetch } from './session'
 
 const RE_BACKSLASH = /\\/g
 const RE_DASH = /-/g
@@ -1027,5 +1029,25 @@ export async function fetchMountList() {
     } catch (error) {
         console.error('[fetchMountList] failed to fetch active mounts', error)
         return []
+    }
+}
+
+export async function uploadEmptyFile(fs: string, remote: string) {
+    const currentHost = selectCurrentHost(usePersistedStore.getState())
+    if (!currentHost) throw new Error('No current host')
+
+    const authHeader = await getAuthHeader(currentHost)
+
+    const body = new FormData()
+    body.append('file0', new File([], '.empty'))
+
+    const params = new URLSearchParams({ fs, remote })
+    const response = await rcFetch(`${currentHost.url}/operations/uploadfile?${params}`, {
+        method: 'POST',
+        headers: authHeader ? { 'Authorization': authHeader } : undefined,
+        body,
+    })
+    if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText}`)
     }
 }

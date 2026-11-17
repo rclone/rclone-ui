@@ -87,11 +87,11 @@ export function useFlags() {
     const allFlags = allFlagsQuery.data
 
     const filterFlags = allFlags?.filter
-        .filter((flag) => !flag.Groups?.includes('Metadata'))
+        ?.filter((flag) => !flag.Groups?.includes('Metadata'))
         .sort(sortByName)
 
     const configFlags = allFlags?.main
-        .filter(
+        ?.filter(
             (flag) =>
                 flag.Groups?.includes('Performance') ||
                 flag.Groups?.includes('Listing') ||
@@ -102,19 +102,19 @@ export function useFlags() {
         .sort(sortByName)
 
     const mountFlags = allFlags?.mount
-        .filter((flag) => !flag.Groups?.includes('Metadata'))
+        ?.filter((flag) => !flag.Groups?.includes('Metadata'))
         .sort(sortByName)
 
     const vfsFlags = allFlags?.vfs
-        .filter((flag) => !flag.Groups?.includes('Metadata'))
+        ?.filter((flag) => !flag.Groups?.includes('Metadata'))
         .sort(sortByName)
 
     const copyFlags = allFlags?.main
-        .filter((flag) => flag.Groups?.includes('Copy'))
+        ?.filter((flag) => flag.Groups?.includes('Copy'))
         .sort(sortByName)
 
     const syncFlags = allFlags?.main
-        .filter((flag) => flag.Groups?.includes('Copy') || flag.Groups?.includes('Sync'))
+        ?.filter((flag) => flag.Groups?.includes('Copy') || flag.Groups?.includes('Sync'))
         .sort(sortByName)
 
     const serveFlags = SERVE_TYPES.reduce(

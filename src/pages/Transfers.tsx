@@ -5,6 +5,7 @@ import { message } from '@tauri-apps/plugin-dialog'
 import { ChevronRightIcon, RefreshCcwIcon, SearchCheckIcon } from 'lucide-react'
 import { startTransition, useCallback, useMemo, useState } from 'react'
 import { buildReadablePathMultiple, formatBytes } from '../../lib/format'
+import { useIsPreview } from '../../lib/preview'
 import { listTransfers } from '../../lib/rclone/api'
 import { useHostStore } from '../../store/host'
 import { usePersistedStore } from '../../store/persisted'
@@ -192,6 +193,7 @@ export default function Transfers() {
 }
 
 function JobCard({ job, onSelect }: { job: JobItem; onSelect: (job: JobItem) => void }) {
+    const isPreview = useIsPreview()
     return (
         <Card
             key={job.id}
@@ -262,7 +264,8 @@ function JobCard({ job, onSelect }: { job: JobItem; onSelect: (job: JobItem) => 
                                     >
                                         <Progress
                                             value={job.progress}
-                                            isStriped={true}
+                                            disableAnimation={isPreview}
+                                            isStriped={!(job.isChecking && job.totalBytes === 0)}
                                             isIndeterminate={job.isChecking && job.totalBytes === 0}
                                         />
                                     </Tooltip>

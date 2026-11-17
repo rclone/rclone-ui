@@ -53,7 +53,16 @@ pub(crate) fn focus_window_linux(app_handle: &AppHandle, window: &WebviewWindow)
     let _ = app_handle.run_on_main_thread(move || {
         use gtk::prelude::*;
         if let Ok(gtk_win) = window_clone.gtk_window() {
-            gtk_win.present_with_time(gtk::current_event_time());
+            let mut time = gtk::current_event_time();
+            if time == 0 {
+                if let Some(x11_win) = gtk_win
+                    .window()
+                    .and_then(|w| w.downcast::<gdkx11::X11Window>().ok())
+                {
+                    time = gdkx11::functions::x11_get_server_time(&x11_win);
+                }
+            }
+            gtk_win.present_with_time(time);
         }
     });
 }
@@ -161,8 +170,8 @@ pub async fn open_window(
     let height = height.unwrap_or(725.0);
 
     #[cfg(target_os = "windows")]
-	{
-    	let monitor = match app_handle.primary_monitor().map_err(|e| e.to_string())? {
+    let (width, height) = {
+        let monitor = match app_handle.primary_monitor().map_err(|e| e.to_string())? {
             Some(monitor) => monitor,
             None => app_handle
                 .available_monitors()
@@ -172,10 +181,9 @@ pub async fn open_window(
                 .ok_or("No monitors available")?,
         };
 
-	    let scale_factor = monitor.scale_factor();
-	    width = width / scale_factor;
-        height = height / scale_factor;
-	}
+        let scale_factor = monitor.scale_factor();
+        (width / scale_factor, height / scale_factor)
+    };
 
     let mut builder = WebviewWindowBuilder::new(&app_handle, &name, WebviewUrl::App(url.into()))
         .title(&name)

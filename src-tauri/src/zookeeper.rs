@@ -342,9 +342,11 @@ pub async fn spawn_rclone(
 
     let mut cmd = Command::new(&path);
     cmd.args(&args);
-    for (k, v) in &env {
+    for (k, v) in env.iter().filter(|(k, _)| !crate::rc_session::is_rc_variable(k)) {
         cmd.env(k, v);
     }
+    let session = app.state::<crate::rc_session::RcSession>();
+    crate::rc_session::set_rc_credentials(&mut cmd, &session.user, &session.pass);
     // Nothing consumes daemon stdio; null it to avoid pipe-fill and extra threads.
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::null());
@@ -403,23 +405,35 @@ pub async fn kill_rclone_daemon(
     app: AppHandle,
     timeout_ms: Option<u64>,
 ) -> Result<bool, String> {
-    let target = {
-        let state = app.state::<SharedDaemonState>();
-        let s = state.lock().unwrap();
-        if s.pid.is_some() {
-            if let Some(flag) = &s.intentional {
-                flag.store(true, Ordering::SeqCst);
-            }
-        }
-        s.pid
-    };
-
-    if let Some(pid) = target {
+    if let Some(pid) = take_kill_target(&app) {
         crate::kill_pid(pid, Some(timeout_ms.unwrap_or(5000))).await?;
         Ok(true)
     } else {
         Ok(false)
     }
+}
+
+/// Stops the daemon when the app process exits. The tray's Quit already killed it by then; other
+/// ways out (Cmd+Q, a quit Apple event) reach here with it still running, and it would otherwise
+/// outlive the app and make the next launch report "Rclone Already Running".
+pub fn kill_rclone_daemon_on_exit(app: &AppHandle) {
+    if let Some(pid) = take_kill_target(app) {
+        if let Err(err) = tauri::async_runtime::block_on(crate::kill_pid(pid, Some(2000))) {
+            log::warn!("failed to stop rclone daemon on exit: {}", err);
+        }
+    }
+}
+
+/// The tracked daemon's pid, with its kill marked intentional so its close event is ignored.
+fn take_kill_target(app: &AppHandle) -> Option<u32> {
+    let state = app.state::<SharedDaemonState>();
+    let s = state.lock().unwrap();
+    if s.pid.is_some() {
+        if let Some(flag) = &s.intentional {
+            flag.store(true, Ordering::SeqCst);
+        }
+    }
+    s.pid
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,74 @@
+name: ci-cloud
+
+# Tests the cloud branch, and only the cloud branch: pull requests into it, and cloud itself on
+# request. It runs the frontend's unit tests and build, the Rust build and tests, and the
+# end-to-end suite. Pull requests from this repository run automatically; a fork's is run by hand
+# once reviewed ("Run workflow" with refs/pull/<number>/merge). A run can only read the
+# repository, and only cloud's own code saves to the cache.
+on:
+  pull_request_target:
+    branches: [cloud]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'What to test: cloud, another branch, or refs/pull/<number>/merge'
+        required: true
+        default: cloud
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    container: rust:1-bookworm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || format('refs/pull/{0}/merge', github.event.pull_request.number) }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm --prefix frontend ci
+      - run: npm --prefix frontend run test:unit
+      - run: npm --prefix frontend run build
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+          save-if: ${{ github.event_name == 'workflow_dispatch' && inputs.ref == 'cloud' }}
+      - run: cargo build --release
+      - run: cargo test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rclone-cloud-linux-x86_64-ci
+          path: target/release/rclone-cloud
+
+  e2e:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || format('refs/pull/{0}/merge', github.event.pull_request.number) }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm --prefix frontend ci
+      - run: npm --prefix frontend run build
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+          save-if: ${{ github.event_name == 'workflow_dispatch' && inputs.ref == 'cloud' }}
+      - run: cargo build
+      - name: Install rclone
+        run: curl -fsSL https://rclone.org/install.sh | sudo bash
+      - run: npx playwright install --with-deps chromium
+      - run: npm --prefix frontend run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/test-results

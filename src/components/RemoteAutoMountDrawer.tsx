@@ -10,6 +10,8 @@ import { FolderOpen } from 'lucide-react'
 import { startTransition, useCallback, useEffect, useState } from 'react'
 import { onErrorDialog } from '../../lib/errors'
 import { useFlags } from '../../lib/hooks'
+import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
+import { AutomountSourceError, probeMountSource } from '../../lib/rclone/mount'
 import { lockWindows, unlockWindows } from '../../lib/window'
 import { type RemoteConfig, useHostStore } from '../../store/host'
 import { usePersistedStore } from '../../store/persisted'
@@ -55,14 +57,24 @@ export default function RemoteAutoMountDrawer({
             null,
             2
         )
-        const vfsOptionsJson = JSON.stringify(remoteConfig?.mountOnStart?.vfsOptions || {}, null, 2)
+        const savedVfsOptions = remoteConfig?.mountOnStart?.vfsOptions
+        const vfsOptionsJson = JSON.stringify(
+            savedVfsOptions && Object.keys(savedVfsOptions).length > 0
+                ? savedVfsOptions
+                : RCLONE_CONFIG_DEFAULTS.vfs,
+            null,
+            2
+        )
         const filterOptionsJson = JSON.stringify(
             remoteConfig?.mountOnStart?.filterOptions || {},
             null,
             2
         )
+        const savedConfigOptions = remoteConfig?.mountOnStart?.configOptions
         const configOptionsJson = JSON.stringify(
-            remoteConfig?.mountOnStart?.configOptions || {},
+            savedConfigOptions && Object.keys(savedConfigOptions).length > 0
+                ? savedConfigOptions
+                : RCLONE_CONFIG_DEFAULTS.config,
             null,
             2
         )
@@ -153,6 +165,17 @@ export default function RemoteAutoMountDrawer({
                 newConfig.mountOnStart = updateMountOnStart(newConfig.mountOnStart, {
                     vfsOptions: vfsOptions,
                 })
+            }
+
+            if (newConfig.mountOnStart?.enabled && newConfig.mountOnStart.remotePath) {
+                try {
+                    await probeMountSource(`${remoteName}:${newConfig.mountOnStart.remotePath}`)
+                } catch (error) {
+                    if (error instanceof AutomountSourceError) {
+                        throw error
+                    }
+                    console.warn('[RemoteAutoMountDrawer] source probe inconclusive:', error)
+                }
             }
 
             mergeRemoteConfig(remoteName, newConfig)

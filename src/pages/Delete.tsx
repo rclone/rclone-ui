@@ -275,12 +275,12 @@ export default function Delete() {
                 {supportsPurge && (
                     <Alert
                         color="primary"
-                        title="LET ME SHARE A TIP"
+                        title="LET ME SHARE A TIP!"
                         variant="faded"
                         className="min-h-none h-fit max-h-fit"
                     >
                         If you're deleting a entire folder, "{sourceRemoteName}" supports Purge
-                        which is more efficient!
+                        which is more efficient.
                     </Alert>
                 )}
 
@@ -303,7 +303,6 @@ export default function Delete() {
                     buttonText={buttonText}
                     buttonIcon={buttonIcon}
                     newLabel="NEW DELETE"
-                    newButtonPrimary={false}
                     showViewTransfers={false}
                     resetPathsLabel="Reset Path"
                     onResetPaths={handleResetPaths}
