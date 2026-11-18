@@ -72,8 +72,12 @@ export function serializeRemotePath(remote: string, relPath: string) {
     return `${remote}:/${relPath}`
 }
 
-export function cacheKey(remote: string | 'UI_LOCAL_FS' | null, dir: string) {
-    return `${remote ?? 'NONE'}::${dir || '/'}`
+export function cacheKey(remote: string | 'UI_LOCAL_FS' | null, dir: string, showHidden = false) {
+    return `${remote ?? 'NONE'}::${dir || '/'}::${showHidden ? '1' : '0'}`
+}
+
+export function isHiddenRelativePath(relativePath: string) {
+    return relativePath.split('/').some((part) => part.startsWith('.'))
 }
 
 export function normalizeRemoteDir(path: string) {

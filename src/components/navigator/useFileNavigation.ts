@@ -4,7 +4,7 @@ import { homeDir } from '@tauri-apps/api/path'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import rclone from '../../../lib/rclone/client.ts'
 import { useHostStore } from '../../../store/host.ts'
-import { useCurrentHost } from '../../../store/persisted.ts'
+import { useCurrentHost, usePersistedStore } from '../../../store/persisted.ts'
 import type {
     AllowedKey,
     Entry,
@@ -22,6 +22,7 @@ import {
     cacheKey,
     getLocalParent,
     getRemoteParent,
+    isHiddenRelativePath,
     joinLocal,
     listRemotePath,
     log,
@@ -51,6 +52,12 @@ export default function useFileNavigation({
 }) {
     const favoritePaths = useHostStore((state) => state.favoritePaths)
     const currentHost = useCurrentHost()
+    const showHidden = usePersistedStore((state) => state.showHiddenFiles)
+    const setShowHiddenFiles = usePersistedStore((state) => state.setShowHiddenFiles)
+
+    const toggleShowHidden = useCallback(() => {
+        setShowHiddenFiles(!showHidden)
+    }, [setShowHiddenFiles, showHidden])
 
     const remotesQuery = useQuery({
         queryKey: ['remotes', 'list', 'all'],
@@ -408,9 +415,11 @@ export default function useFileNavigation({
     )
 
     const refresh = useCallback(() => {
-        const cKey = cacheKey(selectedRemote, cwd)
-        cacheRef.current.delete(cKey)
-        localCompleteCacheRef.current.delete(cKey)
+        for (const hiddenState of [false, true]) {
+            const key = cacheKey(selectedRemote, cwd, hiddenState)
+            cacheRef.current.delete(key)
+            localCompleteCacheRef.current.delete(key)
+        }
         startTransition(() => setItems([]))
         setIsLoading(true)
         setRefreshKey((k) => k + 1)
@@ -469,7 +478,7 @@ export default function useFileNavigation({
                         if (
                             !relativePath ||
                             !name ||
-                            relativePath.split('/').some((part) => part.startsWith('.')) ||
+                            (!showHidden && isHiddenRelativePath(relativePath)) ||
                             !name.toLowerCase().includes(lowerTerm)
                         ) {
                             return null
@@ -532,6 +541,7 @@ export default function useFileNavigation({
         searchTerm,
         refreshKey,
         selectedRemote,
+        showHidden,
     ])
 
     // Initialize once per activation. The guard is set inside the branches (the remotes branch
@@ -595,7 +605,7 @@ export default function useFileNavigation({
     // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is an intentional re-run trigger the body doesn't read — refresh() evicts the cacheRef entry, clears items, and bumps it to force a refetch of the current directory; removing it breaks the Refresh button (empty panel, isLoading stuck true)
     useEffect(() => {
         if (!isActive) return
-        const cKey = cacheKey(selectedRemote, cwd)
+        const cKey = cacheKey(selectedRemote, cwd, showHidden)
 
         async function loadDir() {
             log('loadDir: start', { selectedRemote, cwd, isRemote })
@@ -752,7 +762,7 @@ export default function useFileNavigation({
                             fullPath: full,
                         } as Entry
                     })
-                    .filter((e) => !e.name.startsWith('.'))
+                    .filter((e) => e.name && (showHidden || !e.name.startsWith('.')))
             } else if (cwd) {
                 const requestId = `${localRequestPrefixRef.current}-${++localRequestSequenceRef.current}`
                 localRequestIdRef.current = requestId
@@ -872,6 +882,7 @@ export default function useFileNavigation({
                         invoke<void>('list_local_directory', {
                             path: cwd,
                             requestId,
+                            showHidden,
                             onEvent: channel,
                         }).catch(reject)
                     })
@@ -943,7 +954,7 @@ export default function useFileNavigation({
                 loadingTimerRef.current = null
             }
         }
-    }, [selectedRemote, cwd, isRemote, favoritePaths, isActive, refreshKey])
+    }, [selectedRemote, cwd, isRemote, favoritePaths, isActive, refreshKey, showHidden])
 
     useEffect(() => {
         updatePathInput(selectedRemote, cwd)
@@ -1006,11 +1017,13 @@ export default function useFileNavigation({
         canShowFavorites,
         canShowLocal,
         canShowRemotes,
+        showHidden,
 
         // Actions
         setPathInput,
         setSearchTerm,
         setSearchInSubfolders,
+        toggleShowHidden,
         handleSort,
         handleNavigate,
         navigateUp,

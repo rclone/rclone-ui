@@ -120,6 +120,9 @@ interface PersistedStateV2 {
     autoUpdateRclone: boolean
     setAutoUpdateRclone: (enabled: boolean) => void
     lastNotifiedRcloneVersion: string | undefined
+
+    showHiddenFiles: boolean
+    setShowHiddenFiles: (show: boolean) => void
 }
 
 export const usePersistedStore = create<PersistedStateV2>()(
@@ -170,6 +173,9 @@ export const usePersistedStore = create<PersistedStateV2>()(
             autoUpdateRclone: true,
             setAutoUpdateRclone: (enabled: boolean) => set((_) => ({ autoUpdateRclone: enabled })),
             lastNotifiedRcloneVersion: undefined,
+
+            showHiddenFiles: false,
+            setShowHiddenFiles: (show: boolean) => set((_) => ({ showHiddenFiles: show })),
         }),
         {
             name: 'store',

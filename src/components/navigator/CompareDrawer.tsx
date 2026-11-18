@@ -10,6 +10,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { AlertCircleIcon, XIcon } from 'lucide-react'
 import { formatBytes } from '../../../lib/format.ts'
+import { usePersistedStore } from '../../../store/persisted.ts'
 import FileIcon from './FileIcon'
 import type { Entry, RemoteString } from './types'
 import { listPath, serializeRemotePath } from './utils'
@@ -33,7 +34,11 @@ type CompareResult = Record<(typeof BUCKETS)[number]['key'], ComparePair[]>
 
 // Shallow listing with hashes, in the Commander's order (folders first, then by name) and without
 // the hidden files the Commander hides too.
-async function listEntries(loc: PanelLocation, signal: AbortSignal): Promise<CompareEntry[]> {
+async function listEntries(
+    loc: PanelLocation,
+    showHidden: boolean,
+    signal: AbortSignal
+): Promise<CompareEntry[]> {
     const raw = await listPath(
         loc.remote as string,
         loc.path,
@@ -55,7 +60,7 @@ async function listEntries(loc: PanelLocation, signal: AbortSignal): Promise<Com
                 fullPath: rel,
             }
         })
-        .filter((e) => e.name && !e.name.startsWith('.'))
+        .filter((e) => e.name && (showHidden || !e.name.startsWith('.')))
         .sort((a, b) => (a.isDir !== b.isDir ? (a.isDir ? -1 : 1) : a.name.localeCompare(b.name)))
 }
 
@@ -149,15 +154,16 @@ function CompareView({
     right: PanelLocation | null
     onClose: () => void
 }) {
+    const showHidden = usePersistedStore((state) => state.showHiddenFiles)
     const { data, isLoading, error } = useQuery({
-        queryKey: ['compare', left, right],
+        queryKey: ['compare', left, right, showHidden],
         enabled: !!left && !!right,
         gcTime: 0,
         refetchOnWindowFocus: false,
         queryFn: async ({ signal }) => {
             const [l, r] = await Promise.all([
-                listEntries(left!, signal),
-                listEntries(right!, signal),
+                listEntries(left!, showHidden, signal),
+                listEntries(right!, showHidden, signal),
             ])
             return diff(l, r)
         },
