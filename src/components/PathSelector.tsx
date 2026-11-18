@@ -86,6 +86,7 @@ export default function PathSelector({
             [
                 buttons.BackButton,
                 buttons.RefreshButton,
+                buttons.HiddenFilesButton,
                 <Tooltip
                     key="dismiss-tooltip"
                     content="Close this window (Esc)"

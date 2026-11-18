@@ -182,6 +182,7 @@ fn directory_size(
 
 fn list_local_entries(
     path: &Path,
+    show_hidden: bool,
     cancelled: &AtomicBool,
 ) -> Result<(Vec<LocalEntry>, Vec<PathBuf>), String> {
     if cancelled.load(Ordering::Relaxed) {
@@ -202,7 +203,7 @@ fn list_local_entries(
             continue;
         };
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with('.') {
+        if !show_hidden && name.starts_with('.') {
             continue;
         }
         let Ok(file_type) = entry.file_type() else {
@@ -245,8 +246,10 @@ pub fn list_local_directory(
     state: State<'_, LocalFsState>,
     path: String,
     request_id: String,
+    show_hidden: Option<bool>,
     on_event: Channel<LocalListingEvent>,
 ) -> Result<(), String> {
+    let show_hidden = show_hidden.unwrap_or(false);
     let cancelled = Arc::new(AtomicBool::new(false));
     {
         let mut requests = state.requests.lock().map_err(|error| error.to_string())?;
@@ -261,7 +264,7 @@ pub fn list_local_directory(
         let allowed_device = directory_info(Path::new(&path))
             .ok()
             .map(|(_, device)| device);
-        match list_local_entries(Path::new(&path), &scan_cancelled) {
+        match list_local_entries(Path::new(&path), show_hidden, &scan_cancelled) {
             Ok((entries, directories)) => {
                 if on_event
                     .send(LocalListingEvent::Entries { entries })
@@ -361,7 +364,7 @@ mod tests {
 
         let cancelled = AtomicBool::new(false);
         let allowed_device = directory_info(&root).unwrap().1;
-        let (entries, _) = list_local_entries(&root, &cancelled).unwrap();
+        let (entries, _) = list_local_entries(&root, false, &cancelled).unwrap();
         let mut budget = ScanBudget::new();
         assert_eq!(
             entries
@@ -401,7 +404,7 @@ mod tests {
         fs::create_dir(&root).unwrap();
         let cancelled = AtomicBool::new(true);
 
-        let result = list_local_entries(&root, &cancelled);
+        let result = list_local_entries(&root, false, &cancelled);
         assert!(matches!(result, Err(error) if error == CANCELLED));
 
         fs::remove_dir(root).unwrap();
@@ -471,7 +474,7 @@ mod tests {
 
         let cancelled = AtomicBool::new(false);
         let allowed_device = directory_info(&root).unwrap().1;
-        let _ = list_local_entries(&root, &cancelled).unwrap();
+        let _ = list_local_entries(&root, false, &cancelled).unwrap();
         let mut budget = ScanBudget::new();
         assert_eq!(
             directory_size(
@@ -483,6 +486,30 @@ mod tests {
             .unwrap(),
             3
         );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn respects_show_hidden_when_listing_local_entries() {
+        let root = test_directory();
+        fs::create_dir_all(root.join(".appdata")).unwrap();
+        fs::write(root.join(".env"), b"secret").unwrap();
+        fs::write(root.join("visible.txt"), b"ok").unwrap();
+
+        let cancelled = AtomicBool::new(false);
+
+        let (hidden_off, dirs_off) = list_local_entries(&root, false, &cancelled).unwrap();
+        assert_eq!(hidden_off.len(), 1);
+        assert_eq!(hidden_off[0].name, "visible.txt");
+        assert!(dirs_off.is_empty());
+
+        let (hidden_on, dirs_on) = list_local_entries(&root, true, &cancelled).unwrap();
+        let names: Vec<&str> = hidden_on.iter().map(|entry| entry.name.as_str()).collect();
+        assert!(names.contains(&".appdata"));
+        assert!(names.contains(&".env"));
+        assert!(names.contains(&"visible.txt"));
+        assert_eq!(dirs_on, vec![root.join(".appdata")]);
 
         fs::remove_dir_all(root).unwrap();
     }

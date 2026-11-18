@@ -1,11 +1,12 @@
 import { Button, Checkbox, Input, Tooltip } from '@heroui/react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeftIcon, RefreshCwIcon, XIcon } from 'lucide-react'
+import { ArrowLeftIcon, EyeIcon, EyeOffIcon, RefreshCwIcon, XIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 export type ToolbarButtons = {
     BackButton: ReactNode
     RefreshButton: ReactNode
+    HiddenFilesButton: ReactNode
     SearchInput: ReactNode
     NewFolderButton: ReactNode
 }
@@ -15,6 +16,8 @@ export default function PanelToolbar({
     onRefresh,
     isBackDisabled,
     isLoading,
+    showHidden,
+    onToggleShowHidden,
     searchTerm,
     onSearchChange,
     searchInSubfolders,
@@ -27,6 +30,8 @@ export default function PanelToolbar({
     onRefresh: () => void
     isBackDisabled: boolean
     isLoading: boolean
+    showHidden: boolean
+    onToggleShowHidden: () => void
     searchTerm: string
     onSearchChange: (term: string) => void
     searchInSubfolders: boolean
@@ -62,6 +67,27 @@ export default function PanelToolbar({
                 isIconOnly={true}
             >
                 <RefreshCwIcon className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+        </Tooltip>
+    )
+
+    const HiddenFilesButton = (
+        <Tooltip
+            content={showHidden ? 'Hide hidden files' : 'Show hidden files'}
+            size="lg"
+            color="foreground"
+        >
+            <Button
+                color="primary"
+                variant={showHidden ? 'solid' : 'flat'}
+                size="sm"
+                onPress={onToggleShowHidden}
+                radius="full"
+                isIconOnly={true}
+                aria-label={showHidden ? 'Hide hidden files' : 'Show hidden files'}
+                aria-pressed={showHidden}
+            >
+                {showHidden ? <EyeIcon className="size-4" /> : <EyeOffIcon className="size-4" />}
             </Button>
         </Tooltip>
     )
@@ -116,11 +142,17 @@ export default function PanelToolbar({
     )
 
     const NewFolderButton = newFolderButton ?? null
-    const buttons: ToolbarButtons = { BackButton, RefreshButton, SearchInput, NewFolderButton }
+    const buttons: ToolbarButtons = {
+        BackButton,
+        RefreshButton,
+        HiddenFilesButton,
+        SearchInput,
+        NewFolderButton,
+    }
     const groups = renderToolbar
         ? renderToolbar(buttons)
         : [
-              [BackButton, RefreshButton],
+              [BackButton, RefreshButton, HiddenFilesButton],
               [SearchInput, NewFolderButton],
           ]
 
