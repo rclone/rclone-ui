@@ -3,34 +3,16 @@ import { defineConfig } from 'vite'
 
 const host = process.env.TAURI_DEV_HOST
 
-// https://vitejs.dev/config/
-export default defineConfig(async () => ({
-    // plugins: [
-    //     react({
-    //         babel: {
-    //             plugins: [
-    //                 [
-    //                     'babel-plugin-react-compiler',
-    //                     {
-    //                         target: '18',
-    //                         panicThreshold: 'all_errors',
-    //                         logger: {
-    //                             logEvent(filename, event) {
-    //                                 console.log(`[Compiler] ${event.kind}: ${filename}`)
-    //                             },
-    //                         },
-    //                     },
-    //                 ],
-    //             ],
-    //         },
-    //     }),
-    // ],
+// https://vitejs.dev/config/ & https://tauri.app/start/frontend/vite/
+export default defineConfig({
     plugins: [react()],
 
     // Some viewer libs (e.g. @extend-ai/react-xlsx) ship code-splitting Web Workers,
     // which require ES-module worker output rather than the default iife.
     worker: { format: 'es' },
 
+    // Vite 8 switched to Rolldown for depOpts. Should check whether this is still required.
+    // (Probably is)
     optimizeDeps: {
         // These viewer libs create Web Workers via `new URL('./worker.js', import.meta.url)`.
         // Vite's dep pre-bundler doesn't emit those worker files, so in dev the worker URL
@@ -62,33 +44,39 @@ export default defineConfig(async () => ({
         ],
     },
 
-    build: { chunkSizeWarningLimit: 5120 },
-
-    esbuild: {
-        supported: {
-            'top-level-await': false, //browsers can handle top-level-await features
-        },
+    build: {
+        chunkSizeWarningLimit: 5120,
+        // Tauri uses Chromium on Windows and WebKit on macOS and Linux
+        target:
+          process.env.TAURI_ENV_PLATFORM == 'windows'
+            ? 'chrome105'
+            : 'safari13',
+        // don't minify for debug builds
+        minify: !process.env.TAURI_ENV_DEBUG,
+        // produce sourcemaps for debug builds
+        sourcemap: !!process.env.TAURI_ENV_DEBUG,
     },
 
-    // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-    //
-    // 1. prevent vite from obscuring rust errors
+    // prevent vite from obscuring rust errors
     clearScreen: false,
-    // 2. tauri expects a fixed port, fail if that port is not available
     server: {
+        // make sure this port matches the devUrl port in tauri.conf.json file
         port: 1420,
+        // Tauri expects a fixed port, fail if that port is not available
         strictPort: true,
+        // if the host Tauri is expecting is set, use it
         host: host || false,
         hmr: host
-            ? {
-                  protocol: 'ws',
-                  host,
-                  port: 1421,
-              }
-            : undefined,
+          ? {
+              protocol: 'ws',
+              host,
+              port: 1421,
+          }
+          : undefined,
+
         watch: {
-            // 3. tell vite to ignore watching `src-tauri`
+            // tell vite to ignore watching `src-tauri`
             ignored: ['**/src-tauri/**'],
         },
     },
-}))
+})
