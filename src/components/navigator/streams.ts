@@ -99,7 +99,13 @@ export const runSearch: Run<Browse.Row> = (args, _fresh, signal, sink) =>
     follow(
         'browse:rows',
         (request) =>
-            api.Search(request, String(args.path), String(args.q), args.fileDates === true),
+            api.Search(
+                request,
+                String(args.path),
+                String(args.q),
+                args.fileDates === true,
+                args.hidden === true
+            ),
         (piece) => {
             if (piece.entries.length > 0) sink.add(piece.entries)
             if (piece.done) sink.end({ capped: piece.capped })
@@ -130,7 +136,12 @@ export const runSizes: Run<Browse.FolderSize> = (args, _fresh, signal, sink) => 
 /** Compares two folders. The result arrives all at once. */
 export const runCompare: Run<Browse.Pair> = async (args, _fresh, signal, sink) => {
     const res = await cancelling(
-        api.Compare(String(args.left), String(args.right), args.fileDates === true),
+        api.Compare(
+            String(args.left),
+            String(args.right),
+            args.fileDates === true,
+            args.hidden === true
+        ),
         signal
     )
     sink.add(res.pairs ?? [])

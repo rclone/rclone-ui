@@ -190,8 +190,8 @@ var errCapped = errors.New("enough results")
 // SearchFolder finds the entries under the folder at path whose names contain q (Search, which
 // reads at most SearchWalkMax entries), and calls page with their rows as they are found. It
 // stops after max matches, and reports whether it did. When the walk ended at SearchWalkMax, it
-// returns ErrWalkMax, after the rows it found. fileDates is as for List.
-func SearchFolder(ctx context.Context, path, q string, max int, fileDates bool, page func([]Row)) (capped bool, err error) {
+// returns ErrWalkMax, after the rows it found. fileDates is as for List, and hidden as for Search.
+func SearchFolder(ctx context.Context, path, q string, max int, fileDates, hidden bool, page func([]Row)) (capped bool, err error) {
 	if q == "" {
 		return false, errs.Invalid(i18n.M("Nothing to search for."), errs.Violation("q", "missing"))
 	}
@@ -209,7 +209,7 @@ func SearchFolder(ctx context.Context, path, q string, max int, fileDates bool, 
 	defer stop(nil)
 	n := 0
 	err = inJob(ctx, "search", func(ctx context.Context) error {
-		return Search(ctx, at.Root(), at.Rel, q, SearchWalkMax, fileDates, func(found []Entry) {
+		return Search(ctx, at.Root(), at.Rel, q, SearchWalkMax, fileDates, hidden, func(found []Entry) {
 			if n >= max {
 				return
 			}
@@ -228,9 +228,9 @@ func SearchFolder(ctx context.Context, path, q string, max int, fileDates bool, 
 }
 
 // Search finds the entries under a folder whose names contain q, sending them as EventRows
-// for request. It stops at SearchMax matches. fileDates is as for List.
-func (a *API) Search(ctx context.Context, request, path, q string, fileDates bool) error {
-	capped, err := SearchFolder(ctx, path, q, SearchMax, fileDates, func(rows []Row) {
+// for request. It stops at SearchMax matches. fileDates is as for List, and hidden as for Search.
+func (a *API) Search(ctx context.Context, request, path, q string, fileDates, hidden bool) error {
+	capped, err := SearchFolder(ctx, path, q, SearchMax, fileDates, hidden, func(rows []Row) {
 		a.emit(ctx, EventRows, Rows{Request: request, Entries: rows})
 	})
 	// The page isn't told that a walk ended at SearchWalkMax.
@@ -274,8 +274,9 @@ func (a *API) Sizes(ctx context.Context, request string, paths []string) error {
 	return nil
 }
 
-// Compare puts two folders side by side, one level down. fileDates is as for List.
-func (a *API) Compare(ctx context.Context, left, right string, fileDates bool) (CompareResult, error) {
+// Compare puts two folders side by side, one level down. fileDates is as for List, and hidden as
+// for Compare.
+func (a *API) Compare(ctx context.Context, left, right string, fileDates, hidden bool) (CompareResult, error) {
 	if left == "" || right == "" {
 		return CompareResult{}, errs.Invalid(i18n.M("Two folders are needed."), errs.Violation("right", "missing"))
 	}
@@ -287,7 +288,7 @@ func (a *API) Compare(ctx context.Context, left, right string, fileDates bool) (
 	}
 	var c Comparison
 	err := inJob(ctx, "compare", func(ctx context.Context) (err error) {
-		c, err = Compare(ctx, left, right, fileDates)
+		c, err = Compare(ctx, left, right, fileDates, hidden)
 		return err
 	})
 	if err != nil {

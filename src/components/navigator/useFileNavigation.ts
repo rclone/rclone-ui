@@ -13,6 +13,7 @@ import { toastWarning } from '../toast'
 import { useFavorites } from './favorites'
 import { useFileDates } from './fileDates'
 import { useFolderSizeJob } from './folderSizes'
+import { useHiddenFiles } from './hiddenFiles'
 import { useJob } from './jobs'
 import {
     type Held,
@@ -159,6 +160,8 @@ export default function useFileNavigation({
     )
     // Turning File dates on or off changes the arguments, so the folder is listed again.
     const [fileDates] = useFileDates()
+    // Showing hidden files changes only which rows the panel shows, so the folder isn't listed again.
+    const [hidden] = useHiddenFiles()
     const listing = useJob<Browse.Row>('list', location ? { path: location, fileDates } : null, {
         cap: LIST_CAP,
     })
@@ -175,8 +178,9 @@ export default function useFileNavigation({
     )
 
     const listed = useMemo(
-        () => (current ? toEntries(listing.items, selectedRemote as string, { sizes }) : EMPTY),
-        [current, listing.items, selectedRemote, sizes]
+        () =>
+            current ? toEntries(listing.items, selectedRemote as string, { sizes, hidden }) : EMPTY,
+        [current, listing.items, selectedRemote, sizes, hidden]
     )
     // The previous folder stays on screen, with its own paths, until the next folder's rows start
     // to arrive. A failed listing clears it. The folder shown, listed again (a refresh, or a
@@ -249,7 +253,7 @@ export default function useFileNavigation({
     const searchJob = useJob<Browse.Row>(
         'search',
         isActive && recursiveSearchActive && typedTerm && searchLocation
-            ? { path: searchLocation, q: typedTerm, fileDates }
+            ? { path: searchLocation, q: typedTerm, fileDates, hidden }
             : null,
         { cap: SEARCH_CAP }
     )
@@ -257,9 +261,9 @@ export default function useFileNavigation({
     const recursiveSearchItems = useMemo(
         () =>
             searchLocation && searchJob.phase !== 'idle' && searchJob.args?.path === searchLocation
-                ? toEntries(searchJob.items, selectedRemote as string, { search: true })
+                ? toEntries(searchJob.items, selectedRemote as string, { search: true, hidden })
                 : null,
-        [searchLocation, searchJob.phase, searchJob.args, searchJob.items, selectedRemote]
+        [searchLocation, searchJob.phase, searchJob.args, searchJob.items, selectedRemote, hidden]
     )
     const searchPending = recursiveSearchActive && typedTerm !== searchTerm.trim()
     const isSearching =

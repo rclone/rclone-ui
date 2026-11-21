@@ -1,7 +1,7 @@
 // A folder's rows as the panels show them. The core owns the listing itself (the `list` job in
 // jobs.ts, read through streams.ts). It keeps one cached listing per folder, shared by every
 // panel, and lists again only after a refresh or a change. This file holds the display rules
-// (dot-files hidden, folders first) and the change notices. When the page changes something
+// (dot-files hidden unless shown, folders first) and the change notices. When the page changes something
 // through the fs actions, or a transfer ends, every panel that shows an affected folder asks the
 // core for it again.
 
@@ -9,6 +9,7 @@ import { t } from '@lingui/core/macro'
 import type { Browse } from '../../../lib/core/types'
 import { compareText } from '../../../lib/format'
 import { onLive } from '../../../lib/live'
+import { isShown } from './hiddenFiles'
 import {
     isListingUnder,
     type ListingRemote,
@@ -37,12 +38,17 @@ export function listingError(error: string | undefined, notFound: boolean): stri
  * as the requested folder (with the host's separator for a local folder), so the entry uses it
  * as it is. The size of a local folder is its inode, not its contents, so local folders take
  * their size from the sizes job (`sizes`, by path). With `search`, matches are named by their
- * path below the searched folder.
+ * path below the searched folder. The names that start with a dot are left out, unless `hidden`
+ * is set (`hiddenFiles.ts`).
  */
 export function toEntries(
     rows: readonly Browse.Row[],
     remote: string | 'UI_LOCAL_FS',
-    { sizes, search }: { sizes?: ReadonlyMap<string, number>; search?: boolean } = {}
+    {
+        sizes,
+        search,
+        hidden = false,
+    }: { sizes?: ReadonlyMap<string, number>; search?: boolean; hidden?: boolean } = {}
 ): Entry[] {
     const local = remote === 'UI_LOCAL_FS'
     return rows
@@ -64,7 +70,7 @@ export function toEntries(
             if (search) entry.displayName = row.below
             return entry
         })
-        .filter((entry) => !entry.name.startsWith('.'))
+        .filter((entry) => isShown(entry.name, hidden))
         .sort((a, b) => {
             if (a.isDir && !b.isDir) return -1
             if (!a.isDir && b.isDir) return 1

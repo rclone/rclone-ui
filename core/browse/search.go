@@ -15,12 +15,12 @@ import (
 // Search walks dir under fs (in the form Clean returns) and everything below it. It emits the
 // entries whose name contains term, ignoring case, as they are found. It uses the backend's ListR
 // when there is one, and otherwise walks --checkers folders at a time. Entries whose name starts
-// with a dot, and anything inside such a folder below dir, are left out because the page hides
-// them. This isn't done with an rclone filter, because an include rule without a slash lets every
+// with a dot, and anything inside such a folder below dir, are left out as the page hides them,
+// unless hidden is set. This isn't done with an rclone filter, because an include rule without a slash lets every
 // folder through and turns off the backend's ListR (fs/filter/filter.go:347-358,685-695). A
 // folder that can't be read does not stop the walk. Its error is returned at the end. The walk
 // ends after max entries, whether they match or not, and then Search returns ErrWalkMax.
-func Search(ctx context.Context, fsName, dir, term string, max int, fileDates bool, emit func([]Entry)) error {
+func Search(ctx context.Context, fsName, dir, term string, max int, fileDates, hidden bool, emit func([]Entry)) error {
 	fsName, dir = Clean(fsName, dir)
 	f, err := getFs(ctx, fsName)
 	if err != nil {
@@ -44,7 +44,7 @@ func Search(ctx context.Context, fsName, dir, term string, max int, fileDates bo
 		var found []Entry
 		for _, e := range entries {
 			rel, ok := strings.CutPrefix(e.Remote(), prefix)
-			if !ok || rel == "" || hidden(rel) || !strings.Contains(folded(path.Base(rel)), want) {
+			if !ok || rel == "" || (!hidden && dotted(rel)) || !strings.Contains(folded(path.Base(rel)), want) {
 				continue
 			}
 			if _, dup := seen[e.Remote()]; dup {
@@ -77,8 +77,8 @@ var ErrWalkMax = errors.New("the search read its most entries and stopped")
 // stored with the accent as a separate character.
 func folded(s string) string { return strings.ToLower(norm.NFC.String(s)) }
 
-// hidden reports whether a segment of the slash-separated rel starts with a dot.
-func hidden(rel string) bool {
+// dotted reports whether a segment of the slash-separated rel starts with a dot.
+func dotted(rel string) bool {
 	for seg := range strings.SplitSeq(rel, "/") {
 		if strings.HasPrefix(seg, ".") {
 			return true

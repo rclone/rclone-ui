@@ -3740,6 +3740,10 @@ msgstr "帮助"
 msgid "Help"
 msgstr "帮助"
 
+#: src/components/navigator/PlacesMenu.tsx
+msgid "Hidden files"
+msgstr "隐藏文件"
+
 #: src/pages/Commander/TransfersBar.tsx
 msgid "Hide activity"
 msgstr "隐藏活动"
@@ -7728,6 +7732,10 @@ msgstr "显示更早的传输"
 #: src/pages/Commander/TransfersBar.tsx
 msgid "Show progress"
 msgstr "查看进度"
+
+#: src/components/navigator/PlacesMenu.tsx
+msgid "Show the files and folders whose names start with a dot."
+msgstr "显示名称以点开头的文件和文件夹。"
 
 #: src/pages/Settings/StartupGroup.tsx
 msgid "Show the startup screen"

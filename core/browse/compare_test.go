@@ -43,7 +43,7 @@ func TestCompare(t *testing.T) {
 		"file-vs-dir/y": "",
 		".hidden2":      "h",
 	})
-	c, err := Compare(context.Background(), left, right, false)
+	c, err := Compare(context.Background(), left, right, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,6 +77,30 @@ func TestCompare(t *testing.T) {
 	}
 }
 
+// With hidden files shown, the names that start with a dot are compared like any other.
+func TestCompareHidden(t *testing.T) {
+	left := MakeTree(t, map[string]string{".env": "e", ".only-left": "l", "a.txt": "a"})
+	right := MakeTree(t, map[string]string{".env": "e", "a.txt": "a"})
+	for _, tc := range []struct {
+		hidden bool
+		want   map[Class][]string
+	}{
+		{false, map[Class][]string{SameByHash: {"a.txt"}}},
+		{true, map[Class][]string{OnlyLeft: {".only-left"}, SameByHash: {".env", "a.txt"}}},
+	} {
+		c, err := Compare(context.Background(), left, right, false, tc.hidden)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := classes(c)
+		for _, cl := range []Class{OnlyLeft, OnlyRight, SameByName, SameByHash} {
+			if !slices.Equal(got[cl], tc.want[cl]) {
+				t.Errorf("hidden %v, %s: %q, want %q", tc.hidden, cl, got[cl], tc.want[cl])
+			}
+		}
+	}
+}
+
 func TestCompareAcrossBackendsUsesACommonHash(t *testing.T) {
 	ctx := context.Background()
 	f, err := cache.Get(ctx, ":memory:compare")
@@ -89,7 +113,7 @@ func TestCompareAcrossBackendsUsesACommonHash(t *testing.T) {
 		}
 	}
 	local := MakeTree(t, map[string]string{"same": "content", "differs": "OTHER!"})
-	c, err := Compare(ctx, local, ":memory:compare/d", false)
+	c, err := Compare(ctx, local, ":memory:compare/d", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +124,7 @@ func TestCompareAcrossBackendsUsesACommonHash(t *testing.T) {
 }
 
 func TestCompareFailsOnAMissingSide(t *testing.T) {
-	if _, err := Compare(context.Background(), MakeTree(t, map[string]string{"a": ""}), "/does/not/exist/rcc", false); err == nil ||
+	if _, err := Compare(context.Background(), MakeTree(t, map[string]string{"a": ""}), "/does/not/exist/rcc", false, false); err == nil ||
 		!strings.HasPrefix(err.Error(), "/does/not/exist/rcc: ") {
 		t.Fatalf("err %v", err)
 	}
@@ -125,14 +149,14 @@ func TestCompareSaysWhenASideWasCut(t *testing.T) {
 		{"one against one", one, one, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := Compare(ctx, tc.left, tc.right, false)
+			c, err := Compare(ctx, tc.left, tc.right, false, false)
 			if err != nil || c.Capped != tc.capped {
 				t.Fatalf("capped %v, %v", c.Capped, err)
 			}
 		})
 	}
 	// The API reports it too, even though it sends only CompareMax pairs.
-	res, err := testAPI().Compare(ctx, many, empty, false)
+	res, err := testAPI().Compare(ctx, many, empty, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +172,7 @@ func TestAFatalListingInCompareIsTheReadsError(t *testing.T) {
 		fs.Fatalf(nil, "the backend gave up")
 		return nil
 	}}
-	_, err := testAPI().Compare(context.Background(), AddFixture(fx), MakeTree(t, map[string]string{"a": "a"}), false)
+	_, err := testAPI().Compare(context.Background(), AddFixture(fx), MakeTree(t, map[string]string{"a": "a"}), false, false)
 	if err == nil || !strings.Contains(err.Error(), "the backend gave up") {
 		t.Fatalf("got %v", err)
 	}

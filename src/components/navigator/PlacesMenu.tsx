@@ -11,6 +11,7 @@ import { t } from '@lingui/core/macro'
 import { Trans } from '@lingui/react/macro'
 import {
     Calendar as CalendarIcon,
+    Eye as EyeIcon,
     Gear as GearIcon,
     HardDrive as HardDriveIcon,
 } from '@zappicon/react'
@@ -21,13 +22,15 @@ import { TIP } from '../look/tip'
 import type { Tone } from '../look/tones'
 import { useFileDates } from './fileDates'
 import { useFolderSizes } from './folderSizes'
+import { useHiddenFiles } from './hiddenFiles'
 import useDisks from './useDisks'
 import { getDiskIcon, getDiskLabel, shouldShowDisk } from './utils'
 
 // The settings of the file panels: whether they measure folder sizes (`folderSizes.ts`), whether
-// they read the slow file dates (`fileDates.ts`), and which shortcuts both sidebars show. The
-// shortcuts are the local disks and folders that the core reports (`useDisks`), minus the ones
-// turned off here. Those are stored in the `hiddenLocalPaths` preference.
+// they read the slow file dates (`fileDates.ts`), whether they show hidden files (`hiddenFiles.ts`),
+// and which shortcuts both sidebars show. The shortcuts are the local disks and folders that the
+// core reports (`useDisks`), minus the ones turned off here. Those are stored in the
+// `hiddenLocalPaths` preference.
 export default function PlacesMenu() {
     const [hiddenLocalPaths, setHiddenLocalPaths] = usePref('hiddenLocalPaths')
     const setLocalPathHidden = (disk: string, hidden: boolean) =>
@@ -38,6 +41,7 @@ export default function PlacesMenu() {
         )
     const [folderSizes, setFolderSizes] = useFolderSizes()
     const [fileDates, setFileDates] = useFileDates()
+    const [hiddenFiles, setHiddenFiles] = useHiddenFiles()
 
     const allDisks = useDisks()
     const disks = useMemo(
@@ -88,6 +92,15 @@ export default function PlacesMenu() {
                         description={t`For S3 and Swift. Each file's date needs a separate request, so large folders open slowly.`}
                         isSelected={fileDates}
                         onValueChange={setFileDates}
+                    />
+                    <SettingSwitch
+                        id="setting-hidden-files"
+                        icon={EyeIcon}
+                        tone="violet"
+                        title={t`Hidden files`}
+                        description={t`Show the files and folders whose names start with a dot.`}
+                        isSelected={hiddenFiles}
+                        onValueChange={setHiddenFiles}
                     />
                 </div>
                 <div className="flex flex-col gap-0.5 px-4 pt-3 pb-1 border-t border-divider bg-default-50/60 dark:bg-default-50/30">

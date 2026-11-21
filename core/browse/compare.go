@@ -56,9 +56,10 @@ type Comparison struct {
 }
 
 // Compare lists the folders left and right (rclone paths) one level down and sorts their names
-// into the four classes, leaving out names that start with a dot. Each side stops at CompareMax
-// names, and Comparison.Capped reports when that happened.
-func Compare(ctx context.Context, left, right string, fileDates bool) (Comparison, error) {
+// into the four classes. Names that start with a dot are left out, as the page hides them, unless
+// hidden is set. Each side stops at CompareMax names, and Comparison.Capped reports when that
+// happened.
+func Compare(ctx context.Context, left, right string, fileDates, hidden bool) (Comparison, error) {
 	var (
 		fss   [2]fs.Fs
 		sides [2]side
@@ -82,7 +83,7 @@ func Compare(ctx context.Context, left, right string, fileDates bool) (Compariso
 	for i := range locs {
 		wg.Go(func() {
 			_, errs[i] = rclone.Run(ctx, rclone.CallOpts{Group: group}, func(ctx context.Context) (err error) {
-				sides[i], err = listSide(ctx, fss[i], fileDates)
+				sides[i], err = listSide(ctx, fss[i], fileDates, hidden)
 				return err
 			})
 		})
@@ -135,7 +136,7 @@ type item struct {
 	paired bool
 }
 
-func listSide(ctx context.Context, f fs.Fs, fileDates bool) (side, error) {
+func listSide(ctx context.Context, f fs.Fs, fileDates, hidden bool) (side, error) {
 	format := timeFormat(f.Precision())
 	slow := !fileDates && slowModTime(ctx, f)
 	var s side
@@ -150,7 +151,7 @@ func listSide(ctx context.Context, f fs.Fs, fileDates bool) (side, error) {
 				return errStop
 			}
 			name := path.Base(e.Remote())
-			if e.Remote() == "" || strings.HasPrefix(name, ".") {
+			if e.Remote() == "" || (!hidden && strings.HasPrefix(name, ".")) {
 				continue
 			}
 			if _, dup := seen[name]; dup {

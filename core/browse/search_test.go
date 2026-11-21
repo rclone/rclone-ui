@@ -28,7 +28,7 @@ var searchTree = map[string]string{
 
 func search(t *testing.T, fsName, dir, term string) (found []string, emits int, err error) {
 	t.Helper()
-	err = Search(context.Background(), fsName, dir, term, SearchWalkMax, false, func(e []Entry) {
+	err = Search(context.Background(), fsName, dir, term, SearchWalkMax, false, false, func(e []Entry) {
 		emits++
 		found = append(found, paths(e)...)
 	})
@@ -59,6 +59,23 @@ func TestSearchMatching(t *testing.T) {
 				t.Errorf("found %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// With hidden files shown, the names that start with a dot match too, and so does what is inside
+// a dot folder.
+func TestSearchHidden(t *testing.T) {
+	var found []string
+	err := Search(context.Background(), AddFixture(&Fixture{Inner: MakeTree(t, searchTree)}), "", "report", SearchWalkMax, false, true,
+		func(e []Entry) { found = append(found, paths(e)...) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	slices.Sort(found)
+	want := []string{".git/report", "a/b/c/deep-report.log", "docs/.hidden/report.txt", "docs/.report-draft",
+		"docs/Report.txt", "docs/report-old.md", "notes/REPORTS", "reportless"}
+	if !slices.Equal(found, want) {
+		t.Errorf("found %q, want %q", found, want)
 	}
 }
 
@@ -105,7 +122,7 @@ func TestSearchStopsAfterItsWalkMax(t *testing.T) {
 		}
 	}
 	var found []string
-	err = Search(ctx, ":memory:search-walkmax", "x", "match", 3, false, func(e []Entry) { found = append(found, paths(e)...) })
+	err = Search(ctx, ":memory:search-walkmax", "x", "match", 3, false, false, func(e []Entry) { found = append(found, paths(e)...) })
 	if !errors.Is(err, ErrWalkMax) || len(found) != 3 {
 		t.Fatalf("%q %v: want 3 matches and ErrWalkMax", found, err)
 	}
@@ -146,7 +163,7 @@ func TestSearchStopsWithItsContext(t *testing.T) {
 		cancel()
 	}()
 	start := time.Now()
-	err := Search(ctx, AddFixture(fx), "", "report", SearchWalkMax, false, func([]Entry) {})
+	err := Search(ctx, AddFixture(fx), "", "report", SearchWalkMax, false, false, func([]Entry) {})
 	if !errors.Is(err, context.Canceled) || time.Since(start) > 5*time.Second {
 		t.Fatalf("err %v after %v", err, time.Since(start))
 	}

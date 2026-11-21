@@ -3740,6 +3740,10 @@ msgstr "ayuda"
 msgid "Help"
 msgstr "Ayuda"
 
+#: src/components/navigator/PlacesMenu.tsx
+msgid "Hidden files"
+msgstr "Archivos ocultos"
+
 #: src/pages/Commander/TransfersBar.tsx
 msgid "Hide activity"
 msgstr "Ocultar actividad"
@@ -7728,6 +7732,10 @@ msgstr "Mostrar transferencias anteriores"
 #: src/pages/Commander/TransfersBar.tsx
 msgid "Show progress"
 msgstr "Ver progreso"
+
+#: src/components/navigator/PlacesMenu.tsx
+msgid "Show the files and folders whose names start with a dot."
+msgstr "Muestra los archivos y carpetas cuyo nombre empieza por un punto."
 
 #: src/pages/Settings/StartupGroup.tsx
 msgid "Show the startup screen"

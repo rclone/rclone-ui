@@ -28,6 +28,14 @@ describe('listedFolders', () => {
         expect(listedFolders(DONE, HOME)).toEqual({ ...ASK, folder: HOME })
     })
 
+    it('names the dot-folders too when hidden files are shown', () => {
+        expect(listedFolders(DONE, HOME, true)).toEqual({
+            paths: ['/Users/me/docs', '/Users/me/.cache'],
+            fetchedAt: 100,
+            folder: HOME,
+        })
+    })
+
     it('names nothing before the listing is done, off a local folder, or with no folders', () => {
         expect(listedFolders({ ...DONE, phase: 'running' }, HOME)).toBeNull()
         expect(listedFolders({ ...DONE, fetchedAt: undefined }, HOME)).toBeNull()

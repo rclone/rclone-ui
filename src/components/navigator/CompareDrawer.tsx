@@ -27,6 +27,7 @@ import {
 } from './compare'
 import FileIcon from './FileIcon'
 import { useFileDates } from './fileDates'
+import { useHiddenFiles } from './hiddenFiles'
 import { useJob } from './jobs'
 import type { RemoteString } from './types'
 import { panelFolder, serializeRemotePath } from './utils'
@@ -240,10 +241,11 @@ function CompareView({
     const leftPath = comparedPath(left)
     const rightPath = comparedPath(right)
     const [fileDates] = useFileDates()
+    const [hidden] = useHiddenFiles()
     const job = useJob<Browse.Pair>(
         'compare',
         leftPath !== null && rightPath !== null
-            ? { left: leftPath, right: rightPath, fileDates }
+            ? { left: leftPath, right: rightPath, fileDates, hidden }
             : null,
         { cap: COMPARE_CAP, fresh: true }
     )

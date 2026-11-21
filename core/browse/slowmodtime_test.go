@@ -111,7 +111,7 @@ func TestNoRequestPerFileForModTimes(t *testing.T) {
 
 	s3.reset()
 	var found []Entry
-	if err := Search(ctx, s3.remote("left"), "", "file1", 1000, false, func(es []Entry) { found = append(found, es...) }); err != nil {
+	if err := Search(ctx, s3.remote("left"), "", "file1", 1000, false, false, func(es []Entry) { found = append(found, es...) }); err != nil {
 		t.Fatal(err)
 	}
 	if len(found) != 10 || s3.heads() != 0 {
@@ -126,7 +126,7 @@ func TestNoRequestPerFileForModTimes(t *testing.T) {
 		}
 	}
 	s3.reset()
-	cmp, err := Compare(ctx, s3.remote("left")+"/dir", s3.remote("right")+"/dir", false)
+	cmp, err := Compare(ctx, s3.remote("left")+"/dir", s3.remote("right")+"/dir", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}

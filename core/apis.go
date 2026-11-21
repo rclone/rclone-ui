@@ -173,7 +173,7 @@ func (a *APIs) SearchRows(ctx context.Context, path, q string, limit int) ([]bro
 		return nil, false, err
 	}
 	var rows []browse.Row
-	capped, err := browse.SearchFolder(ctx, path, q, limit, false, func(page []browse.Row) { rows = append(rows, page...) })
+	capped, err := browse.SearchFolder(ctx, path, q, limit, false, false, func(page []browse.Row) { rows = append(rows, page...) })
 	return rows, capped, err
 }
 

@@ -280,7 +280,7 @@ func (s *Server) compareFoldersTool() {
 			"Names that start with a dot are left out. The counts cover every name; the lists stop at the limit (truncated).",
 		Annotations: reads("Compare folders"),
 	}, func(ctx context.Context, in compareFoldersIn) (compareFoldersOut, error) {
-		res, err := s.o.APIs.Browse.Compare(ctx, in.Left, in.Right, false)
+		res, err := s.o.APIs.Browse.Compare(ctx, in.Left, in.Right, false, false)
 		if err != nil {
 			return compareFoldersOut{}, err
 		}

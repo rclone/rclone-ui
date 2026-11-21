@@ -3738,6 +3738,10 @@ msgstr ""
 msgid "Help"
 msgstr ""
 
+#: src/components/navigator/PlacesMenu.tsx
+msgid "Hidden files"
+msgstr ""
+
 #: src/pages/Commander/TransfersBar.tsx
 msgid "Hide activity"
 msgstr ""
@@ -7723,6 +7727,10 @@ msgstr ""
 
 #: src/pages/Commander/TransfersBar.tsx
 msgid "Show progress"
+msgstr ""
+
+#: src/components/navigator/PlacesMenu.tsx
+msgid "Show the files and folders whose names start with a dot."
 msgstr ""
 
 #: src/pages/Settings/StartupGroup.tsx

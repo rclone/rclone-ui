@@ -32,6 +32,8 @@ export const PREF_DEFAULTS = {
      * date costs a request (see fileDates.ts).
      */
     fileDates: false as boolean,
+    /** Whether the file panels show the files and folders whose names start with a dot. */
+    hiddenFiles: false as boolean,
     /**
      * The folder that the last pick for a source was made in. An empty source field's picker
      * opens there (see pickerMemory.ts). Empty until a source is picked.

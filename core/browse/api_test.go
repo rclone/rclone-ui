@@ -136,7 +136,7 @@ func TestSearchRowsSayWhereBelowTheFolder(t *testing.T) {
 		{"mem:/searchpaths/a/", "mem:/searchpaths/a/b/match.txt", "b/match.txt"},
 		{"mem:searchpaths", "mem:searchpaths/a/b/match.txt", "a/b/match.txt"},
 	} {
-		if err := a.Search(ctx, "r", tc.folder, "match.", false); err != nil {
+		if err := a.Search(ctx, "r", tc.folder, "match.", false, false); err != nil {
 			t.Fatal(err)
 		}
 		got := rec.rows(t)
@@ -199,12 +199,12 @@ func TestAFolderRcloneWouldMisreadIsRefused(t *testing.T) {
 	// would be read from the process's working directory.
 	local := browse.MakeTree(t, map[string]string{"a/one": "1"})
 	for _, pair := range [][2]string{{"a", local}, {local, ":local:a"}, {local, "-bad:x"}} {
-		_, err := a.Compare(context.Background(), pair[0], pair[1], false)
+		_, err := a.Compare(context.Background(), pair[0], pair[1], false, false)
 		if rclone.ErrorOf(err).Code != errs.CodeInvalid {
 			t.Errorf("%q: %v", pair, err)
 		}
 	}
-	if _, err := a.Compare(context.Background(), local, local, false); err != nil {
+	if _, err := a.Compare(context.Background(), local, local, false, false); err != nil {
 		t.Errorf("two full paths: %v", err)
 	}
 }
@@ -214,7 +214,7 @@ func TestSearchFolderStopsAtItsMax(t *testing.T) {
 	local := browse.MakeTree(t, map[string]string{"a/match-1": "1", "a/b/match-2": "2", "match-3": "3", "other": "4"})
 	var rows []browse.Row
 	collect := func(page []browse.Row) { rows = append(rows, page...) }
-	capped, err := browse.SearchFolder(ctx, local, "MATCH", 10, false, collect)
+	capped, err := browse.SearchFolder(ctx, local, "MATCH", 10, false, false, collect)
 	if err != nil || capped || len(rows) != 3 {
 		t.Fatalf("all matches: %q %v %v", pathsOf(rows), capped, err)
 	}
@@ -222,11 +222,11 @@ func TestSearchFolderStopsAtItsMax(t *testing.T) {
 		t.Errorf("a match's row has its whole path: %q", pathsOf(rows))
 	}
 	rows = nil
-	capped, err = browse.SearchFolder(ctx, local, "match", 2, false, collect)
+	capped, err = browse.SearchFolder(ctx, local, "match", 2, false, false, collect)
 	if err != nil || !capped || len(rows) != 2 {
 		t.Errorf("at most two: %q %v %v", pathsOf(rows), capped, err)
 	}
-	if _, err := browse.SearchFolder(ctx, "rel", "match", 2, false, collect); rclone.ErrorOf(err).Code != errs.CodeInvalid {
+	if _, err := browse.SearchFolder(ctx, "rel", "match", 2, false, false, collect); rclone.ErrorOf(err).Code != errs.CodeInvalid {
 		t.Errorf("a relative folder: %v", err)
 	}
 }

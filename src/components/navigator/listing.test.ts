@@ -56,6 +56,14 @@ test('a remote folder: each row’s path as it came; dot-files hidden, folders f
     expect(toEntries([bucket], 'sftp')[0]).toMatchObject({ fullPath: 'sftp:/var', isDir: true })
 })
 
+test('with hidden files shown, the dot-files are listed like any other', () => {
+    const rows = [row('gdrive:photos/b.jpg'), row('gdrive:photos/.hidden')]
+    expect(toEntries(rows, 'gdrive', { hidden: true }).map((entry) => entry.name)).toEqual([
+        '.hidden',
+        'b.jpg',
+    ])
+})
+
 test('a local folder takes its folders’ sizes from the sizes job, by path', () => {
     const sizes = new Map([['/Users/me/docs', 4096]])
     const entries = toEntries(

@@ -16,10 +16,11 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
- * Compare puts two folders side by side, one level down. fileDates is as for List.
+ * Compare puts two folders side by side, one level down. fileDates is as for List, and hidden as
+ * for Compare.
  */
-export function Compare(left: string, right: string, fileDates: boolean): $CancellablePromise<$models.CompareResult> {
-    return $Call.ByID(1188444084, left, right, fileDates).then(($result: any) => {
+export function Compare(left: string, right: string, fileDates: boolean, hidden: boolean): $CancellablePromise<$models.CompareResult> {
+    return $Call.ByID(1188444084, left, right, fileDates, hidden).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -51,10 +52,10 @@ export function PublicLink(path: string): $CancellablePromise<string> {
 
 /**
  * Search finds the entries under a folder whose names contain q, sending them as EventRows
- * for request. It stops at SearchMax matches. fileDates is as for List.
+ * for request. It stops at SearchMax matches. fileDates is as for List, and hidden as for Search.
  */
-export function Search(request: string, path: string, q: string, fileDates: boolean): $CancellablePromise<void> {
-    return $Call.ByID(1847461033, request, path, q, fileDates);
+export function Search(request: string, path: string, q: string, fileDates: boolean, hidden: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1847461033, request, path, q, fileDates, hidden);
 }
 
 /**

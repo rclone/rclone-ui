@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Browse } from '../../../lib/core/types'
 import { usePref } from '../../../lib/prefs'
+import { isShown, useHiddenFiles } from './hiddenFiles'
 import { type JobState, useJob } from './jobs'
 
 /** Whether the panels measure the folders they show (on by default), and its setter. */
@@ -26,13 +27,17 @@ type Listing = Pick<JobState<Browse.Row>, 'phase' | 'items' | 'fetchedAt'>
 
 /**
  * The folders shown by a finished listing of `folder`, and the time rclone listed them.
- * Dot-folders are hidden, so they are never measured. A listing served from the core's cache
- * keeps its existing sizes, and a new fetch measures them again.
+ * Hidden dot-folders aren't shown, so they are only measured when `hidden` is set. A listing
+ * served from the core's cache keeps its existing sizes, and a new fetch measures them again.
  */
-export function listedFolders(listing: Listing, folder: string | null): Listed | null {
+export function listedFolders(
+    listing: Listing,
+    folder: string | null,
+    hidden = false
+): Listed | null {
     if (!folder || listing.phase !== 'done' || listing.fetchedAt === undefined) return null
     const paths = listing.items
-        .filter((row) => row.isDir && !row.name.startsWith('.'))
+        .filter((row) => row.isDir && isShown(row.name, hidden))
         .map((row) => row.path)
     if (paths.length === 0) return null
     return { folder, paths, fetchedAt: listing.fetchedAt }
@@ -78,10 +83,11 @@ export function useFolderSizeJob(
     folder: string | null
 ): ReadonlyMap<string, number> {
     const [on] = useFolderSizes()
+    const [hidden] = useHiddenFiles()
     const { phase, items, fetchedAt } = listing
     const done = useMemo(
-        () => listedFolders({ phase, items, fetchedAt }, folder),
-        [phase, items, fetchedAt, folder]
+        () => listedFolders({ phase, items, fetchedAt }, folder, hidden),
+        [phase, items, fetchedAt, folder, hidden]
     )
     const [kept, setKept] = useState<Listed | null>(null)
     useEffect(() => {
