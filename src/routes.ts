@@ -187,11 +187,18 @@ export function isBuilt(def: RouteDef): boolean {
 }
 
 /**
+ * The base that a route is resolved against, to read its path and query. Its scheme must be a
+ * standard one such as http. WebView2 before Chromium 130 can't resolve a path against a custom
+ * scheme such as wails://, and throws "Invalid URL" (#262).
+ */
+export const ROUTE_BASE = 'http://localhost'
+
+/**
  * The route that a URL opens ("/schedules?id=1" or "/sync/x"), by the first segment of its
  * path. Both are undefined for a path that no page of this build has.
  */
 export function routeOf(url: string): { name?: RouteName; def?: RouteDef } {
-    const segment = new URL(url, 'wails://localhost').pathname.split('/').find(Boolean) ?? ''
+    const segment = new URL(url, ROUTE_BASE).pathname.split('/').find(Boolean) ?? ''
     if (!Object.hasOwn(ROUTES, segment)) return {}
     const name = segment as RouteName
     const def: RouteDef = ROUTES[name]

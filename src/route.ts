@@ -13,7 +13,7 @@ import type { Operations } from '../lib/core/types'
 import { formArgs } from '../lib/operations'
 import { ask } from '../lib/shell'
 import { decodePreset, type OperationPreset } from '../lib/transfers/preset'
-import { type RouteName, routeOf } from './routes'
+import { ROUTE_BASE, type RouteName, routeOf } from './routes'
 
 // A page reads its query once, when it mounts: a source to start from, a preset, a transfer to
 // show. A new route from the app remounts the page (useFollowedRoute), so that it reads the new
@@ -128,7 +128,7 @@ export function routeTitle(route: string): string {
  * message of its own, so that a language can name the window its own way.
  */
 export function replaceQuestion(route: string): string {
-    const url = new URL(route, 'wails://localhost')
+    const url = new URL(route, ROUTE_BASE)
     const { name, def } = routeOf(route)
     if (!name || !def?.form) return t`Replace what you entered?`
     const start = startOf(url.searchParams, name)
