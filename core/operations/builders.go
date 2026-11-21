@@ -327,7 +327,12 @@ func buildTransfer(a CopyArgs, s settings, folderOp, fileOp string, k Kinds) (Pl
 			if err != nil {
 				return Plan{}, err
 			}
-			steps = append(steps, Step{Op: folderOp, Src: srcFs, Dst: dstFs, CreateEmptySrcDirs: true})
+			// A moved folder leaves nothing behind: rclone deletes the folders that it empties,
+			// and the step removes the moved folder itself (Step.RemoveSrc).
+			steps = append(steps, Step{
+				Op: folderOp, Src: srcFs, Dst: dstFs, CreateEmptySrcDirs: true,
+				DeleteEmptySrcDirs: move, RemoveSrc: move && src.Rel != "",
+			})
 			continue
 		}
 		srcFs, err := s.fs(src, "")

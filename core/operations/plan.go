@@ -67,6 +67,9 @@ type Step struct {
 	// file is still at its old name afterwards (renameFile). Such a folder step removes the old
 	// folder once it is empty, which a move file by file leaves behind.
 	Rename bool `json:"rename,omitempty"`
+	// RemoveSrc marks a folder move that removes its source folder once the move has emptied it,
+	// as with Rename. A remote's root is never removed: its contents are what moves.
+	RemoveSrc bool `json:"removeSrc,omitempty"`
 }
 
 // The operations that a step can run.

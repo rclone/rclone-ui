@@ -475,6 +475,32 @@ func TestRenameStepFailsWhenTaken(t *testing.T) {
 	}
 }
 
+// A folder moved file by file keeps its empty subfolders at the destination, and leaves nothing
+// behind in the source. A filter turns off the backend's own folder move, as a move to another
+// remote would.
+func TestMovedFolderLeavesNothing(t *testing.T) {
+	dir := filepath.ToSlash(t.TempDir())
+	write(t, dir+"/src/photos/2023/a.jpg", "a")
+	if err := os.MkdirAll(dir+"/src/photos/empty/deeper", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	p := buildOf(t, func() (Plan, error) {
+		return buildMove(MoveArgs{Sources: []string{dir + "/src/photos"}, Destination: dir + "/dst"}, settings{},
+			Kinds{dir + "/src/photos": KindFolder})
+	})
+	p.Filter = Options{"exclude": []any{"*.nothing"}}
+	if rec, err := runPlan(t, p); err != nil || strings.Join(stepErrors(rec), "") != "" {
+		t.Fatalf("%v %q", err, stepErrors(rec))
+	}
+	for path, want := range map[string]bool{
+		"dst/photos/2023/a.jpg": true, "dst/photos/empty/deeper": true, "src/photos": false, "src": true,
+	} {
+		if exists(dir+"/"+path) != want {
+			t.Errorf("%s exists: %v, want %v", path, !want, want)
+		}
+	}
+}
+
 // A folder renamed file by file keeps its empty subfolders, and leaves no old folder behind. A
 // filter turns off the backend's own folder move, as a backend without one would.
 func TestRenamedFolderKeepsEmptyFolders(t *testing.T) {

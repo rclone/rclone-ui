@@ -304,6 +304,32 @@ func TestOverridesChecked(t *testing.T) {
 	}
 }
 
+// A moved folder leaves nothing behind in its source: the folders that it empties, and the folder
+// itself. A remote's root stays, because its contents are what moves. A copy leaves its source as
+// it is. Both bring the source's empty folders along.
+func TestFolderEmptyDirs(t *testing.T) {
+	folders := Kinds{"gdrive:photos": KindFolder, "gdrive:": KindFolder}
+	step := func(build func(CopyArgs) (Plan, error), source string) Step {
+		t.Helper()
+		p, err := build(CopyArgs{Sources: []string{source}, Destination: "mem:in"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p.Steps[0]
+	}
+	copyOf := func(a CopyArgs) (Plan, error) { return buildCopy(a, settings{}, folders) }
+	moveOf := func(a CopyArgs) (Plan, error) { return buildMove(MoveArgs(a), settings{}, folders) }
+	if s := step(copyOf, "gdrive:photos"); !s.CreateEmptySrcDirs || s.DeleteEmptySrcDirs || s.RemoveSrc {
+		t.Errorf("copy: %+v, want empty folders created and nothing removed", s)
+	}
+	if s := step(moveOf, "gdrive:photos"); !s.CreateEmptySrcDirs || !s.DeleteEmptySrcDirs || !s.RemoveSrc {
+		t.Errorf("move: %+v, want empty folders created, and the emptied ones and the folder removed", s)
+	}
+	if s := step(moveOf, "gdrive:"); !s.DeleteEmptySrcDirs || s.RemoveSrc {
+		t.Errorf("move of a root: %+v, want the emptied folders removed and the root kept", s)
+	}
+}
+
 // A file that is inside a folder source is copied only once, with the folder, however either
 // path is written. A name that only starts with the folder's name is not inside it.
 func TestFilesInsideFolderSources(t *testing.T) {

@@ -279,7 +279,7 @@ func (p Plan) runStep(ctx context.Context, i int, s Step, rec *Record) error {
 		if caseOnlyDirs(src, dst) {
 			return moveDirCaseOnly(ctx, s, src, dst)
 		}
-		if err := rcsync.MoveDir(ctx, dst, src, s.DeleteEmptySrcDirs, s.CreateEmptySrcDirs); err != nil || !s.Rename {
+		if err := rcsync.MoveDir(ctx, dst, src, s.DeleteEmptySrcDirs, s.CreateEmptySrcDirs); err != nil || !(s.Rename || s.RemoveSrc) {
 			return err
 		}
 		// A move file by file leaves the old folder, now empty. A backend's own folder move left
