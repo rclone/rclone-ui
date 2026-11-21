@@ -188,7 +188,9 @@ func TestTunnel(t *testing.T) {
 // No start begins after that.
 func TestShutdownEndsAStart(t *testing.T) {
 	f := newFixture(t)
-	t.Setenv(slowEnv, "20s")
+	// The edge takes a minute, so a shutdown that waited for the start would take far longer
+	// than the limit. A busy machine only adds seconds.
+	t.Setenv(slowEnv, "1m")
 	started := make(chan error, 1)
 	go func() {
 		_, err := f.s.Start(context.Background())
@@ -199,11 +201,11 @@ func TestShutdownEndsAStart(t *testing.T) {
 		defer f.s.mu.Unlock()
 		return f.s.unit != nil && f.s.status.State == StateStarting
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	began := time.Now()
 	f.s.Shutdown(ctx, false)
-	if d := time.Since(began); d > 3*time.Second {
+	if d := time.Since(began); d > 15*time.Second {
 		t.Fatalf("the shutdown took %v", d)
 	}
 	if st := f.s.Status(); st.State != StateOff {
@@ -214,12 +216,12 @@ func TestShutdownEndsAStart(t *testing.T) {
 		if !errors.Is(err, errStopping) {
 			t.Fatalf("the start: %v, want errStopping", err)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("the start still waits")
 	}
-	began = time.Now()
-	if _, err := f.s.Start(context.Background()); !errors.Is(err, errStopping) || time.Since(began) > time.Second {
-		t.Fatalf("a start after the shutdown: %v after %v", err, time.Since(began))
+	f.s.o.spawned = func(*children.Unit) { t.Error("a start after the shutdown started a child") }
+	if _, err := f.s.Start(context.Background()); !errors.Is(err, errStopping) {
+		t.Fatalf("a start after the shutdown: %v", err)
 	}
 }
 
@@ -391,10 +393,11 @@ func TestStopEndsAStart(t *testing.T) {
 		slow  string
 	}{
 		{"before its child", true, ""},
-		{"waiting for its address", false, "20s"},
+		{"waiting for its address", false, "1m"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			f := newFixture(t)
+			// A stop that waited for the start would take a minute, or forever for the password.
 			t.Setenv(slowEnv, c.slow)
 			if c.block {
 				f.configs.block = make(chan struct{})
@@ -417,7 +420,7 @@ func TestStopEndsAStart(t *testing.T) {
 			if err := f.s.Stop(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			if d := time.Since(began); d > 5*time.Second {
+			if d := time.Since(began); d > 15*time.Second {
 				t.Fatalf("the stop took %v", d)
 			}
 			select {

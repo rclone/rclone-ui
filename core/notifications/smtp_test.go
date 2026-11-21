@@ -466,7 +466,7 @@ func TestMailRetry(t *testing.T) {
 				t.Fatalf("err = %v, want ok %v", err, c.ok)
 			}
 			// The server records a session when its connection ends.
-			deadline := time.Now().Add(2 * time.Second)
+			deadline := time.Now().Add(10 * time.Second)
 			for len(srv.got()) < c.sessions && time.Now().Before(deadline) {
 				time.Sleep(5 * time.Millisecond)
 			}

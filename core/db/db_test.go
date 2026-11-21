@@ -262,9 +262,12 @@ func TestCheckpointDoesNotHoldAWriterBack(t *testing.T) {
 		done <- busy
 	}()
 	time.Sleep(20 * time.Millisecond)
+	// The checkpoint waits 100 ms for the reader and then falls back. One that waited as long as
+	// a writer does (5 s) would hold the write back far past the limit. A busy disk only adds a
+	// little to the 100 ms.
 	start := time.Now()
 	write("c")
-	if held := time.Since(start); held > 500*time.Millisecond {
+	if held := time.Since(start); held > 2*time.Second {
 		t.Fatalf("a writer waited %v behind the checkpoint", held)
 	}
 	if busy := <-done; !busy {
@@ -284,8 +287,8 @@ func TestMaintainEndsWithItsContext(t *testing.T) {
 	cancel()
 	select {
 	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("Maintain still running 1s after its context ended")
+	case <-time.After(10 * time.Second):
+		t.Fatal("Maintain still running 10s after its context ended")
 	}
 }
 

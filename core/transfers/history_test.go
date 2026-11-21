@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -263,13 +265,21 @@ func TestEndRetriesLastAMinute(t *testing.T) {
 func TestRetryEndStopsAtShutdown(t *testing.T) {
 	f := newFixture(t)
 	f.s.endWaits = []time.Duration{time.Hour, time.Hour}
+	// The shutdown begins once the first write has failed and the retry waits. A shutdown that
+	// came before that would leave no wait to cut short.
+	waiting := &onMessage{msg: "writing a transfer's end; trying again", seen: make(chan struct{})}
+	f.s.log = slog.New(waiting)
 	failing := errors.New("disk full")
 	tries := 0
 	done := make(chan error, 1)
 	go func() {
 		done <- f.s.retryEnd(context.Background(), func() error { tries++; return failing })
 	}()
-	time.Sleep(50 * time.Millisecond)
+	select {
+	case <-waiting.seen:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the failed write was not tried again")
+	}
 	go f.s.Shutdown(context.Background(), false)
 	select {
 	case err := <-done:
@@ -280,3 +290,22 @@ func TestRetryEndStopsAtShutdown(t *testing.T) {
 		t.Fatal("still waiting after the shutdown")
 	}
 }
+
+// onMessage is a log handler that closes seen at the first record with the message msg.
+type onMessage struct {
+	msg  string
+	seen chan struct{}
+	once sync.Once
+}
+
+func (h *onMessage) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *onMessage) Handle(_ context.Context, r slog.Record) error {
+	if r.Message == h.msg {
+		h.once.Do(func() { close(h.seen) })
+	}
+	return nil
+}
+
+func (h *onMessage) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *onMessage) WithGroup(string) slog.Handler      { return h }

@@ -103,7 +103,7 @@ func TestBackoffDoublesToItsMax(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitClosed(t, u.Done(), 20*time.Second, "the unit to end after its sixth down")
+	waitClosed(t, u.Done(), time.Minute, "the unit to end after its sixth down")
 	var delays []time.Duration
 	for i, x := range d.get() {
 		delays = append(delays, x.Delay)
@@ -146,7 +146,7 @@ func TestFailedStartsLeaveNoWaiters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitClosed(t, u.Done(), 30*time.Second, "the unit to end")
+	waitClosed(t, u.Done(), 2*time.Minute, "the unit to end")
 	if got := d.get(); len(got) != downs || got[0].WasUp || !strings.Contains(got[0].Err.Error(), "exited before it was ready") {
 		t.Fatalf("downs %+v", got)
 	}
@@ -174,14 +174,16 @@ func parkedWaiters() int {
 func TestBackoffResetsAfterStayingUp(t *testing.T) {
 	s := newSupervisor(t, Options{})
 	d := newDowns(3)
-	spec := helperSpec("flaky", "up-then-exit", "300")
+	// The child runs for 1 s, ten times Reset. Its time up counts only from when the supervisor
+	// has recorded it, and a busy machine can delay that.
+	spec := helperSpec("flaky", "up-then-exit", "1000")
 	spec.Backoff = Backoff{Min: 10 * time.Millisecond, Max: time.Second, Reset: 100 * time.Millisecond}
 	spec.OnDown = d.onDown
 	u, err := s.Start(spec)
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitClosed(t, u.Done(), 20*time.Second, "three downs")
+	waitClosed(t, u.Done(), time.Minute, "three downs")
 	for i, x := range d.get() {
 		if !x.WasUp || x.UpFor < 100*time.Millisecond || x.Attempt != 1 || x.Delay != 10*time.Millisecond {
 			t.Errorf("down %d = %+v, want up ≥ Reset, attempt 1, the minimum delay", i, x)

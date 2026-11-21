@@ -24,6 +24,13 @@ func TestSizes(t *testing.T) {
 			defer running.Add(-1)
 			for m := most.Load(); n > m && !most.CompareAndSwap(m, n); m = most.Load() {
 			}
+			// Wait until a second folder is counted alongside, however late its worker starts.
+			// Then stay a moment, so that a third folder counted at once would be seen too.
+			for deadline := time.Now().Add(10 * time.Second); most.Load() < 2 && time.Now().Before(deadline); {
+				if err := Sleep(ctx, time.Millisecond); err != nil {
+					return err
+				}
+			}
 			return Sleep(ctx, 50*time.Millisecond)
 		}
 		return nil

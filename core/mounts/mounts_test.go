@@ -504,17 +504,25 @@ func (f *fixture) folderOf(t *testing.T, id string) string {
 // mount.failed is sent once for the streak, however often the mount crashes.
 func TestCrash(t *testing.T) {
 	f := newFixture(t)
-	f.fake("--fake-crash-after=300ms")
+	crash := filepath.Join(f.base, "crash")
+	f.fake("--fake-crash-on=" + crash)
 	src, mp := f.place("crash")
 	m, got := f.start(operations.MountArgs{Source: src, Destination: mp})
 	if got.State != string(children.StatusRunning) {
 		t.Fatalf("got %+v\n%s", got, f.lines.dump())
 	}
-	c := f.ev.waitN(t, m.ID, 3, children.StatusRestarting)
-	if !strings.Contains(c.Error, "fake mount: crashed") {
-		t.Fatalf("restarting event %+v", c)
+	// Each crash comes after the mount is seen running. A crash on a timer could come first on a
+	// slow machine, and a first start that fails is not started again.
+	for n := 1; n <= 3; n++ {
+		f.ev.waitN(t, m.ID, n, children.StatusRunning)
+		if err := os.WriteFile(crash, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if c := f.ev.waitN(t, m.ID, n, children.StatusRestarting); !strings.Contains(c.Error, "fake mount: crashed") {
+			t.Fatalf("restarting event %+v", c)
+		}
 	}
-	f.ev.waitN(t, m.ID, 3, children.StatusRunning)
+	f.ev.waitN(t, m.ID, 4, children.StatusRunning)
 	if n := f.notes.get(); len(n) != 1 || n[0].event != notifications.NotificationEventMountFailed {
 		t.Fatalf("notified %d times: %+v", len(n), n)
 	}
@@ -524,7 +532,6 @@ func TestCrash(t *testing.T) {
 	if list := f.s.List(); len(list) != 1 || list[0].ID != m.ID {
 		t.Fatalf("list %+v", list)
 	}
-	f.fake()
 	if err := f.s.Stop(context.Background(), m.ID); err != nil {
 		t.Fatal(err)
 	}

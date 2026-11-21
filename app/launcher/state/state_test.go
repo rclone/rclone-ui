@@ -2,7 +2,10 @@ package state
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"math"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -38,10 +41,10 @@ type noVfs struct{}
 
 func (noVfs) Forget(context.Context, string) error { return nil }
 
-// eventually fails the test unless ok becomes true within two seconds.
+// eventually fails the test unless ok becomes true within ten seconds.
 func eventually(t *testing.T, what string, ok func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for !ok() {
 		if time.Now().After(deadline) {
 			t.Fatalf("waited too long for %s", what)
@@ -68,35 +71,75 @@ func TestServicesOnlyWhileReady(t *testing.T) {
 	}
 }
 
+// progressHandled subscribes to store after the launcher's state. Each change goes to the
+// subscribers in turn, so when this subscriber hears of progress, the state has handled that
+// progress and every change before it. The function it returns waits until this subscriber has
+// heard of progress while the transfer was at pct.
+func progressHandled(t *testing.T, store *corestate.Store) (wait func(pct int)) {
+	var heard atomic.Int64
+	heard.Store(math.MinInt64)
+	store.Subscribe(func(p corestate.Part) {
+		if p&corestate.Progress != 0 {
+			heard.Store(int64(store.Snapshot().Live["t1"].Pct))
+		}
+	})
+	return func(pct int) {
+		t.Helper()
+		eventually(t, fmt.Sprintf("the progress at %d%%", pct), func() bool { return heard.Load() == int64(pct) })
+	}
+}
+
 // TestProgressIsToldOnceASecond: progress that arrives faster than progressEvery is reported once,
 // after that time has passed. Progress that nobody follows still lands, but isn't reported.
 func TestProgressIsToldOnceASecond(t *testing.T) {
 	store := corestate.New(fakeCore{}, slog.New(slog.DiscardHandler))
 	h := New(store, fakeCore{})
 	var told atomic.Int32
-	h.OnChange(func() { told.Add(1) })
-	store.CoreReady(context.Background())
-	eventually(t, "the transfers", func() bool { return len(h.Data().Transfers) == 1 })
-	h.FollowProgress(true)
-	time.Sleep(50 * time.Millisecond) // the reads' own reports
-	base := told.Load()
+	var mu sync.Mutex
+	var toldAt time.Time
+	h.OnChange(func() {
+		mu.Lock()
+		toldAt = time.Now()
+		mu.Unlock()
+		told.Add(1)
+	})
+	handled := progressHandled(t, store)
 	progress := func(pct int) {
 		store.Event(context.Background(), bus.Event{Name: bus.TransfersProgress, Data: bus.TransfersProgressData{
 			Items: map[string]bus.TransferProgress{"t1": {Pct: pct}},
 		}})
 	}
+	store.CoreReady(context.Background())
+	eventually(t, "the first read", func() bool { return !store.Snapshot().Loaded.IsZero() })
+	// The reads' own reports come before this progress, which isn't reported because nobody
+	// follows it yet.
+	progress(-1)
+	handled(-1)
+	h.FollowProgress(true)
+	base := told.Load()
+
+	sent := time.Now()
 	progress(0)
-	eventually(t, "the first report", func() bool { return told.Load() == base+1 })
+	handled(0)
+	if got := told.Load() - base; got != 1 {
+		t.Fatalf("the first report: told %d times", got)
+	}
 	for pct := range 5 {
 		progress(pct)
 	}
-	time.Sleep(progressEvery / 2)
+	handled(4)
 	if got := told.Load() - base; got != 1 {
 		t.Fatalf("at once: told %d times", got)
 	}
-	time.Sleep(progressEvery/2 + 200*time.Millisecond)
+	eventually(t, "the second report", func() bool { return told.Load()-base >= 2 })
 	if got := told.Load() - base; got != 2 {
 		t.Fatalf("after a second: told %d times", got)
+	}
+	mu.Lock()
+	after := toldAt.Sub(sent)
+	mu.Unlock()
+	if after < progressEvery {
+		t.Errorf("the second report came %v after the first progress, want at least %v", after, progressEvery)
 	}
 	if got := h.Data().Transfers[0].Live.Pct; got != 4 {
 		t.Errorf("the last numbers: %d%%", got)

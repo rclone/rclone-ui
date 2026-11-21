@@ -19,6 +19,7 @@ import (
 
 	"github.com/rclone/rclone-ui/core/children"
 	"github.com/rclone/rclone-ui/core/errs"
+	"github.com/rclone/rclone-ui/core/internal/testutil"
 	"github.com/rclone/rclone-ui/core/notifications"
 	"github.com/rclone/rclone-ui/core/operations"
 )
@@ -94,13 +95,20 @@ func TestClash(t *testing.T) {
 // picked and Start returned at once. It stops on a Stop.
 func TestHTTPServe(t *testing.T) {
 	f := newFixture(t)
+	// The child waits for this file. A Start that waited for the serve to answer would take the
+	// 30 s of readyTimeout, which is far longer than the limit below.
+	hold := filepath.Join(t.TempDir(), "go")
+	t.Setenv(holdEnv, hold)
 	began := time.Now()
 	v, err := f.s.Start(f.ctx, operations.ServeArgs{Type: "http", Source: f.folder(), Addr: "127.0.0.1:0"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if time.Since(began) > time.Second || v.State != children.StatusStarting || v.Type != "http" || strings.HasSuffix(v.Addr, ":0") {
+	if time.Since(began) > 15*time.Second || v.State != children.StatusStarting || v.Type != "http" || strings.HasSuffix(v.Addr, ":0") {
 		t.Fatalf("answered %+v after %v", v, time.Since(began))
+	}
+	if err := os.WriteFile(hold, nil, 0o600); err != nil {
+		t.Fatal(err)
 	}
 	if got := f.ev.waitN(t, v.ID, 1, children.StatusRunning, children.StatusFailed); got.State != string(children.StatusRunning) || got.Addr != v.Addr {
 		t.Fatalf("got %+v\n%s", got, f.lines.dump())
@@ -305,9 +313,10 @@ func TestServeCrash(t *testing.T) {
 	if n := f.notes.get(); len(n) != 1 {
 		t.Fatalf("notified %d times", len(n))
 	}
-	if !answers(context.Background(), v.Addr) {
-		t.Fatal("not serving on its address after the restarts")
-	}
+	// One dial can time out on a busy machine.
+	testutil.Eventually(t, 10*time.Second, "the serve to answer on its address after the restarts", func() bool {
+		return answers(context.Background(), v.Addr)
+	})
 }
 
 // TestServeCrashPortTaken checks that before a crashed serve starts again, its address is
@@ -322,6 +331,15 @@ func TestServeCrashPortTaken(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.ev.waitN(t, v.ID, 1, children.StatusRunning)
+	// The address is taken while the crash is notified. That comes before the backoff and the
+	// check of the next start, so the test doesn't race the backoff.
+	var ln net.Listener
+	listened := make(chan error, 1)
+	f.notes.onNext(func() {
+		var err error
+		ln, err = net.Listen("tcp", v.Addr)
+		listened <- err
+	})
 	p, err := os.FindProcess(f.s.List()[0].PID)
 	if err != nil {
 		t.Fatal(err)
@@ -330,9 +348,13 @@ func TestServeCrashPortTaken(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.ev.waitN(t, v.ID, 1, children.StatusRestarting)
-	ln, err := net.Listen("tcp", v.Addr)
-	if err != nil {
-		t.Fatal(err)
+	select {
+	case err := <-listened:
+		if err != nil {
+			t.Fatal(err)
+		}
+	default:
+		t.Fatal("the crash was not notified before the restarting event")
 	}
 	// The first start after the crash finds the address taken, and the serve doesn't run.
 	got := f.ev.waitN(t, v.ID, 2, children.StatusRestarting)

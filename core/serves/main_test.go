@@ -35,6 +35,14 @@ import (
 
 func TestMain(m *testing.M) {
 	if _, ok := os.LookupEnv(childenv.Env); ok {
+		if hold := os.Getenv(holdEnv); hold != "" {
+			for {
+				if _, err := os.Stat(hold); err == nil {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
 		// An rclone child runs rclone's own main, as main.go's runRclone does.
 		childenv.Adopt(nil)
 		rclonecmd.Root.PersistentPreRun = func(*cobra.Command, []string) { childenv.Ready() }
@@ -45,6 +53,10 @@ func TestMain(m *testing.M) {
 	slog.SetDefault(slog.New(slog.DiscardHandler))
 	testutil.Main(m, nil)
 }
+
+// holdEnv names a file. A child that has it in its environment waits for the file before it
+// starts to serve.
+const holdEnv = "SERVES_TEST_HOLD"
 
 // configs is the config service as the serves see it: one plain file.
 type configs struct {
@@ -214,6 +226,7 @@ func (f *fixture) folder() string {
 type notes struct {
 	mu   sync.Mutex
 	list []notifications.Payload
+	next func()
 }
 
 func (n *notes) Notify(_ context.Context, event notifications.NotificationEvent, p notifications.Payload) {
@@ -222,6 +235,18 @@ func (n *notes) Notify(_ context.Context, event notifications.NotificationEvent,
 	}
 	n.mu.Lock()
 	n.list = append(n.list, p)
+	next := n.next
+	n.next = nil
+	n.mu.Unlock()
+	if next != nil {
+		next()
+	}
+}
+
+// onNext runs fn in the next Notify, on the goroutine that notifies.
+func (n *notes) onNext(fn func()) {
+	n.mu.Lock()
+	n.next = fn
 	n.mu.Unlock()
 }
 

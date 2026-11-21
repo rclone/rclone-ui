@@ -67,7 +67,7 @@ func ready(c Reader) *Store {
 
 func eventually(t *testing.T, what string, ok func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for !ok() {
 		if time.Now().After(deadline) {
 			t.Fatalf("waited too long for %s", what)
@@ -87,7 +87,7 @@ func TestRunningReadsInOrder(t *testing.T) {
 	<-c.entered
 	wg.Go(func() { s.refreshRunning(context.Background()) })
 	// the second read is requested before the first returns
-	time.Sleep(50 * time.Millisecond)
+	eventually(t, "the second read's request", func() bool { return s.runningRead.gen.Load() == 2 })
 	close(c.release)
 	wg.Wait()
 

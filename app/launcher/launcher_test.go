@@ -63,6 +63,10 @@ func (s *stopAll) StopAll(context.Context) (core.StopSummary, error) {
 	return core.StopSummary{Running: core.Running{Mounts: 1}}, nil
 }
 
+// waitLimit is how long a test waits for something that comes at once on a machine that isn't
+// busy.
+const waitLimit = 10 * time.Second
+
 // harness runs a launcher on its own fake main thread, with a fake view.
 type harness struct {
 	t     *testing.T
@@ -130,7 +134,7 @@ func (h *harness) do(fn func()) {
 // settle waits until the rows drawn are for the current text, and returns their titles.
 func (h *harness) settle() []string {
 	h.t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(waitLimit)
 	for {
 		var ok bool
 		var titles []string
@@ -140,6 +144,24 @@ func (h *harness) settle() []string {
 		}
 		if time.Now().After(deadline) {
 			h.t.Fatalf("no answer for %q", h.l.text)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// settleOn waits until the rows drawn are for the current text and begin with the row titled
+// first, and returns their titles. A clipboard that takes longer than clipboardWait adds its row
+// only in a later answer.
+func (h *harness) settleOn(first string) []string {
+	h.t.Helper()
+	deadline := time.Now().Add(waitLimit)
+	for {
+		rows := h.settle()
+		if len(rows) > 0 && rows[0] == first {
+			return rows
+		}
+		if time.Now().After(deadline) {
+			h.t.Fatalf("rows %q, want %q first", rows, first)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -161,7 +183,7 @@ func (h *harness) call() string {
 	select {
 	case c := <-h.calls:
 		return c
-	case <-time.After(2 * time.Second):
+	case <-time.After(waitLimit):
 		h.t.Fatal("no call")
 		return ""
 	}
@@ -340,12 +362,13 @@ func TestTabCompletesARemote(t *testing.T) {
 
 func TestBlur(t *testing.T) {
 	h := newHarness(t)
-	h.do(h.l.Show)
-	h.settle()
-	h.do(func() { h.v.Events.Blur() })
+	// The blur comes in the same call on the main thread as Show, so that a busy machine can't
+	// delay it past blurGrace.
+	h.do(func() { h.l.Show(); h.v.Events.Blur() })
 	if !h.v.Shown {
 		t.Fatal("a blur right after showing is the show's own")
 	}
+	h.settle()
 	h.do(func() { h.l.shownAt = time.Now().Add(-time.Second) })
 	h.do(func() { h.v.Events.Blur() })
 	if h.v.Shown {
@@ -432,7 +455,7 @@ func TestStopAsksInTheLauncher(t *testing.T) {
 		t.Fatalf("answered: shown %v, placeholder %q, query %q", shown, shownPlaceholder, query)
 	}
 	// there is no core here, so the stop fails and shows the error in red
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(waitLimit)
 	for {
 		var st view.Status
 		h.do(func() { st = h.v.Last.Status })
@@ -492,7 +515,7 @@ func TestTheCornerListensToOneAction(t *testing.T) {
 	}
 	waitFor := func(text string) {
 		t.Helper()
-		deadline := time.Now().Add(2 * time.Second)
+		deadline := time.Now().Add(waitLimit)
 		for status().Text != text {
 			if time.Now().After(deadline) {
 				t.Fatalf("status %q, want %q", status().Text, text)
@@ -566,7 +589,7 @@ func TestStopEverything(t *testing.T) {
 		t.Fatal("asked: StopAll ran")
 	}
 	h.press(view.KeyEnter, 0)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(waitLimit)
 	for {
 		var st view.Status
 		h.do(func() { st = h.v.Last.Status })
@@ -734,12 +757,13 @@ func TestDrop(t *testing.T) {
 // offered again until the clipboard changes.
 func TestClipboard(t *testing.T) {
 	h := newHarness(t)
-	clip, id := engine.Clip{Text: "https://example.com/files/movie.mkv"}, "1"
-	h.l.p.ClipboardPeek = func() (engine.Clip, string) { return clip, id }
+	clip := engine.Clip{Text: "https://example.com/files/movie.mkv"}
+	// The peek can still run after the rows have settled, if it takes longer than clipboardWait.
+	var id atomic.Value
+	id.Store("1")
+	h.l.p.ClipboardPeek = func() (engine.Clip, string) { return clip, id.Load().(string) }
 	h.do(h.l.Show)
-	if rows := h.settle(); rows[0] != "Download movie.mkv" {
-		t.Fatalf("shown: %q", rows)
-	}
+	h.settleOn("Download movie.mkv")
 	if rows := h.typeText("co"); slices.Contains(rows, "Download movie.mkv") {
 		t.Fatalf("a query hides it: %q", rows)
 	}
@@ -753,11 +777,9 @@ func TestClipboard(t *testing.T) {
 		t.Fatal("offered again for the same copy")
 	}
 	h.do(h.l.Hide)
-	id = "2"
+	id.Store("2")
 	h.do(h.l.Show)
-	if rows := h.settle(); rows[0] != "Download movie.mkv" {
-		t.Fatalf("a new copy: %q", rows)
-	}
+	h.settleOn("Download movie.mkv")
 }
 
 // TestRowShortcutWithoutARow: ⌘ with a row letter that has no row isn't handled by the launcher,
@@ -845,16 +867,7 @@ func TestLateClipboardKeepsTheSelection(t *testing.T) {
 		t.Fatalf("third row %q, want gdrive", picked)
 	}
 	close(release)
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		if rows = h.settle(); rows[0] == "Download movie.mkv" {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("no suggestion: %q", rows)
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	h.settleOn("Download movie.mkv")
 	var selected string
 	h.do(func() { selected = h.l.results[h.l.sel].Title })
 	if selected != picked {
@@ -886,7 +899,7 @@ func TestAnActionThatPanics(t *testing.T) {
 		return nil
 	}}
 	h.do(func() { h.l.perform(engine.Result{ID: "broken", Title: "Broken", Actions: []engine.Action{a}}, a, "") })
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(waitLimit)
 	for {
 		var st view.Status
 		h.do(func() { st = h.v.Last.Status })

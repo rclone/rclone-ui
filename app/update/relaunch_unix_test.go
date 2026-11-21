@@ -12,18 +12,20 @@ import (
 
 // The relaunch waits for the process to exit, then runs its script with its arguments.
 func TestRelaunchAfterExit(t *testing.T) {
+	// The clock starts before the process does, so a busy machine can't make it exit less than
+	// 500 ms after start.
+	start := time.Now()
 	sleep := exec.Command("sleep", "0.5")
 	if err := sleep.Start(); err != nil {
 		t.Fatal(err)
 	}
-	start := time.Now()
 	// Reap the process as soon as it exits, because a zombie still answers kill -0.
 	go func() { _ = sleep.Wait() }()
 	out := filepath.Join(t.TempDir(), "out")
 	if err := relaunchAfter(sleep.Process.Pid, `printf %s "$2" > "$1"`, out, "a b"); err != nil {
 		t.Fatal(err)
 	}
-	b := waitForFile(t, out, 5*time.Second)
+	b := waitForFile(t, out, 10*time.Second)
 	if d := time.Since(start); d < 400*time.Millisecond {
 		t.Errorf("the script ran after %v, before the process exited", d)
 	}

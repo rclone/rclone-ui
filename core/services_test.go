@@ -52,7 +52,7 @@ func TestBuildStartsNothing(t *testing.T) {
 		t.Fatal("built isn't set")
 	}
 	// A loop that build started would still be running, and the wait would time out.
-	if !syncx.Wait(context.Background(), &c.goes, 100*time.Millisecond) {
+	if !syncx.Wait(context.Background(), &c.goes, 10*time.Second) {
 		t.Error("build started a goroutine on the core")
 	}
 	if got, err := os.ReadFile(records); err != nil || string(got) != string(previous) {

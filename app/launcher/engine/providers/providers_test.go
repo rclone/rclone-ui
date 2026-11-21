@@ -615,7 +615,7 @@ func TestCompletionStopsOtherFolder(t *testing.T) {
 	c.QueryStream(context.Background(), typing("gdrive:b/"), &engine.Data{List: second.list}, func([]engine.Result) {})
 	select {
 	case <-first.stopped:
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("the first folder's listing went on")
 	}
 

@@ -220,7 +220,7 @@ func TestRegistryWaitStops(t *testing.T) {
 			return func(context.Context) { <-release }
 		}
 	})
-	if !r.WaitStops(context.Background(), time.Second) {
+	if !r.WaitStops(context.Background(), 30*time.Second) {
 		t.Fatal("no stop has begun, and WaitStops waited")
 	}
 	c := newChild("a")
@@ -258,7 +258,10 @@ func TestRegistryWaitStops(t *testing.T) {
 // the registry. A child that isn't ready in time is reported as failed with the Late text.
 func TestRegistryFirstStartFails(t *testing.T) {
 	sup := newSupervisor(t, Options{})
-	r, ch := newRegistry(t, sup, func(o *RegistryOptions[string]) { o.ReadyTimeout = 500 * time.Millisecond })
+	// The failing child gets the usual ready timeout, so that a slow start can't be reported as
+	// late before the child prints its error. Only the late child's registry waits 500ms.
+	r, ch := newRegistry(t, sup, nil)
+	lateR, lateCh := newRegistry(t, sup, func(o *RegistryOptions[string]) { o.ReadyTimeout = 500 * time.Millisecond })
 
 	// The 1000th byte is inside an "é".
 	line := "x" + strings.Repeat("é", maxErrorText)
@@ -274,14 +277,17 @@ func TestRegistryFirstStartFails(t *testing.T) {
 	}
 
 	late := newChild("late")
-	spawn(t, r, late, false, "sleep")
-	if got := ch.wait(t, late.ID, 1, StatusFailed, StatusRunning); got.st != StatusFailed || !strings.HasSuffix(got.msg, "is not ready: it never answered within 500ms") {
+	spawn(t, lateR, late, false, "sleep")
+	if got := lateCh.wait(t, late.ID, 1, StatusFailed, StatusRunning); got.st != StatusFailed || !strings.HasSuffix(got.msg, "is not ready: it never answered within 500ms") {
 		t.Fatalf("got %+v", got)
 	}
-	ch.mu.Lock()
-	defer ch.mu.Unlock()
-	if !slices.Equal(ch.downs, []bool{false, false}) {
-		t.Fatalf("down %v, want twice for good", ch.downs)
+	for _, c := range []*changes{ch, lateCh} {
+		c.mu.Lock()
+		downs := slices.Clone(c.downs)
+		c.mu.Unlock()
+		if !slices.Equal(downs, []bool{false}) {
+			t.Fatalf("down %v, want once for good", downs)
+		}
 	}
 }
 

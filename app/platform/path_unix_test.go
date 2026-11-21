@@ -32,16 +32,28 @@ func TestReadLoginPathOwnSession(t *testing.T) {
 	}
 }
 
+// A job that the login shell leaves in the background keeps the output open, but the read doesn't
+// wait for it. The job runs for 30 seconds, so a read that waited for it would take that long,
+// far past the limit. A busy machine only adds seconds.
 func TestReadLoginPathBackgroundJob(t *testing.T) {
-	shell := filepath.Join(t.TempDir(), "fakeshell")
-	script := "#!/bin/sh\n(sleep 3) &\nprintf '__RCUI_PATH__/opt/fake/bin__RCUI_PATH__'\n"
+	dir := t.TempDir()
+	shell := filepath.Join(dir, "fakeshell")
+	pidFile := filepath.Join(dir, "job.pid")
+	script := "#!/bin/sh\nsleep 30 &\necho $! > '" + pidFile + "'\nprintf '__RCUI_PATH__/opt/fake/bin__RCUI_PATH__'\n"
 	if err := os.WriteFile(shell, []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if b, err := os.ReadFile(pidFile); err == nil {
+			if pid, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil {
+				_ = syscall.Kill(pid, syscall.SIGKILL)
+			}
+		}
+	})
 	start := time.Now()
 	path, ok := readLoginPath(shell)
-	if took := time.Since(start); took > 2*time.Second {
-		t.Errorf("took %v", took)
+	if took := time.Since(start); took > 15*time.Second {
+		t.Errorf("took %v: the read waited for the shell's background job", took)
 	}
 	if !ok || path != "/opt/fake/bin" {
 		t.Fatalf("%q %v", path, ok)

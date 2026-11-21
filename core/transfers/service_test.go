@@ -418,9 +418,11 @@ func TestTickerReadsItsGroupAndDeletesIt(t *testing.T) {
 	for i := range 3 {
 		writeFile(t, filepath.Join(src, string(rune('a'+i))+".bin"), 30<<10)
 	}
+	// The copy takes about 3 s, so the ticks at 1 s and 2 s come while it runs, even when one is
+	// late.
 	args := operations.CopyArgs{
 		Sources: []string{src}, Destination: dst,
-		Options: groupsOf("config", `{"bwlimit_file":"20K"}`),
+		Options: groupsOf("config", `{"bwlimit_file":"10K"}`),
 	}
 	started, err := f.s.Start(f.ctx, Spec{Origin: page, Form: formOf(t, "copy", args)})
 	if err != nil {

@@ -74,12 +74,12 @@ func markerOf(mountPoint string) string { return filepath.Clean(mountPoint) + ".
 // --volname…) are ignored.
 func fakeMountCommand() *cobra.Command {
 	var (
-		fail       string
-		never      bool
-		stay       bool
-		write      string
-		open       string
-		crashAfter time.Duration
+		fail    string
+		never   bool
+		stay    bool
+		write   string
+		open    string
+		crashOn string
 	)
 	c := &cobra.Command{
 		Use:                "fakemount source mountpoint",
@@ -121,8 +121,14 @@ func fakeMountCommand() *cobra.Command {
 					fs.Fatalf(nil, "fake mount: %v", err)
 				}
 			}
-			if crashAfter > 0 {
-				time.Sleep(crashAfter)
+			if crashOn != "" {
+				for !exists(crashOn) {
+					time.Sleep(10 * time.Millisecond)
+				}
+				// The next start must not find the file and crash at once.
+				if err := os.Remove(crashOn); err != nil {
+					fs.Fatalf(nil, "fake mount: %v", err)
+				}
 				fs.Errorf(nil, "fake mount: crashed")
 				os.Exit(1) // no unmount, so the marker stays, as a dead mount does
 			}
@@ -134,7 +140,7 @@ func fakeMountCommand() *cobra.Command {
 	c.Flags().BoolVar(&stay, "fake-stay", false, "stay mounted after a stop, as an unmount the OS refused leaves it")
 	c.Flags().StringVar(&write, "fake-write", "", "write this file through the VFS")
 	c.Flags().StringVar(&open, "fake-open", "", "write this file through the VFS and keep it open")
-	c.Flags().DurationVar(&crashAfter, "fake-crash-after", 0, "crash this long after mounting")
+	c.Flags().StringVar(&crashOn, "fake-crash-on", "", "crash when this file appears")
 	vfsflags.AddFlags(c.Flags())
 	return c
 }

@@ -28,14 +28,14 @@ func TestEarlyAPIsAnswerBeforeTheBoot(t *testing.T) {
 
 	apis := NewAPIs(APIOptions{Log: l, DataDir: dir})
 	// Nothing sets the APIs, so a call that waited would fail with this deadline.
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if info, err := apis.App.Info(ctx); err != nil || info.DataDir != dir || info.PID != os.Getpid() || info.StartedAt == 0 {
 		t.Errorf("Info: %+v %v", info, err)
 	}
 	// The log writes its lines on its own goroutine, so they reach the tail a moment later.
-	testutil.Eventually(t, 2*time.Second, "the log's lines", func() bool {
+	testutil.Eventually(t, 10*time.Second, "the log's lines", func() bool {
 		lines, err := apis.Logs.Tail(ctx, 10)
 		return err == nil && len(lines) > 0
 	})

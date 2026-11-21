@@ -142,15 +142,20 @@ func TestProgressThrottled(t *testing.T) {
 	rel := &Release{Version: "4.0.2", Kind: kind, URL: srv.URL + "/a"}
 	var calls int
 	var lastDone, lastTotal int64
+	start := time.Now()
 	if _, err := e.Download(context.Background(), rel, func(done, total int64) {
 		calls++
 		lastDone, lastTotal = done, total
 	}); err != nil {
 		t.Fatal(err)
 	}
+	took := time.Since(start)
 	n := int64(len(content))
-	if calls < 2 || calls > 10 || lastDone != n || lastTotal != n {
-		t.Errorf("progress: %d calls, the last %d/%d; want 2 to 10, the last %d/%d", calls, lastDone, lastTotal, n, n)
+	// The first and the last report come at the start and at the end. Between them, at most one
+	// comes in each progressEvery, however long a busy machine makes the download take.
+	most := 2 + int(took/progressEvery)
+	if calls < 2 || calls > most || lastDone != n || lastTotal != n {
+		t.Errorf("progress: %d calls in %v, the last %d/%d; want 2 to %d, the last %d/%d", calls, took, lastDone, lastTotal, most, n, n)
 	}
 }
 
@@ -159,20 +164,25 @@ func TestProgressThrottled(t *testing.T) {
 // keeps sending doesn't fail it.
 func TestDownloadStalls(t *testing.T) {
 	saved := stallTimeout
-	stallTimeout = 300 * time.Millisecond
 	t.Cleanup(func() { stallTimeout = saved })
+	// The slow download's stallTimeout is far longer than its pauses, so that a busy machine can't
+	// stretch a pause into a stall.
+	const slowStall = 2 * time.Second
 
 	it, kind := nativeType()
 	content := artifactBytes(kind)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", fmt.Sprint(len(content)))
 		if r.URL.Path == "/slow" {
-			// The whole body takes longer than stallTimeout, but never pauses that long.
-			for i := 0; i < len(content); i += 1000 {
-				_, _ = w.Write(content[i:min(i+1000, len(content))])
+			// The whole body takes longer than slowStall, but never pauses for long.
+			began, rest := time.Now(), content
+			for time.Since(began) <= slowStall && len(rest) > 1 {
+				_, _ = w.Write(rest[:1])
 				w.(http.Flusher).Flush()
-				time.Sleep(stallTimeout / 4)
+				rest = rest[1:]
+				time.Sleep(slowStall / 40)
 			}
+			_, _ = w.Write(rest)
 			return
 		}
 		_, _ = w.Write(content[:100])
@@ -183,6 +193,7 @@ func TestDownloadStalls(t *testing.T) {
 	staging := t.TempDir()
 	e := engineFor(Options{HTTPClient: srv.Client(), StagingDir: staging}, it, "/x")
 
+	stallTimeout = 300 * time.Millisecond
 	start := time.Now()
 	_, err := e.Download(context.Background(), &Release{Version: "4.0.2", Kind: kind, URL: srv.URL + "/stalled"}, nil)
 	if !errors.Is(err, errStalled) {
@@ -195,6 +206,7 @@ func TestDownloadStalls(t *testing.T) {
 		t.Errorf("staging holds %d entries", len(entries))
 	}
 
+	stallTimeout = slowStall
 	if _, err := e.Download(context.Background(), &Release{Version: "4.0.2", Kind: kind, URL: srv.URL + "/slow"}, nil); err != nil {
 		t.Errorf("a slow download: %v", err)
 	}

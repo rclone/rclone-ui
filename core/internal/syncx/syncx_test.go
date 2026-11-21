@@ -9,7 +9,7 @@ import (
 
 func TestWait(t *testing.T) {
 	var wg sync.WaitGroup
-	if !Wait(context.Background(), &wg, time.Second) {
+	if !Wait(context.Background(), &wg, time.Minute) {
 		t.Error("an empty group was not waited for")
 	}
 	release := make(chan struct{})

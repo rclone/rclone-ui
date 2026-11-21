@@ -303,13 +303,15 @@ func splitLines(s string) []string {
 
 func TestAQuietKindIsCountedWhileTheCoreRuns(t *testing.T) {
 	tu := tuningFor(t)
-	tu.fold = foldRules{window: time.Minute, quiet: 40 * time.Millisecond, burst: 2, burstLoud: 2, kinds: 10}
+	// The quiet period is the app's own. A short one could end between two of the lines below
+	// on a busy machine, and split the count.
+	tu.fold = foldRules{window: time.Minute, quiet: foldQuiet, burst: 2, burstLoud: 2, kinds: 10}
 	l, _ := openTest(t, "info", tu)
 	log := slog.New(l.Handler())
 	for i := range 7 {
 		log.Info("again", "object", fmt.Sprint(i))
 	}
-	testutil.Eventually(t, 5*time.Second, "the count", func() bool {
+	testutil.Eventually(t, 30*time.Second, "the count", func() bool {
 		for _, r := range l.Tail(0) {
 			if r.Mark == MarkRepeated {
 				return r.Object == "6" && r.Message == "again" && r.Count == 5
