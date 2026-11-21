@@ -1,0 +1,33 @@
+name: release-winget
+
+# Updates Rclone.RcloneUI on WinGet to a release. Run it after you publish the release: WinGet
+# downloads the installers from the release page, which a draft doesn't serve.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version without leading v, e.g. 4.0.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: windows-latest
+
+    steps:
+      # It updates a package that exists in microsoft/winget-pkgs. Rclone.RcloneUI's first version
+      # is submitted by hand (komac or wingetcreate). The pull requests come from the org's fork,
+      # rclone/winget-pkgs, which WINGET_ACC_TOKEN must be able to push to.
+      - uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
+        with:
+          identifier: Rclone.RcloneUI
+          fork-user: rclone
+          version: ${{ inputs.version }}
+          release-tag: v${{ inputs.version }}
+          # The installers only. The release's portable zips (-portable.zip) aren't installers,
+          # and the anchored pattern leaves them out.
+          installers-regex: '^Rclone-UI-.+-windows-(x64|arm64)-setup\.exe$'
+          token: ${{ secrets.WINGET_ACC_TOKEN }}

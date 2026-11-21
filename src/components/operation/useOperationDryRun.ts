@@ -1,33 +1,28 @@
+import { t } from '@lingui/core/macro'
 import { useMutation } from '@tanstack/react-query'
-import { ask } from '@tauri-apps/plugin-dialog'
 import { onErrorDialog } from '../../../lib/errors'
-import { openWindow } from '../../../lib/window'
+import { ask, openWindow } from '../../../lib/shell'
 
 /**
- * The dry-run mutation shared by the operation pages that offer one (Copy/Sync/Move/Delete).
- * The page supplies the whole mutationFn — including its path validation and the per-page
- * `config: { ...configOptions, dry_run: true }` merge, which must stay in the page so no page
- * can silently lose the dry_run injection.
+ * The dry run shared by the operation pages that offer one (Copy, Move, Sync and Delete). The
+ * page supplies the whole start function, including its path checks, and that function passes
+ * `dryRun` to `startTransfer`. This way no page can silently drop the flag.
  */
 export function useOperationDryRun(mutationFn: () => Promise<unknown>) {
     return useMutation({
         mutationFn,
         onSuccess: async () => {
-            const result = await ask(
-                'Dry run started, you can check the results in the Transfers screen',
-                {
-                    title: 'Preview (Dry Run)',
-                    kind: 'info',
-                    okLabel: 'Open Transfers',
-                    cancelLabel: 'OK',
-                }
-            )
+            const result = await ask(t`The dry run has started. Check the result in History.`, {
+                title: t`Preview (dry run)`,
+                kind: 'info',
+                okLabel: t`Open History`,
+                cancelLabel: t`OK`,
+            })
             if (result) {
-                await openWindow({ name: 'Transfers', url: '/transfers' })
+                await openWindow('/history')
             }
         },
-        onError: onErrorDialog('Dry Run', 'Failed to start dry run', {
-            capture: false,
+        onError: onErrorDialog(t`Dry run`, t`Failed to start dry run`, {
             log: ['Error starting dry run:'],
         }),
     })

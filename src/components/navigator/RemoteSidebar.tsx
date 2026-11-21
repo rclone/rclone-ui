@@ -1,45 +1,199 @@
-import { Button, ScrollShadow, Tooltip, cn } from '@heroui/react'
-import { useQuery } from '@tanstack/react-query'
-import { platform } from '@tauri-apps/plugin-os'
-import { StarIcon } from 'lucide-react'
-import { useMemo } from 'react'
-import { useRemoteConfig } from '../../../lib/hooks'
-import rclone from '../../../lib/rclone/client.ts'
+import { cn, ScrollShadow, Tooltip } from '@heroui/react'
+import { t } from '@lingui/core/macro'
+import { Trans } from '@lingui/react/macro'
+import { Star as StarIcon } from '@zappicon/react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { formatBytes } from '../../../lib/format'
+import { configNameOf } from '../../../lib/paths'
+import { usePref } from '../../../lib/prefs'
+import { type HealthResult, useRemoteHealth, useRemotes } from '../../../lib/remotes'
+import { platform } from '../../../lib/shell'
+import BackendIcon from '../BackendIcon'
+import { IconTile } from '../look/IconTile'
+import { TIP } from '../look/tip'
+import { usePeek } from './peek'
 import type { AllowedKey, RemoteString } from './types'
-import { getDiskIcon, getDiskLabel, shouldShowDisk } from './utils'
+import useDisks from './useDisks'
+import { getDiskIcon, getDiskLabel, isInLocalFolder, shouldShowDisk } from './utils'
 
-function RemoteButton({
-    remote,
-    onSelect,
+/**
+ * A place in the sidebar: its tile, in a square that lights up when the panel is there. A bar on
+ * the side of the panel marks the place shown, so the two sidebars read as two separate panels.
+ */
+function Place({
+    label,
+    hint,
+    peekHint,
+    peeks = true,
+    position,
     isSelected,
+    onPress,
+    children,
 }: {
-    remote: string
-    onSelect: (remote: string) => void
+    label: string
+    /** A second line in the tooltip, such as a remote that stopped working. */
+    hint?: ReactNode
+    /** A line shown only while the peek key is held, such as the space left on a remote. */
+    peekHint?: ReactNode
+    /** Whether the place shows its name while the peek key is held. The star doesn't need it. */
+    peeks?: boolean
+    position: 'left' | 'right'
     isSelected: boolean
+    onPress: () => void
+    children: ReactNode
 }) {
-    const remoteConfigQuery = useRemoteConfig(remote)
-
-    const info = remoteConfigQuery.data ?? null
+    const button = useRef<HTMLButtonElement>(null)
+    const [hovered, setHovered] = useState(false)
+    // While the peek key is held, every place shows its name. A place that is scrolled out of the
+    // sidebar doesn't, because its name would float over the rest of the window.
+    const peek = usePeek()
+    const [peeked, setPeeked] = useState(false)
+    useEffect(() => {
+        const own = button.current?.getBoundingClientRect()
+        const clip = button.current?.closest('[data-peek-clip]')?.getBoundingClientRect()
+        setPeeked(
+            peeks && peek && !!own && (!clip || (own.top >= clip.top && own.bottom <= clip.bottom))
+        )
+    }, [peek, peeks])
 
     return (
-        <Tooltip content={remote} placement="right" size="lg" color="foreground">
-            <Button
-                isIconOnly={true}
-                size="lg"
-                variant={isSelected ? 'faded' : 'light'}
-                onPress={() => onSelect(remote)}
-                className="shrink-0"
+        <Tooltip
+            isOpen={hovered || peeked}
+            onOpenChange={setHovered}
+            content={
+                peeked && (hint || peekHint) ? (
+                    // One line: a second one would cover the name of the place below.
+                    <span className="flex items-baseline gap-2">
+                        <span className="font-medium">{label}</span>
+                        {hint}
+                        {peekHint && <span className="opacity-70">{peekHint}</span>}
+                    </span>
+                ) : hint ? (
+                    <span className="flex flex-col py-0.5">
+                        <span className="font-medium">{label}</span>
+                        {hint}
+                    </span>
+                ) : (
+                    label
+                )
+            }
+            placement={position === 'left' ? 'right' : 'left'}
+            {...TIP}
+            closeDelay={0}
+            delay={250}
+        >
+            <button
+                ref={button}
+                type="button"
+                aria-label={label}
+                aria-current={isSelected ? 'true' : undefined}
+                onClick={onPress}
+                className={cn(
+                    'relative grid shrink-0 size-10 place-items-center rounded-xl outline-none',
+                    'transition-[background-color,scale] duration-150 ease-out active:scale-[0.94] motion-reduce:active:scale-100',
+                    'focus-visible:ring-2 focus-visible:ring-primary',
+                    isSelected
+                        ? 'bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.06),0_1px_3px_rgb(0_0_0/0.1)] dark:bg-white/12 dark:shadow-[0_0_0_1px_rgb(255_255_255/0.08)]'
+                        : 'hover:bg-black/5 dark:hover:bg-white/8'
+                )}
             >
-                <img
-                    src={`/icons/backends/${info?.type}.png`}
-                    className="object-contain size-6"
-                    alt={info?.type}
-                />
-            </Button>
+                {children}
+                {isSelected && (
+                    <span
+                        aria-hidden={true}
+                        className={cn(
+                            'absolute top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-primary',
+                            position === 'left' ? '-right-1' : '-left-1'
+                        )}
+                    />
+                )}
+            </button>
         </Tooltip>
     )
 }
 
+/** The space left on a remote, when its backend reports it: "120 GB free of 2 TB". */
+function spaceWords(health: HealthResult | undefined): string | undefined {
+    const about = health?.state === 'ok' ? health.about : undefined
+    if (typeof about?.free !== 'number') return undefined
+    const bytes =
+        typeof about.total === 'number'
+            ? about.total
+            : typeof about.used === 'number'
+              ? about.used + about.free
+              : undefined
+    if (bytes === undefined) {
+        const size = formatBytes(about.free)
+        return t({
+            message: `${size} free`,
+            comment: 'The space left on a remote: "12.5 GB free".',
+        })
+    }
+    const free = formatBytes(about.free)
+    const total = formatBytes(bytes)
+    return t({
+        message: `${free} free of ${total}`,
+        comment: 'The space left on a remote and its size: "120 GB free of 2 TB".',
+    })
+}
+
+/** A short line between the groups of places. */
+function GroupRule() {
+    return <span aria-hidden={true} className="w-5 h-px my-1 shrink-0 bg-divider" />
+}
+
+function RemotePlace({
+    remote,
+    position,
+    onSelect,
+    isSelected,
+    isFaulty,
+    space,
+}: {
+    remote: string
+    position: 'left' | 'right'
+    onSelect: (remote: string) => void
+    isSelected: boolean
+    isFaulty: boolean
+    space?: string
+}) {
+    // The backend's type is already in the shared remotes list, so there is nothing to fetch.
+    const type = useRemotes().remotes.find((candidate) => candidate.name === remote)?.type
+
+    return (
+        // The icon shows the backend and the label shows the remote. Without the label, screen
+        // readers announce the button as "drive", and every Google Drive remote sounds the same.
+        <Place
+            label={remote}
+            hint={
+                isFaulty ? (
+                    <span className="text-danger-300 dark:text-danger-500">
+                        <Trans>Not responding</Trans>
+                    </span>
+                ) : undefined
+            }
+            peekHint={space}
+            position={position}
+            isSelected={isSelected}
+            onPress={() => onSelect(remote)}
+        >
+            <span className="relative grid size-7 place-items-center rounded-lg bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.08),0_1px_2px_rgb(0_0_0/0.08)] dark:bg-zinc-800 dark:shadow-[0_0_0_1px_rgb(255_255_255/0.1)]">
+                <BackendIcon type={type} alt={type} className="size-[18px]" />
+                {isFaulty && (
+                    <span
+                        aria-hidden={true}
+                        className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-danger ring-2 ring-background"
+                    />
+                )}
+            </span>
+        </Place>
+    )
+}
+
+/**
+ * A panel's places: the favorites, the disks and folders of this computer, and the remotes, each
+ * as a tile. It sits on the window beside its panel, on the panel's outer side.
+ */
 export default function RemoteSidebar({
     position,
     selectedRemote,
@@ -59,87 +213,87 @@ export default function RemoteSidebar({
     const canShowLocal = allowedKeys.includes('LOCAL_FS')
     const canShowRemotes = allowedKeys.includes('REMOTES')
 
-    const disksQuery = useQuery({
-        queryKey: ['core', 'disks'],
-        queryFn: () => rclone('/core/disks'),
-        staleTime: 1000 * 60 * 5,
-        enabled: canShowLocal,
-    })
+    const allDisks = useDisks(canShowLocal)
 
+    // The Commander's bar (its shortcuts cog) lets the user hide disks and folders.
+    const [hiddenLocalPaths] = usePref('hiddenLocalPaths')
     const disks = useMemo(
-        () => (disksQuery.data?.disks ?? []).filter(shouldShowDisk),
-        [disksQuery.data]
+        () =>
+            (allDisks ?? []).filter(
+                (disk) => shouldShowDisk(disk, allowedKeys) && !hiddenLocalPaths.includes(disk)
+            ),
+        [allDisks, allowedKeys, hiddenLocalPaths]
     )
 
     const activeDisk = useMemo(() => {
         if (selectedRemote !== 'UI_LOCAL_FS' || !cwd) return null
         const sorted = [...disks].sort((a, b) => b.length - a.length)
-        return sorted.find((disk) => cwd.startsWith(disk)) ?? null
+        return sorted.find((disk) => isInLocalFolder(cwd, disk)) ?? null
     }, [selectedRemote, cwd, disks])
 
-    const orderClass = position === 'right' ? 'order-last' : 'order-first'
+    // A remote that stopped answering is marked, so a failing listing has an explanation in view.
+    const health = useRemoteHealth().data
+    const showsDisks = canShowLocal && disks.length > 0
+    const showsRemotes = canShowRemotes && remotes.length > 0
 
     return (
-        <div className={cn('flex flex-col items-center w-20 h-full shrink-0', orderClass)}>
+        <nav
+            aria-label={t`Places`}
+            className={cn(
+                'flex flex-col items-center w-12 h-full shrink-0',
+                position === 'right' ? 'order-last' : 'order-first'
+            )}
+        >
             <ScrollShadow
+                data-peek-clip={true}
                 className={cn(
-                    'flex flex-col items-center w-full h-full gap-5 py-4 overflow-y-auto',
-                    platform() === 'macos' && 'pt-8'
+                    'flex flex-col items-center w-full h-full gap-1 pb-3 overflow-y-auto',
+                    // On macOS the window's buttons sit in the top left corner, over the content.
+                    platform() === 'macos' ? 'pt-9' : 'pt-0.5'
                 )}
-                size={69}
+                size={40}
             >
                 {canShowFavorites && (
-                    <Tooltip
-                        content="Favorites"
-                        placement={position === 'left' ? 'right' : 'left'}
-                        size="lg"
-                        color="foreground"
+                    <Place
+                        label={t`Favorites`}
+                        peeks={false}
+                        position={position}
+                        isSelected={selectedRemote === 'UI_FAVORITES'}
+                        onPress={() => onRemoteSelect('UI_FAVORITES')}
                     >
-                        <Button
-                            isIconOnly={true}
-                            className="shrink-0"
-                            size="lg"
-                            variant={selectedRemote === 'UI_FAVORITES' ? 'faded' : 'light'}
-                            onPress={() => onRemoteSelect('UI_FAVORITES')}
-                        >
-                            <StarIcon className="stroke-warning fill-warning size-6" />
-                        </Button>
-                    </Tooltip>
+                        <IconTile icon={StarIcon} tone="orange" size="md" />
+                    </Place>
                 )}
-                {canShowLocal &&
+                {canShowFavorites && (showsDisks || showsRemotes) && <GroupRule />}
+                {showsDisks &&
                     disks.map((disk) => {
-                        const { icon: DiskIcon, className: iconColor } = getDiskIcon(disk)
-                        const label = getDiskLabel(disk)
+                        const { icon, tone } = getDiskIcon(disk)
                         return (
-                            <Tooltip
+                            <Place
                                 key={disk}
-                                content={label}
-                                placement={position === 'left' ? 'right' : 'left'}
-                                color="foreground"
-                                size="lg"
+                                label={getDiskLabel(disk)}
+                                position={position}
+                                isSelected={activeDisk === disk}
+                                onPress={() => onRemoteSelect('UI_LOCAL_FS', disk)}
                             >
-                                <Button
-                                    isIconOnly={true}
-                                    className="shrink-0"
-                                    size="lg"
-                                    onPress={() => onRemoteSelect('UI_LOCAL_FS', disk)}
-                                    variant={activeDisk === disk ? 'faded' : 'light'}
-                                >
-                                    <DiskIcon className={cn('size-6', iconColor)} />
-                                </Button>
-                            </Tooltip>
+                                <IconTile icon={icon} tone={tone} size="md" />
+                            </Place>
                         )
                     })}
-                {canShowRemotes &&
+                {showsDisks && showsRemotes && <GroupRule />}
+                {showsRemotes &&
                     remotes.map((remote) => (
-                        <RemoteButton
+                        <RemotePlace
                             remote={remote}
                             key={remote}
+                            position={position}
                             onSelect={() => onRemoteSelect(remote)}
-                            isSelected={selectedRemote === remote}
+                            isSelected={!!selectedRemote && configNameOf(selectedRemote) === remote}
+                            isFaulty={health?.[remote]?.state === 'faulty'}
+                            space={spaceWords(health?.[remote])}
                         />
                     ))}
             </ScrollShadow>
-        </div>
+        </nav>
     )
 }

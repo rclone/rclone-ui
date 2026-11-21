@@ -1,0 +1,71 @@
+{
+  "discord": {
+    "body": {
+      "username": "Rclone UI",
+      "embeds": [
+        {
+          "title": "Watcher failed",
+          "description": "Documents: couldn't connect: dial tcp 127.0.0.1:22: connection refused",
+          "color": 15158332,
+          "timestamp": "2026-01-02T03:04:05.678Z"
+        }
+      ]
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://discord.com/api/webhooks/1234567890/AbC-dEf_123"
+  },
+  "email": {
+    "subject": "Watcher failed",
+    "text": "Documents: couldn't connect: dial tcp 127.0.0.1:22: connection refused\n\n— Rclone UI v1.2.3",
+    "to": [
+      "ops@example.com",
+      "alice@example.com"
+    ]
+  },
+  "slack": {
+    "body": {
+      "text": "*Watcher failed*\nDocuments: couldn't connect: dial tcp 127.0.0.1:22: connection refused"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://hooks.slack.com/services/T000AAA/B000BBB/xyz123"
+  },
+  "telegram": {
+    "body": {
+      "chat_id": "-1001234567890",
+      "message_thread_id": "7",
+      "parse_mode": "HTML",
+      "text": "<b>Watcher failed</b>\nDocuments: couldn't connect: dial tcp 127.0.0.1:22: connection refused"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "url": "https://api.telegram.org/bot123456:ABC-def_ghi/sendMessage"
+  },
+  "webhook": {
+    "body": {
+      "source": "rclone-ui",
+      "version": "1.2.3",
+      "event": "watcher.failed",
+      "label": "Watcher failed",
+      "severity": "error",
+      "title": "Watcher failed",
+      "body": "Documents: couldn't connect: dial tcp 127.0.0.1:22: connection refused",
+      "timestamp": "2026-01-02T03:04:05.678Z",
+      "data": {
+        "name": "Documents",
+        "pathA": "/Users/me/Documents",
+        "pathB": "gdrive:Documents",
+        "error": "couldn't connect: dial tcp 127.0.0.1:22: connection refused\nmore detail"
+      }
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "X-RcloneUI-Event": "watcher.failed"
+    },
+    "url": "https://example.com/hooks/rclone"
+  }
+}

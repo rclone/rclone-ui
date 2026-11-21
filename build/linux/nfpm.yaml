@@ -1,0 +1,65 @@
+# deb and rpm: build/package.sh fills in ${VERSION}, ${GOARCH} and ${BIN} (the build's folder)
+# and runs `wails3 tool package` on it from the repository root.
+name: rcui
+arch: ${GOARCH}
+platform: linux
+version: ${VERSION}
+release: "1"
+section: utils
+priority: optional
+maintainer: Rclone
+vendor: Rclone
+homepage: https://github.com/rclone/rclone-ui
+license: Apache-2.0
+description: |
+  Cross-platform GUI for rclone & S3
+contents:
+  - src: ${BIN}/rcui
+    dst: /usr/bin/rcui
+    file_info:
+      mode: 0755
+  - src: build/linux/org.rclone.ui.desktop
+    dst: /usr/share/applications/org.rclone.ui.desktop
+  - src: build/linux/icons/32x32.png
+    dst: /usr/share/icons/hicolor/32x32/apps/org.rclone.ui.png
+  - src: build/linux/icons/128x128.png
+    dst: /usr/share/icons/hicolor/128x128/apps/org.rclone.ui.png
+  - src: build/linux/icons/256x256.png
+    dst: /usr/share/icons/hicolor/256x256/apps/org.rclone.ui.png
+  - src: build/linux/icons/512x512.png
+    dst: /usr/share/icons/hicolor/512x512/apps/org.rclone.ui.png
+  # The launcher's GNOME Shell extension, which it needs because GNOME lets no app place its own
+  # window. It is installed for every user and removed with the package. The app enables it
+  # (app/launcher/view/linux/gnome/ensure_linux.go).
+  - src: app/launcher/view/linux/gnome/metadata.json
+    dst: /usr/share/gnome-shell/extensions/launcher@rclone.org/metadata.json
+  - src: app/launcher/view/linux/gnome/extension.js
+    dst: /usr/share/gnome-shell/extensions/launcher@rclone.org/extension.js
+  # Debian keeps a package's license in /usr/share/doc/<package>/copyright.
+  - src: LICENSE
+    dst: /usr/share/doc/rcui/copyright
+    type: license
+  - src: public/THIRD_PARTY_NOTICES.txt
+    dst: /usr/share/doc/rcui/THIRD_PARTY_NOTICES.txt
+    type: license
+# GTK 4 and WebKitGTK 6.0, which is Wails' default stack, and gtk4-layer-shell, which rcui links
+# for the launcher. The packages need Ubuntu 26.04, Debian 13, Fedora 41 or a later release,
+# because older Ubuntu and Debian releases don't package gtk4-layer-shell. FUSE is for mounts,
+# because rclone mount runs fusermount3.
+depends:
+  - libgtk-4-1
+  - libwebkitgtk-6.0-4
+  - libgtk4-layer-shell0
+recommends:
+  - fuse3
+overrides:
+  rpm:
+    depends:
+      - gtk4
+      - webkitgtk6.0
+      - gtk4-layer-shell
+    recommends:
+      - fuse3
+scripts:
+  postinstall: build/linux/postinstall.sh
+  postremove: build/linux/postinstall.sh

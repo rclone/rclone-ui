@@ -1,16 +1,18 @@
+import { t } from '@lingui/core/macro'
 import {
-    FileArchiveIcon,
-    FileAudioIcon,
-    FileCodeIcon,
-    FileIcon as FileIconLucide,
-    FileImageIcon,
-    FileJson2Icon,
-    FileSpreadsheetIcon,
-    FileTextIcon,
-    FileTypeIcon,
-    FileVideoIcon,
-    FolderIcon,
-} from 'lucide-react'
+    BrowserCodeSimple as BrowserCodeSimpleIcon,
+    ChartColumn as ChartColumnIcon,
+    Code as CodeIcon,
+    FileText as FileTextIcon,
+    FileZip as FileZipIcon,
+    Film as FilmIcon,
+    Folder as FolderIcon,
+    Image as ImageIcon,
+    Memo as MemoIcon,
+    Music as MusicIcon,
+    File as PlainFileIcon,
+    PresentationScreen as PresentationScreenIcon,
+} from '@zappicon/react'
 import type { Entry } from './types'
 import { getFileExtension } from './utils'
 
@@ -117,7 +119,6 @@ const CODE_EXTENSIONS = new Set([
     'vb',
     'asm',
     's',
-    // Markup / web / query / misc — all highlighted by the CodeMirror langs pack.
     'html',
     'htm',
     'xml',
@@ -200,6 +201,47 @@ export function getFileType(entry: Entry): FileType {
     return 'unknown'
 }
 
+export function fileTypeName(type: FileType): string {
+    switch (type) {
+        case 'folder':
+            return t({ message: 'Folder', context: 'file type' })
+        case 'image':
+            return t({ message: 'Image', context: 'file type' })
+        case 'video':
+            return t({ message: 'Video', context: 'file type' })
+        case 'audio':
+            return t({ message: 'Audio', context: 'file type' })
+        case 'archive':
+            return t({
+                message: 'Archive',
+                context: 'file type',
+                comment: 'A zip or similar file.',
+            })
+        case 'code':
+            return t({ message: 'Code', context: 'file type', comment: 'A source code file.' })
+        case 'config':
+            return t({
+                message: 'Config',
+                context: 'file type',
+                comment: 'A configuration file, such as .json or .yaml.',
+            })
+        case 'document':
+            return t({ message: 'Document', context: 'file type' })
+        case 'spreadsheet':
+            return t({ message: 'Spreadsheet', context: 'file type' })
+        case 'presentation':
+            return t({ message: 'Presentation', context: 'file type' })
+        case 'text':
+            return t({ message: 'Text', context: 'file type' })
+        default:
+            return t({
+                message: 'Unknown',
+                context: 'file type',
+                comment: 'A file whose type the app does not know.',
+            })
+    }
+}
+
 export function isPreviewable(entry: Entry): boolean {
     const type = getFileType(entry)
     return (
@@ -221,6 +263,25 @@ const ICON_SIZE_MAP = {
     lg: 'size-6',
 } as const
 
+// Folders are filled, as in the system's file browser. Files are drawn in two tones of their
+// kind's color, so the kinds tell apart at a glance.
+const KIND: Record<
+    Exclude<FileType, 'folder'>,
+    { icon: typeof PlainFileIcon; className: string }
+> = {
+    image: { icon: ImageIcon, className: 'text-emerald-500' },
+    video: { icon: FilmIcon, className: 'text-rose-500' },
+    audio: { icon: MusicIcon, className: 'text-fuchsia-500' },
+    archive: { icon: FileZipIcon, className: 'text-amber-500' },
+    code: { icon: CodeIcon, className: 'text-sky-500' },
+    config: { icon: BrowserCodeSimpleIcon, className: 'text-default-500' },
+    document: { icon: MemoIcon, className: 'text-red-500' },
+    spreadsheet: { icon: ChartColumnIcon, className: 'text-green-600 dark:text-green-500' },
+    presentation: { icon: PresentationScreenIcon, className: 'text-orange-500' },
+    text: { icon: FileTextIcon, className: 'text-default-500' },
+    unknown: { icon: PlainFileIcon, className: 'text-default-400' },
+}
+
 export default function FileIcon({
     entry,
     size = 'md',
@@ -230,31 +291,21 @@ export default function FileIcon({
 }) {
     const sizeClass = ICON_SIZE_MAP[size]
     const type = getFileType(entry)
-
-    switch (type) {
-        case 'folder':
-            return <FolderIcon className={`${sizeClass} text-warning shrink-0`} />
-        case 'image':
-            return <FileImageIcon className={`${sizeClass} text-success shrink-0`} />
-        case 'video':
-            return <FileVideoIcon className={`${sizeClass} text-danger shrink-0`} />
-        case 'audio':
-            return <FileAudioIcon className={`${sizeClass} text-secondary shrink-0`} />
-        case 'archive':
-            return <FileArchiveIcon className={`${sizeClass} text-warning shrink-0`} />
-        case 'code':
-            return <FileCodeIcon className={`${sizeClass} text-primary shrink-0`} />
-        case 'config':
-            return <FileJson2Icon className={`${sizeClass} text-default-500 shrink-0`} />
-        case 'document':
-            return <FileTypeIcon className={`${sizeClass} text-danger shrink-0`} />
-        case 'spreadsheet':
-            return <FileSpreadsheetIcon className={`${sizeClass} text-success shrink-0`} />
-        case 'presentation':
-            return <FileTypeIcon className={`${sizeClass} text-warning shrink-0`} />
-        case 'text':
-            return <FileTextIcon className={`${sizeClass} text-default-600 shrink-0`} />
-        default:
-            return <FileIconLucide className={`${sizeClass} text-default-400 shrink-0`} />
+    if (type === 'folder') {
+        return (
+            <FolderIcon
+                variant="filled"
+                aria-hidden={true}
+                className={`${sizeClass} shrink-0 text-sky-500 dark:text-sky-400`}
+            />
+        )
     }
+    const { icon: Icon, className } = KIND[type]
+    return (
+        <Icon
+            variant="duotone"
+            aria-hidden={true}
+            className={`${sizeClass} shrink-0 ${className}`}
+        />
+    )
 }

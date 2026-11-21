@@ -1,0 +1,55 @@
+name: translate
+
+# Publishes the translation site (locales/translate) on GitHub Pages, at
+# https://rclone.github.io/rclone-ui/. The site holds the texts of main, so it is built again when
+# they change. The repository's Pages source must be "GitHub Actions".
+on:
+  push:
+    branches: [main]
+    paths:
+      - locales/**
+      - package-lock.json
+      - .github/workflows/translate.yml
+  workflow_dispatch:
+
+# A deployment that has started is left to finish, as GitHub advises for Pages.
+concurrency:
+  group: translate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: The site's tests
+        run: npx vitest run locales/translate
+      - run: npm run translate:build
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: locales/translate/dist
+
+  deploy:
+    name: Publish on GitHub Pages
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

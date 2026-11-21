@@ -3,342 +3,406 @@ import {
     type SetStateAction,
     startTransition,
     useCallback,
-    useEffect,
     useMemo,
+    useRef,
     useState,
 } from 'react'
+import { type GroupDefaults, useOperationDefaults } from '../../../lib/catalog'
+import type { Operations } from '../../../lib/core/types'
+import { getRemoteName } from '../../../lib/format'
+import type { OperationName } from '../../../lib/operations'
+import { pathProblem } from '../../../lib/paths'
 import type { FlagValue } from '../../../types/rclone'
-
-export interface OptionGroupDef<K extends string = string> {
-    // Group identity: the jsonError step name and the state key. Parse order = defs order.
-    key: K
-    // Key looked up in a template's grouped options, when different from `key` (Move and Bisync
-    // load the template's `copy` group into their own group). Defaults to `key`.
-    templateKey?: string
-    // Seeded into the JSON string on mount and restored by resetJson. Omit for '{}'.
-    defaults?: Record<string, FlagValue>
-}
+import { parseOptions } from '../optionValues'
+import { difference, type SentOptions, seedGroups } from './defaults'
+import type { GroupKey } from './optionGroups'
 
 export interface OptionGroupState {
+    // The group's options from the last successful parse of its text.
     options: Record<string, FlagValue>
+    /** Whether the group's text is a valid JSON object now. */
+    valid: boolean
+    // The options that the page sends for the group: only what differs from the app's defaults
+    // (see defaults.ts), which the core adds again.
+    sent: SentOptions
     jsonString: string
     setJsonString: (value: string) => void
-    locked: boolean
-    setLocked: (value: boolean) => void
 }
 
 export interface RemoteOptionsGroupState {
-    // Last-valid parsed snapshot (the args source). Frozen whole while ANY tab is invalid.
+    // The options of the selected remotes from the last successful parse, by remote name. They
+    // are sent as the arguments' `remotes`.
     options: Record<string, Record<string, FlagValue>>
-    // Raw per-remote JSON documents (remote name -> options JSON doc), possibly invalid mid-edit.
+    // Each remote's JSON text, by remote name. A remote with no text has no options ('{}').
     json: Record<string, string>
     setJson: Dispatch<SetStateAction<Record<string, string>>>
-    // Called by RemoteOptionsSection with the current unique remote names; rebuilds the tab
-    // strings from the last-valid parsed doc when the remote COUNT changes (either direction),
-    // or unconditionally on `force` (the view's first call after mounting).
-    reconcile: (remoteNames: string[], force?: boolean) => void
-    locked: boolean
-    setLocked: (value: boolean) => void
+}
+
+type Options = Record<string, FlagValue>
+
+/** The result of parsing several texts: the options of each, or the first key that failed. */
+export type ParsedTexts<K extends string> =
+    | { options: Record<K, Options>; invalid?: undefined }
+    | { options?: undefined; invalid: K }
+
+/**
+ * Parses each option group's text. Returns the options of the texts that parse, and the keys of
+ * those that don't, in `keys` order.
+ */
+export function parseGroups<K extends string>(
+    keys: readonly K[],
+    json: Record<K, string>
+): { options: Partial<Record<K, Options>>; invalid: K[] } {
+    const options: Partial<Record<K, Options>> = {}
+    const invalid: K[] = []
+    for (const key of keys) {
+        const parsed = parseOptions(json[key])
+        if (parsed) options[key] = parsed
+        else invalid.push(key)
+    }
+    return { options, invalid }
 }
 
 /**
- * Owns the option-group state of an operation page: per-group locked/JSON-string/parsed values,
- * defaults seeding, template load and resets. The JSON string is the single source of truth —
- * parsed values are derived by the parse effect, and invalid JSON retains the last-good parsed
- * values PAGE-WIDE (one try/catch: any invalid group freezes every group's parsed state) with
- * jsonError reporting the first failing group in defs order — exactly the semantics the pages
- * hand-rolled.
- *
- * `withRemotes` adds the remotes group: raw per-remote JSON documents owned here and edited by
- * RemoteOptionsSection tabs. Its parsing is SEPARATE from the groups' try/catch — an invalid
- * remote tab must never set jsonError or disable start; instead retention is ALL-OR-NOTHING
- * across remotes (one invalid tab freezes the parsed snapshot for every remote).
- *
- * Group defs must be static — they are captured on first render.
+ * Parses the remote tabs' texts, but only for `remoteNames`. A remote with no text sets nothing.
+ * A tab left over from a remote that no path uses any more is neither sent nor saved in the
+ * preset.
  */
-export function useOptionGroups<K extends string>({
+export function parseRemotes(
+    remoteNames: readonly string[],
+    remoteJson: Record<string, string>
+): ParsedTexts<string> {
+    const options: Record<string, Options> = {}
+    for (const name of remoteNames) {
+        const parsed = parseOptions(remoteJson[name] ?? '{}')
+        if (!parsed) return { invalid: name }
+        options[name] = parsed
+    }
+    return { options }
+}
+
+/**
+ * Returns the remotes named by the paths, in order and without duplicates. Local paths (and
+ * `:local:`) name no remote with options to set, and a path with a problem (see pathProblem) is
+ * left out until it is fixed.
+ */
+export function remoteNamesOf(paths: readonly (string | undefined)[]): string[] {
+    const names = new Set<string>()
+    for (const path of paths) {
+        if (!path || pathProblem(path)) continue
+        const name = getRemoteName(path)
+        if (name && name !== ':local') names.add(name)
+    }
+    return [...names]
+}
+
+/**
+ * Reports whether any text differs from its `initial` value, compared by key. A key that is
+ * missing on one side and '{}' (no options) on the other isn't a change, because that is a
+ * remote's tab with nothing typed in it.
+ */
+export function textsEdited(
+    initial: Readonly<Record<string, string>>,
+    current: Readonly<Record<string, string>>
+): boolean {
+    const isEmpty = (text: string | undefined) =>
+        text === undefined || text.replace(/\s/g, '') === '{}'
+    for (const key of new Set([...Object.keys(initial), ...Object.keys(current)])) {
+        const before = initial[key]
+        const now = current[key]
+        if (before === now || (isEmpty(before) && isEmpty(now))) continue
+        return true
+    }
+    return false
+}
+
+const NO_REMOTES: readonly string[] = []
+
+function basesOf<K extends string>(
+    keys: readonly K[],
+    defaults: GroupDefaults | undefined
+): Record<K, Options> {
+    return Object.fromEntries(keys.map((key) => [key, defaults?.[key] ?? {}])) as Record<K, Options>
+}
+
+function textsOf<K extends string>(
+    keys: readonly K[],
+    groups: Record<K, Options>
+): Record<K, string> {
+    return Object.fromEntries(
+        keys.map((key) => [key, JSON.stringify(groups[key], null, 2)])
+    ) as Record<K, string>
+}
+
+/** A group's options as a template or a preset gives them. A null removes an option. */
+type Incoming = Readonly<Record<string, unknown>> | null | undefined
+
+/**
+ * The options of each group that a template sets, merged over the group's `current` options. The
+ * template's values win, and its nulls remove options. Groups that the template leaves out are
+ * left out of the result, so their texts stay as they are.
+ */
+export function mergeTemplate<K extends string>(
+    keys: readonly K[],
+    current: Readonly<Record<K, Options>>,
+    incoming: Partial<Record<K, Incoming>>
+): Partial<Record<K, Options>> {
+    const out: Partial<Record<K, Options>> = {}
+    for (const key of keys) {
+        const options = incoming[key]
+        if (!options) continue
+        const merged: Options = { ...current[key] }
+        for (const [name, value] of Object.entries(options)) {
+            if (value === null) delete merged[name]
+            else merged[name] = value as FlagValue
+        }
+        out[key] = merged
+    }
+    return out
+}
+
+/**
+ * Owns the option-group state of an operation page or a drawer: each group's JSON text, the
+ * remotes' texts, template loading and resets. The texts are the only state, apart from the
+ * defaults that they started from. The options and `jsonError` are parsed from them in the same
+ * render that changes them, so what a page sends or blocks on is never a render behind.
+ * `jsonError` names the first group (in `groups` order) whose text is invalid, and then the first
+ * selected remote whose text is invalid. Meanwhile each group's options keep the last values that
+ * parsed.
+ *
+ * Each group's text starts with the app's defaults for `operation` (from the core's catalog),
+ * with `initial` (a preset's option groups) over them, so the page shows what will run. A group's
+ * `sent` options leave out what equals those defaults (see difference in defaults.ts). Without an
+ * operation, as in the template drawer, there are no defaults, and `sent` is what the texts hold.
+ * `initialRemotes` sets the starting texts for the remotes. Resets go back to the defaults.
+ *
+ * `remoteNames` (from remoteNamesOf on the page's paths) lists the remotes whose tabs are read.
+ * Pages without a Remotes section leave it out.
+ *
+ * The groups must be static, because they are captured on the first render.
+ */
+export function useOptionGroups<K extends GroupKey>({
+    operation,
     groups,
-    withRemotes = false,
+    remoteNames,
+    initial,
+    initialRemotes,
 }: {
-    groups: readonly OptionGroupDef<K>[]
-    withRemotes?: boolean
+    operation?: OperationName
+    groups: readonly K[]
+    remoteNames?: readonly string[]
+    initial?: Operations.Groups
+    initialRemotes?: Operations.Groups['remotes']
 }) {
-    // Defs are static per page — freeze the first-render value so effects don't depend on an
-    // inline-array identity.
-    const [defs] = useState(groups)
+    // The groups are static per page. Keep the first render's value, so the memos don't depend on
+    // the identity of an inline array.
+    const [keys] = useState(groups)
+    const names = remoteNames ?? NO_REMOTES
+    const defaults = useOperationDefaults(operation)
 
-    const [jsonStrings, setJsonStrings] = useState<Record<K, string>>(
-        () => Object.fromEntries(defs.map((g) => [g.key, '{}'])) as Record<K, string>
-    )
-    const [parsed, setParsed] = useState<Record<K, Record<string, FlagValue>>>(
-        () =>
-            Object.fromEntries(defs.map((g) => [g.key, {}])) as Record<K, Record<string, FlagValue>>
-    )
-    const [locked, setLockedMap] = useState<Record<K, boolean>>(
-        () => Object.fromEntries(defs.map((g) => [g.key, false])) as Record<K, boolean>
-    )
+    // The starting texts, set in the first render: the defaults with the preset's options over
+    // them. They must be in place before any effect runs, because START can be pressed that early.
+    // Otherwise a Sync from a preset could start without the preset's exclude filter, and delete
+    // what the filter protects. They are also kept to tell whether the texts were edited.
+    // `complete` says whether the defaults were there, because they arrive with the catalog.
+    const seedsOf = (defaults: GroupDefaults | undefined) => ({
+        groups: textsOf(
+            keys,
+            seedGroups(keys, defaults, initial as Partial<Record<K, Incoming>> | undefined)
+        ),
+        remotes: Object.fromEntries(
+            Object.entries(initialRemotes ?? {}).map(([name, options]) => [
+                name,
+                JSON.stringify(options, null, 2),
+            ])
+        ) as Record<string, string>,
+        complete: defaults !== undefined,
+    })
+    const [seeds, setSeeds] = useState(() => seedsOf(defaults))
+    const [jsonStrings, setJsonStrings] = useState<Record<K, string>>(seeds.groups)
+    const [remoteJson, setRemoteJson] = useState<Record<string, string>>(seeds.remotes)
+    // The defaults under each group's text. What the page sends is the difference from them. They
+    // change only when a text is written again from the defaults: by a reset or a replace.
+    const [bases, setBases] = useState(() => basesOf(keys, defaults))
 
-    // The remotes group replicates the old two-stage pipeline exactly:
-    //   tab strings -> (all-or-nothing parse) -> remoteDocParsed -> (gated on group validity)
-    //   -> remoteParsed (the args source).
-    // remoteDocParsed is the old "outer doc": the last successful full parse of the tab strings.
-    // Reset clears IT (not the strings), so tabs keep their text, submits carry no remote
-    // options, and the next tab edit re-parses everything back in — the old chain's behavior.
-    const [remoteOptionsJson, setRemoteOptionsJson] = useState<Record<string, string>>({})
-    const [remoteDocParsed, setRemoteDocParsed] = useState<
-        Record<string, Record<string, FlagValue>>
-    >({})
-    const [remoteParsed, setRemoteParsed] = useState<Record<string, Record<string, FlagValue>>>({})
-    const [remoteLocked, setRemoteLocked] = useState(false)
-
-    const [jsonError, setJsonError] = useState<K | null>(null)
-
-    // Bumped by a forced (mount-time) reconcile so the groups parse effect re-runs even when the
-    // rebuilt strings round-trip to a value-equal doc — replicating the old mount write-back
-    // side-channel that re-latched jsonError on a still-invalid group after a remount.
-    const [parseNonce, setParseNonce] = useState(0)
-
-    // Seed group defaults into the JSON strings on mount (the parse effect derives the values).
-    // defs is frozen on first render, so this still runs exactly once.
-    useEffect(() => {
-        startTransition(() => {
-            setJsonStrings((prev) => {
-                const next = { ...prev }
-                for (const g of defs) {
-                    if (g.defaults) {
-                        next[g.key] = JSON.stringify(g.defaults, null, 2)
-                    }
-                }
-                return next
-            })
-        })
-    }, [defs])
-
-    // Parse effect: single try/catch over all groups so ANY invalid group freezes EVERY group's
-    // parsed values until the user fixes the JSON. remoteDocParsed is a dep on purpose — the old
-    // page effect re-parsed on outer-doc changes too, so a remote-tab edit while a group is
-    // invalid re-throws and RE-LATCHES jsonError (re-disabling START), and the remotes args
-    // source syncs to the doc only on a successful full parse.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: parseNonce is a deliberate re-run trigger the body doesn't read
-    useEffect(() => {
-        let step: K = defs[0].key
-        try {
-            const nextParsed = {} as Record<K, Record<string, FlagValue>>
-            for (const g of defs) {
-                step = g.key
-                nextParsed[g.key] = JSON.parse(jsonStrings[g.key]) as Record<string, FlagValue>
-            }
-
-            startTransition(() => {
-                setParsed(nextParsed)
-                if (withRemotes) {
-                    setRemoteParsed(remoteDocParsed)
-                }
-                setJsonError(null)
-            })
-        } catch (error) {
-            setJsonError(step)
-            console.error(`Error parsing ${step} options:`, error)
+    // When the catalog arrives after the first render, the texts start again from its defaults,
+    // unless the user has already edited them. Edited texts are kept, and their bases stay empty,
+    // so nothing they lack is sent as removed. The core adds the defaults that they don't name.
+    if (defaults && !seeds.complete) {
+        if (textsEdited(seeds.groups, jsonStrings)) {
+            setSeeds({ ...seeds, complete: true })
+        } else {
+            const next = seedsOf(defaults)
+            setSeeds(next)
+            setJsonStrings(next.groups)
+            setBases(basesOf(keys, defaults))
         }
-    }, [defs, jsonStrings, remoteDocParsed, parseNonce, withRemotes])
+    }
+    // Whether any text differs from what the page opened with. FollowsQuery uses this to ask
+    // before a new route replaces the page.
+    const edited = useMemo(
+        () => textsEdited(seeds.groups, jsonStrings) || textsEdited(seeds.remotes, remoteJson),
+        [seeds, jsonStrings, remoteJson]
+    )
 
-    // Remotes parse — deliberately OUTSIDE the groups' try/catch: an invalid remote tab must NOT
-    // set jsonError or disable start. Retention is ALL-OR-NOTHING across remotes: the loop
-    // returns on the first invalid entry, freezing the doc for EVERY remote until the user fixes
-    // the tab (a valid edit in another tab does not reach submit meanwhile). The value-equality
-    // bailout mirrors the old write-back's identical-string setState bailout.
-    useEffect(() => {
-        if (!withRemotes) {
-            return
+    // The last successful parse of each group, and of the remotes. The subtitles, the metadata
+    // mapper and the arguments use it while a text is being edited and is invalid. START is
+    // blocked in the meantime.
+    const lastGood = useRef<{
+        groups: Partial<Record<K, Options>>
+        remotes: Record<string, Options>
+    }>({ groups: {}, remotes: {} })
+    const { parsed, invalid, remoteParsed, jsonError } = useMemo(() => {
+        const groupsRead = parseGroups(keys, jsonStrings)
+        const remotesRead = parseRemotes(names, remoteJson)
+        const groups = {} as Record<K, Options>
+        for (const key of keys) {
+            groups[key] = groupsRead.options[key] ?? lastGood.current.groups[key] ?? {}
         }
-        const next: Record<string, Record<string, FlagValue>> = {}
-        for (const [remote, json] of Object.entries(remoteOptionsJson)) {
-            try {
-                next[remote] = JSON.parse(json) as Record<string, FlagValue>
-            } catch {
-                return
-            }
+        lastGood.current = {
+            groups,
+            remotes: remotesRead.options ?? lastGood.current.remotes,
         }
-        startTransition(() => {
-            setRemoteDocParsed((prev) =>
-                JSON.stringify(prev) === JSON.stringify(next) ? prev : next
-            )
-        })
-    }, [remoteOptionsJson, withRemotes])
+        return {
+            parsed: groups,
+            invalid: new Set(groupsRead.invalid),
+            remoteParsed: lastGood.current.remotes,
+            jsonError: groupsRead.invalid[0] ?? remotesRead.invalid ?? null,
+        }
+    }, [keys, jsonStrings, names, remoteJson])
 
-    // Stable per-group setters (defs are static). Returning `prev` unchanged on a same-value
-    // write preserves React's Object.is bailout the dedicated useState setters had — a no-op
-    // write must not re-run the parse effect.
+    // Stable setters for each group (the groups are static). Returning `prev` unchanged when the
+    // value is the same lets React's Object.is check skip the re-render.
     const setters = useMemo(() => {
-        const map = {} as Record<
-            K,
-            { setJsonString: (value: string) => void; setLocked: (value: boolean) => void }
-        >
-        for (const g of defs) {
-            map[g.key] = {
-                setJsonString: (value: string) =>
-                    setJsonStrings((prev) =>
-                        prev[g.key] === value ? prev : { ...prev, [g.key]: value }
-                    ),
-                setLocked: (value: boolean) =>
-                    setLockedMap((prev) =>
-                        prev[g.key] === value ? prev : { ...prev, [g.key]: value }
-                    ),
-            }
+        const map = {} as Record<K, (value: string) => void>
+        for (const key of keys) {
+            map[key] = (value: string) =>
+                setJsonStrings((prev) => (prev[key] === value ? prev : { ...prev, [key]: value }))
         }
         return map
-    }, [defs])
+    }, [keys])
+
+    const sent = useMemo(() => difference(bases, parsed), [bases, parsed])
 
     const groupStates = useMemo(() => {
         const map = {} as Record<K, OptionGroupState>
-        for (const g of defs) {
-            map[g.key] = {
-                options: parsed[g.key],
-                jsonString: jsonStrings[g.key],
-                setJsonString: setters[g.key].setJsonString,
-                locked: locked[g.key],
-                setLocked: setters[g.key].setLocked,
+        for (const key of keys) {
+            map[key] = {
+                options: parsed[key],
+                valid: !invalid.has(key),
+                sent: sent[key],
+                jsonString: jsonStrings[key],
+                setJsonString: setters[key],
             }
         }
         return map
-    }, [defs, parsed, jsonStrings, locked, setters])
-
-    // Count-change semantics (mirrors the old length-equality init guard): when the remote COUNT
-    // changes in EITHER direction, rebuild ALL tabs' strings from the last-valid parsed doc —
-    // pruning deselected remotes, seeding new ones with '{}', and discarding mid-edit invalid
-    // text. Same-count changes deliberately do not rebuild — EXCEPT on `force`, which the view
-    // passes on its first call after (re)mounting: the old tab strings were child state destroyed
-    // on unmount, so a remount always rebuilt from the doc regardless of the count.
-    const reconcileRemotes = useCallback(
-        (remoteNames: string[], force = false) => {
-            startTransition(() => {
-                if (force) {
-                    // A remount must re-run the groups parse once regardless of whether the
-                    // rebuild changes anything (see parseNonce).
-                    setParseNonce((n) => n + 1)
-                }
-                setRemoteOptionsJson((prev) => {
-                    if (!force && Object.keys(prev).length === remoteNames.length) {
-                        return prev
-                    }
-                    const next: Record<string, string> = {}
-                    let changed = remoteNames.length !== Object.keys(prev).length
-                    for (const remote of remoteNames) {
-                        const lastValid = remoteDocParsed[remote]
-                        next[remote] =
-                            lastValid !== undefined ? JSON.stringify(lastValid, null, 2) : '{}'
-                        if (next[remote] !== prev[remote]) {
-                            changed = true
-                        }
-                    }
-                    return changed ? next : prev
-                })
-            })
-        },
-        [remoteDocParsed]
-    )
+    }, [keys, parsed, invalid, sent, jsonStrings, setters])
 
     const remotes: RemoteOptionsGroupState = useMemo(
-        () => ({
-            options: remoteParsed,
-            json: remoteOptionsJson,
-            setJson: setRemoteOptionsJson,
-            reconcile: reconcileRemotes,
-            locked: remoteLocked,
-            setLocked: setRemoteLocked,
-        }),
-        [remoteParsed, remoteOptionsJson, reconcileRemotes, remoteLocked]
+        () => ({ options: remoteParsed, json: remoteJson, setJson: setRemoteJson }),
+        [remoteParsed, remoteJson]
     )
 
-    // Template load writes the JSON-STRING state (the parse effect derives parsed values); merge
-    // spreads the incoming group over the current PARSED values, exactly as the pages did.
-    const applyTemplate = useCallback(
-        (groupedOptions: Record<string, unknown>, shouldMerge: boolean) => {
+    // Writes the texts that changed. The groups in `fresh` start again from the defaults, so their
+    // bases become the defaults again.
+    const write = useCallback(
+        (texts: Partial<Record<K, string>>, fresh: readonly K[]) => {
             startTransition(() => {
                 setJsonStrings((prev) => {
                     let changed = false
                     const next = { ...prev }
-                    for (const g of defs) {
-                        const incoming = groupedOptions[g.templateKey ?? g.key] as
-                            | Record<string, FlagValue>
-                            | undefined
-                        // Truthiness only (as the pages did): groupByCategory always returns
-                        // objects, so replace mode rewrites every group — clearing uncovered
-                        // ones to '{}'.
-                        if (!incoming) {
-                            continue
-                        }
-                        const serialized = JSON.stringify(
-                            shouldMerge ? { ...parsed[g.key], ...incoming } : incoming,
-                            null,
-                            2
-                        )
-                        if (next[g.key] !== serialized) {
-                            next[g.key] = serialized
+                    for (const key of Object.keys(texts) as K[]) {
+                        const text = texts[key]
+                        if (text !== undefined && next[key] !== text) {
+                            next[key] = text
                             changed = true
                         }
                     }
-                    // Same-value bailout as the pages' individual setters had.
                     return changed ? next : prev
                 })
+                if (fresh.length > 0) {
+                    const reset = basesOf(fresh, defaults)
+                    setBases((prev) => ({ ...prev, ...reset }))
+                }
             })
         },
-        [defs, parsed]
+        [defaults]
     )
 
-    // Spread of all parsed groups in defs order (remotes excluded) — the TemplatesDropdown
-    // getOptions source.
+    // Every group starts again from its defaults, with `grouped` over them, as a preset's options
+    // do. The template drawer fills its groups this way from a pasted command or a saved template.
+    // It depends only on the defaults, so an effect can call it without running again on each edit.
+    const replace = useCallback(
+        (grouped: Partial<Record<K, Incoming>>) => {
+            write(textsOf(keys, seedGroups(keys, defaults, grouped)), keys)
+        },
+        [keys, defaults, write]
+    )
+
+    // Loading a template writes the JSON texts, and the options are parsed from them. The core
+    // sorts the template's options into the groups of the page's form (templates.Groups). In
+    // merge mode, each group that the template sets is spread over the current options, and its
+    // nulls remove options. In replace mode, every group goes back to its defaults, with the
+    // template's options over them (replace).
+    const applyTemplate = useCallback(
+        (groups: Operations.Groups, shouldMerge: boolean) => {
+            const incoming = groups as Partial<Record<K, Incoming>>
+            if (!shouldMerge) {
+                replace(incoming)
+                return
+            }
+            const merged = mergeTemplate(keys, parsed, incoming)
+            const texts: Partial<Record<K, string>> = {}
+            for (const key of Object.keys(merged) as K[]) {
+                texts[key] = JSON.stringify(merged[key], null, 2)
+            }
+            write(texts, [])
+        },
+        [keys, parsed, replace, write]
+    )
+
+    // The options that the page sends, from all groups merged in `groups` order, without the
+    // remotes. TemplatesDropdown saves them as a template's options through getOptions, so a
+    // template holds only what differs from the defaults.
     const getMergedOptions = useCallback((): Record<string, FlagValue> => {
         const merged: Record<string, FlagValue> = {}
-        for (const g of defs) {
-            Object.assign(merged, parsed[g.key])
+        for (const key of keys) {
+            Object.assign(merged, sent[key])
         }
         return merged
-    }, [defs, parsed])
+    }, [keys, sent])
 
-    // Restore every group's JSON string to its default (and remotes to '{}'), clearing jsonError.
+    // Resets every group's JSON text to its defaults and clears the remote options.
     const resetJson = useCallback(() => {
+        const texts = textsOf(keys, seedGroups(keys, defaults, undefined))
         setJsonStrings((prev) => {
             let changed = false
             const next = { ...prev }
-            for (const g of defs) {
-                const value = g.defaults ? JSON.stringify(g.defaults, null, 2) : '{}'
-                if (next[g.key] !== value) {
-                    next[g.key] = value
+            for (const key of keys) {
+                if (next[key] !== texts[key]) {
+                    next[key] = texts[key]
                     changed = true
                 }
             }
             return changed ? next : prev
         })
-        if (withRemotes) {
-            // Reset clears only the DOC (and, via stage 2, the args source) and leaves the tab
-            // strings untouched — the old chain's exact behavior: after a reset the tabs still
-            // display their text, submits carry no remote options, and the next edit in any tab
-            // re-parses everything back in. Clearing the strings here would instead trigger a
-            // reconcile rebuild from the stale doc, undoing the reset.
-            setRemoteDocParsed({})
-        }
-        setJsonError(null)
-    }, [defs, withRemotes])
-
-    const resetLocks = useCallback(() => {
-        setLockedMap((prev) => {
-            if (defs.every((g) => prev[g.key] === false)) {
-                return prev
-            }
-            return Object.fromEntries(defs.map((g) => [g.key, false])) as Record<K, boolean>
-        })
-        setRemoteLocked(false)
-    }, [defs])
+        setBases(basesOf(keys, defaults))
+        setRemoteJson((prev) => (Object.keys(prev).length === 0 ? prev : {}))
+    }, [keys, defaults])
 
     return {
         jsonError,
-        setJsonError,
+        edited,
+        keys,
         groups: groupStates,
+        // Undefined when the page has no Remotes section.
+        remoteNames,
         remotes,
         applyTemplate,
+        replace,
         getMergedOptions,
         resetJson,
-        resetLocks,
     }
 }
+
+export type OptionGroups<K extends GroupKey> = ReturnType<typeof useOptionGroups<K>>

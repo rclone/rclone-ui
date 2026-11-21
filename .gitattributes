@@ -1,0 +1,4 @@
+# Every text file is checked out with LF line endings, on Windows too. The generated bindings
+# and the catalogs are compared with freshly generated ones (build/check.sh), and a checkout
+# with CRLF would make every file differ.
+* text=auto eol=lf

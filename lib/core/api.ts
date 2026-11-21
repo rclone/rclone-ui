@@ -1,0 +1,27 @@
+// The core's APIs, as Wails binds them from core/<domain>/api.go. Pages call the core through
+// these exports and never import the generated bindings directly. The types for each domain are
+// exported under its name in lib/core/types.ts.
+
+export { API as app } from '../shell/bindings/github.com/rclone/rclone-ui/core/app'
+export { API as browse } from '../shell/bindings/github.com/rclone/rclone-ui/core/browse'
+export { API as catalog } from '../shell/bindings/github.com/rclone/rclone-ui/core/catalog'
+export { API as config } from '../shell/bindings/github.com/rclone/rclone-ui/core/config'
+export { API as favorites } from '../shell/bindings/github.com/rclone/rclone-ui/core/favorites'
+export { API as files } from '../shell/bindings/github.com/rclone/rclone-ui/core/files'
+export { API as launcher } from '../shell/bindings/github.com/rclone/rclone-ui/core/launcher'
+export { API as links } from '../shell/bindings/github.com/rclone/rclone-ui/core/linkresolve'
+export { API as logs } from '../shell/bindings/github.com/rclone/rclone-ui/core/logs'
+export { API as media } from '../shell/bindings/github.com/rclone/rclone-ui/core/media'
+export { API as mounts } from '../shell/bindings/github.com/rclone/rclone-ui/core/mounts'
+export { API as notifications } from '../shell/bindings/github.com/rclone/rclone-ui/core/notifications'
+export { API as prefs } from '../shell/bindings/github.com/rclone/rclone-ui/core/prefs'
+export { API as remotes } from '../shell/bindings/github.com/rclone/rclone-ui/core/remotes'
+export { API as schedules } from '../shell/bindings/github.com/rclone/rclone-ui/core/schedules'
+export { API as serves } from '../shell/bindings/github.com/rclone/rclone-ui/core/serves'
+export { API as settings } from '../shell/bindings/github.com/rclone/rclone-ui/core/settings'
+export { API as telemetry } from '../shell/bindings/github.com/rclone/rclone-ui/core/telemetry'
+export { API as templates } from '../shell/bindings/github.com/rclone/rclone-ui/core/templates'
+export { API as transfers } from '../shell/bindings/github.com/rclone/rclone-ui/core/transfers'
+export { API as tunnel } from '../shell/bindings/github.com/rclone/rclone-ui/core/tunnel'
+export { API as vfs } from '../shell/bindings/github.com/rclone/rclone-ui/core/vfs'
+export { API as watchers } from '../shell/bindings/github.com/rclone/rclone-ui/core/watchers'

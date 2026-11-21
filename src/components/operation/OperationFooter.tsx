@@ -1,220 +1,294 @@
-import {
-    Button,
-    ButtonGroup,
-    Dropdown,
-    DropdownItem,
-    DropdownMenu,
-    DropdownTrigger,
-    Tooltip,
-} from '@heroui/react'
-import { platform } from '@tauri-apps/plugin-os'
-import { AnimatePresence, motion } from 'framer-motion'
-import { ClockIcon, EyeIcon } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useMemo } from 'react'
-import { useSchedulingAvailable } from '../../../lib/scheduler'
-import { openWindow } from '../../../lib/window'
-import type { Template } from '../../../types/template'
-import CommandInfoButton from '../CommandInfoButton'
-import CommandsDropdown from '../CommandsDropdown'
-import TemplatesDropdown from '../TemplatesDropdown'
+import { Button, cn, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger } from '@heroui/react'
+import { t } from '@lingui/core/macro'
+import { Trans } from '@lingui/react/macro'
+import { AngleDownSmall as AngleDownSmallIcon, Clock as ClockIcon } from '@zappicon/react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { type ReactNode, useCallback, useMemo, useRef } from 'react'
+import { openWindow, platform } from '../../../lib/shell'
+import { WINDOWS } from '../../routes'
+import { toneButton } from '../look/buttons'
+import { IconTile } from '../look/IconTile'
+import { StatusDot } from '../look/Status'
+import { pageLook } from './look'
+import { type BarLine, plainLine } from './summary'
+
+/** The animation that swaps the bar's buttons when the operation starts. */
+export function useSwap() {
+    const reduced = useReducedMotion()
+    return {
+        initial: { opacity: 0, scale: reduced ? 1 : 0.96 },
+        animate: { opacity: 1, scale: 1 },
+        exit: { opacity: 0, scale: reduced ? 1 : 0.96 },
+        transition: { type: 'spring', duration: 0.25, bounce: 0 },
+    } as const
+}
 
 /**
- * The footer strip shared by the operation pages: TemplatesDropdown wiring, the AnimatePresence
- * START/NEW swap with the three reset items, and the ButtonGroup (dry-run when the page has one,
- * schedule, help, commands). Everything page-specific stays page-supplied: the reset onPress
- * bodies, the start/dry-run gating condition (`startBlocked` — the page's jsonError + path
- * checks), button text/icon, the NEW label, and the help prose.
+ * The left of the action bar: what the main button will do, why it can't yet, or what has
+ * started.
+ */
+export function BarText({
+    line,
+    problem,
+    status,
+}: {
+    line?: BarLine
+    /** Why the main button is disabled, shown instead of the line. */
+    problem?: string
+    status?: 'active' | 'success'
+}) {
+    return (
+        <div className="flex items-center flex-1 min-w-0 gap-2.5 pl-2">
+            {status && <StatusDot kind={status} />}
+            <div className="flex flex-col min-w-0">
+                {problem ? (
+                    <p className="leading-snug truncate text-small text-default-500">{problem}</p>
+                ) : line ? (
+                    <>
+                        <p className="leading-snug truncate text-small" title={textOf(line)}>
+                            {line.title.map((segment, index) => (
+                                <span
+                                    // The segments never move, so the index is a safe key.
+                                    key={index}
+                                    className={
+                                        segment.strong
+                                            ? 'font-semibold text-foreground'
+                                            : 'text-default-600'
+                                    }
+                                >
+                                    {segment.text}
+                                </span>
+                            ))}
+                        </p>
+                        {line.detail && (
+                            <p className="leading-snug truncate text-tiny text-default-500">
+                                {line.detail}
+                            </p>
+                        )}
+                    </>
+                ) : null}
+            </div>
+        </div>
+    )
+}
+
+function textOf(line: BarLine): string {
+    return line.title.map((segment) => segment.text).join('')
+}
+
+export function StartButton({
+    children,
+    className,
+    ...props
+}: Parameters<typeof Button>[0] & { children: ReactNode }) {
+    const { tone } = pageLook()
+    return (
+        <Button
+            size="lg"
+            type="button"
+            color="primary"
+            className={cn('gap-2 px-5 font-semibold min-w-36', toneButton(tone), className)}
+            data-focus-visible="false"
+            {...props}
+        >
+            {children}
+        </Button>
+    )
+}
+
+const previewStarting = () =>
+    plainLine(
+        t`Starting the preview…`,
+        t`A dry run simulates the operation without changing anything.`
+    )
+
+/**
+ * The action bar shared by the operation pages. On the left it says what will happen ("Sync
+ * Photos to gdrive:Backup"), or why the page can't start yet. On the right are Schedule (on pages
+ * that a schedule can run) and the main button. Once started, the bar says so, and offers the
+ * next steps: History (or the page's own action, such as Serve's Copy address) and New, whose
+ * menu resets the paths, the options or both.
  */
 export default function OperationFooter({
-    operation,
-    templatesDisabled,
-    onTemplateSelect,
-    getTemplateOptions,
+    line,
+    startedLine,
+    problem,
     startIsSuccess,
     startIsPending,
+    previewIsPending = false,
     onStart,
     onSchedule,
-    dryRunIsPending,
-    onDryRun,
     startBlocked,
     buttonText,
     buttonIcon,
     newLabel,
     newButtonPrimary = true,
     showViewTransfers = true,
-    resetPathsLabel = 'Reset Paths',
+    startedAction,
+    startedExtra,
+    resetPathsLabel = t`Reset paths`,
     onResetPaths,
     onResetOptions,
     onResetAll,
-    helpContent,
 }: {
-    operation: Template['tags'][number]
-    templatesDisabled: boolean
-    onTemplateSelect: ComponentProps<typeof TemplatesDropdown>['onSelect']
-    getTemplateOptions: ComponentProps<typeof TemplatesDropdown>['getOptions']
+    /** What the main button will do. */
+    line?: BarLine
+    /** What has started, once the main button has done it. */
+    startedLine?: BarLine
+    /** Why the main button is disabled, shown instead of `line`. */
+    problem?: string
     startIsSuccess: boolean
     startIsPending: boolean
-    onStart: () => void
-    onSchedule: () => void
-    // Present only on pages with a dry-run mutation (Copy/Sync/Move/Delete).
-    dryRunIsPending?: boolean
-    onDryRun?: () => void
+    /** A preview (a dry run) from the header's More menu is starting. The bar says so. */
+    previewIsPending?: boolean
+    /** Starts the operation. The button can be pressed again once the promise settles. */
+    onStart: () => Promise<unknown> | undefined
+    /** Opens the Schedule drawer with the page's form. Set on the pages that a schedule can run. */
+    onSchedule?: () => void
     startBlocked: boolean
     buttonText: string
     buttonIcon: ReactNode
     newLabel: string
     newButtonPrimary?: boolean
     showViewTransfers?: boolean
+    // Shown instead of View in History once started (the Serve page's Copy address).
+    startedAction?: { label: string; onPress: () => void; icon?: ReactNode }
+    /** More buttons once started, before New (the Mount page's Open and Unmount). */
+    startedExtra?: ReactNode
     resetPathsLabel?: string
     onResetPaths: () => void
     onResetOptions: () => void
     onResetAll: () => void
-    helpContent: string
 }) {
     const dropdownShadow = useMemo(() => (platform() === 'windows' ? 'none' : undefined), [])
+    const { tone } = pageLook()
+    const swap = useSwap()
 
-    // Scheduling is OS-native and local-host-only; hide the affordance where it can't work
-    // (sandboxed installs, remote hosts) — mirrors the Cron options section on the operation pages.
-    const schedulingAvailable = useSchedulingAvailable()
-
-    const handleStartPress = useCallback(() => {
-        setTimeout(() => onStart(), 100)
-    }, [onStart])
-
-    const handleDryRunPress = useCallback(() => {
-        if (dryRunIsPending || startBlocked) {
+    // Set from the press until the start settles. The second press of a double-click arrives
+    // before the page renders its pending state, and would start it twice.
+    const running = useRef(false)
+    const run = useCallback((action: (() => Promise<unknown> | undefined) | undefined) => {
+        if (running.current || !action) {
             return
         }
-        setTimeout(() => onDryRun?.(), 100)
-    }, [dryRunIsPending, startBlocked, onDryRun])
+        running.current = true
+        setTimeout(async () => {
+            try {
+                await action()
+            } finally {
+                running.current = false
+            }
+        }, 100)
+    }, [])
 
-    const handleSchedulePress = useCallback(() => {
-        setTimeout(() => onSchedule(), 100)
-    }, [onSchedule])
+    const handleStartPress = useCallback(() => run(onStart), [run, onStart])
 
     const handleViewTransfersPress = useCallback(async () => {
-        await openWindow({
-            name: 'Transfers',
-            url: '/transfers',
-        })
+        await openWindow('/history')
     }, [])
+
+    const shown = startIsSuccess
+        ? { line: startedLine, status: 'success' as const }
+        : startIsPending
+          ? { line, status: 'active' as const }
+          : previewIsPending
+            ? { line: previewStarting(), status: 'active' as const }
+            : { line, problem: startBlocked ? problem : undefined }
 
     return (
         <>
-            <TemplatesDropdown
-                isDisabled={templatesDisabled}
-                operation={operation}
-                onSelect={onTemplateSelect}
-                getOptions={getTemplateOptions}
-            />
+            <BarText {...shown} />
             <AnimatePresence mode="wait" initial={false}>
                 {startIsSuccess ? (
-                    <motion.div
-                        key="started-buttons"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                        className="flex flex-1 gap-2"
-                    >
-                        <Dropdown shadow={dropdownShadow}>
+                    <motion.div key="started-buttons" {...swap} className="flex gap-2 shrink-0">
+                        {startedExtra}
+                        {startedAction ? (
+                            // The page's own next step is the main one (Serve's Copy address,
+                            // Mount's Open), in the window's tone.
+                            <StartButton
+                                startContent={startedAction.icon}
+                                onPress={startedAction.onPress}
+                                className="min-w-0"
+                            >
+                                {startedAction.label}
+                            </StartButton>
+                        ) : showViewTransfers ? (
+                            <Button
+                                size="lg"
+                                variant="flat"
+                                startContent={
+                                    <IconTile
+                                        icon={WINDOWS.history.icon}
+                                        tone={WINDOWS.history.tone}
+                                        size="sm"
+                                    />
+                                }
+                                onPress={handleViewTransfersPress}
+                                className="font-medium"
+                                data-focus-visible="false"
+                            >
+                                <Trans>View in History</Trans>
+                            </Button>
+                        ) : null}
+                        <Dropdown shadow={dropdownShadow} placement="top-end">
                             <DropdownTrigger>
                                 <Button
-                                    fullWidth={true}
                                     size="lg"
                                     color={newButtonPrimary ? 'primary' : undefined}
+                                    variant={newButtonPrimary ? 'solid' : 'flat'}
+                                    endContent={<AngleDownSmallIcon className="size-4" />}
+                                    className={cn(
+                                        'gap-1.5 font-semibold',
+                                        newButtonPrimary && toneButton(tone)
+                                    )}
                                     data-focus-visible="false"
                                 >
                                     {newLabel}
                                 </Button>
                             </DropdownTrigger>
-                            <DropdownMenu>
+                            <DropdownMenu aria-label={newLabel}>
                                 <DropdownItem key="reset-paths" onPress={onResetPaths}>
                                     {resetPathsLabel}
                                 </DropdownItem>
                                 <DropdownItem key="reset-options" onPress={onResetOptions}>
-                                    Reset Options
+                                    <Trans>Reset options</Trans>
                                 </DropdownItem>
                                 <DropdownItem key="reset-all" onPress={onResetAll}>
-                                    Reset All
+                                    <Trans>Reset all</Trans>
                                 </DropdownItem>
                             </DropdownMenu>
                         </Dropdown>
-
-                        {showViewTransfers ? (
-                            <Button
-                                fullWidth={true}
-                                size="lg"
-                                color="secondary"
-                                onPress={handleViewTransfersPress}
-                                data-focus-visible="false"
-                            >
-                                VIEW TRANSFERS
-                            </Button>
-                        ) : null}
                     </motion.div>
                 ) : (
-                    <motion.div
-                        key="start-button"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                        className="flex flex-1"
-                    >
-                        <Button
+                    <motion.div key="start-button" {...swap} className="flex gap-2 shrink-0">
+                        {onSchedule && (
+                            <Button
+                                size="lg"
+                                type="button"
+                                variant="flat"
+                                isDisabled={startBlocked}
+                                startContent={<ClockIcon className="size-5" />}
+                                onPress={onSchedule}
+                                aria-label={t`Schedule`}
+                                className="gap-2 font-medium text-default-700 max-sm:min-w-12 max-sm:px-0"
+                                data-focus-visible="false"
+                            >
+                                <span className="max-sm:hidden">
+                                    <Trans>Schedule</Trans>
+                                </span>
+                            </Button>
+                        )}
+                        <StartButton
                             onPress={handleStartPress}
-                            size="lg"
-                            fullWidth={true}
-                            type="button"
-                            color="primary"
-                            isDisabled={startIsPending || startBlocked}
+                            isDisabled={startIsPending || previewIsPending || startBlocked}
                             isLoading={startIsPending}
                             endContent={buttonIcon}
-                            className="max-w-2xl gap-2"
-                            data-focus-visible="false"
                         >
                             {buttonText}
-                        </Button>
+                        </StartButton>
                     </motion.div>
                 )}
             </AnimatePresence>
-            <ButtonGroup variant="flat">
-                {onDryRun ? (
-                    <Tooltip
-                        content="Preview (Dry Run)"
-                        placement="top"
-                        size="lg"
-                        color="foreground"
-                    >
-                        <Button
-                            size="lg"
-                            type="button"
-                            color="primary"
-                            isIconOnly={true}
-                            isLoading={dryRunIsPending}
-                            onPress={handleDryRunPress}
-                        >
-                            <EyeIcon className="size-6" />
-                        </Button>
-                    </Tooltip>
-                ) : null}
-                {schedulingAvailable ? (
-                    <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
-                        <Button
-                            size="lg"
-                            type="button"
-                            color="primary"
-                            isIconOnly={true}
-                            onPress={handleSchedulePress}
-                        >
-                            <ClockIcon className="size-6" />
-                        </Button>
-                    </Tooltip>
-                ) : null}
-                <CommandInfoButton content={helpContent} />
-                <CommandsDropdown currentCommand={operation} />
-            </ButtonGroup>
         </>
     )
 }

@@ -1,0 +1,154 @@
+name: release
+
+# Releases a stable version of Rclone UI. It builds and packages the six targets under the
+# release's file names (Rclone-UI-<version>-*), and writes the release's feed
+# (rclone-ui-update.json, app/update's Feed). Betas come from the release-beta workflow.
+#
+# The release is a draft. You publish it on the release page and set it as the latest release
+# there. The app's stable channel reads the latest release's feed, so that is what offers the
+# update. Then run release-winget.
+#
+# A dry run does all of it except the tag and the release. Its files are the run's
+# release-dry-run artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: build and write the feed, but make no tag or release
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  # Refuses a version that is released already, before anything is built. An existing tag would
+  # take the release whatever its commit, and an existing release (even a draft) would make
+  # gh release create fail after every build. A dry run only warns.
+  prepare:
+    name: Refuse a version released already
+    runs-on: ubuntu-24.04
+    permissions:
+      # The API lists draft releases only to a token that can write.
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: The tag, the release and the metainfo entry
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          refuse() { if [ "$DRY_RUN" = true ]; then echo "::warning::$1"; else echo "::error::$1"; exit 1; fi; }
+          version=$(node -p "require('./package.json').version"); tag="v$version"
+          case "$version" in
+            *-*) refuse "$version has a pre-release part: set a stable version in package.json (release-beta makes the betas, and numbers them itself)" ;;
+          esac
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1 &&
+            refuse "$tag exists already: bump package.json's version to release again"
+          # Every page, so an old forgotten draft is seen too. The list is assigned to a variable
+          # so that a failed listing fails the step, and isn't read as "no release".
+          releases=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq ".[] | select(.tag_name == \"$tag\") | .id")
+          [ -z "$releases" ] ||
+            refuse "a release for $tag exists already (an unpublished draft?): delete it, or bump the version"
+          grep -q "<release version=\"$version\"" build/linux/org.rclone.ui.metainfo.xml ||
+            refuse "build/linux/org.rclone.ui.metainfo.xml has no <release version=\"$version\">: add the release's entry"
+          echo "ready to release $tag"
+
+  build:
+    name: Build
+    needs: prepare
+    # Each target built, signed and packaged (build.yml), as dist-<goos>-<goarch>.
+    uses: ./.github/workflows/build.yml
+    with:
+      release: true
+    secrets: inherit
+
+  vendor:
+    name: Vendored sources (Flatpak)
+    needs: prepare
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: The vendored sources and the Flathub manifest
+        run: |
+          npm run build
+          go -C tools run ./zstdassets -src ../dist -dst ../app/assets/dist
+          go mod vendor
+          version=$(node -p "require('./package.json').version")
+          vendor="Rclone-UI-$version-vendor.tar.gz"
+          mkdir -p out
+          tar -czf "out/$vendor" vendor app/assets/dist
+          sed -e "s|@VERSION@|$version|g" \
+              -e "s|@COMMIT@|$GITHUB_SHA|g" \
+              -e "s|@SHA256@|$(sha256sum "out/$vendor" | cut -d' ' -f1)|g" \
+              build/flatpak/org.rclone.ui.yml > out/org.rclone.ui.yml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-vendor
+          path: out/*
+          retention-days: 7
+
+  release:
+    name: Create the release
+    needs: [build, vendor]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      - name: The feed
+        id: feed
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # The policy (which running versions must or should update) is build/release/policy.json.
+          go run ./build/release manifest -version "$version" \
+            -base-url "https://github.com/${{ github.repository }}/releases/download/v$version" \
+            -rclone "$(go list -m -f '{{.Version}}' github.com/rclone/rclone)" \
+            -notes "See https://github.com/${{ github.repository }}/releases/tag/v$version" dist
+          # Exactly the files a release publishes: no file under another app's names.
+          go run ./build/release check -version "$version" dist
+
+      - name: The dry run's files
+        if: ${{ inputs.dry-run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dry-run
+          path: dist/
+          retention-days: 7
+
+      - name: The draft release
+        if: ${{ !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.feed.outputs.version }}
+        run: |
+          # A draft, which you publish and set as the latest release on the release page. The tag
+          # goes on the commit built: without --target, gh would make it from the default
+          # branch's head when the draft is published.
+          gh release create "v$VERSION" --draft --title "v$VERSION" --notes "Rclone UI v$VERSION" \
+            --target "$GITHUB_SHA" dist/*

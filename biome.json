@@ -1,55 +1,297 @@
 {
-    "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-    "organizeImports": {
-        "enabled": true
+    "$schema": "https://biomejs.dev/schemas/2.6.6/schema.json",
+    "vcs": {
+        "enabled": true,
+        "clientKind": "git",
+        "useIgnoreFile": true
+    },
+    "files": {
+        "includes": [
+            "**",
+            "!!**/lib/shell/bindings",
+            "!!**/testdata",
+            "!!**/locales/*/rclone.json",
+            "!!**/.claude",
+            "!**/package.json",
+            "!!**/app/launcher/view/linux/gnome",
+            "!**/*.md",
+            "!**/*.yml",
+            "!**/*.yaml",
+            "!**/*.html"
+        ]
+    },
+    "assist": {
+        "actions": {
+            "source": {
+                "organizeImports": "on"
+            }
+        }
     },
     "linter": {
         "enabled": true,
         "rules": {
             "a11y": {
-                "all": true,
+                "preset": "all",
+                "noAmbiguousAnchorText": "off",
+                "noNoninteractiveElementInteractions": "off",
+                "noStaticElementInteractions": "off",
                 "noSvgWithoutTitle": "off",
-                "useKeyWithClickEvents": "off"
+                "useAriaPropsSupportedByRole": "off",
+                "useKeyWithClickEvents": "off",
+                "useValidAutocomplete": "off"
             },
             "complexity": {
-                "all": true,
+                "preset": "all",
+                "noAdjacentSpacesInRegex": "off",
+                "noDivRegex": "off",
+                "noExcessiveCognitiveComplexity": "off",
+                "noExcessiveLinesPerFunction": "off",
+                "noExcessiveNestedCallbacks": "off",
+                "noExcessiveSelectorClasses": "off",
+                "noImplicitCoercions": "off",
+                "noImportantStyles": "off",
+                "noPlaywrightUselessAwait": "off",
+                "noRedundantDefaultExport": "off",
+                "noUnnecessaryTemplateExpression": "off",
+                "noUselessCatchBinding": "off",
+                "noUselessContinue": "off",
+                "noUselessEscapeInRegex": "off",
+                "noUselessReturn": "off",
+                "noUselessStringRaw": "off",
                 "noUselessTypeConstraint": "off",
-                "useSimplifiedLogicExpression": "off",
-                "noExcessiveCognitiveComplexity": "off"
+                "noUselessUndefined": "off",
+                "useArrayFind": "off",
+                "useArraySome": "off",
+                "useIndexOf": "off",
+                "useMathMinMax": "off",
+                "useMaxParams": "off",
+                "useRegexpTest": "off",
+                "useSimplifiedLogicExpression": "off"
             },
             "correctness": {
-                "all": true,
-                "useImportExtensions": "off"
+                "preset": "all",
+                "noBeforeInteractiveScriptOutsideDocument": "off",
+                "noComponentHookFactories": "off",
+                "noDuplicateArgumentNames": "off",
+                "noDuplicateAttributes": "off",
+                "noDuplicateEnumValueNames": "off",
+                "noDuplicateFieldDefinitionNames": "off",
+                "noDuplicateInputFieldNames": "off",
+                "noDuplicateVariableNames": "off",
+                "noGlobalDirnameFilename": "off",
+                "noJsxNamespace": "off",
+                "noMissingVarFunction": "off",
+                "noNestedComponentDefinitions": "off",
+                "noNextAsyncClientComponent": "off",
+                "noPlaywrightMissingAwait": "off",
+                "noPrivateImports": "off",
+                "noProcessGlobal": "off",
+                "noQwikUseVisibleTask": "off",
+                "noReactNativeRawText": "off",
+                "noReactPropAssignments": "off",
+                "noRestrictedElements": "off",
+                "noSolidDestructuredProps": "off",
+                "noUnknownPseudoClass": "off",
+                "noUnknownPseudoElement": "off",
+                "noUnknownTypeSelector": "off",
+                "noUnresolvedImports": "off",
+                "noUnusedInstantiation": "off",
+                "noVueDataObjectDeclaration": "off",
+                "noVueDuplicateKeys": "off",
+                "noVueImportCompilerMacros": "off",
+                "noVueRefAsOperand": "off",
+                "noVueReservedKeys": "off",
+                "noVueReservedProps": "off",
+                "noVueSetupPropsReactivityLoss": "off",
+                "noVueVIfWithVFor": "off",
+                "noVueVOnNumberValues": "off",
+                "useGraphqlNamedOperations": "off",
+                "useImageSize": "off",
+                "useImportExtensions": "off",
+                "useInlineScriptId": "off",
+                "useJsonImportAttributes": "off",
+                "useLoneAnonymousOperation": "off",
+                "useParseIntRadix": "off",
+                "usePlaywrightValidDescribeCallback": "off",
+                "useQwikClasslist": "off",
+                "useQwikLoaderLocation": "off",
+                "useQwikMethodUsage": "off",
+                "useQwikValidLexicalScope": "off",
+                "useReactAsyncServerFunction": "off",
+                "useReactNativePlatformComponents": "off",
+                "useSingleJsDocAsterisk": "off",
+                "useUniqueElementIds": "off",
+                "useValidTypeof": "off",
+                "useVueVForKey": "off",
+                "useVueValidTemplateRoot": "off",
+                "useVueValidVBind": "off",
+                "useVueValidVCloak": "off",
+                "useVueValidVElse": "off",
+                "useVueValidVElseIf": "off",
+                "useVueValidVFor": "off",
+                "useVueValidVHtml": "off",
+                "useVueValidVIf": "off",
+                "useVueValidVOn": "off",
+                "useVueValidVOnce": "off",
+                "useVueValidVPre": "off",
+                "useVueValidVText": "off"
             },
             "performance": {
-                "all": true
+                "preset": "all",
+                "noAwaitInLoops": "off",
+                "noDynamicNamespaceImportAccess": "off",
+                "noImgElement": "off",
+                "noJsxPropsBind": "off",
+                "noSyncScripts": "off",
+                "noUnwantedPolyfillio": "off",
+                "useDomNodeTextContent": "off",
+                "useGoogleFontPreconnect": "off",
+                "useSolidForComponent": "off",
+                "useVueVapor": "off"
             },
             "security": {
-                "all": true
+                "preset": "all",
+                "noScriptUrl": "off",
+                "noSecrets": "off",
+                "useIframeSandbox": "off"
             },
             "style": {
-                "all": true,
-                "useTemplate": "off",
-                "noNonNullAssertion": "off",
-                "useBlockStatements": "off",
-                "noInferrableTypes": "off",
+                "preset": "all",
+                "noCommonJs": "off",
+                "noContinue": "off",
                 "noDefaultExport": "off",
+                "noDescendingSpecificity": "off",
+                "noEnum": "off",
+                "noExcessiveClassesPerFile": "off",
+                "noExcessiveLinesPerFile": "off",
+                "noExportedImports": "off",
+                "noHeadElement": "off",
+                "noHexColors": "off",
+                "noIncrementDecrement": "off",
+                "noInferrableTypes": "off",
+                "noInlineStyles": "off",
+                "noJsxLiterals": "off",
+                "noMagicNumbers": "off",
+                "noMultiAssign": "off",
+                "noMultilineString": "off",
+                "noNestedTernary": "off",
+                "noNonNullAssertion": "off",
+                "noPlaywrightElementHandle": "off",
+                "noPlaywrightEval": "off",
+                "noPlaywrightWaitForSelector": "off",
+                "noProcessEnv": "off",
+                "noReactNativeLiteralColors": "off",
+                "noRestrictedImports": {
+                    "level": "error",
+                    "options": {
+                        "patterns": [
+                            {
+                                "group": ["**/core/api"],
+                                "message": "Call the core through its domain module: lib/<domain>.ts, or the module next to the only feature that uses the domain. Biome's overrides list the modules that may import lib/core/api."
+                            }
+                        ]
+                    }
+                },
+                "noRestrictedTypes": "off",
+                "noRootType": "off",
+                "noSubstr": "off",
+                "noTernary": "off",
+                "noTopLevelLiterals": "off",
+                "noValueAtRule": "off",
+                "noVueOptionsApi": "off",
+                "useAtIndex": "off",
+                "useBlockStatements": "off",
+                "useCollapsedIf": "off",
+                "useComponentExportOnlyModules": "off",
+                "useConsistentArrowReturn": "off",
+                "useConsistentCurlyBraces": "off",
+                "useConsistentEnumValueType": "off",
+                "useConsistentGraphqlDescriptions": "off",
+                "useConsistentMemberAccessibility": "off",
+                "useConsistentMethodSignatures": "off",
+                "useConsistentObjectDefinitions": "off",
+                "useConsistentTestIt": "off",
+                "useConsistentTypeDefinitions": "off",
+                "useDeprecatedReason": "off",
+                "useDestructuring": "off",
+                "useDomQuerySelector": "off",
+                "useErrorCause": "off",
+                "useExportsLast": "off",
+                "useForOf": "off",
+                "useGlobalThis": "off",
+                "useGraphqlNamingConvention": "off",
+                "useGroupedAccessorPairs": "off",
+                "useImportsFirst": "off",
+                "useInputName": "off",
+                "useLoneExecutableDefinition": "off",
+                "useNamedCaptureGroup": "off",
                 "useNamingConvention": "off",
-                "useForOf": "off"
+                "useNumericSeparators": "off",
+                "useObjectSpread": "off",
+                "useReactFunctionComponents": "off",
+                "useReadonlyClassProperties": "off",
+                "useReduceTypeParameter": "off",
+                "useSpreadOverApply": "off",
+                "useSymbolDescription": "off",
+                "useTemplate": "off",
+                "useTestHooksInOrder": "off",
+                "useTestHooksOnTop": "off",
+                "useThisInClassMethods": "off",
+                "useTrimStartEnd": "off",
+                "useUnicodeRegex": "off",
+                "useUnifiedTypeSignatures": "off",
+                "useVarsOnTop": "off",
+                "useVueConsistentDefinePropsDeclaration": "off",
+                "useVueConsistentVBindStyle": "off",
+                "useVueConsistentVOnStyle": "off",
+                "useVueDefineMacrosOrder": "off",
+                "useVueHyphenatedAttributes": "off",
+                "useVueMultiWordComponentNames": "off",
+                "useVueNextTickPromise": "off"
             },
             "suspicious": {
-                "all": false
+                "preset": "none",
+                "noVar": "on",
+                "noWith": "on"
             }
         },
-        "ignore": ["node_modules/*", "dist/*", ".work/*", "*.js"]
+        "includes": ["**", "!**/node_modules/**/*", "!**/dist/**/*", "!**/.work/**/*", "!**/*.js"]
     },
+    "overrides": [
+        {
+            "includes": [
+                "lib/**",
+                "src/components/navigator/favorites.ts",
+                "src/components/navigator/fsActions.ts",
+                "src/components/navigator/preview/media.ts",
+                "src/components/navigator/streams.ts",
+                "src/components/navigator/useDiskUsage.ts",
+                "src/components/navigator/useDisks.ts",
+                "src/components/operation/landings.ts",
+                "src/components/operation/useFormRefusal.ts",
+                "src/pages/MobileRemoteControl/tunnel.ts",
+                "src/pages/Serve/serves.ts",
+                "src/pages/Settings/launcherHistory.ts",
+                "src/pages/Settings/logs.ts",
+                "src/pages/Watchers/watchers.ts",
+                "src/pages/downloadSites.ts"
+            ],
+            "linter": {
+                "rules": {
+                    "style": {
+                        "noRestrictedImports": "off"
+                    }
+                }
+            }
+        }
+    ],
     "formatter": {
         "enabled": true,
         "formatWithErrors": true,
         "indentStyle": "space",
         "indentWidth": 4,
         "lineWidth": 100,
-        "ignore": ["node_modules/*", "dist/*", ".work/*"]
+        "includes": ["**", "!**/node_modules/**/*", "!**/dist/**/*", "!**/.work/**/*"]
     },
     "javascript": {
         "formatter": {
@@ -57,7 +299,11 @@
             "quoteProperties": "preserve",
             "trailingCommas": "es5",
             "semicolons": "asNeeded"
-        },
-        "globals": ["it", "describe", "expect", "test"]
+        }
+    },
+    "css": {
+        "parser": {
+            "tailwindDirectives": true
+        }
     }
 }

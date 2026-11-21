@@ -1,0 +1,83 @@
+@import "tailwindcss" source("./");
+
+/*
+ * Two inks: the English in graphite, the translation in ink, with cobalt for what the translator
+ * acts on and plum for the parts of a text that must stay as they are.
+ */
+:root {
+    color-scheme: light dark;
+    --paper: #f4f5f7;
+    --panel: #ffffff;
+    --ink: #16181d;
+    --graphite: #545b67;
+    --faint: #878d98;
+    --line: #e1e3e8;
+    --cobalt: #2343d0;
+    --cobalt-soft: #e7ebfd;
+    --plum: #8a2e7a;
+    --plum-soft: #f7e8f4;
+    --done: #1d8a4b;
+    --warn: #a86400;
+    --error: #c42b2b;
+    --header: 66px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --paper: #0f1115;
+        --panel: #171a20;
+        --ink: #e8eaef;
+        --graphite: #a3a9b4;
+        --faint: #6f7682;
+        --line: #272b33;
+        --cobalt: #8199ff;
+        --cobalt-soft: #1b2347;
+        --plum: #e6a5d8;
+        --plum-soft: #3a1c34;
+        --done: #4cc47f;
+        --warn: #e3a33b;
+        --error: #ff7a7a;
+    }
+}
+
+@theme inline {
+    --color-paper: var(--paper);
+    --color-panel: var(--panel);
+    --color-ink: var(--ink);
+    --color-graphite: var(--graphite);
+    --color-faint: var(--faint);
+    --color-line: var(--line);
+    --color-cobalt: var(--cobalt);
+    --color-cobalt-soft: var(--cobalt-soft);
+    --color-plum: var(--plum);
+    --color-plum-soft: var(--plum-soft);
+    --color-done: var(--done);
+    --color-warn: var(--warn);
+    --color-error: var(--error);
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+.caret {
+    animation: blink 1.1s steps(1) infinite;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .caret {
+        animation: none;
+    }
+}

@@ -1,0 +1,7 @@
+# actionlint's settings (build/check.sh api runs it).
+self-hosted-runner:
+  # GitHub hosts these runners, but actionlint 1.7.12 doesn't know their labels yet, and would
+  # report them as unknown.
+  labels:
+    - ubuntu-26.04
+    - ubuntu-26.04-arm

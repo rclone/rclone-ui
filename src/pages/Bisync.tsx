@@ -1,466 +1,310 @@
 import { Switch } from '@heroui/react'
-import { useMutation } from '@tanstack/react-query'
-import { AlertOctagonIcon, FoldersIcon, PlayIcon } from 'lucide-react'
-import { startTransition, useCallback, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { onErrorDialog } from '../../lib/errors'
-import { getOptionsSubtitle } from '../../lib/flags'
-import { useFlags } from '../../lib/hooks'
-import { startBisync } from '../../lib/rclone/api'
-import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
-import { useSchedulingAvailable } from '../../lib/scheduler'
-import OperationWindowContent from '../components/OperationWindowContent'
+import { t } from '@lingui/core/macro'
+import { Trans } from '@lingui/react/macro'
+import { useMemo, useState } from 'react'
+import type { Operations } from '../../lib/core/types'
+import { coreError } from '../../lib/errors'
+import { pathsFromArgs } from '../../lib/rclone/templatePaths'
+import { ask } from '../../lib/shell'
+import OperationWindowContent, { OperationPage } from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
-import OptionsSection from '../components/OptionsSection'
-import { PathFinder } from '../components/PathFinder'
-import RemoteOptionsSection from '../components/RemoteOptionsSection'
-import CronSection from '../components/operation/CronSection'
+import { confirmBisync } from '../components/operation/confirmations'
 import OperationFooter from '../components/operation/OperationFooter'
-import OptionsAccordion, {
-    type OptionsAccordionItemDef,
-} from '../components/operation/OptionsAccordion'
-import { useOptionGroups } from '../components/operation/useOptionGroups'
-import { useScheduleTask } from '../components/operation/useScheduleTask'
+import OperationHeader from '../components/operation/OperationHeader'
+import { OptionsSection } from '../components/operation/OptionsAccordion'
+import { pickerFor } from '../components/operation/places'
+import { bisyncLine, plainLine } from '../components/operation/summary'
+import {
+    type OperationArgs,
+    useOperationSubmission,
+} from '../components/operation/useOperationSubmission'
+import { remoteNamesOf, useOptionGroups } from '../components/operation/useOptionGroups'
+import { useOptionItems } from '../components/operation/useOptionItems'
+import {
+    PATH_PLACEHOLDER,
+    PathFinder,
+    type PathOptions,
+    PICK_PLACEHOLDER,
+} from '../components/PathFinder'
+import { usePageStart, useReportEdited } from '../route'
 
-const HELP_CONTENT = `Performs bidirectional synchronization between two paths.
+// rclone refuses to bisync two folders when it has no listings from an earlier run, and asks for a
+// resync instead. A resync copies files both ways so the folders match, and it sets the baseline
+// that later runs compare against. The core reports the refusal as a precondition
+// (`bisync_baseline`), and the page offers to run a resync.
+const FIRST_RUN_QUESTION = t`Folder A and Folder B haven't been synced together yet. The first run sets a baseline: it copies files both ways so the two match, and deletes nothing.`
 
-Bisync keeps both Path1 and Path2 in sync by propagating changes in both directions. On each run, it compares the current state to the previous run and detects New, Newer, Older, and Deleted files on each side, then propagates those changes to the other path.
+function withResync(args: OperationArgs): OperationArgs {
+    return {
+        ...args,
+        options: { ...args.options, outer: { ...args.options?.outer, resync: true } },
+    }
+}
 
-Bisync retains the filesystem listings from the prior run. This history allows it to determine what has changed since the last sync. If something evil happens, bisync goes into a safe state to block damage by later runs — you may need to run with resync to recover.
+/** A switch that the Bisync section shows: one of bisync's own options that is on or off. */
+type BisyncSwitch = {
+    [K in keyof Operations.BisyncSwitches]-?: Operations.BisyncSwitches[K] extends
+        | boolean
+        | undefined
+        ? K
+        : never
+}[keyof Operations.BisyncSwitches]
 
-This is an advanced command — use with care. Unlike Copy or Sync which have a clear "source of truth", Bisync must resolve conflicts when both sides have changed. When a file changes on both sides and the versions differ, bisync will rename both versions as conflicts (e.g., file.conflict1, file.conflict2) so nothing is lost. Make sure you understand the behavior before using on important data.
+const BISYNC_SWITCHES = [
+    {
+        name: 'resync',
+        help: t`Copies files both ways so the folders match. Used for the first run, or after an error.`,
+    },
+    {
+        name: 'checkAccess',
+        help: t`Runs only when both folders have an RCLONE_TEST file. This keeps a missing folder from being treated as deleted files.`,
+    },
+    {
+        name: 'force',
+        help: t`Runs even when more than half the files would be deleted.`,
+    },
+    { name: 'createEmptySrcDirs', help: t`Copies empty folders too.` },
+    {
+        name: 'removeEmptyDirs',
+        help: t`Removes the folders that a run leaves empty. Can't be combined with createEmptySrcDirs.`,
+    },
+    {
+        name: 'ignoreListingChecksum',
+        help: t`Lists files without their checksums. Faster where checksums are slow to get.`,
+    },
+    {
+        name: 'resilient',
+        help: t`After a minor error, the next run tries again instead of needing a new baseline.`,
+    },
+    { name: 'noCleanup', help: t`Keeps the working files, to look into a problem.` },
+] as const satisfies readonly { name: BisyncSwitch; help: string }[]
 
-If you only need one-way synchronization (making destination match source), use the SYNC command instead.
+// Bisync has no source and destination, because changes go both ways between its two folders.
+const FOLDER_A: PathOptions = {
+    label: t`Folder A`,
+    placeholder: PICK_PLACEHOLDER,
+    showPicker: true,
+    clearable: true,
+    allowedKeys: pickerFor('bisync', 'source').allowedKeys,
+    showFiles: false,
+}
 
-Here's a quick guide to using the Bisync command:
-
-1. SELECT PATHS
-Use the path selectors at the top to choose Path1 and Path2. Both paths will be kept in sync with each other — there is no "source" or "destination", changes flow both ways.
-
-2. CONFIGURE OPTIONS (Optional)
-Expand the accordion sections to customize your bisync operation. The Bisync section has important switches at the top:
-
-• resync — Required for the first run, or to reset bisync after an error. This makes both paths contain a matching superset of all files by copying Path2 to Path1, then Path1 to Path2. Only use resync when starting fresh, after changing filter settings, or recovering from an error — using it routinely would prevent deletions from syncing (deleted files would keep reappearing from the other side).
-
-• checkAccess — Safety check that looks for matching RCLONE_TEST files on both paths before syncing. You must first create these files yourself in both paths. This prevents data loss if a path is temporarily unavailable or mounted incorrectly.
-
-• force — Override safety checks like max-delete protection. Use with caution, as this bypasses safeguards designed to prevent accidental mass deletions.
-
-• createEmptySrcDirs — Sync empty directories as well as files. Without this, only files are synced and empty directories are ignored.
-
-• removeEmptyDirs — Remove directories that become empty after syncing. Not compatible with createEmptySrcDirs — use one or the other.
-
-• ignoreListingChecksum — Skip checksum retrieval when creating file listings, which can speed things up considerably on backends where hashes must be computed on the fly (like local). Note this only affects listing comparisons, not the actual sync operations.
-
-• resilient — Allow bisync to retry on the next run after certain errors, instead of requiring a resync. Useful for running bisync as a scheduled background process. Combine with --recover and --max-lock for a robust "set-it-and-forget-it" setup.
-
-• noCleanup — Don't delete temporary working files after the operation. Useful for debugging issues, but normally you should leave this off.
-
-3. OTHER OPTIONS
-Tap any chip on the right to add it to the JSON editor. Hover over chips to see what each option does.
-
-• Filters — Include or exclude files by pattern, limit by size (max_size, min_size) or age (max_age, min_age).
-
-• Config — Performance tuning: parallel transfers, checkers, buffer_size, bandwidth limits (bwlimit), and fast_list for faster directory listings on supported remotes.
-
-• Remotes — Override backend-specific settings for remotes involved in this operation.
-
-4. START BISYNC
-Once paths are selected, tap "START BISYNC" to begin. For your first run, make sure "resync" is enabled to establish the initial baseline. You can monitor progress on the Transfers page.`
+const FOLDER_B: PathOptions = {
+    ...FOLDER_A,
+    label: t`Folder B`,
+    placeholder: PATH_PLACEHOLDER,
+    allowedKeys: pickerFor('bisync', 'destination').allowedKeys,
+}
 
 export default function Bisync() {
-    const [searchParams] = useSearchParams()
-    const { globalFlags, filterFlags, configFlags, copyFlags } = useFlags()
+    const start = usePageStart('bisync')
+    const presetArgs = start.preset?.bisync ?? undefined
 
-    const [source, setSource] = useState<string | undefined>(
-        searchParams.get('initialSource') ? searchParams.get('initialSource')! : undefined
-    )
-    const [dest, setDest] = useState<string | undefined>(
-        searchParams.get('initialDestination') ? searchParams.get('initialDestination')! : undefined
-    )
+    const [source, setSource] = useState<string | undefined>(start.sources?.[0])
+    const [dest, setDest] = useState<string | undefined>(start.destination)
+    const [opened] = useState({ source, dest })
 
+    // The remotes named in the two paths. Their option tabs are shown and their options are sent.
+    // Text typed for other remotes is kept but not sent.
+    const remoteNames = useMemo(() => remoteNamesOf([source, dest]), [source, dest])
+
+    const optionState = useOptionGroups({
+        operation: 'bisync',
+        groups: ['bisync', 'filter', 'config', 'metadata'],
+        remoteNames,
+        initial: presetArgs?.options,
+        initialRemotes: presetArgs?.options?.remotes,
+    })
     const {
         jsonError,
-        setJsonError,
+        edited: optionsEdited,
         groups: optionGroups,
         remotes: remotesGroup,
         applyTemplate,
         getMergedOptions,
         resetJson,
-        resetLocks,
-    } = useOptionGroups({
-        groups: [
-            { key: 'bisync', templateKey: 'copy', defaults: RCLONE_CONFIG_DEFAULTS.copy },
-            { key: 'filter' },
-            { key: 'config', defaults: RCLONE_CONFIG_DEFAULTS.config },
-        ],
-        withRemotes: true,
-    })
+    } = optionState
     const bisyncGroup = optionGroups.bisync
     const filterGroup = optionGroups.filter
     const configGroup = optionGroups.config
+    const metadataGroup = optionGroups.metadata
 
-    const [outerBisyncOptions, setOuterBisyncOptions] = useState<Record<string, boolean>>({})
-
-    const [cronExpression, setCronExpression] = useState<string | null>(null)
-    const schedulingAvailable = useSchedulingAvailable()
-
-    const selectedRemotes = useMemo(() => [source, dest].filter(Boolean), [source, dest])
+    // The switches from a reused run, without resync. A reused run is usually meant to run again
+    // as normal, and resync stops deletions from syncing, so files deleted on one side come back.
+    const [outerBisyncOptions, setOuterBisyncOptions] = useState<Operations.BisyncSwitches>(() => {
+        const { resync: _, ...outer } = presetArgs?.options?.outer ?? {}
+        return outer
+    })
+    const [openedSwitches] = useState(outerBisyncOptions)
 
     const buildStartArgs = () => ({
         source: source!,
         destination: dest!,
         options: {
-            config: configGroup.options,
-            bisync: bisyncGroup.options,
-            filter: filterGroup.options,
+            config: configGroup.sent,
+            metadata: metadataGroup.sent,
+            bisync: bisyncGroup.sent,
+            filter: filterGroup.sent,
             remotes: remotesGroup.options,
             outer: outerBisyncOptions,
         },
     })
 
-    // The persisted schedule args deliberately omit the outer bisync switches — do not merge
-    // this with buildStartArgs.
-    const buildScheduleArgs = () => ({
-        source: source!,
-        destination: dest!,
-        options: {
-            config: configGroup.options,
-            bisync: bisyncGroup.options,
-            filter: filterGroup.options,
-            remotes: remotesGroup.options,
-        },
-    })
-
-    const startBisyncMutation = useMutation({
-        mutationFn: async () => {
-            if (!source || !dest) {
-                throw new Error('Please select both a source and destination path')
-            }
-
-            return startBisync(buildStartArgs())
-        },
-        onSuccess: () => {
-            if (cronExpression) {
-                scheduleTaskMutation.mutate()
-            }
-        },
-        onError: onErrorDialog('Bisync', 'Failed to start bisync operation', {
-            capture: false,
-            log: ['Error starting bisync:'],
-        }),
-    })
-
-    const scheduleTaskMutation = useScheduleTask({
+    const submission = useOperationSubmission({
         operation: 'bisync',
-        cronExpression,
-        validate: () => {
-            if (!source || !dest) {
-                throw new Error('Please select both a source and destination path')
-            }
+        problem: () =>
+            source
+                ? dest
+                    ? source === dest
+                        ? t`Folder A and Folder B cannot be the same`
+                        : undefined
+                    : t`Please select Folder B`
+                : t`Please select Folder A`,
+        jsonError,
+        buildArgs: buildStartArgs,
+        dryRun: false,
+        // Bisync changes both sides, so ask before it starts, and say what resync and force do.
+        confirm: async (args) =>
+            (await confirmBisync(
+                args.source ?? '',
+                args.destination ?? '',
+                args.options?.outer ?? undefined
+            ))
+                ? 'start'
+                : 'cancel',
+        retry: async (failure, args) => {
+            if (coreError(failure)?.what !== 'bisync_baseline') return undefined
+            const setBaseline = await ask(FIRST_RUN_QUESTION, {
+                title: t({
+                    message: 'First Run',
+                    comment: 'Title of a question: the first bisync of two folders.',
+                }),
+                okLabel: t`Set a Baseline`,
+                cancelLabel: t`Cancel`,
+            })
+            return setBaseline ? withResync(args) : false
         },
-        buildArgs: buildScheduleArgs,
+        error: {
+            title: t({ message: 'Bisync', comment: 'The name of the operation, as a title.' }),
+            message: t`Failed to start bisync operation`,
+            log: ['Error starting bisync:'],
+        },
+        reset: {
+            paths: () => {
+                setSource(undefined)
+                setDest(undefined)
+            },
+            extras: () => {
+                setOuterBisyncOptions({})
+            },
+        },
+        groups: { resetJson },
     })
 
-    const buttonText = useMemo(() => {
-        if (startBisyncMutation.isPending) return 'STARTING...'
-        if (!source) return 'Please select a source path'
-        if (!dest) return 'Please select a destination path'
-        if (source === dest) return 'Source and destination cannot be the same'
-        if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        if (cronExpression) return 'START AND SCHEDULE BISYNC'
-        return 'START BISYNC'
-    }, [startBisyncMutation.isPending, source, dest, jsonError, cronExpression])
-
-    const buttonIcon = useMemo(() => {
-        if (startBisyncMutation.isPending) return
-        if (!source || !dest || source === dest) return <FoldersIcon className="w-5 h-5" />
-        if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
-        return <PlayIcon className="w-5 h-5 fill-current" />
-    }, [startBisyncMutation.isPending, source, dest, jsonError])
-
-    const accordionItems = useMemo<OptionsAccordionItemDef[]>(
-        () => [
-            {
-                key: 'bisync',
-                category: 'bisync',
-                subtitle: getOptionsSubtitle(Object.keys(bisyncGroup.options).length),
-                children: (
-                    <>
-                        <div className="flex flex-row flex-wrap gap-2 pb-5">
-                            <Switch
-                                isSelected={outerBisyncOptions?.resync}
-                                onValueChange={(value) =>
-                                    setOuterBisyncOptions({
-                                        ...outerBisyncOptions,
-                                        resync: value,
-                                    })
-                                }
-                                size="sm"
-                            >
-                                resync
-                            </Switch>
-
-                            <Switch
-                                isSelected={outerBisyncOptions?.checkAccess}
-                                onValueChange={(value) =>
-                                    setOuterBisyncOptions({
-                                        ...outerBisyncOptions,
-                                        checkAccess: value,
-                                    })
-                                }
-                                size="sm"
-                            >
-                                checkAccess
-                            </Switch>
-
-                            <Switch
-                                isSelected={outerBisyncOptions?.force}
-                                onValueChange={(value) =>
-                                    setOuterBisyncOptions({
-                                        ...outerBisyncOptions,
-                                        force: value,
-                                    })
-                                }
-                                size="sm"
-                            >
-                                force
-                            </Switch>
-
-                            <Switch
-                                isSelected={outerBisyncOptions?.createEmptySrcDirs}
-                                onValueChange={(value) =>
-                                    setOuterBisyncOptions({
-                                        ...outerBisyncOptions,
-                                        createEmptySrcDirs: value,
-                                    })
-                                }
-                                size="sm"
-                            >
-                                createEmptySrcDirs
-                            </Switch>
-
-                            <Switch
-                                isSelected={outerBisyncOptions?.removeEmptyDirs}
-                                onValueChange={(value) =>
-                                    setOuterBisyncOptions({
-                                        ...outerBisyncOptions,
-                                        removeEmptyDirs: value,
-                                    })
-                                }
-                                size="sm"
-                            >
-                                removeEmptyDirs
-                            </Switch>
-
-                            <Switch
-                                isSelected={outerBisyncOptions?.ignoreListingChecksum}
-                                onValueChange={(value) =>
-                                    setOuterBisyncOptions({
-                                        ...outerBisyncOptions,
-                                        ignoreListingChecksum: value,
-                                    })
-                                }
-                                size="sm"
-                            >
-                                ignoreListingChecksum
-                            </Switch>
-
-                            <Switch
-                                isSelected={outerBisyncOptions?.resilient}
-                                onValueChange={(value) =>
-                                    setOuterBisyncOptions({
-                                        ...outerBisyncOptions,
-                                        resilient: value,
-                                    })
-                                }
-                                size="sm"
-                            >
-                                resilient
-                            </Switch>
-
-                            <Switch
-                                isSelected={outerBisyncOptions?.noCleanup}
-                                onValueChange={(value) =>
-                                    setOuterBisyncOptions({
-                                        ...outerBisyncOptions,
-                                        noCleanup: value,
-                                    })
-                                }
-                                size="sm"
-                            >
-                                noCleanup
-                            </Switch>
-                        </div>
-                        <OptionsSection
-                            globalOptions={globalFlags?.main || {}}
-                            optionsJson={bisyncGroup.jsonString}
-                            setOptionsJson={bisyncGroup.setJsonString}
-                            availableOptions={copyFlags || []}
-                            isLocked={bisyncGroup.locked}
-                            setIsLocked={bisyncGroup.setLocked}
-                        />
-                    </>
-                ),
-            },
-            {
-                key: 'filters',
-                category: 'filters',
-                subtitle: getOptionsSubtitle(Object.keys(filterGroup.options).length),
-                children: (
-                    <OptionsSection
-                        globalOptions={globalFlags?.filter || {}}
-                        optionsJson={filterGroup.jsonString}
-                        setOptionsJson={filterGroup.setJsonString}
-                        availableOptions={filterFlags || []}
-                        isLocked={filterGroup.locked}
-                        setIsLocked={filterGroup.setLocked}
-                    />
-                ),
-            },
-            ...(schedulingAvailable
-                ? [
-                      {
-                          key: 'cron',
-                          category: 'cron' as const,
-                          children: (
-                              <CronSection
-                                  expression={cronExpression}
-                                  onChange={setCronExpression}
-                              />
-                          ),
-                      },
-                  ]
-                : []),
-            {
-                key: 'config',
-                category: 'config',
-                subtitle: getOptionsSubtitle(Object.keys(configGroup.options).length),
-                children: (
-                    <OptionsSection
-                        globalOptions={globalFlags?.main || {}}
-                        optionsJson={configGroup.jsonString}
-                        setOptionsJson={configGroup.setJsonString}
-                        availableOptions={configFlags || []}
-                        isLocked={configGroup.locked}
-                        setIsLocked={configGroup.setLocked}
-                    />
-                ),
-            },
-            ...(selectedRemotes.length > 0
-                ? [
-                      {
-                          key: 'remotes',
-                          category: 'remotes' as const,
-                          subtitle: getOptionsSubtitle(
-                              Object.values(remotesGroup.options).reduce(
-                                  (acc, opts) => acc + Object.keys(opts).length,
-                                  0
-                              )
-                          ),
-                          children: (
-                              <RemoteOptionsSection
-                                  selectedRemotes={selectedRemotes}
-                                  remoteOptionsJson={remotesGroup.json}
-                                  setRemoteOptionsJson={remotesGroup.setJson}
-                                  reconcileRemotes={remotesGroup.reconcile}
-                                  setRemoteOptionsLocked={remotesGroup.setLocked}
-                                  remoteOptionsLocked={remotesGroup.locked}
-                              />
-                          ),
-                      },
-                  ]
-                : []),
-        ],
-        [
-            bisyncGroup,
-            outerBisyncOptions,
-            globalFlags,
-            copyFlags,
-            filterGroup,
-            filterFlags,
-            configGroup,
-            configFlags,
-            selectedRemotes,
-            remotesGroup,
-            cronExpression,
-            schedulingAvailable,
-        ]
+    useReportEdited(
+        !submission.startMutation.isSuccess &&
+            (optionsEdited ||
+                source !== opened.source ||
+                dest !== opened.dest ||
+                JSON.stringify(outerBisyncOptions) !== JSON.stringify(openedSwitches))
     )
 
-    const handleStart = useCallback(
-        () => startBisyncMutation.mutate(),
-        [startBisyncMutation.mutate]
+    // The switches sit above the Bisync group's editor, and the ones that are on count as set,
+    // with the group's options.
+    const switches = useMemo(
+        () => ({
+            bisync: (
+                <fieldset className="grid grid-cols-2 gap-2 pb-4">
+                    <legend className="pb-2 font-medium text-small">
+                        <Trans comment="Heading above bisync's on/off options.">Switches</Trans>
+                    </legend>
+                    {BISYNC_SWITCHES.map(({ name, help }) => (
+                        <Switch
+                            key={name}
+                            isSelected={!!outerBisyncOptions[name]}
+                            onValueChange={(value) =>
+                                setOuterBisyncOptions({
+                                    ...outerBisyncOptions,
+                                    [name]: value,
+                                })
+                            }
+                            size="sm"
+                            classNames={{
+                                base: 'inline-flex flex-row-reverse items-start justify-between w-full max-w-none gap-3 p-3 m-0 rounded-xl bg-default-100/60 transition-colors duration-150 data-[hover=true]:bg-default-100 dark:bg-default-100/40',
+                                wrapper: 'me-0 mt-0.5 shrink-0',
+                                label: 'flex flex-col gap-0.5 min-w-0',
+                            }}
+                        >
+                            <span className="font-mono font-medium text-small">{name}</span>
+                            <span className="leading-snug text-tiny text-default-500 text-pretty">
+                                {help}
+                            </span>
+                        </Switch>
+                    ))}
+                </fieldset>
+            ),
+        }),
+        [outerBisyncOptions]
     )
-
-    const handleSchedule = useCallback(
-        () => scheduleTaskMutation.mutate(),
-        [scheduleTaskMutation.mutate]
+    const switchesOn = useMemo(
+        () => ({
+            bisync: Object.fromEntries(Object.entries(outerBisyncOptions).filter(([, on]) => on)),
+        }),
+        [outerBisyncOptions]
     )
-
-    const handleResetPaths = useCallback(() => {
-        startTransition(() => {
-            setSource(undefined)
-            setDest(undefined)
-            setJsonError(null)
-            startBisyncMutation.reset()
-        })
-    }, [setJsonError, startBisyncMutation.reset])
-
-    const handleResetOptions = useCallback(() => {
-        startTransition(() => {
-            resetJson()
-            setOuterBisyncOptions({})
-            startBisyncMutation.reset()
-        })
-    }, [resetJson, startBisyncMutation.reset])
-
-    const handleResetAll = useCallback(() => {
-        startTransition(() => {
-            resetJson()
-            resetLocks()
-            setOuterBisyncOptions({})
-            setSource(undefined)
-            setDest(undefined)
-            startBisyncMutation.reset()
-        })
-    }, [resetJson, resetLocks, startBisyncMutation.reset])
+    const accordionItems = useOptionItems(optionState, {
+        refusals: submission.refusals,
+        mapperPaths: { source, destination: dest },
+        above: switches,
+        counted: switchesOn,
+    })
 
     return (
-        <div className="flex flex-col h-screen gap-10">
-            {/* Main Content */}
+        <OperationPage>
             <OperationWindowContent>
-                {/* Paths Display */}
+                {submission.scheduling}
+                <OperationHeader
+                    command={submission.command}
+                    operation="bisync"
+                    intro={t`Keeps two places alike both ways: what changed on either side is copied to the other.`}
+                    templates={{
+                        isDisabled: submission.templatesDisabled,
+                        onSelect: applyTemplate,
+                        getOptions: getMergedOptions,
+                        paths: {
+                            get: () => pathsFromArgs({ source, destination: dest }),
+                            set: (paths) => {
+                                setSource(paths.sources?.[0] || undefined)
+                                setDest(paths.destination || undefined)
+                            },
+                        },
+                    }}
+                />
+
                 <PathFinder
                     sourcePath={source}
                     setSourcePath={setSource}
                     destPath={dest}
                     setDestPath={setDest}
+                    sourceOptions={FOLDER_A}
+                    destOptions={FOLDER_B}
+                    bothWays={true}
                 />
 
-                <OptionsAccordion items={accordionItems} />
+                <OptionsSection items={accordionItems} />
             </OperationWindowContent>
 
             <OperationWindowFooter>
                 <OperationFooter
-                    operation="bisync"
-                    templatesDisabled={!!jsonError}
-                    onTemplateSelect={applyTemplate}
-                    getTemplateOptions={getMergedOptions}
-                    startIsSuccess={startBisyncMutation.isSuccess}
-                    startIsPending={startBisyncMutation.isPending}
-                    onStart={handleStart}
-                    onSchedule={handleSchedule}
-                    startBlocked={!!jsonError || !source || !dest || source === dest}
-                    buttonText={buttonText}
-                    buttonIcon={buttonIcon}
-                    newLabel="NEW BISYNC"
-                    onResetPaths={handleResetPaths}
-                    onResetOptions={handleResetOptions}
-                    onResetAll={handleResetAll}
-                    helpContent={HELP_CONTENT}
+                    {...submission.footer}
+                    line={bisyncLine(source, dest)}
+                    startedLine={plainLine(
+                        t`Bisync started`,
+                        t`Follow it in History, where it can be stopped.`
+                    )}
+                    newLabel={t`New bisync`}
                 />
             </OperationWindowFooter>
-        </div>
+        </OperationPage>
     )
 }

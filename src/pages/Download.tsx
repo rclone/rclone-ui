@@ -1,21 +1,51 @@
-import { Button, ButtonGroup, Image, Input, Spinner, Tooltip } from '@heroui/react'
-import MuxPlayer from '@mux/mux-player-react'
-import { useMutation } from '@tanstack/react-query'
-import { message } from '@tauri-apps/plugin-dialog'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { Button, Image, Input, Skeleton } from '@heroui/react'
+import { t } from '@lingui/core/macro'
+import { Trans } from '@lingui/react/macro'
+import {
+    Clipboard as ClipboardIcon,
+    DownloadBracket as DownloadBracketIcon,
+    Film as FilmIcon,
+    Image as ImageIcon,
+    Music as MusicIcon,
+    Page as PageIcon,
+} from '@zappicon/react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertOctagonIcon, ClockIcon, DownloadIcon, FoldersIcon } from 'lucide-react'
-import pRetry from 'p-retry'
-import { startTransition, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react'
+import type { Operations } from '../../lib/core/types'
 import { onErrorDialog } from '../../lib/errors'
-import { notify } from '../../lib/notifications'
-import rclone from '../../lib/rclone/client'
-import CommandInfoButton from '../components/CommandInfoButton'
-import CommandsDropdown from '../components/CommandsDropdown'
-import OperationWindowContent from '../components/OperationWindowContent'
+import { formOf } from '../../lib/operations'
+import { startTransfer } from '../../lib/transfers'
+import Alert from '../components/Alert'
+import { IconTile } from '../components/look/IconTile'
+import { Panel } from '../components/look/Panel'
+import { SectionTitle } from '../components/look/SectionTitle'
+import { TONE_RGB } from '../components/look/tones'
+import OperationWindowContent, { OperationPage } from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
-import { PathField } from '../components/PathFinder'
+import { pageLook } from '../components/operation/look'
+import { BarText, StartButton, useSwap } from '../components/operation/OperationFooter'
+import OperationHeader from '../components/operation/OperationHeader'
+import { pickerFor } from '../components/operation/places'
+import {
+    type BarLine,
+    downloadLine,
+    placeWords,
+    plainLine,
+    segments,
+} from '../components/operation/summary'
+import { useOperationSubmission } from '../components/operation/useOperationSubmission'
+import { bareField, PathField, RoutePanel, RouteRow } from '../components/PathFinder'
+import { usePageStart, useReportEdited } from '../route'
+import { fallbackFilename, filenameProblem } from './downloadFilename'
+import {
+    type LookupMiss,
+    missOf,
+    resolveLink,
+    sitesDescription,
+    useLinkSites,
+} from './downloadSites'
+
+const DESTINATION = pickerFor('download', 'destination')
 
 function isValidUrl(url: string) {
     try {
@@ -30,33 +60,48 @@ function isYoutubeUrl(url: string) {
     return url.includes('youtube.com') || url.includes('youtu.be')
 }
 
-function getDateFilename() {
-    return new Date()
-        .toLocaleString(undefined, {
-            dateStyle: 'short',
-            timeStyle: 'medium',
-        })
-        .replace(',', ' at')
-        .replace(/[\/]/g, '-')
-        .replace(/[:]/g, '.')
+/** The bar's sentence: what DOWNLOAD will save, and where. A file without a name yet is "the file". */
+function lineOf(filename: string | undefined, destination: string | undefined): BarLine {
+    const name = filename?.trim()
+    if (name) return downloadLine(name, destination)
+    const place = placeWords(destination)
+    return { title: segments(t`Download the file to ${place}`) }
 }
 
-function getUrlDomain(url: string) {
-    const hostname = new URL(url).hostname
-    return hostname.split('.').slice(0, -1).join('.') || hostname.split('.')[0]
-}
+/** How long typing in the URL must pause before the link is looked up. */
+const LOOKUP_DELAY = 400
 
 export default function Download() {
-    const [searchParams] = useSearchParams()
+    const start = usePageStart('download')
+    // When duplicating, the preset is the original download, including its filename.
+    const presetArgs = start.preset?.download ?? undefined
 
-    const [url, setUrl] = useState<string | undefined>(
-        () => searchParams.get('initialUrl') || undefined
-    )
+    const [url, setUrl] = useState<string | undefined>(start.url || undefined)
     const [destination, setDestination] = useState<string | undefined>(
-        () => searchParams.get('initialDestination') || undefined
+        start.destination || undefined
     )
     const [filename, setFilename] = useState<string | undefined>(
-        () => searchParams.get('initialFilename') || undefined
+        () => presetArgs?.filename || undefined
+    )
+    // The values the page opened with, and whether the user typed a filename (otherwise the
+    // lookup suggests one). If either changes, the form counts as edited.
+    const [opened] = useState({ url, destination })
+    const [filenameTyped, setFilenameTyped] = useState(false)
+    // The preset's URL. Its first lookup keeps the preset's filename instead of suggesting one.
+    const keepFilename = useRef(presetArgs?.filename ? presetArgs.url : undefined)
+    // Whether the Filename field holds a name that the user typed. A lookup never replaces it.
+    // Emptying the field hands it back to the lookups.
+    const typedName = useRef(false)
+    /** Whether a lookup of `url` must leave the Filename field as it is. */
+    const keepsName = (url: string) => keepFilename.current === url || typedName.current
+    // Set from a press of DOWNLOAD until the start finishes, so a double-click starts only one
+    // download.
+    const submitting = useRef(false)
+
+    const sites = useLinkSites()
+    const urlDescription = useMemo(
+        () => sitesDescription(sites.data?.map((site) => site.name) ?? []),
+        [sites.data]
     )
 
     const [downloadData, setDownloadData] = useState<
@@ -69,378 +114,427 @@ export default function Download() {
         | undefined
     >()
     const [isFetchingDownloadData, setIsFetchingDownloadData] = useState(false)
+    // Set when the lookup gave no file for a link that should have one. The link itself is then
+    // downloaded, which is most likely a web page, and the page says so.
+    const [miss, setMiss] = useState<LookupMiss>()
+    // Counts the presses of "Try again", each of which looks the same link up once more.
+    const [attempt, setAttempt] = useState(0)
 
-    const startDownloadMutation = useMutation({
-        mutationFn: async () => {
-            if (!url) {
-                throw new Error('Please enter a URL')
-            }
-
-            if (!destination) {
-                throw new Error('Please select a destination path')
-            }
-
-            if (!filename) {
-                throw new Error('Please enter a filename')
-            }
-
-            const downloadUrl = downloadData?.url || url
-
-            await pRetry(
-                async () =>
-                    rclone('/operations/copyurl', {
-                        params: {
-                            query: {
-                                fs: destination,
-                                remote: filename,
-                                url: downloadUrl,
-                                autoFilename: false,
-                                _async: true,
-                            },
-                        },
-                    }),
-                { retries: 3 }
+    const submission = useOperationSubmission({
+        operation: 'download',
+        startLabel: t({ message: 'Download', comment: 'Button: starts the download.' }),
+        // Starts a recorded transfer (rclone's copyurl), which History lists like any other. It is
+        // submitted only once, because a retry would download the file twice. The transfer
+        // downloads the media found at the URL, but the preset keeps the URL that was typed, so
+        // Duplicate looks it up again.
+        start: (args: Operations.DownloadArgs) => {
+            // `problem` skips the filename check while the lookup runs, so check it here.
+            const problem = filenameProblem(args.filename ?? '')
+            if (problem) throw new Error(problem)
+            return startTransfer(
+                formOf('download', { ...args, url: downloadData?.url || args.url }),
+                {
+                    preset: formOf('download', args),
+                }
             )
         },
-        onSuccess: async () => {
-            await notify({
-                title: 'Success',
-                body: 'Download task started',
-            })
+        // The filename is checked only after the URL lookup is done, because the lookup suggests a
+        // filename.
+        problem: () => {
+            if (!url) return t`Please enter a URL`
+            if (!isValidUrl(url)) return t`Invalid URL`
+            if (!destination) return t`Please select a destination path`
+            if (isFetchingDownloadData) return undefined
+            return filenameProblem(filename ?? '') || undefined
         },
-        onError: onErrorDialog('Download Error', 'Failed to start download', {
-            okLabel: 'OK',
-            capture: false,
+        // buildArgs runs only after `problem` passes, so the URL and the folder are set.
+        buildArgs: () => ({
+            url: url ?? '',
+            filename: filename ?? '',
+            destination: destination ?? '',
+        }),
+        error: onErrorDialog(t`Download Error`, t`Failed to start download`, {
             log: ['[Download] Failed to start download'],
         }),
-    })
-
-    const buttonText = useMemo(() => {
-        if (startDownloadMutation.isPending) return 'STARTING...'
-        if (!url) return 'Please enter a URL'
-        if (!isValidUrl(url)) return 'Invalid URL'
-        if (!destination) return 'Please select a destination path'
-        return 'DOWNLOAD'
-    }, [startDownloadMutation.isPending, url, destination])
-
-    const buttonIcon = useMemo(() => {
-        if (startDownloadMutation.isPending) return <Spinner size="lg" />
-        if (!url) return <AlertOctagonIcon className="w-5 h-5" />
-        if (!isValidUrl(url)) return <AlertOctagonIcon className="w-5 h-5" />
-        if (!destination) return <FoldersIcon className="w-5 h-5" />
-        return <DownloadIcon className="w-5 h-5 fill-current" />
-    }, [startDownloadMutation.isPending, url, destination])
-
-    useEffect(() => {
-        if (!url || !isValidUrl(url)) {
-            startTransition(() => {
+        reset: {
+            paths: () => {
+                setUrl(undefined)
+                setDestination(undefined)
+            },
+            extras: () => {
+                typedName.current = false
                 setFilename(undefined)
                 setDownloadData(undefined)
                 setIsFetchingDownloadData(false)
+                setMiss(undefined)
+                setFilenameTyped(false)
+            },
+        },
+    })
+    const {
+        buttonText,
+        startBlocked,
+        startIsPending,
+        startIsSuccess,
+        onStart,
+        onResetAll,
+        problem,
+    } = submission.footer
+
+    useReportEdited(
+        !startIsSuccess &&
+            (url !== opened.url || destination !== opened.destination || filenameTyped)
+    )
+
+    // biome-ignore lint/correctness/useExhaustiveDependencies: a press of "Try again" changes attempt, which looks the same link up once more
+    useEffect(() => {
+        if (!url || !isValidUrl(url)) {
+            startTransition(() => {
+                if (!typedName.current) setFilename(undefined)
+                setDownloadData(undefined)
+                setIsFetchingDownloadData(false)
+                setMiss(undefined)
             })
             return
         }
 
-        console.log('[Download] Fetching download data for URL:', url)
-
-        const abortController = new AbortController()
+        let aborted = false
         startTransition(() => {
+            // Clear the result for the previous URL so it is never used for this one, even if
+            // this lookup fails.
+            setDownloadData(undefined)
             setIsFetchingDownloadData(true)
+            setMiss(undefined)
         })
 
-        let parsedFilename: typeof filename
-        let parsedDownloadData: typeof downloadData
+        // When no media is found, the page itself is downloaded under its own name.
+        const keepPage = (kept: boolean) => {
+            const pageName = fallbackFilename(url)
+            startTransition(() => {
+                if (!kept) setFilename(pageName)
+                setDownloadData(undefined)
+            })
+        }
 
-        fetch(`https://rcloneui.com/api/download?url=${encodeURIComponent(url)}`, {
-            signal: abortController.signal,
-        })
-            .then(async (response) => {
-                if (response.ok) {
-                    const result = (await response.json()) as {
-                        data?: {
-                            url: string
-                            title: string
-                            extension: string
-                            type: 'video' | 'audio' | 'file' | 'image'
-                        }[]
-                    }
-
-                    if (result.data && Array.isArray(result.data) && result.data.length > 0) {
-                        console.log('[Download] Successfully fetched download data')
-                        const item = result.data[0]
-                        parsedDownloadData = {
-                            url: item.url,
-                            title: item.title,
-                            extension: item.extension,
-                            type: item.type,
-                        }
-                        parsedFilename = `${item.title.substring(0, 42).trim()}.${item.extension || 'txt'}`
-                        console.log(parsedDownloadData)
-                        console.log(parsedFilename)
-                    }
-                }
-
-                if (parsedFilename && parsedDownloadData) {
-                    console.log('[Download] Setting filename and download data')
-                    startTransition(() => {
-                        setFilename(parsedFilename)
-                        setDownloadData(parsedDownloadData)
-                    })
-                } else {
-                    const extractedExtension = url.split('.').pop()?.split('?')[0]?.toLowerCase()
-
-                    if (extractedExtension) {
-                        parsedFilename = url.split('/').pop()?.split('?')[0]
+        // The core asks the link service, through the same proxy that the download uses. It only
+        // asks for the sites that the service lists, and other URLs are downloaded as they are.
+        // The link is looked up once typing pauses, not for every key.
+        let lookup: ReturnType<typeof resolveLink> | undefined
+        const timer = setTimeout(() => {
+            lookup = resolveLink(url)
+            lookup
+                .then((link) => {
+                    // The URL changed since this lookup started, and a newer one handles it.
+                    if (aborted) return
+                    const kept = keepsName(url)
+                    keepFilename.current = undefined
+                    if (link.found && link.filename) {
+                        startTransition(() => {
+                            if (!kept) setFilename(link.filename)
+                            setDownloadData({
+                                url: link.url,
+                                title: link.filename,
+                                extension: link.filename.split('.').pop() ?? '',
+                                type: link.type as 'video' | 'audio' | 'file' | 'image',
+                            })
+                        })
                     } else {
-                        parsedFilename = `${getUrlDomain(url)} ${getDateFilename()}.txt`
+                        keepPage(kept)
                     }
 
                     startTransition(() => {
-                        setFilename(parsedFilename)
-                        setDownloadData(undefined)
+                        setMiss(missOf(link))
+                        setIsFetchingDownloadData(false)
                     })
-                }
-
-                startTransition(() => {
-                    setIsFetchingDownloadData(false)
                 })
-            })
-            .catch(() => {
-                startTransition(() => {
-                    setIsFetchingDownloadData(false)
+                .catch((error: unknown) => {
+                    if (aborted) return
+                    console.warn('[Download] Failed to resolve the link', error)
+                    const kept = keepsName(url)
+                    keepFilename.current = undefined
+                    keepPage(kept)
+                    startTransition(() => {
+                        setMiss('unreachable')
+                        setIsFetchingDownloadData(false)
+                    })
                 })
-            })
+        }, LOOKUP_DELAY)
 
         return () => {
-            abortController.abort()
+            aborted = true
+            clearTimeout(timer)
+            lookup?.cancel()
         }
-    }, [url])
+    }, [url, attempt])
+
+    const { tone } = pageLook()
+    const swap = useSwap()
+    const paste = () => {
+        setTimeout(() => {
+            // The promise rejects if the user dismisses the paste prompt.
+            navigator.clipboard
+                .readText()
+                .then((text) => {
+                    setUrl(text)
+                })
+                .catch(() => {})
+        }, 10)
+    }
+    const urlProblem = url && !isValidUrl(url) ? t`Invalid URL` : undefined
+    const filenameError = filename?.trim() ? filenameProblem(filename) : undefined
+    const found = isFetchingDownloadData ? undefined : downloadData
 
     return (
-        <div className="flex flex-col h-screen gap-2">
-            {/* Main Content */}
-            <OperationWindowContent className="gap-4">
-                <Input
-                    label="URL"
-                    placeholder="Enter a URL"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    fullWidth={true}
-                    description="Supports Youtube, TikTok, SoundCloud, Google Drive, etc."
-                    size="lg"
-                    data-focus-visible="false"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck="false"
-                    endContent={
-                        <Button
-                            variant="faded"
-                            color="primary"
-                            onPress={() => {
-                                setTimeout(() => {
-                                    navigator.clipboard.readText().then((text) => {
-                                        setUrl(text)
-                                    })
-                                }, 10)
+        <OperationPage>
+            <OperationWindowContent>
+                <OperationHeader
+                    command={submission.command}
+                    operation="download"
+                    intro={t`Saves the content behind a link to a remote or local folder.`}
+                />
+
+                <RoutePanel tone={tone} note={{ kind: 'info', text: urlDescription }}>
+                    <RouteRow stop="from" tone={tone}>
+                        <div className="flex gap-1">
+                            <Input
+                                label={t({
+                                    message: 'Link',
+                                    comment: 'Label of the field for the web address to download.',
+                                })}
+                                placeholder={t`Enter a URL`}
+                                value={url ?? ''}
+                                onChange={(e) => setUrl(e.target.value)}
+                                fullWidth={true}
+                                size="lg"
+                                isInvalid={!!urlProblem}
+                                errorMessage={urlProblem}
+                                classNames={bareField(!!urlProblem)}
+                                data-focus-visible="false"
+                                autoComplete="off"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck="false"
+                            />
+                            <Button
+                                variant="flat"
+                                onPress={paste}
+                                startContent={<ClipboardIcon className="size-[18px]" />}
+                                className="h-12 mt-2 font-medium rounded-[10px] shrink-0 text-default-700"
+                                data-focus-visible="false"
+                            >
+                                <Trans comment="Button: pastes the copied link into the field.">
+                                    Paste
+                                </Trans>
+                            </Button>
+                        </div>
+                    </RouteRow>
+                    <div aria-hidden={true} className="flex items-center h-5">
+                        <div className="relative self-stretch w-9 shrink-0">
+                            <div
+                                className="absolute inset-y-0 w-0.5 left-1/2 -translate-x-1/2"
+                                style={{ background: `rgb(${TONE_RGB[tone]} / 0.35)` }}
+                            />
+                        </div>
+                        <div className="flex-1 h-px ml-1 bg-divider" />
+                    </div>
+                    <RouteRow stop="to" tone={tone}>
+                        <PathField
+                            path={destination || ''}
+                            setPath={setDestination}
+                            label={t`Save to`}
+                            placeholder={t`Enter a remote:path, or click to choose a folder`}
+                            showPicker={true}
+                            allowedKeys={DESTINATION.allowedKeys}
+                            showFiles={DESTINATION.files}
+                            remember={DESTINATION.remember}
+                            bare={true}
+                        />
+                    </RouteRow>
+                    <RouteRow stop="none" tone={tone}>
+                        <Input
+                            label={t`Filename`}
+                            placeholder={t`Enter a filename and extension`}
+                            value={filename ?? ''}
+                            onChange={(e) => {
+                                typedName.current = e.target.value !== ''
+                                setFilename(e.target.value)
+                                setFilenameTyped(true)
                             }}
-                        >
-                            Paste
-                        </Button>
-                    }
-                />
+                            fullWidth={true}
+                            isDisabled={!url || !destination}
+                            // Only a name the core would refuse is shown here. An empty one is
+                            // asked for in the bar.
+                            isInvalid={!!filenameError}
+                            errorMessage={filenameError}
+                            classNames={bareField(!!filenameError)}
+                            size="lg"
+                            data-focus-visible="false"
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck="false"
+                        />
+                    </RouteRow>
+                </RoutePanel>
 
-                {/* Path Display */}
-                <PathField
-                    path={destination || ''}
-                    setPath={setDestination}
-                    label="Destination"
-                    description="Select the destination folder or manually enter a folder path"
-                    placeholder="Enter a remote:/path as destination"
-                    showPicker={true}
-                    showFiles={false}
-                />
+                {!url?.trim() && (
+                    <div className="flex items-center gap-3.5 p-4 border border-dashed rounded-2xl border-default-300 dark:border-default-200">
+                        <IconTile icon={DownloadBracketIcon} tone={tone} size="lg" />
+                        <p className="leading-snug text-small text-default-500 text-pretty">
+                            <Trans>
+                                Paste a link to a file, or to a page with a video, an image or audio
+                                on it. A preview shows here before you download.
+                            </Trans>
+                        </p>
+                    </div>
+                )}
 
-                <Input
-                    label="Filename"
-                    placeholder="Enter a filename"
-                    description="Make sure to include an extension"
-                    value={filename}
-                    onChange={(e) => setFilename(e.target.value)}
-                    fullWidth={true}
-                    isDisabled={!url || !destination}
-                    size="lg"
-                    data-focus-visible="false"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck="false"
-                />
+                {(isFetchingDownloadData || miss || found) && (
+                    <section aria-label={t`Preview`} className="flex flex-col gap-3">
+                        <SectionTitle className="px-1" title={t`Preview`} />
+                        {isFetchingDownloadData ? (
+                            <Panel className="flex items-center gap-3.5 p-4">
+                                <Skeleton className="rounded-[10px] size-9 shrink-0" />
+                                <div className="flex flex-col flex-1 gap-2">
+                                    <Skeleton className="w-2/5 h-3.5 rounded-full" />
+                                    <Skeleton className="w-3/5 h-3 rounded-full" />
+                                </div>
+                                <span className="sr-only">
+                                    <Trans>Looking up the link</Trans>
+                                </span>
+                            </Panel>
+                        ) : miss ? (
+                            // The download still works, but saves the link itself, which is
+                            // most likely a web page. So this is a warning, not an error.
+                            <Alert
+                                color="warning"
+                                variant="faded"
+                                title={
+                                    miss === 'unreachable'
+                                        ? t`This link could not be looked up`
+                                        : t`The file behind this link could not be found`
+                                }
+                                description={
+                                    miss === 'unreachable'
+                                        ? t`The service that finds the file behind a link couldn't be reached. Downloading now will save the link itself, not the video, audio or other content behind it. This means you will download a web page. Check your connection, or try again in a moment.`
+                                        : t`Downloading now will save the link itself, not the video, audio or other content behind it. This means you will download a web page. Check the link, or try again in a moment.`
+                                }
+                                endContent={
+                                    <Button
+                                        size="sm"
+                                        variant="flat"
+                                        color="warning"
+                                        className="self-center shrink-0"
+                                        onPress={() => setAttempt((n) => n + 1)}
+                                        data-focus-visible="false"
+                                    >
+                                        <Trans comment="Button: looks the link up once more.">
+                                            Try again
+                                        </Trans>
+                                    </Button>
+                                }
+                            />
+                        ) : found ? (
+                            <Panel className="flex flex-col overflow-hidden">
+                                <div className="flex items-center gap-3.5 p-4">
+                                    <IconTile icon={MEDIA_ICON[found.type]} tone={tone} size="lg" />
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="font-medium truncate">{found.title}</span>
+                                        <span className="text-small text-default-500">
+                                            {MEDIA_LABEL[found.type]}
+                                            {found.extension
+                                                ? ` · ${found.extension.toUpperCase()}`
+                                                : ''}
+                                        </span>
+                                    </div>
+                                </div>
+                                {found.type === 'video' && !isYoutubeUrl(url || '') && (
+                                    <video
+                                        autoPlay={true}
+                                        muted={true}
+                                        playsInline={true}
+                                        controls={true}
+                                        src={found.url}
+                                        className="object-contain w-full h-64 bg-black"
+                                    >
+                                        <track kind="captions" src="" srcLang="en" />
+                                    </video>
+                                )}
+                                {found.type === 'image' && (
+                                    <div className="flex justify-center p-4 pt-0">
+                                        <Image
+                                            src={found.url}
+                                            className="object-contain w-full h-64"
+                                        />
+                                    </div>
+                                )}
+                                {found.type === 'audio' && (
+                                    <div className="px-4 pb-4">
+                                        <audio src={found.url} controls={true} className="w-full">
+                                            <track kind="captions" src="" srcLang="en" />
+                                        </audio>
+                                    </div>
+                                )}
+                            </Panel>
+                        ) : null}
+                    </section>
+                )}
             </OperationWindowContent>
 
-            <div className="flex items-center justify-center flex-1 overflow-hidden">
-                {isFetchingDownloadData && <Spinner size="lg" />}
-
-                {!isFetchingDownloadData &&
-                    downloadData &&
-                    downloadData.type === 'video' &&
-                    !isYoutubeUrl(url || '') && (
-                        <MuxPlayer
-                            autoPlay={true}
-                            muted={true}
-                            // controls={true}
-                            src={downloadData.url}
-                            className="object-contain w-full h-64 mx-10 overflow-hidden rounded-large"
-                        />
-                    )}
-
-                {!isFetchingDownloadData && downloadData && downloadData.type === 'image' && (
-                    <Image src={downloadData.url} className="object-contain w-full h-64" />
-                )}
-
-                {!isFetchingDownloadData && downloadData && downloadData.type === 'audio' && (
-                    <audio src={downloadData.url} controls={true}>
-                        <track kind="captions" src="" srcLang="en" />
-                    </audio>
-                )}
-            </div>
-
             <OperationWindowFooter>
+                <BarText
+                    line={
+                        startIsSuccess
+                            ? plainLine(t`Download started`, t`Open History to see the status.`)
+                            : lineOf(filename, destination)
+                    }
+                    problem={
+                        !startIsSuccess && !startIsPending && startBlocked ? problem : undefined
+                    }
+                    status={startIsSuccess ? 'success' : startIsPending ? 'active' : undefined}
+                />
                 <AnimatePresence mode="wait" initial={false}>
-                    {startDownloadMutation.isSuccess ? (
-                        <motion.div
-                            key="started-buttons"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.2, ease: 'easeOut' }}
-                            className="flex flex-1 gap-2"
-                        >
-                            <Button
-                                fullWidth={true}
-                                color="primary"
-                                size="lg"
-                                onPress={() => {
-                                    startTransition(() => {
-                                        setUrl(undefined)
-                                        setDestination(undefined)
-                                        setFilename(undefined)
-                                        setDownloadData(undefined)
-                                        setIsFetchingDownloadData(false)
-                                        startDownloadMutation.reset()
-                                    })
-                                }}
-                                data-focus-visible="false"
-                            >
-                                NEW DOWNLOAD
-                            </Button>
+                    {startIsSuccess ? (
+                        <motion.div key="started-buttons" {...swap} className="flex gap-2 shrink-0">
+                            <StartButton onPress={onResetAll}>
+                                <Trans>New download</Trans>
+                            </StartButton>
                         </motion.div>
                     ) : (
-                        <motion.div
-                            key="start-button"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.2, ease: 'easeOut' }}
-                            className="flex flex-1"
-                        >
-                            <Button
-                                onPress={() => startDownloadMutation.mutate()}
-                                size="lg"
-                                fullWidth={true}
-                                type="button"
-                                color="primary"
+                        <motion.div key="start-button" {...swap} className="flex gap-2 shrink-0">
+                            <StartButton
+                                onPress={() => {
+                                    if (submitting.current) return
+                                    submitting.current = true
+                                    onStart().finally(() => {
+                                        submitting.current = false
+                                    })
+                                }}
                                 isDisabled={
-                                    startDownloadMutation.isPending ||
-                                    !destination ||
-                                    isFetchingDownloadData
+                                    startIsPending || startBlocked || isFetchingDownloadData
                                 }
-                                isLoading={startDownloadMutation.isPending}
-                                endContent={buttonIcon}
-                                className="max-w-2xl gap-2"
-                                data-focus-visible="false"
+                                isLoading={startIsPending}
+                                endContent={
+                                    startIsPending ? undefined : (
+                                        <DownloadBracketIcon className="size-4" />
+                                    )
+                                }
                             >
                                 {buttonText}
-                            </Button>
+                            </StartButton>
                         </motion.div>
                     )}
                 </AnimatePresence>
-                <ButtonGroup variant="flat">
-                    <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
-                        <Button
-                            size="lg"
-                            type="button"
-                            color="primary"
-                            isIconOnly={true}
-                            onPress={async () => {
-                                const res = await message(
-                                    'Not yet implemented, you can request this feature on GitHub.',
-                                    {
-                                        title: 'Schedule Downloads',
-                                        kind: 'info',
-                                        buttons: {
-                                            ok: 'Request Feature',
-                                        },
-                                    }
-                                )
-
-                                if (res === 'Ok') {
-                                    await openUrl(
-                                        'https://github.com/rclone-ui/rclone-ui/issues/18'
-                                    )
-                                }
-                            }}
-                        >
-                            <ClockIcon className="size-6" />
-                        </Button>
-                    </Tooltip>
-                    <CommandInfoButton
-                        content={`Download a URL's content and copy it to the destination without saving it in temporary storage.
-
-This uses rclone's copyurl command to stream content directly to your destination.
-
-For supported platforms, the app will automatically extract the direct download URL and suggest a filename.
-
-Supported platforms include:
-• YouTube
-• TikTok
-• Instagram
-• Threads
-• Twitter / X
-• Facebook
-• Pinterest
-• Spotify
-• SoundCloud
-• Capcut
-• Douyin
-• Xiaohongshu
-• SnackVideo
-• Cocofun
-• Google Drive
-• MediaFire
-• Direct file URLs (any URL)
-
-If a platform isn't listed, it may still work — try pasting the URL and see if a preview appears.
-
-Here's a quick guide to using Download:
-
-1. ENTER URL
-Paste or type the URL you want to download. You can use the "Paste" button to quickly paste from your clipboard. If the URL is from a supported platform, the app will automatically fetch metadata and show a preview.
-
-2. SELECT DESTINATION
-Choose where to save the downloaded file. Tap the folder icon to browse your remotes and local filesystem, or type a path directly.
-
-3. SET FILENAME
-The filename is auto-populated based on the URL or video title. You can edit it if needed. Make sure to include the correct file extension (e.g., .mp4, .mp3, .jpg).
-
-4. DOWNLOAD
-Tap "DOWNLOAD" to start. The file will be streamed directly to your destination without using local temporary storage.
-
-Note: If a download doesn't work, the site may have restrictions. Try the URL with curl directly to verify it's accessible.`}
-                    />
-                    <CommandsDropdown currentCommand="download" />
-                </ButtonGroup>
             </OperationWindowFooter>
-        </div>
+        </OperationPage>
     )
 }
+
+const MEDIA_ICON = { video: FilmIcon, audio: MusicIcon, image: ImageIcon, file: PageIcon } as const
+
+const MEDIA_LABEL = {
+    video: t({ message: 'Video', comment: 'The kind of file that a link holds.' }),
+    audio: t({ message: 'Audio', comment: 'The kind of file that a link holds.' }),
+    image: t({ message: 'Image', comment: 'The kind of file that a link holds.' }),
+    file: t({ message: 'File', comment: 'The kind of file that a link holds.' }),
+} as const

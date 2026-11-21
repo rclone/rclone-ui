@@ -1,67 +1,41 @@
-import { invoke } from '@tauri-apps/api/core'
+import { t } from '@lingui/core/macro'
 import { useCallback } from 'react'
 import { reportError } from '../../../lib/errors'
-import { getFsInfo } from '../../../lib/format'
-import { fsInfoQueryOptions, hasFeature } from '../../../lib/hooks'
-import queryClient from '../../../lib/query'
-import { uploadEmptyFile } from '../../../lib/rclone/api'
-import rclone from '../../../lib/rclone/client'
+import { prompt } from '../../../lib/shell'
+import { makeFolder } from './fsActions'
 import type { RemoteString } from './types'
-import { RE_TRAILING_SEPARATORS } from './utils'
+import { newFolderPath, panelFolder } from './utils'
 
-export default function useCreateFolder(remote: RemoteString, cwd: string, refresh: () => void) {
-    const canCreateFolder = !!remote && remote !== 'UI_FAVORITES'
+/** The NEW button. Creates a folder in the panel's folder (not in Favorites or the disk list). */
+export default function useCreateFolder(remote: RemoteString, cwd: string) {
+    const canCreateFolder = panelFolder(remote, cwd) !== null
 
     const createFolder = useCallback(async () => {
-        if (!remote || remote === 'UI_FAVORITES') return
+        if (!canCreateFolder) return
 
-        const folderName = await invoke<string | null>('prompt', {
-            title: 'New Folder',
-            message: 'Enter a name for the new folder',
-            default: 'New Folder',
+        const folderName = await prompt({
+            title: t`New folder`,
+            message: t`Enter a name for the new folder`,
+            default: t({
+                message: 'New folder',
+                context: 'the name that a new folder starts with',
+            }),
             sensitive: false,
         })
         const normalizedFolderName = folderName?.trim()
         if (!normalizedFolderName) return
 
+        const target = newFolderPath(remote, cwd, normalizedFolderName)
+        if (target === null) return
         try {
-            const normalizedPath = cwd.replace(RE_TRAILING_SEPARATORS, '')
-            const fullTargetPath =
-                remote === 'UI_LOCAL_FS'
-                    ? `${normalizedPath}${normalizedPath ? '/' : ''}${normalizedFolderName}`
-                    : `${remote}:/${normalizedPath}${normalizedPath ? '/' : ''}${normalizedFolderName}`
-            const info = getFsInfo(fullTargetPath)
-
-            let supportsEmptyDirs = true
-            if (remote !== 'UI_LOCAL_FS') {
-                const fsInfo = await queryClient
-                    .ensureQueryData(fsInfoQueryOptions(remote))
-                    .catch(() => undefined)
-                if (fsInfo) supportsEmptyDirs = hasFeature(fsInfo, 'CanHaveEmptyDirectories')
-            }
-
-            if (supportsEmptyDirs) {
-                await rclone('/operations/mkdir' as any, {
-                    params: {
-                        query: {
-                            fs: info.root === ':local:' ? ':local:/' : info.root,
-                            remote: info.filePath,
-                        },
-                    },
-                })
-            } else {
-                await uploadEmptyFile(info.root, info.filePath)
-            }
-
-            refresh()
+            await makeFolder(target)
         } catch (error) {
             await reportError(error, {
-                title: 'Error',
-                fallback: 'Create folder failed',
-                capture: false,
+                title: t`Error`,
+                fallback: t`Create folder failed`,
             })
         }
-    }, [remote, cwd, refresh])
+    }, [canCreateFolder, remote, cwd])
 
     return { canCreateFolder, createFolder }
 }

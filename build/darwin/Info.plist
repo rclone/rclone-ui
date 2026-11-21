@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleName</key>
+	<string>Rclone UI</string>
+	<key>CFBundleDisplayName</key>
+	<string>Rclone UI</string>
+	<key>CFBundleExecutable</key>
+	<string>rcui</string>
+	<key>CFBundleIdentifier</key>
+	<string>org.rclone.ui</string>
+	<key>CFBundleVersion</key>
+	<string>@VERSION@</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@VERSION@</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleIconFile</key>
+	<string>icons</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>12.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<!-- The tray app has no Dock icon from the start (the ui sets the accessory policy too). -->
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© Rclone</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- The pages reach this machine's core on 127.0.0.1, and a remote host's core at the address
+	     the user gave, which may be http:// on a LAN name (Go's net/http doesn't use ATS). -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>org.rclone.ui</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>rclone</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
