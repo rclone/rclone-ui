@@ -414,9 +414,9 @@ func (u *ui) waitForScreens(limit time.Duration) {
 }
 
 // flatpakGate runs when the Flatpak lacks a permission it needs: access to the host's files, to
-// the autostart folder and, on GNOME, to GNOME Shell's extensions. It explains the problem,
-// offers the command that grants them, and exits. A user who granted disk access before the app
-// needed the rest has to run the command again.
+// the autostart folder, to the session bus and, on GNOME, to GNOME Shell's extensions. It explains
+// the problem, offers the command that grants them, and exits. A user who granted disk access
+// before the app needed the rest has to run the command again.
 func (u *ui) flatpakGate(m platform.Missing) {
 	cmd := platform.FlatpakOverride()
 	msg := i18n.T("You are running the flatpak version of Rclone UI, which is sandboxed.") + "\n\n" + flatpakNeeds(m) +
@@ -441,6 +441,9 @@ func flatpakNeeds(m platform.Missing) string {
 	}
 	if m.GNOME {
 		needs = append(needs, i18n.T("Access to GNOME's extensions to place the Launcher"))
+	}
+	if m.SessionBus {
+		needs = append(needs, i18n.T("Access to the session bus, for the tray icon"))
 	}
 	// i18n: Followed by a list of the permissions that the Flatpak needs.
 	head := i18n.T("Rclone UI needs:")

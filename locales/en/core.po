@@ -727,6 +727,10 @@ msgid "Access to GNOME's extensions to place the Launcher"
 msgstr ""
 
 #: app/app.go
+msgid "Access to the session bus, for the tray icon"
+msgstr ""
+
+#: app/app.go
 msgid "Access to your autostart folder, to start when you log in"
 msgstr ""
 

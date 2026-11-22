@@ -73,6 +73,9 @@ func TestFlatpakNeeds(t *testing.T) {
 			"• Access to GNOME's extensions to place the Launcher" + many},
 		{platform.Missing{GNOME: true}, "Rclone UI now also needs:\n\n• Access to GNOME's extensions to place the Launcher" + one},
 		{platform.Missing{Autostart: true}, "Rclone UI now also needs:\n\n• Access to your autostart folder, to start when you log in" + one},
+		{platform.Missing{SessionBus: true}, "Rclone UI now also needs:\n\n• Access to the session bus, for the tray icon" + one},
+		{platform.Missing{Disk: true, Autostart: true, GNOME: true, SessionBus: true}, "Rclone UI needs:\n\n• Disk access to manage your files\n• Access to your autostart folder, to start when you log in\n" +
+			"• Access to GNOME's extensions to place the Launcher\n• Access to the session bus, for the tray icon" + many},
 	} {
 		if got := flatpakNeeds(c.m); got != c.want {
 			t.Errorf("%+v:\n got %q\nwant %q", c.m, got, c.want)

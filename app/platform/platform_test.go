@@ -76,17 +76,18 @@ func TestOsReleaseIsMint(t *testing.T) {
 }
 
 func TestFlatpakOverride(t *testing.T) {
-	if got := flatpakOverride(false); got != "flatpak override --user --filesystem=host --filesystem=xdg-config/autostart:create org.rclone.ui" {
+	if got := flatpakOverride(false); got != "flatpak override --user --filesystem=host --filesystem=xdg-config/autostart:create --socket=session-bus org.rclone.ui" {
 		t.Errorf("elsewhere: %q", got)
 	}
-	if got := flatpakOverride(true); got != "flatpak override --user --filesystem=host --filesystem=xdg-config/autostart:create --talk-name=org.gnome.Shell.Extensions org.rclone.ui" {
+	if got := flatpakOverride(true); got != "flatpak override --user --filesystem=host --filesystem=xdg-config/autostart:create --socket=session-bus --talk-name=org.gnome.Shell.Extensions org.rclone.ui" {
 		t.Errorf("GNOME: %q", got)
 	}
 	if !grantsTalk("[Session Bus Policy]\norg.gnome.Shell.Extensions=talk\n", GnomeShellExtensions) {
 		t.Error("an override's talk-name")
 	}
 	// What the override writes to .flatpak-info satisfies the gate.
-	info := "[Context]\nfilesystems=host;xdg-config/autostart:create;\n[Session Bus Policy]\norg.gnome.Shell.Extensions=talk\n"
+	info := "[Context]\nshared=network;ipc;\nsockets=x11;wayland;fallback-x11;session-bus;\n" +
+		"filesystems=host;xdg-config/autostart:create;\n[Session Bus Policy]\norg.gnome.Shell.Extensions=talk\n"
 	if m := missing(info, true); m.Any() {
 		t.Errorf("after the override: %+v", m)
 	}
@@ -103,22 +104,41 @@ func TestIsGNOME(t *testing.T) {
 	}
 }
 
+func TestGrantsSocket(t *testing.T) {
+	for info, want := range map[string]bool{
+		"[Context]\nsockets=x11;wayland;session-bus;\n":  true,
+		"[Context]\nsockets=session-bus\n":               true,
+		"[Context]\nsockets=x11;wayland;fallback-x11;\n": false,
+		"[Context]\nsockets=!session-bus;\n":             false,
+		"[Context]\nsockets=system-bus;\n":               false,
+		"[Context]\nshared=session-bus;\n":               false,
+		"[Application]\nsockets=session-bus;\n":          false,
+		"":                                               false,
+	} {
+		if got := grantsSocket(info, sessionBusSocket); got != want {
+			t.Errorf("grantsSocket(%q) = %v, want %v", info, got, want)
+		}
+	}
+}
+
 func TestMissing(t *testing.T) {
-	disk := "[Context]\nfilesystems=host;\n"
+	disk := "[Context]\nfilesystems=host;\nsockets=session-bus;\n"
 	shell := "[Session Bus Policy]\norg.gnome.Shell.Extensions=talk\n"
 	for _, c := range []struct {
 		info  string
 		gnome bool
 		want  Missing
 	}{
-		{"", false, Missing{Disk: true, Autostart: true}},
+		{"", false, Missing{Disk: true, Autostart: true, SessionBus: true}},
 		{disk, false, Missing{}},
 		{disk, true, Missing{GNOME: true}},
 		{disk + shell, true, Missing{}},
-		{shell, true, Missing{Disk: true, Autostart: true}},
-		{"[Context]\nfilesystems=host:ro;\n", false, Missing{Disk: true, Autostart: true}},
-		{"[Context]\nfilesystems=home;\n", false, Missing{Disk: true}},
-		{"[Context]\nfilesystems=host:ro;xdg-config/autostart:create;\n", false, Missing{Disk: true}},
+		{shell, true, Missing{Disk: true, Autostart: true, SessionBus: true}},
+		{"[Context]\nfilesystems=host;\n", false, Missing{SessionBus: true}},
+		{"[Context]\nfilesystems=host;\nsockets=!session-bus;\n", false, Missing{SessionBus: true}},
+		{"[Context]\nfilesystems=host:ro;\n", false, Missing{Disk: true, Autostart: true, SessionBus: true}},
+		{"[Context]\nfilesystems=home;\nsockets=session-bus;\n", false, Missing{Disk: true}},
+		{"[Context]\nfilesystems=host:ro;xdg-config/autostart:create;\nsockets=session-bus;\n", false, Missing{Disk: true}},
 	} {
 		if got := missing(c.info, c.gnome); got != c.want {
 			t.Errorf("%q gnome=%v: missing %+v, want %+v", c.info, c.gnome, got, c.want)

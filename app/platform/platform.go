@@ -25,14 +25,21 @@ const GnomeShellExtensions = "org.gnome.Shell.Extensions"
 // "Start on boot" writes its entry there (see app/autostart).
 const autostartFilesystem = "xdg-config/autostart"
 
+// sessionBusSocket is direct access to the session bus, past Flatpak's filtering proxy. godbus
+// can send messages out of serial order when goroutines share a connection. xdg-dbus-proxy 0.1.5
+// (Ubuntu 24.04 and Linux Mint 22) then logs "Invalid client serial" and drops the connection, and
+// the tray icon, which shares that connection, doesn't appear.
+const sessionBusSocket = "session-bus"
+
 // FlatpakOverride returns the command that grants the permissions the gate asks for (see
-// FlatpakMissing). They are access to the host's files and autostart folder and, on GNOME, to
-// GNOME Shell's extensions service, because an extension places the launcher's window there. The
-// user grants them, rather than the manifest.
+// FlatpakMissing). They are access to the host's files, the autostart folder and the session bus
+// and, on GNOME, to GNOME Shell's extensions service, because an extension places the launcher's
+// window there. The user grants them, rather than the manifest.
 func FlatpakOverride() string { return flatpakOverride(IsGNOME()) }
 
 func flatpakOverride(gnome bool) string {
-	cmd := "flatpak override --user --filesystem=host --filesystem=" + autostartFilesystem + ":create "
+	cmd := "flatpak override --user --filesystem=host --filesystem=" + autostartFilesystem + ":create " +
+		"--socket=" + sessionBusSocket + " "
 	if gnome {
 		cmd += "--talk-name=" + GnomeShellExtensions + " "
 	}
@@ -78,9 +85,12 @@ type Missing struct {
 	// GNOME is access to GNOME Shell's extensions service, on GNOME. Without it, the launcher's
 	// extension can't be installed, and there is no other way to place the launcher's window.
 	GNOME bool
+	// SessionBus is direct access to the session bus (see sessionBusSocket). Without it, the
+	// tray icon often doesn't appear.
+	SessionBus bool
 }
 
-func (m Missing) Any() bool { return m.Disk || m.Autostart || m.GNOME }
+func (m Missing) Any() bool { return m.Disk || m.Autostart || m.GNOME || m.SessionBus }
 
 // FlatpakMissing is the startup gate. It returns the permissions granted by FlatpakOverride that
 // the Flatpak doesn't have, and nothing outside a Flatpak. The app doesn't start while anything
@@ -91,17 +101,38 @@ func FlatpakMissing() Missing {
 	}
 	b, err := os.ReadFile(flatpakInfo)
 	if err != nil {
-		return Missing{Disk: true, Autostart: true, GNOME: IsGNOME()}
+		return Missing{Disk: true, Autostart: true, GNOME: IsGNOME(), SessionBus: true}
 	}
 	return missing(string(b), IsGNOME())
 }
 
 func missing(info string, gnome bool) Missing {
 	return Missing{
-		Disk:      !grantsFilesystem(info, "host"),
-		Autostart: !grantsAutostart(info),
-		GNOME:     gnome && !grantsTalk(info, GnomeShellExtensions),
+		Disk:       !grantsFilesystem(info, "host"),
+		Autostart:  !grantsAutostart(info),
+		GNOME:      gnome && !grantsTalk(info, GnomeShellExtensions),
+		SessionBus: !grantsSocket(info, sessionBusSocket),
 	}
+}
+
+// grantsSocket checks one socket in the [Context] sockets= list of a .flatpak-info. A "!name"
+// override denies it.
+func grantsSocket(info, name string) bool {
+	for _, kv := range section(info, "Context") {
+		key, value, ok := strings.Cut(kv, "=")
+		if !ok || strings.TrimSpace(key) != "sockets" {
+			continue
+		}
+		for item := range strings.SplitSeq(value, ";") {
+			switch strings.TrimSpace(item) {
+			case name:
+				return true
+			case "!" + name:
+				return false
+			}
+		}
+	}
+	return false
 }
 
 // grantsAutostart reports whether the Flatpak may write to the host's autostart folder. That
