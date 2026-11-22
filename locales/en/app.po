@@ -2500,7 +2500,7 @@ msgid "Discard the pending uploads?"
 msgstr "Discard the pending uploads?"
 
 #: src/components/navigator/DiskUsageDrawer.tsx
-#: src/pages/Commander/TransfersBar.tsx
+#: src/components/navigator/FilePanel.tsx
 msgid "Disk Usage"
 msgstr "Disk Usage"
 
@@ -4221,7 +4221,6 @@ msgid "Leave without saving your changes?"
 msgstr "Leave without saving your changes?"
 
 #: src/components/navigator/FilePanel.tsx
-#: src/pages/Commander/TransfersBar.tsx
 msgid "Left panel"
 msgstr "Left panel"
 
@@ -4301,13 +4300,11 @@ msgid "Loading the remotes"
 msgstr "Loading the remotes"
 
 #. The place in a path bar that stands for this computer.
-#. The place in a path bar that stands for this computer.
 #. Where a file is: on this computer, not on a remote.
 #. Where a file is: on this computer.
 #: src/components/navigator/PathBreadcrumb.tsx
 #: src/components/navigator/preview/PreviewDrawer.tsx
 #: src/pages/Commander/OperationDialog.tsx
-#: src/pages/Commander/TransfersBar.tsx
 msgid "Local"
 msgstr "Local"
 
@@ -4538,6 +4535,7 @@ msgid "Most things start in the launcher. Press [[shortcut]] in any app and type
 msgstr "Most things start in the launcher. Press [[shortcut]] in any app and type what you want to do, or click the launcher above to open it."
 
 #. Button: opens the Mount window with the remote's root as the source.
+#: src/components/navigator/FilePanel.tsx
 #: src/pages/Remotes/RemoteCard.tsx
 #: src/routes.ts
 msgid "Mount"
@@ -4610,6 +4608,10 @@ msgstr "Mount point"
 #: src/pages/Automounts/AutomountRow.tsx
 msgid "Mount point:"
 msgstr "Mount point:"
+
+#: src/components/navigator/FilePanel.tsx
+msgid "Mount this folder on this computer"
+msgstr "Mount this folder on this computer"
 
 #: src/pages/Automounts/status.ts
 #: src/pages/Mount/running.tsx
@@ -5196,10 +5198,6 @@ msgstr "Nothing matches"
 msgid "Nothing named “{term}” in this folder or its sub-folders."
 msgstr "Nothing named “{term}” in this folder or its sub-folders."
 
-#: src/pages/Commander/TransfersBar.tsx
-msgid "Nothing open"
-msgstr "Nothing open"
-
 #: src/pages/History/shown.ts
 msgid "Nothing running has “{search}” in its ID, paths or error."
 msgstr "Nothing running has “{search}” in its ID, paths or error."
@@ -5367,10 +5365,6 @@ msgstr "Open"
 #: src/pages/Commander/index.tsx
 msgid "Open a folder in both panels to compare."
 msgstr "Open a folder in both panels to compare."
-
-#: src/pages/Commander/TransfersBar.tsx
-msgid "Open a remote or a disk in a panel to see its disk usage."
-msgstr "Open a remote or a disk in a panel to see its disk usage."
 
 #: src/pages/Guides/guides.ts
 msgid "Open Automounts"
@@ -6860,7 +6854,6 @@ msgid "Reveal value"
 msgstr "Reveal value"
 
 #: src/components/navigator/FilePanel.tsx
-#: src/pages/Commander/TransfersBar.tsx
 msgid "Right panel"
 msgstr "Right panel"
 
@@ -7190,10 +7183,6 @@ msgstr "Scan again"
 #: src/pages/MobileRemoteControl/index.tsx
 msgid "Scan it with Rclone UI on your phone to connect."
 msgstr "Scan it with Rclone UI on your phone to connect."
-
-#: src/pages/Commander/TransfersBar.tsx
-msgid "Scan the disk usage of"
-msgstr "Scan the disk usage of"
 
 #: src/pages/MobileRemoteControl/index.tsx
 msgid "Scan the QR code"
@@ -7712,6 +7701,10 @@ msgstr "Show activity"
 #: src/pages/History/HistoryList.tsx
 msgid "Show all transfers"
 msgstr "Show all transfers"
+
+#: src/components/navigator/FilePanel.tsx
+msgid "Show disk usage"
+msgstr "Show disk usage"
 
 #: src/pages/Remotes/Config/ConfigPanel.tsx
 msgid "Show in folder"
@@ -9581,6 +9574,7 @@ msgstr "Which two places?"
 msgid "Which way do changes go?"
 msgstr "Which way do changes go?"
 
+#: src/pages/Commander/index.tsx
 #: src/pages/Remotes/RemoteCard.tsx
 msgid "Window not opened"
 msgstr "Window not opened"

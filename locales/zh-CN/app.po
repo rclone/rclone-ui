@@ -2500,7 +2500,7 @@ msgid "Discard the pending uploads?"
 msgstr "丢弃待上传的文件？"
 
 #: src/components/navigator/DiskUsageDrawer.tsx
-#: src/pages/Commander/TransfersBar.tsx
+#: src/components/navigator/FilePanel.tsx
 msgid "Disk Usage"
 msgstr "空间占用"
 
@@ -4221,7 +4221,6 @@ msgid "Leave without saving your changes?"
 msgstr "不保存更改就离开吗？"
 
 #: src/components/navigator/FilePanel.tsx
-#: src/pages/Commander/TransfersBar.tsx
 msgid "Left panel"
 msgstr "左侧面板"
 
@@ -4301,13 +4300,11 @@ msgid "Loading the remotes"
 msgstr "正在加载远程存储"
 
 #. The place in a path bar that stands for this computer.
-#. The place in a path bar that stands for this computer.
 #. Where a file is: on this computer, not on a remote.
 #. Where a file is: on this computer.
 #: src/components/navigator/PathBreadcrumb.tsx
 #: src/components/navigator/preview/PreviewDrawer.tsx
 #: src/pages/Commander/OperationDialog.tsx
-#: src/pages/Commander/TransfersBar.tsx
 msgid "Local"
 msgstr "本地"
 
@@ -4538,6 +4535,7 @@ msgid "Most things start in the launcher. Press [[shortcut]] in any app and type
 msgstr "大多数操作都从启动器开始。在任意应用中按 [[shortcut]]，输入你想做的事；也可以点击上方的启动器打开它。"
 
 #. Button: opens the Mount window with the remote's root as the source.
+#: src/components/navigator/FilePanel.tsx
 #: src/pages/Remotes/RemoteCard.tsx
 #: src/routes.ts
 msgid "Mount"
@@ -4610,6 +4608,10 @@ msgstr "挂载点"
 #: src/pages/Automounts/AutomountRow.tsx
 msgid "Mount point:"
 msgstr "挂载点："
+
+#: src/components/navigator/FilePanel.tsx
+msgid "Mount this folder on this computer"
+msgstr "把这个文件夹挂载到这台电脑上"
 
 #: src/pages/Automounts/status.ts
 #: src/pages/Mount/running.tsx
@@ -5196,10 +5198,6 @@ msgstr "没有匹配项"
 msgid "Nothing named “{term}” in this folder or its sub-folders."
 msgstr "此文件夹及其子文件夹中没有名为“{term}”的项目。"
 
-#: src/pages/Commander/TransfersBar.tsx
-msgid "Nothing open"
-msgstr "没有打开任何内容"
-
 #: src/pages/History/shown.ts
 msgid "Nothing running has “{search}” in its ID, paths or error."
 msgstr "没有正在运行的传输在 ID、路径或错误中包含“{search}”。"
@@ -5367,10 +5365,6 @@ msgstr "打开"
 #: src/pages/Commander/index.tsx
 msgid "Open a folder in both panels to compare."
 msgstr "在两个面板中各打开一个文件夹即可比较。"
-
-#: src/pages/Commander/TransfersBar.tsx
-msgid "Open a remote or a disk in a panel to see its disk usage."
-msgstr "先在面板中打开一个远程存储或磁盘，才能查看空间占用。"
 
 #: src/pages/Guides/guides.ts
 msgid "Open Automounts"
@@ -6860,7 +6854,6 @@ msgid "Reveal value"
 msgstr "显示内容"
 
 #: src/components/navigator/FilePanel.tsx
-#: src/pages/Commander/TransfersBar.tsx
 msgid "Right panel"
 msgstr "右侧面板"
 
@@ -7190,10 +7183,6 @@ msgstr "再次扫描"
 #: src/pages/MobileRemoteControl/index.tsx
 msgid "Scan it with Rclone UI on your phone to connect."
 msgstr "用手机上的 Rclone UI 扫描即可连接。"
-
-#: src/pages/Commander/TransfersBar.tsx
-msgid "Scan the disk usage of"
-msgstr "扫描空间占用"
 
 #: src/pages/MobileRemoteControl/index.tsx
 msgid "Scan the QR code"
@@ -7712,6 +7701,10 @@ msgstr "显示活动"
 #: src/pages/History/HistoryList.tsx
 msgid "Show all transfers"
 msgstr "显示全部传输"
+
+#: src/components/navigator/FilePanel.tsx
+msgid "Show disk usage"
+msgstr "显示空间占用"
 
 #: src/pages/Remotes/Config/ConfigPanel.tsx
 msgid "Show in folder"
@@ -9581,6 +9574,7 @@ msgstr "哪两个位置？"
 msgid "Which way do changes go?"
 msgstr "更改朝哪个方向同步？"
 
+#: src/pages/Commander/index.tsx
 #: src/pages/Remotes/RemoteCard.tsx
 msgid "Window not opened"
 msgstr "无法打开窗口"

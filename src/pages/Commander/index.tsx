@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { coreError, reportError } from '../../../lib/errors'
 import { formOf } from '../../../lib/operations'
-import { clipboard, dataDir, platform, save } from '../../../lib/shell'
+import { clipboard, dataDir, openWindow, platform, save } from '../../../lib/shell'
 import { track } from '../../../lib/telemetry'
 import { startTransfer } from '../../../lib/transfers'
 import {
@@ -20,7 +20,6 @@ import {
     type UsageItem,
     useDiskUsage,
     useEntryActions,
-    useUsageRoot,
 } from '../../components/navigator'
 import { usePeekKey } from '../../components/navigator/peek'
 import type { Entry, SelectItem, Sort } from '../../components/navigator/types'
@@ -39,7 +38,7 @@ import {
     snapshotKey,
     TRACKED_MAX,
 } from './snapshot'
-import TransfersBar, { type DiskUsageChoice, useActivityTip } from './TransfersBar'
+import TransfersBar, { useActivityTip } from './TransfersBar'
 
 /** How long the scroll position must stay still before it is saved, in ms. */
 const SAVE_SCROLL_AFTER = 250
@@ -338,20 +337,14 @@ export default function Commander() {
     // accent, and the keyboard's shortcuts act on it.
     const [active, setActive] = useState<Side>('left')
 
-    // Disk Usage scans the whole remote, or the whole disk, of the panel that the user picks in
-    // its menu. The scan belongs to the page, so it goes on while the drawer is closed and shows
+    // Disk Usage scans the whole remote, or the whole disk, of the panel whose status bar it was
+    // opened from. The scan belongs to the page, so it goes on while the drawer is closed and shows
     // again when it opens. "Show in panel" opens a folder in the panel that the scan came from.
     const diskUsage = useDiskUsage()
     const [diskUsageOpen, setDiskUsageOpen] = useState(false)
     const [usageSide, setUsageSide] = useState<Side>('left')
     const leftFrom = leftLoc ? panelFolder(leftLoc.remote, leftLoc.path) : null
     const rightFrom = rightLoc ? panelFolder(rightLoc.remote, rightLoc.path) : null
-    const leftRoot = useUsageRoot(leftFrom)
-    const rightRoot = useUsageRoot(rightFrom)
-    const diskUsageChoices: DiskUsageChoice[] = [
-        { side: 'left', from: leftFrom, root: leftRoot, remote: remoteOf(leftLoc) },
-        { side: 'right', from: rightFrom, root: rightRoot, remote: remoteOf(rightLoc) },
-    ]
     const handleOpenDiskUsage = useCallback(
         (side: Side) => {
             const from = side === 'left' ? leftFrom : rightFrom
@@ -365,6 +358,14 @@ export default function Commander() {
         },
         [diskUsage.open, leftFrom, rightFrom, leftLoc, rightLoc]
     )
+
+    // Mount opens the Mount window on a panel's folder, which is on a remote. The window suggests
+    // the mount point.
+    const handleMount = useCallback((from: string) => {
+        openWindow(`/mount?initialSource=${encodeURIComponent(from)}`).catch((error: unknown) =>
+            reportError(error, { title: t`Window not opened` })
+        )
+    }, [])
     // A deleted file leaves the scan at once. A folder is deleted by a recorded transfer, which the
     // bar shows, and leaves the scan when the transfer completes. Each delete is remembered by its
     // path until it is done, because a second one can start before the first ends.
@@ -438,40 +439,46 @@ export default function Commander() {
     const mod = platform() === 'macos' ? '⌘' : 'Ctrl+'
     const keys = { back: `${mod}↑`, refresh: `${mod}R`, search: `${mod}F` }
 
-    const panel = (side: Side) => (
-        <div
-            className="h-full"
-            onPointerDownCapture={() => setActive(side)}
-            onFocusCapture={() => setActive(side)}
-        >
-            <FilePanel
-                ref={side === 'left' ? leftPanelRef : rightPanelRef}
-                sidebarPosition={side}
-                initialRemote={opening[side].place?.remote}
-                initialPath={opening[side].place?.path}
-                startAtFirstRemote={side === 'right'}
-                restore={opening[side].restore}
-                onSortChange={side === 'left' ? handleLeftSort : handleRightSort}
-                onScrollTopChange={side === 'left' ? handleLeftScroll : handleRightScroll}
-                selectionMode="both"
-                allowFiles={true}
-                allowMultiple={true}
-                onSelectionChange={side === 'left' ? handleLeftSelection : handleRightSelection}
-                onNavigate={side === 'left' ? handleLeftNavigate : handleRightNavigate}
-                onDrop={handleDrop}
-                onDownload={handleDownload}
-                onShare={handleShare}
-                onRename={handleRename}
-                onDelete={handleDelete}
-                allowedKeys={['REMOTES', 'LOCAL_FS', 'LOCAL_FS_EXTRA', 'FAVORITES']}
-                isActive={true}
-                isFocused={active === side}
-                keys={keys}
-                // The gap between the panels is the splitter's.
-                className={side === 'left' ? 'pr-0' : 'pl-0'}
-            />
-        </div>
-    )
+    const panel = (side: Side) => {
+        const from = side === 'left' ? leftFrom : rightFrom
+        const onRemote = remoteOf(side === 'left' ? leftLoc : rightLoc) !== null
+        return (
+            <div
+                className="h-full"
+                onPointerDownCapture={() => setActive(side)}
+                onFocusCapture={() => setActive(side)}
+            >
+                <FilePanel
+                    ref={side === 'left' ? leftPanelRef : rightPanelRef}
+                    sidebarPosition={side}
+                    initialRemote={opening[side].place?.remote}
+                    initialPath={opening[side].place?.path}
+                    startAtFirstRemote={side === 'right'}
+                    restore={opening[side].restore}
+                    onSortChange={side === 'left' ? handleLeftSort : handleRightSort}
+                    onScrollTopChange={side === 'left' ? handleLeftScroll : handleRightScroll}
+                    selectionMode="both"
+                    allowFiles={true}
+                    allowMultiple={true}
+                    onSelectionChange={side === 'left' ? handleLeftSelection : handleRightSelection}
+                    onNavigate={side === 'left' ? handleLeftNavigate : handleRightNavigate}
+                    onDrop={handleDrop}
+                    onDownload={handleDownload}
+                    onShare={handleShare}
+                    onRename={handleRename}
+                    onDelete={handleDelete}
+                    onMount={from !== null && onRemote ? () => handleMount(from) : undefined}
+                    onDiskUsage={from === null ? undefined : () => handleOpenDiskUsage(side)}
+                    allowedKeys={['REMOTES', 'LOCAL_FS', 'LOCAL_FS_EXTRA', 'FAVORITES']}
+                    isActive={true}
+                    isFocused={active === side}
+                    keys={keys}
+                    // The gap between the panels is the splitter's.
+                    className={side === 'left' ? 'pr-0' : 'pl-0'}
+                />
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col w-screen h-screen overflow-hidden">
@@ -509,8 +516,6 @@ export default function Commander() {
                 onOpenBatchRename={handleOpenBatchRename}
                 renameDisabledReason={renameDisabledReason}
                 renameCount={renameSel.length}
-                diskUsageChoices={diskUsageChoices}
-                onOpenDiskUsage={handleOpenDiskUsage}
             />
 
             <CompareDrawer

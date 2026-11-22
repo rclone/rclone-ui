@@ -1,14 +1,4 @@
-import {
-    Button,
-    Chip,
-    cn,
-    Dropdown,
-    DropdownItem,
-    DropdownMenu,
-    DropdownTrigger,
-    ScrollShadow,
-    Tooltip,
-} from '@heroui/react'
+import { Button, Chip, cn, ScrollShadow, Tooltip } from '@heroui/react'
 import { plural, t } from '@lingui/core/macro'
 import { Trans } from '@lingui/react/macro'
 import {
@@ -16,10 +6,7 @@ import {
     AngleUpSmall as AngleUpSmallIcon,
     ArrowsRotate as ArrowsRotateIcon,
     ArrowUpRightSquare as ArrowUpRightSquareIcon,
-    ChartPieSimple as ChartPieSimpleIcon,
     Check as CheckIcon,
-    Cloud as CloudIcon,
-    HardDrive as HardDriveIcon,
     Pen as PenIcon,
     Repeat as RepeatIcon,
     Search as SearchIcon,
@@ -79,102 +66,6 @@ function BarAction({
                 </Button>
             </div>
         </Tooltip>
-    )
-}
-
-/** A panel that Disk Usage can scan: the remote or disk that its folder is on. */
-export interface DiskUsageChoice {
-    side: 'left' | 'right'
-    /** The panel's folder, or null when it shows none (Favorites, the list of remotes). */
-    from: string | null
-    /** The panel's remote, as its path bar names it, or null when it shows this computer. */
-    remote: string | null
-    /** What a scan from that folder reads: the remote's root, or the disk's. */
-    root?: string
-}
-
-const TRAILING_SEPARATORS = /[\\/]+$/
-
-/**
- * The title of a panel's menu item, which names what the panel would scan. For a remote, it is
- * the remote's name. For this computer, it is "Local" for the disk that holds `/`, as the path
- * bar says, and the volume's own name for another disk ("Backup" for /Volumes/Backup, "D:" on
- * Windows).
- */
-function scannedName(choice: DiskUsageChoice): string {
-    if (choice.from === null) return t`Nothing open`
-    if (choice.remote !== null) return choice.remote
-    const root = choice.root?.replace(TRAILING_SEPARATORS, '') ?? ''
-    if (root === '') {
-        return t({
-            message: 'Local',
-            comment: 'The place in a path bar that stands for this computer.',
-        })
-    }
-    return root.slice(Math.max(root.lastIndexOf('/'), root.lastIndexOf('\\')) + 1)
-}
-
-/**
- * Disk Usage in the bar: a menu of the two panels, each named by the remote or disk that it would
- * scan. Picking one opens the drawer on it.
- */
-function DiskUsageMenu({
-    choices,
-    onPick,
-}: {
-    choices: DiskUsageChoice[]
-    onPick: (side: 'left' | 'right') => void
-}) {
-    const label = t`Disk Usage`
-    const none = choices.every((choice) => choice.from === null)
-    const sideName = (side: 'left' | 'right') => (side === 'left' ? t`Left panel` : t`Right panel`)
-    if (none) {
-        return (
-            <BarAction
-                label={label}
-                icon={ChartPieSimpleIcon}
-                disabledReason={t`Open a remote or a disk in a panel to see its disk usage.`}
-                onPress={() => undefined}
-            />
-        )
-    }
-    return (
-        <div onClick={(e) => e.stopPropagation()}>
-            <Dropdown placement="top-start" offset={10}>
-                <DropdownTrigger>
-                    <Button
-                        size="sm"
-                        variant="light"
-                        radius="md"
-                        aria-label={label}
-                        startContent={<ChartPieSimpleIcon className="size-4 shrink-0" />}
-                        className="gap-1.5 px-2 min-w-0 text-[13px] text-default-700"
-                    >
-                        <span className="hidden lg:inline">{label}</span>
-                    </Button>
-                </DropdownTrigger>
-                <DropdownMenu
-                    aria-label={t`Scan the disk usage of`}
-                    disabledKeys={choices.filter((c) => c.from === null).map((c) => c.side)}
-                    onAction={(key) => onPick(key as 'left' | 'right')}
-                >
-                    {choices.map((choice) => {
-                        const Icon = choice.remote === null ? HardDriveIcon : CloudIcon
-                        const name = scannedName(choice)
-                        return (
-                            <DropdownItem
-                                key={choice.side}
-                                textValue={name}
-                                startContent={<Icon className="size-4 shrink-0 text-default-500" />}
-                                description={sideName(choice.side)}
-                            >
-                                {name}
-                            </DropdownItem>
-                        )
-                    })}
-                </DropdownMenu>
-            </Dropdown>
-        </div>
     )
 }
 
@@ -309,8 +200,6 @@ export default function TransfersBar({
     onOpenBatchRename,
     renameDisabledReason,
     renameCount,
-    diskUsageChoices,
-    onOpenDiskUsage,
 }: {
     trackedIds: string[]
     /** Whether the bar is open. The page keeps it, so it is the same when the window opens again. */
@@ -322,8 +211,6 @@ export default function TransfersBar({
     renameDisabledReason?: string
     /** How many items Batch Rename would rename. */
     renameCount?: number
-    diskUsageChoices: DiskUsageChoice[]
-    onOpenDiskUsage: (side: 'left' | 'right') => void
 }) {
     const [, markTipSeen] = useActivityTipSeen()
     const reduceMotion = useReducedMotion()
@@ -416,7 +303,6 @@ export default function TransfersBar({
                         disabledReason={compareDisabledReason}
                         onPress={onOpenCompare}
                     />
-                    <DiskUsageMenu choices={diskUsageChoices} onPick={onOpenDiskUsage} />
                 </div>
 
                 <div className="flex items-center justify-end flex-1 min-w-0 gap-3 text-[13px] tabular-nums">

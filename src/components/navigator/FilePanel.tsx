@@ -4,9 +4,11 @@ import { Trans } from '@lingui/react/macro'
 import {
     AngleDownSmall as AngleDownSmallIcon,
     AngleUpSmall as AngleUpSmallIcon,
+    ChartPieSimple as ChartPieSimpleIcon,
     FolderArrowDown as FolderArrowDownIcon,
     Folder as FolderIcon,
     FolderPlus as FolderPlusIcon,
+    HardDrive as HardDriveIcon,
     Search as SearchIcon,
     Star as StarIcon,
     XmarkCircle as XmarkCircleIcon,
@@ -201,6 +203,10 @@ const FilePanel = forwardRef<
         onShare?: (item: Entry) => void
         onRename?: (item: Entry) => void
         onDelete?: (item: Entry) => void
+        /** Opens the Mount window for the panel's folder. Without it, the status bar has no Mount. */
+        onMount?: () => void
+        /** Opens Disk Usage for the panel's remote or disk. Without it, the status bar has none. */
+        onDiskUsage?: () => void
         allowedKeys?: AllowedKey[]
         /**
          * Arranges the panel's buttons, with the page's own, in a toolbar that floats over the
@@ -236,6 +242,8 @@ const FilePanel = forwardRef<
         onShare,
         onRename,
         onDelete,
+        onMount,
+        onDiskUsage,
         allowedKeys = ['REMOTES', 'LOCAL_FS', 'LOCAL_FS_EXTRA'],
         renderToolbar,
         toolbarVisible = true,
@@ -790,6 +798,8 @@ const FilePanel = forwardRef<
                     isFavorites={isFavorites}
                     isSearch={!!term}
                     remote={nav.isRemote ? configNameOf(nav.selectedRemote as string) : null}
+                    onMount={onMount}
+                    onDiskUsage={onDiskUsage}
                 />
 
                 {dropState !== 'none' && <DropHint state={dropState} folder={folderName} />}
@@ -806,7 +816,9 @@ export default FilePanel
 
 /**
  * The line under the list: how many items the folder holds, or how many are selected and their
- * size, the listing's progress while rows arrive, and the space left on the remote.
+ * size, and the listing's progress while rows arrive. On the right are Mount, Disk Usage and the
+ * space left on the remote. When the remote reports how full it is, its meter is the Disk Usage
+ * button.
  */
 function PanelStatusBar({
     items,
@@ -815,6 +827,8 @@ function PanelStatusBar({
     isFavorites,
     isSearch,
     remote,
+    onMount,
+    onDiskUsage,
 }: {
     items: readonly Entry[]
     selectedPaths: ReadonlySet<string>
@@ -823,6 +837,8 @@ function PanelStatusBar({
     isSearch: boolean
     /** The remote's config name, for its quota. Null on this computer and in the favorites. */
     remote: string | null
+    onMount?: () => void
+    onDiskUsage?: () => void
 }) {
     let folders = 0
     let selectedBytes = 0
@@ -846,6 +862,17 @@ function PanelStatusBar({
     const free = remote ? quota?.free : undefined
     const used = quota?.used
     const total = quota?.total
+    const freeText = typeof free === 'number' ? freeWords(free) : null
+    const meter =
+        freeText !== null && typeof used === 'number' && typeof total === 'number' && total > 0 ? (
+            <ToneProgress
+                tone={used / total > 0.9 ? 'red' : 'blue'}
+                value={used / total}
+                label={t`Space used on the remote`}
+                className="hidden w-12 h-1 @sm:block"
+            />
+        ) : null
+    const showDiskUsage = t`Show disk usage`
 
     return (
         <footer className="flex items-center h-8 gap-3 px-3 text-xs border-t shrink-0 border-divider text-default-500 tabular-nums">
@@ -875,20 +902,84 @@ function PanelStatusBar({
                     {status.text}
                 </output>
             )}
-            {typeof free === 'number' && (
-                <span className="flex items-center gap-2 ml-auto shrink-0">
-                    {typeof used === 'number' && typeof total === 'number' && total > 0 && (
-                        <ToneProgress
-                            tone={used / total > 0.9 ? 'red' : 'blue'}
-                            value={used / total}
-                            label={t`Space used on the remote`}
-                            className="hidden w-12 h-1 @sm:block"
+            {(onMount || onDiskUsage || freeText !== null) && (
+                // The buttons' own padding lines their text up with the footer's edge.
+                <span className="flex items-center gap-1 ml-auto -mr-1.5 shrink-0">
+                    {onMount && (
+                        <StatusButton
+                            label={t`Mount`}
+                            tip={t`Mount this folder on this computer`}
+                            icon={HardDriveIcon}
+                            onPress={onMount}
                         />
                     )}
-                    {freeWords(free)}
+                    {meter && onDiskUsage ? (
+                        <Tooltip content={showDiskUsage} {...TIP}>
+                            <Button
+                                size="sm"
+                                variant="light"
+                                radius="sm"
+                                aria-label={showDiskUsage}
+                                onPress={onDiskUsage}
+                                className={cn(STATUS_BUTTON, 'gap-2')}
+                            >
+                                {meter}
+                                {freeText}
+                            </Button>
+                        </Tooltip>
+                    ) : (
+                        <>
+                            {onDiskUsage && (
+                                <StatusButton
+                                    label={t`Disk Usage`}
+                                    tip={showDiskUsage}
+                                    icon={ChartPieSimpleIcon}
+                                    onPress={onDiskUsage}
+                                />
+                            )}
+                            {freeText !== null && (
+                                <span className="flex items-center gap-2 px-1.5">
+                                    {meter}
+                                    {freeText}
+                                </span>
+                            )}
+                        </>
+                    )}
                 </span>
             )}
         </footer>
+    )
+}
+
+const STATUS_BUTTON =
+    'h-6 min-w-0 gap-1.5 px-1.5 text-xs font-normal text-default-500 tabular-nums data-[hover=true]:text-foreground'
+
+/** A small button in the status bar. On a narrow panel, only its icon shows. */
+function StatusButton({
+    label,
+    tip,
+    icon: Icon,
+    onPress,
+}: {
+    label: string
+    tip: string
+    icon: typeof HardDriveIcon
+    onPress: () => void
+}) {
+    return (
+        <Tooltip content={tip} {...TIP}>
+            <Button
+                size="sm"
+                variant="light"
+                radius="sm"
+                aria-label={label}
+                onPress={onPress}
+                className={STATUS_BUTTON}
+            >
+                <Icon className="size-3.5 shrink-0" />
+                <span className="hidden @md:inline">{label}</span>
+            </Button>
+        </Tooltip>
     )
 }
 

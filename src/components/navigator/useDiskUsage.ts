@@ -154,29 +154,6 @@ export class DiskUsage {
     }
 }
 
-/**
- * The root that a scan from the folder `from` would read (`gdrive:`, `/`), as the core works it
- * out, so the menu can name what each panel would scan. It is undefined while it loads, and when
- * `from` is null or can't be scanned.
- */
-export function useUsageRoot(from: string | null): string | undefined {
-    const [root, setRoot] = useState<{ from: string; root: string } | null>(null)
-    useEffect(() => {
-        if (from === null) return
-        let current = true
-        browse.UsageRoot(from).then(
-            (r) => {
-                if (current) setRoot({ from, root: r })
-            },
-            () => undefined
-        )
-        return () => {
-            current = false
-        }
-    }, [from])
-    return root && root.from === from ? root.root : undefined
-}
-
 export function useDiskUsage() {
     const [usage] = useState(() => new DiskUsage())
     useEffect(() => usage.attach(), [usage])

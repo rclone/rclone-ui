@@ -2498,7 +2498,7 @@ msgid "Discard the pending uploads?"
 msgstr ""
 
 #: src/components/navigator/DiskUsageDrawer.tsx
-#: src/pages/Commander/TransfersBar.tsx
+#: src/components/navigator/FilePanel.tsx
 msgid "Disk Usage"
 msgstr ""
 
@@ -4219,7 +4219,6 @@ msgid "Leave without saving your changes?"
 msgstr ""
 
 #: src/components/navigator/FilePanel.tsx
-#: src/pages/Commander/TransfersBar.tsx
 msgid "Left panel"
 msgstr ""
 
@@ -4299,13 +4298,11 @@ msgid "Loading the remotes"
 msgstr ""
 
 #. The place in a path bar that stands for this computer.
-#. The place in a path bar that stands for this computer.
 #. Where a file is: on this computer, not on a remote.
 #. Where a file is: on this computer.
 #: src/components/navigator/PathBreadcrumb.tsx
 #: src/components/navigator/preview/PreviewDrawer.tsx
 #: src/pages/Commander/OperationDialog.tsx
-#: src/pages/Commander/TransfersBar.tsx
 msgid "Local"
 msgstr ""
 
@@ -4536,6 +4533,7 @@ msgid "Most things start in the launcher. Press [[shortcut]] in any app and type
 msgstr ""
 
 #. Button: opens the Mount window with the remote's root as the source.
+#: src/components/navigator/FilePanel.tsx
 #: src/pages/Remotes/RemoteCard.tsx
 #: src/routes.ts
 msgid "Mount"
@@ -4607,6 +4605,10 @@ msgstr ""
 
 #: src/pages/Automounts/AutomountRow.tsx
 msgid "Mount point:"
+msgstr ""
+
+#: src/components/navigator/FilePanel.tsx
+msgid "Mount this folder on this computer"
 msgstr ""
 
 #: src/pages/Automounts/status.ts
@@ -5194,10 +5196,6 @@ msgstr ""
 msgid "Nothing named “{term}” in this folder or its sub-folders."
 msgstr ""
 
-#: src/pages/Commander/TransfersBar.tsx
-msgid "Nothing open"
-msgstr ""
-
 #: src/pages/History/shown.ts
 msgid "Nothing running has “{search}” in its ID, paths or error."
 msgstr ""
@@ -5364,10 +5362,6 @@ msgstr ""
 
 #: src/pages/Commander/index.tsx
 msgid "Open a folder in both panels to compare."
-msgstr ""
-
-#: src/pages/Commander/TransfersBar.tsx
-msgid "Open a remote or a disk in a panel to see its disk usage."
 msgstr ""
 
 #: src/pages/Guides/guides.ts
@@ -6856,7 +6850,6 @@ msgid "Reveal value"
 msgstr ""
 
 #: src/components/navigator/FilePanel.tsx
-#: src/pages/Commander/TransfersBar.tsx
 msgid "Right panel"
 msgstr ""
 
@@ -7185,10 +7178,6 @@ msgstr ""
 
 #: src/pages/MobileRemoteControl/index.tsx
 msgid "Scan it with Rclone UI on your phone to connect."
-msgstr ""
-
-#: src/pages/Commander/TransfersBar.tsx
-msgid "Scan the disk usage of"
 msgstr ""
 
 #: src/pages/MobileRemoteControl/index.tsx
@@ -7707,6 +7696,10 @@ msgstr ""
 
 #: src/pages/History/HistoryList.tsx
 msgid "Show all transfers"
+msgstr ""
+
+#: src/components/navigator/FilePanel.tsx
+msgid "Show disk usage"
 msgstr ""
 
 #: src/pages/Remotes/Config/ConfigPanel.tsx
@@ -9573,6 +9566,7 @@ msgstr ""
 msgid "Which way do changes go?"
 msgstr ""
 
+#: src/pages/Commander/index.tsx
 #: src/pages/Remotes/RemoteCard.tsx
 msgid "Window not opened"
 msgstr ""
