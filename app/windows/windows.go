@@ -194,14 +194,14 @@ func (m *Manager) openStandard(opts application.WebviewWindowOptions, screen *ap
 	opts.InitialPosition = application.WindowXY
 	opts.X, opts.Y = x, y
 	opts.Mac.TitleBar = overlayTitleBar
-	m.showWhenReady(m.app.Window.NewWithOptions(opts), nil)
+	m.showWhenReady(m.app.Window.NewWithOptions(opts), opts, nil)
 }
 
 func (m *Manager) openFull(opts application.WebviewWindowOptions, screen *application.Screen) {
 	opts.Width, opts.Height = screen.WorkArea.Width, screen.WorkArea.Height
 	opts.InitialPosition = application.WindowCentered
 	opts.Mac.TitleBar = overlayTitleBar
-	m.showWhenReady(m.app.Window.NewWithOptions(opts), nil)
+	m.showWhenReady(m.app.Window.NewWithOptions(opts), opts, nil)
 }
 
 func (m *Manager) openSmall(opts application.WebviewWindowOptions, screen *application.Screen) {
@@ -221,7 +221,7 @@ func (m *Manager) openSmall(opts application.WebviewWindowOptions, screen *appli
 		opts.BackgroundType = application.BackgroundTypeTransparent
 	}
 	win := m.app.Window.NewWithOptions(opts)
-	m.showWhenReady(win, func() {
+	m.showWhenReady(win, opts, func() {
 		// On Windows, a window put on top covers every ordinary window, the app's own dialogs and
 		// prompts included. One that opened before this window, such as the config password's
 		// prompt, keeps it an ordinary window.
@@ -264,8 +264,9 @@ var overlayTitleBar = application.MacTitleBar{
 }
 
 // showWhenReady shows a window that was created hidden once its page has loaded the Wails
-// runtime, so it never flashes white. After 2 seconds it is shown anyway.
-func (m *Manager) showWhenReady(w *application.WebviewWindow, after func()) {
+// runtime, so it never flashes white. After 2 seconds it is shown anyway. opts are the options
+// that the window was created with.
+func (m *Manager) showWhenReady(w *application.WebviewWindow, opts application.WebviewWindowOptions, after func()) {
 	m.hookClose(w)
 	var once sync.Once
 	show := func() {
@@ -274,6 +275,9 @@ func (m *Manager) showWhenReady(w *application.WebviewWindow, after func()) {
 				return
 			}
 			w.Show()
+			if runtime.GOOS == "linux" {
+				placeAgain(w, opts)
+			}
 			w.Focus()
 			if after != nil {
 				after()
@@ -282,6 +286,27 @@ func (m *Manager) showWhenReady(w *application.WebviewWindow, after func()) {
 	}
 	w.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) { show() })
 	time.AfterFunc(2*time.Second, show)
+}
+
+// placeAgain moves a window that was just shown to the position it was created with. On Linux,
+// Wails places a hidden window before GTK gives it a surface, so the move does nothing, and the
+// window manager chooses the position. Wails places a window that it creates visible a second
+// time after it is shown, in the same way. On Wayland, the compositor always chooses.
+func placeAgain(w *application.WebviewWindow, opts application.WebviewWindowOptions) {
+	if opts.Screen == nil {
+		return
+	}
+	width, height := w.Size()
+	w.SetPosition(placement(opts.Screen.WorkArea, opts, width, height))
+}
+
+// placement returns the screen position of a window of the given size, as Wails computes it: in
+// the centre of the work area, or at the options' X and Y within it.
+func placement(area application.Rect, opts application.WebviewWindowOptions, width, height int) (x, y int) {
+	if opts.InitialPosition == application.WindowCentered {
+		return area.X + (area.Width-width)/2, area.Y + (area.Height-height)/2
+	}
+	return area.X + opts.X, area.Y + opts.Y
 }
 
 // GuardClose sets whether closing the named window asks its page first. A page guards its window

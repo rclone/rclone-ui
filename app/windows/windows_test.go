@@ -60,3 +60,20 @@ func TestFit(t *testing.T) {
 		}
 	}
 }
+
+func TestPlacement(t *testing.T) {
+	// A work area below a 30-pixel top panel, on a second monitor to the right of a first one.
+	area := application.Rect{X: 1920, Y: 30, Width: 1920, Height: 1050}
+	for _, c := range []struct {
+		opts application.WebviewWindowOptions
+		x, y int
+		name string
+	}{
+		{application.WebviewWindowOptions{InitialPosition: application.WindowCentered}, 1920 + 560, 30 + 275, "centred"},
+		{application.WebviewWindowOptions{InitialPosition: application.WindowXY, X: 540, Y: 162}, 1920 + 540, 30 + 162, "at X and Y in the work area"},
+	} {
+		if x, y := placement(area, c.opts, 800, 500); x != c.x || y != c.y {
+			t.Errorf("%s: got %d,%d, want %d,%d", c.name, x, y, c.x, c.y)
+		}
+	}
+}
