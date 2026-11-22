@@ -23,15 +23,15 @@ Go modules linked into rcui
 
 ================================================================================
 The Go standard library (go1.26) (LICENSE)
-golang.org/x/crypto v0.57.0 (LICENSE)
+golang.org/x/crypto v0.59.0 (LICENSE)
 golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597 (LICENSE)
 golang.org/x/image v0.45.0 (LICENSE)
-golang.org/x/net v0.60.0 (LICENSE)
+golang.org/x/net v0.63.0 (LICENSE)
 golang.org/x/oauth2 v0.36.0 (LICENSE)
-golang.org/x/sync v0.23.0 (LICENSE)
-golang.org/x/sys v0.48.0 (LICENSE)
-golang.org/x/term v0.46.0 (LICENSE)
-golang.org/x/text v0.42.0 (LICENSE)
+golang.org/x/sync v0.25.0 (LICENSE)
+golang.org/x/sys v0.50.0 (LICENSE)
+golang.org/x/term v0.48.0 (LICENSE)
+golang.org/x/text v0.44.0 (LICENSE)
 golang.org/x/time v0.15.0 (LICENSE)
 
 Copyright 2009 The Go Authors.
@@ -65,14 +65,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ================================================================================
 The Go standard library (go1.26) (PATENTS)
 github.com/ProtonMail/go-crypto v1.4.1 (PATENTS)
-golang.org/x/crypto v0.57.0 (PATENTS)
+golang.org/x/crypto v0.59.0 (PATENTS)
 golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597 (PATENTS)
 golang.org/x/image v0.45.0 (PATENTS)
-golang.org/x/net v0.60.0 (PATENTS)
-golang.org/x/sync v0.23.0 (PATENTS)
-golang.org/x/sys v0.48.0 (PATENTS)
-golang.org/x/term v0.46.0 (PATENTS)
-golang.org/x/text v0.42.0 (PATENTS)
+golang.org/x/net v0.63.0 (PATENTS)
+golang.org/x/sync v0.25.0 (PATENTS)
+golang.org/x/sys v0.50.0 (PATENTS)
+golang.org/x/term v0.48.0 (PATENTS)
+golang.org/x/text v0.44.0 (PATENTS)
 golang.org/x/time v0.15.0 (PATENTS)
 google.golang.org/protobuf v1.36.12 (PATENTS)
 
@@ -223,7 +223,7 @@ github.com/cloudflare/cloudflared v0.0.0-20260924153110-96d39adbc812 (LICENSE)
 github.com/coreos/go-semver v0.3.1 (LICENSE)
 github.com/gdamore/encoding v1.0.1 (LICENSE)
 github.com/gdamore/tcell/v2 v2.9.0 (LICENSE)
-github.com/go-jose/go-jose/v4 v4.1.4 (LICENSE)
+github.com/go-jose/go-jose/v4 v4.1.9 (LICENSE)
 github.com/go-logr/stdr v1.2.2 (LICENSE)
 github.com/go-openapi/errors v0.22.8 (LICENSE)
 github.com/go-openapi/strfmt v0.27.0 (LICENSE)
@@ -251,9 +251,9 @@ github.com/willscott/go-nfs v0.0.4 (LICENSE)
 go.opentelemetry.io/auto/sdk v1.2.1 (LICENSE)
 go.opentelemetry.io/contrib/propagators v0.22.0 (LICENSE)
 go.opentelemetry.io/proto/otlp v1.11.0 (LICENSE)
-google.golang.org/genproto/googleapis/api v0.0.0-20260720211330-0afa2a65878a (LICENSE)
-google.golang.org/genproto/googleapis/rpc v0.0.0-20260720211330-0afa2a65878a (LICENSE)
-google.golang.org/grpc v1.84.0-dev.0.20260723093437-b6eac429d7b6 (LICENSE)
+google.golang.org/genproto/googleapis/api v0.0.0-20260817212433-ac3dfec99bb1 (LICENSE)
+google.golang.org/genproto/googleapis/rpc v0.0.0-20260817212433-ac3dfec99bb1 (LICENSE)
+google.golang.org/grpc v1.85.0 (LICENSE)
 
 Apache License
                            Version 2.0, January 2004
@@ -1724,7 +1724,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ================================================================================
-github.com/andybalholm/brotli v1.2.2 (LICENSE)
+github.com/andybalholm/brotli v1.3.0 (LICENSE)
 
 Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
 
@@ -3481,25 +3481,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ================================================================================
-github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc (LICENSE)
-
-ISC License
-
-Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
-
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
-================================================================================
 github.com/diskfs/go-diskfs v1.9.4 (LICENSE)
 
 MIT License
@@ -3812,7 +3793,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ================================================================================
-github.com/go-chi/chi/v5 v5.3.1 (LICENSE)
+github.com/go-chi/chi/v5 v5.5.0 (LICENSE)
 
 Copyright (c) 2015-present Peter Kieltyka (https://github.com/pkieltyka), Google Inc.
 
@@ -6857,7 +6838,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ================================================================================
-github.com/klauspost/compress v1.19.0 (LICENSE)
+github.com/klauspost/compress v1.20.5 (LICENSE)
 
 Copyright (c) 2012 The Go Authors. All rights reserved.
 Copyright (c) 2019 Klaus Post. All rights reserved.
@@ -8540,37 +8521,6 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ================================================================================
-github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 (LICENSE)
-
-Copyright (c) 2013, Patrick Mezard
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-    Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-    Redistributions in binary form must reproduce the above copyright
-notice, this list of conditions and the following disclaimer in the
-documentation and/or other materials provided with the distribution.
-    The names of its contributors may not be used to endorse or promote
-products derived from this software without specific prior written
-permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
-TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-================================================================================
 github.com/posthog/posthog-go v1.42.2 (LICENSE.md)
 
 The MIT License (MIT)
@@ -9353,7 +9303,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ================================================================================
-github.com/stretchr/testify v1.11.1 (LICENSE)
+github.com/stretchr/testify v1.12.1 (LICENSE)
 
 MIT License
 
@@ -10113,11 +10063,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ================================================================================
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 (LICENSE)
-go.opentelemetry.io/otel v1.45.0 (LICENSE)
+go.opentelemetry.io/otel v1.47.0 (LICENSE)
 go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0 (LICENSE)
-go.opentelemetry.io/otel/metric v1.45.0 (LICENSE)
-go.opentelemetry.io/otel/sdk v1.45.0 (LICENSE)
-go.opentelemetry.io/otel/trace v1.45.0 (LICENSE)
+go.opentelemetry.io/otel/log v1.47.0 (LICENSE)
+go.opentelemetry.io/otel/metric v1.47.0 (LICENSE)
+go.opentelemetry.io/otel/sdk v1.47.0 (LICENSE)
+go.opentelemetry.io/otel/trace v1.47.0 (LICENSE)
 
 Apache License
                            Version 2.0, January 2004
@@ -10389,7 +10340,7 @@ SOFTWARE.
 
 ================================================================================
 go.yaml.in/yaml/v2 v2.4.4 (NOTICE)
-go.yaml.in/yaml/v3 v3.0.4 (NOTICE)
+go.yaml.in/yaml/v3 v3.0.5 (NOTICE)
 gopkg.in/yaml.v2 v2.4.0 (NOTICE)
 gopkg.in/yaml.v3 v3.0.1 (NOTICE)
 
@@ -10408,7 +10359,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ================================================================================
-go.yaml.in/yaml/v3 v3.0.4 (LICENSE)
+go.yaml.in/yaml/v3 v3.0.5 (LICENSE)
 gopkg.in/yaml.v3 v3.0.1 (LICENSE)
 
 This project is covered by two different licenses: MIT and Apache.
@@ -10517,7 +10468,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ================================================================================
-google.golang.org/grpc v1.84.0-dev.0.20260723093437-b6eac429d7b6 (NOTICE.txt)
+google.golang.org/grpc v1.85.0 (NOTICE.txt)
 
 Copyright 2014 gRPC authors.
 
