@@ -344,8 +344,8 @@ func TestListOptions(t *testing.T) {
 	}
 
 	out = must[optionsListed](t, cs, "list_options", map[string]any{"operation": "mount"})
-	if o := optionIn(out, "vfs", "vfs_cache_mode"); o == nil || o.Default != "off" || !slices.Contains(o.Choices, "full") {
-		t.Errorf("vfs_cache_mode: %+v", o)
+	if o := optionIn(out, "vfs", "vfs_cache_mode"); o == nil || o.Default != "writes" || !slices.Contains(o.Choices, "full") {
+		t.Errorf("vfs_cache_mode, whose default is the app's: %+v", o)
 	}
 	out = must[optionsListed](t, cs, "list_options", map[string]any{"operation": "serve", "serve_type": "http"})
 	if optionIn(out, "serve", "addr") == nil || optionIn(out, "serve", "auth_key") != nil {

@@ -93,16 +93,16 @@ func TestPlanDefaults(t *testing.T) {
 	}
 }
 
-// A mount gets the config group's defaults and none for its vfs group, so its cache is rclone's
-// own default unless the user sets one. The program of the Copy command shows the same defaults
-// as the command line.
+// A mount gets the config group's defaults, and the writes cache mode in its vfs group. A mode that
+// the user sets wins, and a null for it leaves rclone's own default. The program of the Copy
+// command shows the same defaults as the command line.
 func TestMountDefaults(t *testing.T) {
 	env := MountEnv{OS: "linux"}
 	m, err := MountCommand(MountArgs{Source: "gdrive:photos", Destination: "/mnt/photos"}, env)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(m.Flags, []string{"--checkers=16", "--transfers=8"}) {
+	if !slices.Equal(m.Flags, []string{"--vfs-cache-mode=writes", "--checkers=16", "--transfers=8"}) {
 		t.Errorf("flags %q", m.Flags)
 	}
 	m, err = MountCommand(MountArgs{Source: "gdrive:photos", Destination: "/mnt/photos",
@@ -110,8 +110,24 @@ func TestMountDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(m.Flags, []string{"--checkers=16"}) {
+	if !slices.Equal(m.Flags, []string{"--vfs-cache-mode=writes", "--checkers=16"}) {
 		t.Errorf("a null for transfers: flags %q", m.Flags)
+	}
+	m, err = MountCommand(MountArgs{Source: "gdrive:photos", Destination: "/mnt/photos",
+		Options: groups("vfs", `{"vfs_cache_mode": "off"}`)}, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(m.Flags, []string{"--vfs-cache-mode=off", "--checkers=16", "--transfers=8"}) {
+		t.Errorf("the off cache mode: flags %q", m.Flags)
+	}
+	m, err = MountCommand(MountArgs{Source: "gdrive:photos", Destination: "/mnt/photos",
+		Options: groups("vfs", `{"vfs_cache_mode": null}`)}, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(m.Flags, []string{"--checkers=16", "--transfers=8"}) {
+		t.Errorf("a null for the cache mode: flags %q", m.Flags)
 	}
 
 	script, err := MountScript(MountArgs{Source: "gdrive:photos", Destination: "/mnt/photos",
@@ -125,8 +141,8 @@ func TestMountDefaults(t *testing.T) {
 	if strings.Contains(script.Lines[0], "checkers") || strings.Contains(script.SDK, "Checkers") {
 		t.Errorf("a null for checkers became a flag: %q\n%s", script.Lines[0], script.SDK)
 	}
-	if strings.Contains(script.Lines[0], "vfs") || strings.Contains(script.SDK, "vfs_") {
-		t.Errorf("a mount has a vfs default: %q\n%s", script.Lines[0], script.SDK)
+	if !strings.Contains(script.Lines[0], "--vfs-cache-mode=writes") || !strings.Contains(script.SDK, "vfs_cache_mode: 'writes',") {
+		t.Errorf("the cache mode default is missing: %q\n%s", script.Lines[0], script.SDK)
 	}
 }
 
