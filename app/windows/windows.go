@@ -214,6 +214,11 @@ func (m *Manager) openSmall(opts application.WebviewWindowOptions, screen *appli
 	opts.MinimiseButtonState = application.ButtonHidden
 	opts.MaximiseButtonState = application.ButtonHidden
 	opts.InitialPosition = application.WindowCentered
+	// Esc closes the window. The binding is native, so it works even when the page failed to load
+	// (#262). Without it, that window has no way to close: it has no close button and stays on top.
+	opts.KeyBindings = map[string]func(application.Window){
+		"escape": func(w application.Window) { w.Close() },
+	}
 	opts.Mac.DisableShadow = true
 	if runtime.GOOS == "darwin" {
 		// Transparent WebKitGTK windows can fail to render with Wayland DMA-BUF, so the window is
