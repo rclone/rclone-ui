@@ -23,25 +23,29 @@
     <img alt="Discord" src="https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white&style=for-the-badge" />
   </a>
    &nbsp;
-  <a href="https://github.com/rclone/rclone-ui?tab=readme-ov-file#package-managers">
+  <a href="https://github.com/rclone/rclone-ui?tab=readme-ov-file#downloads">
   <img alt="Downloads on Github" src="https://img.shields.io/github/downloads/rclone/rclone-ui/total?style=for-the-badge">
+  </a>
+   &nbsp;
+  <a href="https://www.youtube.com/watch?v=6qMswN_aejI&amp;t=469s">
+    <img alt="YouTube" src="https://img.shields.io/badge/YouTube-%23FF0000.svg?&logo=youtube&logoColor=white&style=for-the-badge" />
   </a>
 </p>
 
 <br />
 
 ## Downloads
-- **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
-- **macOS** (**[Apple Silicon](https://get.rcloneui.com/mac)**, **[Intel](https://get.rcloneui.com/mac64)**)
-- **Linux** (**[AppImage](https://get.rcloneui.com/linux)**, **[deb](https://get.rcloneui.com/linux-deb)**, **[rpm](https://get.rcloneui.com/linux-rpm)**)
-- **Linux `Arm`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
+- **Windows** (**[Arm](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-windows-arm64-setup.exe)**, **[x64](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-windows-x64-setup.exe)**)
+- **macOS** (**[Apple Silicon](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-macos-arm64.dmg)**, **[Intel](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-macos-x64.dmg)**)
+- **Linux** (**[AppImage](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-x86_64.AppImage)**, **[deb](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-amd64.deb)**, **[rpm](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-x86_64.rpm)**)
+- **Linux `Arm`** (**[AppImage](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-aarch64.AppImage)**, **[deb](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-arm64.deb)**, **[rpm](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-aarch64.rpm)**)
 
 ## Contributing
 We’ve been expecting you...
 
 Here are some good problems to tackle:
 - Fix an open [**Issue**](https://github.com/rclone/rclone-ui/issues)
-- Add your language to the translations
+- Add your language to the translations ([no need to clone the repo](https://rclone.github.io/rclone-ui/))
 - Post about it somewhere, tell your friends!
 
 ## Philosophy

@@ -26,22 +26,26 @@
   <a href="https://github.com/rclone/rclone-ui/blob/main/README_POLISH.md#link-do-pobrania">
   <img alt="Downloads on Github" src="https://img.shields.io/github/downloads/rclone/rclone-ui/total?style=for-the-badge">
   </a>
+   &nbsp;
+  <a href="https://www.youtube.com/watch?v=6qMswN_aejI&amp;t=469s">
+    <img alt="YouTube" src="https://img.shields.io/badge/YouTube-%23FF0000.svg?&logo=youtube&logoColor=white&style=for-the-badge" />
+  </a>
 </p>
 
 <br />
 
 ## Link do pobrania
-- **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
-- **macOS** (**[Apple Silicon](https://get.rcloneui.com/mac)**, **[Intel](https://get.rcloneui.com/mac64)**)
-- **Linux** (**[AppImage](https://get.rcloneui.com/linux)**, **[deb](https://get.rcloneui.com/linux-deb)**, **[rpm](https://get.rcloneui.com/linux-rpm)**)
-- **Linux `Arm`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
+- **Windows** (**[Arm](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-windows-arm64-setup.exe)**, **[x64](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-windows-x64-setup.exe)**)
+- **macOS** (**[Apple Silicon](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-macos-arm64.dmg)**, **[Intel](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-macos-x64.dmg)**)
+- **Linux** (**[AppImage](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-x86_64.AppImage)**, **[deb](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-amd64.deb)**, **[rpm](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-x86_64.rpm)**)
+- **Linux `Arm`** (**[AppImage](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-aarch64.AppImage)**, **[deb](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-arm64.deb)**, **[rpm](https://github.com/rclone/rclone-ui/releases/download/v4.0.0/Rclone-UI-4.0.0-linux-aarch64.rpm)**)
 
 ## Chcesz pomóc?
 Spodziewaliśmy się Ciebie...
 
 Oto kilka ciekawych wyzwań:
 - Napraw otwarty [**Issue**](https://github.com/rclone/rclone-ui/issues)
-- Dodaj swój język do tłumaczeń
+- Dodaj swój język do tłumaczeń ([nie trzeba klonować repozytorium](https://rclone.github.io/rclone-ui/))
 - Napisz o nim gdzieś, powiedz znajomym!
 
 ## Filozofia
