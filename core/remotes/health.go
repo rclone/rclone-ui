@@ -272,6 +272,12 @@ func ask(ctx context.Context, name string) (health HealthResult, answered bool) 
 				health.About = u
 			}
 		}
+		if health.About == nil {
+			// Linkbox's backend has no About; ask the web API for the capacity instead.
+			if u := linkboxAbout(ctx, name); u != nil {
+				health.About = u
+			}
+		}
 		return nil
 	})
 	switch {
