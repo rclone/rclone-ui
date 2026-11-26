@@ -432,7 +432,8 @@ var unsafeInNames = strings.NewReplacer(
 )
 
 func unescapeHTML(s string) string {
-	for range 3 {
+	const maxEscapeLayers = 3
+	for range maxEscapeLayers {
 		u := html.UnescapeString(s)
 		if u == s {
 			break
