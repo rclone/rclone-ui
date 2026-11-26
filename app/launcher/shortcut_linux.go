@@ -185,9 +185,17 @@ func (b *portalBinder) run() {
 }
 
 type portalResponse struct {
-	code    uint32
+	code    responseCode
 	results map[string]dbus.Variant
 }
+
+type responseCode uint32
+
+const (
+	responseSuccess responseCode = iota
+	responseCancelled
+	responseOther
+)
 
 type portal struct {
 	conn   *dbus.Conn
@@ -246,7 +254,7 @@ func (p *portal) createSession() (dbus.ObjectPath, error) {
 	if err != nil {
 		return "", err
 	}
-	if r.code != 0 {
+	if r.code != responseSuccess {
 		return "", fmt.Errorf("CreateSession refused (response %d)", r.code)
 	}
 	// The spec says "s", but some portals send an object path.
@@ -273,7 +281,7 @@ func (p *portal) bind(session dbus.ObjectPath, trigger string) error {
 	if err != nil {
 		return err
 	}
-	if r.code != 0 {
+	if r.code != responseSuccess {
 		return fmt.Errorf("the portal didn't grant it (response %d)", r.code)
 	}
 	return nil
@@ -297,7 +305,8 @@ func (p *portal) signal(sig *dbus.Signal, fire func(map[string]dbus.Variant)) {
 		}
 		var r portalResponse
 		if len(sig.Body) >= 1 {
-			r.code, _ = sig.Body[0].(uint32)
+			code, _ := sig.Body[0].(uint32)
+			r.code = responseCode(code)
 		}
 		if len(sig.Body) >= 2 {
 			r.results, _ = sig.Body[1].(map[string]dbus.Variant)
