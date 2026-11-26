@@ -57,19 +57,17 @@ export function useActiveTransfers() {
 /**
  * The ended transfers in one state and with a search, newest first, a page at a time (see
  * EndedList). Unlike the other queries, the list doesn't follow transfers.changed as a whole: it
- * asks only for the transfers that ended since, 250 ms after the last end or a resync. While
- * `enabled` is false, nothing is asked.
+ * asks only for the transfers that ended since, 250 ms after the last end or a resync.
  */
-export function useEndedTransfers(filter: EndedFilter, enabled = true) {
+export function useEndedTransfers(filter: EndedFilter) {
     const [list] = useState(
         () => new EndedList((ask) => api.ListEnded({ ...ask, state: ask.state as Transfers.State }))
     )
     const { state, search } = filter
     useEffect(() => {
-        if (enabled) list.setFilter({ state, search })
-    }, [list, state, search, enabled])
+        list.setFilter({ state, search })
+    }, [list, state, search])
     useEffect(() => {
-        if (!enabled) return
         let timer: ReturnType<typeof setTimeout> | null = null
         const later = () => {
             if (timer !== null) clearTimeout(timer)
@@ -89,7 +87,7 @@ export function useEndedTransfers(filter: EndedFilter, enabled = true) {
             if (timer !== null) clearTimeout(timer)
             for (const off of offs) off()
         }
-    }, [list, enabled])
+    }, [list])
     const snapshot = useSyncExternalStore(list.subscribe, list.snapshot)
     return { ...snapshot, list }
 }

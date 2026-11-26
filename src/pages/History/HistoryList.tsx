@@ -46,6 +46,7 @@ import { StatusDot } from '../../components/look/Status'
 import { WindowHeader } from '../../components/look/WindowHeader'
 import { WINDOWS } from '../../routes'
 import { byDay, operationLabel } from './describe'
+import { type Handoff, nextHandoff } from './handoff'
 import { EndedRow, RunningCard, toRow } from './rows'
 import { endedStateOf, isStatus, readShown, STATUSES, type Status, saveShown } from './shown'
 
@@ -57,31 +58,24 @@ const LOOK = WINDOWS.history
 const SEARCH_PAUSE = 250
 
 /**
- * Returns the transfers that left the running list but may not be in the ended list yet. The
- * two lists are fetched separately after transfers.changed, and either one can return first.
- * Each such transfer is shown as it was last seen running, until the ended list has been
- * fetched again after the transfer left. This way a transfer never disappears for a moment.
+ * Returns the transfers that left the running list but may not be in the ended list yet (see
+ * nextHandoff). The ended list is asked again each time transfers leave, so that a dropped
+ * transfer, which never comes in it, is released too.
  */
-function useHandoff(active: Transfer[], ended: Transfer[], endedAt: number): Transfer[] {
-    const [seen, setSeen] = useState({
-        active,
-        leaving: [] as { item: Transfer; leftAt: number }[],
-    })
-    if (seen.active !== active) {
-        const now = new Set(active.map((transfer) => transfer.id))
-        const known = new Set(seen.leaving.map((l) => l.item.id))
-        const left = seen.active
-            .filter((transfer) => !now.has(transfer.id) && !known.has(transfer.id))
-            .map((item) => ({ item, leftAt: Date.now() }))
-        setSeen({ active, leaving: [...seen.leaving, ...left] })
-    }
-    return useMemo(() => {
-        const running = new Set(active.map((transfer) => transfer.id))
-        const held = new Set(ended.map((transfer) => transfer.id))
-        return seen.leaving
-            .filter((l) => !running.has(l.item.id) && !held.has(l.item.id) && endedAt <= l.leftAt)
-            .map((l) => l.item)
-    }, [seen.leaving, active, ended, endedAt])
+function useHandoff(
+    active: Transfer[],
+    ended: Transfer[],
+    askedAt: number,
+    askNewer: () => void
+): Transfer[] {
+    const [seen, setSeen] = useState<Handoff>({ active, leaving: [], exits: 0 })
+    const next = nextHandoff(seen, active, ended, askedAt, Date.now())
+    if (next !== seen) setSeen(next)
+    const { exits } = seen
+    useEffect(() => {
+        if (exits > 0) askNewer()
+    }, [exits, askNewer])
+    return useMemo(() => seen.leaving.map((l) => l.item), [seen.leaving])
 }
 
 /**
@@ -108,11 +102,9 @@ export default function HistoryList({
     useEffect(() => saveShown({ status, search }), [status, search])
 
     const { transfers: active, query: activeQuery } = useActiveTransfers()
-    const ended = useEndedTransfers(
-        { state: endedStateOf(status), search: asked },
-        status !== 'running'
-    )
-    const leaving = useHandoff(active, ended.items, ended.askedAt)
+    // The Running tab follows the ended list too, so that the All tab is current when it opens.
+    const ended = useEndedTransfers({ state: endedStateOf(status), search: asked })
+    const leaving = useHandoff(active, ended.items, ended.askedAt, ended.list.newer)
     const progress = useLiveNumbers()
     const now = useNow()
     const runningId = useId()
