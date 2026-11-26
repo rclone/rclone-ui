@@ -9,6 +9,7 @@ import { defineConfig, type Plugin } from 'vite'
 const CHUNK_WARNING_KB = 1024
 
 const KNOWN_LARGE_CHUNKS = /^(?:region-map-atlas|[a-z-]+-data|payload)\b/
+const ABOVE_KNOWN_LARGE_CHUNKS_KB = 2560
 
 function chunkSizeWarning(): Plugin {
     return {
@@ -121,7 +122,7 @@ export default defineConfig({
     },
 
     build: {
-        chunkSizeWarningLimit: 2560,
+        chunkSizeWarningLimit: ABOVE_KNOWN_LARGE_CHUNKS_KB,
         reportCompressedSize: false,
     },
 
