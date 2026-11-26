@@ -40,6 +40,7 @@ func TestResumeOnStop(t *testing.T) {
 }
 
 func TestEndSessionMessages(t *testing.T) {
+	const wmQueryEndSession = 0x0011
 	u := testUI()
 	if ret, handled := u.wndProc(0, wmEndSession, 0, 0); ret != 0 || !handled {
 		t.Fatalf("cancelled: %d %v", ret, handled)
@@ -47,7 +48,7 @@ func TestEndSessionMessages(t *testing.T) {
 	if u.quitting.Load() || u.sessionEnding.Load() {
 		t.Fatal("a cancelled end of the session set the flags")
 	}
-	if _, handled := u.wndProc(0, 0x0011, 1, 0); handled || u.quitting.Load() {
+	if _, handled := u.wndProc(0, wmQueryEndSession, 1, 0); handled || u.quitting.Load() {
 		t.Fatal("another message was taken")
 	}
 	if ret, handled := u.wndProc(0, wmEndSession, 1, 0); ret != 0 || handled {
@@ -59,6 +60,10 @@ func TestEndSessionMessages(t *testing.T) {
 }
 
 func TestSessionEndEvent(t *testing.T) {
+	const (
+		aeOpenDocuments = 0x6f646f63 // 'odoc'
+		aeQuitAll       = 0x71756961 // 'quia'
+	)
 	for _, c := range []struct {
 		class, id, reason uint32
 		want              bool
@@ -70,8 +75,8 @@ func TestSessionEndEvent(t *testing.T) {
 		{aeCoreEventClass, aeQuitApplication, aeShutDown, true},
 		{aeCoreEventClass, aeQuitApplication, aeShowShutdownDialog, true},
 		{aeCoreEventClass, aeQuitApplication, 0, false},
-		{aeCoreEventClass, aeQuitApplication, 0x71756961, false},
-		{aeCoreEventClass, 0x6f646f63, aeShutDown, false},
+		{aeCoreEventClass, aeQuitApplication, aeQuitAll, false},
+		{aeCoreEventClass, aeOpenDocuments, aeShutDown, false},
 		{0, 0, 0, false},
 	} {
 		if got := sessionEndEvent(c.class, c.id, c.reason); got != c.want {
