@@ -1147,6 +1147,11 @@ msgstr "Anonymous, and used only to improve Rclone UI."
 msgid "Another app is using the port rclone signs in on ({address}). Close it, then try again."
 msgstr "Another app is using the port rclone signs in on ({address}). Close it, then try again."
 
+#. The last item in a list of choices: lets the user type a value that the list lacks.
+#: src/components/DialogHost.tsx
+msgid "Another value"
+msgstr "Another value"
+
 #: lib/reconnect.ts
 msgid "Another window is already reconnecting \"{name}\"."
 msgstr "Another window is already reconnecting \"{name}\"."
@@ -5084,6 +5089,8 @@ msgid "No transfers match"
 msgstr "No transfers match"
 
 #. An empty choice in a list of an option's values.
+#. An empty choice in a list of an option's values.
+#: src/components/DialogHost.tsx
 #: src/pages/Remotes/RemoteField.tsx
 msgid "No Value"
 msgstr "No Value"

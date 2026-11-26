@@ -57,6 +57,7 @@ type session struct {
 	newName     string
 	interactive bool
 	values      map[string]any
+	answers     map[string]string
 	job         *jobs.Job
 	rcState     string
 	notice      string
@@ -320,12 +321,18 @@ func (ss *Sessions) jobDone(x *session, job *jobs.Job, res *callResult) {
 	case done:
 		ss.succeed(x)
 	case asks:
+		question := out.Option
+		if drive := ss.driveDefault(x, question); drive != "" {
+			starting := *question
+			starting.Default = drive
+			question = &starting
+		}
 		ss.mu.Lock()
 		if ss.cur != x || x.finished() {
 			ss.mu.Unlock()
 			return
 		}
-		x.step.State, x.step.Question, x.step.Notice = StateQuestion, out.Option, x.notice
+		x.step.State, x.step.Question, x.step.Notice = StateQuestion, question, x.notice
 		x.step.AuthURL = ""
 		x.notice, x.rcState, x.active = "", out.State, ss.s.now()
 		ss.mu.Unlock()
@@ -488,10 +495,17 @@ func (ss *Sessions) Answer(ctx context.Context, id, value string) error {
 		return errNotWaiting
 	}
 	state := x.rcState
-	value, err = answer(x.typ, x.step.Question, value)
+	q := x.step.Question
+	value, err = answer(x.typ, q, value)
 	if err != nil {
 		ss.mu.Unlock()
 		return err
+	}
+	if q != nil && !q.IsPassword {
+		if x.answers == nil {
+			x.answers = map[string]string{}
+		}
+		x.answers[q.Name] = value
 	}
 	x.step.State, x.step.Question, x.step.Notice = StateWorking, nil, ""
 	x.active = ss.s.now()

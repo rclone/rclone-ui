@@ -1147,6 +1147,11 @@ msgstr "数据是匿名的，只用于改进 Rclone UI。"
 msgid "Another app is using the port rclone signs in on ({address}). Close it, then try again."
 msgstr "另一个应用正在占用 rclone 用于登录的端口（{address}）。请关闭该应用后重试。"
 
+#. The last item in a list of choices: lets the user type a value that the list lacks.
+#: src/components/DialogHost.tsx
+msgid "Another value"
+msgstr "其他值"
+
 #: lib/reconnect.ts
 msgid "Another window is already reconnecting \"{name}\"."
 msgstr "另一个窗口已在重新连接“{name}”。"
@@ -5084,6 +5089,8 @@ msgid "No transfers match"
 msgstr "没有匹配的传输"
 
 #. An empty choice in a list of an option's values.
+#. An empty choice in a list of an option's values.
+#: src/components/DialogHost.tsx
 #: src/pages/Remotes/RemoteField.tsx
 msgid "No Value"
 msgstr "无"

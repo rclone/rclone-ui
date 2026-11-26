@@ -7,7 +7,10 @@ import {
     ModalContent,
     ModalFooter,
     ModalHeader,
+    Radio,
+    RadioGroup,
 } from '@heroui/react'
+import { t } from '@lingui/core/macro'
 import { Trans } from '@lingui/react/macro'
 import {
     ExclamationTriangle as ExclamationTriangleIcon,
@@ -18,7 +21,15 @@ import {
     Trash as TrashIcon,
     XmarkCircle as XmarkCircleIcon,
 } from '@zappicon/react'
-import { type ComponentType, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import {
+    type ComponentType,
+    type ReactNode,
+    useEffect,
+    useId,
+    useMemo,
+    useRef,
+    useState,
+} from 'react'
 import { Option } from '../../lib/catalog'
 import { currentWindow, scriptedAnswer } from '../../lib/shell'
 import { type DialogKind, type DialogRequest, settle, subscribe } from '../../lib/shell/dialog'
@@ -26,7 +37,15 @@ import RemoteField, { type RemoteValues } from '../pages/Remotes/RemoteField'
 import { toneButton } from './look/buttons'
 import { IconTile } from './look/IconTile'
 import type { Tone } from './look/tones'
-import { answerOf, initialAnswer } from './optionDialog'
+import {
+    answerOf,
+    initialAnswer,
+    initialPick,
+    isChoiceQuestion,
+    OTHER_VALUE,
+    pickedAnswer,
+    takesOtherValue,
+} from './optionDialog'
 
 export default function DialogHost() {
     const [queue, setQueue] = useState<DialogRequest[]>([])
@@ -302,11 +321,16 @@ function OptionDialog({
     const [values, setValues] = useState<RemoteValues>(() => ({
         [option.name]: initialAnswer(option),
     }))
+    const choosing = isChoiceQuestion(option)
+    const [pick, setPick] = useState(() => initialPick(option).pick)
+    const [typed, setTyped] = useState(() => initialPick(option).typed)
+    const messageId = useId()
     const finish = (result: string | null) => {
         request.resolve(result)
         done()
     }
-    const answer = () => answerOf(option, values[option.name])
+    const answer = () =>
+        choosing ? pickedAnswer(pick, typed) : answerOf(option, values[option.name])
     useScriptedAnswer(request, isOpen, (line) => {
         if (line.startsWith('text:')) finish(line.slice('text:'.length))
         else if (line === 'ok') finish(answer())
@@ -354,11 +378,95 @@ function OptionDialog({
                         {request.notice && (
                             <p className={cn(MESSAGE, 'text-danger')}>{request.notice}</p>
                         )}
-                        <p className={MESSAGE}>{request.message}</p>
-                        <RemoteField option={field} config={values} setConfig={setValues} />
+                        <p id={messageId} className={MESSAGE}>
+                            {request.message}
+                        </p>
+                        {choosing ? (
+                            <QuestionChoices
+                                option={option}
+                                labelledBy={messageId}
+                                pick={pick}
+                                setPick={setPick}
+                                typed={typed}
+                                setTyped={setTyped}
+                            />
+                        ) : (
+                            <RemoteField option={field} config={values} setConfig={setValues} />
+                        )}
                     </DialogLayout>
                 </form>
             </ModalContent>
         </Modal>
     )
 }
+
+/** Lists a question's choices with their values, as rclone's command line does. */
+function QuestionChoices({
+    option,
+    labelledBy,
+    pick,
+    setPick,
+    typed,
+    setTyped,
+}: {
+    option: Option
+    labelledBy: string
+    pick: string
+    setPick: (pick: string) => void
+    typed: string
+    setTyped: (typed: string) => void
+}) {
+    const other = takesOtherValue(option)
+    return (
+        <div className="flex flex-col gap-3">
+            <RadioGroup
+                aria-labelledby={labelledBy}
+                value={pick}
+                onValueChange={setPick}
+                classNames={{ wrapper: 'gap-2.5' }}
+            >
+                {option.choices.map((choice) => (
+                    <Radio
+                        key={choice.value}
+                        value={choice.value}
+                        description={choice.help ? choice.value || NO_VALUE : undefined}
+                        classNames={{
+                            label: 'text-small whitespace-pre-line',
+                            description: 'font-mono text-tiny [overflow-wrap:anywhere]',
+                        }}
+                    >
+                        {choice.help || choice.value || NO_VALUE}
+                    </Radio>
+                ))}
+                {other && (
+                    <Radio value={OTHER_VALUE} classNames={{ label: 'text-small' }}>
+                        {ANOTHER_VALUE}
+                    </Radio>
+                )}
+            </RadioGroup>
+            {other && pick === OTHER_VALUE && (
+                <Input
+                    aria-label={ANOTHER_VALUE}
+                    value={typed}
+                    onValueChange={setTyped}
+                    autoFocus={true}
+                    autoComplete="off"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck="false"
+                    classNames={{ inputWrapper: 'h-9', input: 'text-sm' }}
+                />
+            )}
+        </div>
+    )
+}
+
+const ANOTHER_VALUE = t({
+    message: 'Another value',
+    comment: 'The last item in a list of choices: lets the user type a value that the list lacks.',
+})
+
+const NO_VALUE = t({
+    message: 'No Value',
+    comment: "An empty choice in a list of an option's values.",
+})
