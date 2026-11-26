@@ -388,6 +388,7 @@ func TestSameNameSources(t *testing.T) {
 	const (
 		composed   = "/a/été.txt"
 		decomposed = "/b/été.txt"
+		refused    = 0
 	)
 	folders := Kinds{
 		"/2023/photos": KindFolder, "/2024/photos": KindFolder, "/2023": KindFolder, "sftp:": KindFolder,
@@ -398,12 +399,12 @@ func TestSameNameSources(t *testing.T) {
 		sources []string
 		steps   int
 	}{
-		{"two files of one name", []string{"/a/r.txt", "/b/r.txt"}, 0},
-		{"names that differ in case", []string{"/a/r.txt", "/c/R.TXT"}, 0},
-		{"one name in two Unicode forms", []string{composed, decomposed}, 0},
-		{"two folders of one name", []string{"/2023/photos", "/2024/photos"}, 0},
-		{"two roots", []string{"sftp:", "sftp:/"}, 0},
-		{"a root and another remote's file", []string{"gdrive:", "mem:x.txt"}, 0},
+		{"two files of one name", []string{"/a/r.txt", "/b/r.txt"}, refused},
+		{"names that differ in case", []string{"/a/r.txt", "/c/R.TXT"}, refused},
+		{"one name in two Unicode forms", []string{composed, decomposed}, refused},
+		{"two folders of one name", []string{"/2023/photos", "/2024/photos"}, refused},
+		{"two roots", []string{"sftp:", "sftp:/"}, refused},
+		{"a root and another remote's file", []string{"gdrive:", "mem:x.txt"}, refused},
 		{"a folder and its subfolder", []string{"/2023", "/2023/photos"}, 1},
 		{"a folder spelled twice", []string{"gdrive:a", "gdrive:a/"}, 1},
 		{"a root and a file in it", []string{"/", "/etc/hosts"}, 1},
@@ -415,7 +416,7 @@ func TestSameNameSources(t *testing.T) {
 		} {
 			p, err := build(CopyArgs{Sources: tc.sources, Destination: "/x"})
 			switch {
-			case tc.steps == 0 && (err == nil || !errs.Is(err)):
+			case tc.steps == refused && (err == nil || !errs.Is(err)):
 				t.Errorf("%s, %s: %+v %v, want a refusal", op, tc.name, p.Steps, err)
 			case tc.steps > 0 && (err != nil || len(p.Steps) != tc.steps):
 				t.Errorf("%s, %s: %+v %v, want %d steps", op, tc.name, p.Steps, err, tc.steps)
