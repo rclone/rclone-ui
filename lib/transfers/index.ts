@@ -169,8 +169,37 @@ let unfollow: (() => void) | null = null
  */
 let said = 0
 
+/** The most transfers that keep their last numbers after they leave the live numbers. */
+const KEPT = 50
+/** The numbers as the core last sent them, without the kept ones. */
+let fresh: LiveNumbers = EMPTY
+/** The last numbers of the transfers that left, oldest first. */
+const kept = new Map<string, Bus.TransferProgress>()
+
+/**
+ * Keeps the last numbers of the transfers in `prev` that are not in `next`, at most `max` of them.
+ * A transfer's record still decides if its numbers are shown.
+ */
+export function keepLeft(
+    held: Map<string, Bus.TransferProgress>,
+    prev: LiveNumbers,
+    next: LiveNumbers,
+    max = KEPT
+): LiveNumbers {
+    for (const [id, numbers] of Object.entries(prev)) {
+        if (numbers && !(id in next)) held.set(id, numbers)
+    }
+    for (const id of Object.keys(next)) held.delete(id)
+    for (const id of held.keys()) {
+        if (held.size <= max) break
+        held.delete(id)
+    }
+    return held.size === 0 ? next : { ...Object.fromEntries(held), ...next }
+}
+
 function publish(next: LiveNumbers) {
-    live = next
+    live = keepLeft(kept, fresh, next)
+    fresh = next
     for (const w of watchers) w()
 }
 
@@ -217,6 +246,8 @@ function subscribe(onChange: () => void) {
             unfollow()
             unfollow = null
             live = EMPTY
+            fresh = EMPTY
+            kept.clear()
         }
     }
 }
