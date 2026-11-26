@@ -22,6 +22,11 @@ type Rules struct {
 
 const usage = "usage: rcui metadata-map [--only-mapped] [--map <from>=<to>]… [--set <key>=<value>]… [--drop <key>]…"
 
+const (
+	exitUsage    = 2
+	exitBadInput = 3
+)
+
 func splitPair(flag, arg string) (Pair, error) {
 	key, value, ok := strings.Cut(arg, "=")
 	if !ok || key == "" {
@@ -99,7 +104,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	rules, err := ParseArgs(args)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "metadata-map: %v\n", err)
-		return 2
+		return exitUsage
 	}
 	data, err := io.ReadAll(stdin)
 	if err == nil && !utf8.Valid(data) {
@@ -107,12 +112,12 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "metadata-map: could not read rclone's input: %v\n", err)
-		return 3
+		return exitBadInput
 	}
 	var object json.RawMessage
 	if err := json.Unmarshal(data, &object); err != nil {
 		_, _ = fmt.Fprintf(stderr, "metadata-map: rclone's input is not JSON: %v\n", err)
-		return 3
+		return exitBadInput
 	}
 	var top map[string]json.RawMessage
 	var input map[string]json.RawMessage
