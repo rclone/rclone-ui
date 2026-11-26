@@ -141,15 +141,20 @@ func (v *View) build() {
 	// from a surface drawn afterwards, which has square edges and flashes. A hidden full-size
 	// title bar keeps the panel frameless and lets AppKit draw the rounded outline and shadow.
 	const titled, nonactivating, fullSize = 1, 1 << 7, 1 << 15
+	const backingBuffered = 2
 	v.panel = msg(objc.ID(panelClass).Send(sel("alloc")), "initWithContentRect:styleMask:backing:defer:",
-		rect(0, 0, view.Width, full), uint(titled|nonactivating|fullSize), uint(2), false)
+		rect(0, 0, view.Width, full), uint(titled|nonactivating|fullSize), uint(backingBuffered), false)
 	msg(v.panel, "setTitlebarAppearsTransparent:", true)
-	msg(v.panel, "setTitleVisibility:", 1)
-	for b := range uint(3) {
+	const titleHidden = 1
+	msg(v.panel, "setTitleVisibility:", titleHidden)
+	const closeButton, miniaturizeButton, zoomButton = 0, 1, 2
+	for _, b := range []uint{closeButton, miniaturizeButton, zoomButton} {
 		msg(msg(v.panel, "standardWindowButton:", b), "setHidden:", true)
 	}
-	msg(v.panel, "setLevel:", 3)
-	msg(v.panel, "setCollectionBehavior:", uint(1|1<<8))
+	const floatingWindowLevel = 3
+	msg(v.panel, "setLevel:", floatingWindowLevel)
+	const canJoinAllSpaces, fullScreenAuxiliary = 1, 1 << 8
+	msg(v.panel, "setCollectionBehavior:", uint(canJoinAllSpaces|fullScreenAuxiliary))
 	msg(v.panel, "setFloatingPanel:", true)
 	msg(v.panel, "setBecomesKeyOnlyIfNeeded:", false)
 	msg(v.panel, "setHidesOnDeactivate:", false)
@@ -162,7 +167,8 @@ func (v *View) build() {
 	// The content goes inside the glass, because only there does AppKit apply the glass's
 	// legibility treatment.
 	v.content = msg(objc.ID(contentClass).Send(sel("alloc")), "initWithFrame:", rect(0, 0, view.Width, full))
-	msg(v.content, "setAutoresizingMask:", uint(2|16))
+	const widthSizable, heightSizable = 2, 16
+	msg(v.content, "setAutoresizingMask:", uint(widthSizable|heightSizable))
 	if g := class("NSGlassEffectView"); g != 0 {
 		glass := msg(msg(g, "alloc"), "initWithFrame:", rect(0, 0, view.Width, full))
 		msg(glass, "setCornerRadius:", view.Radius)
@@ -173,9 +179,10 @@ func (v *View) build() {
 		msg(v.panel, "setContentView:", glass)
 	} else {
 		fx := msg(alloc("NSVisualEffectView"), "initWithFrame:", rect(0, 0, view.Width, full))
-		msg(fx, "setMaterial:", 6)
-		msg(fx, "setState:", 1)
-		msg(fx, "setBlendingMode:", 0)
+		const materialPopover, stateActive, blendingBehindWindow = 6, 1, 0
+		msg(fx, "setMaterial:", materialPopover)
+		msg(fx, "setState:", stateActive)
+		msg(fx, "setBlendingMode:", blendingBehindWindow)
 		msg(fx, "setWantsLayer:", true)
 		msg(msg(fx, "layer"), "setCornerRadius:", view.Radius)
 		msg(msg(fx, "layer"), "setMasksToBounds:", true)
@@ -187,9 +194,10 @@ func (v *View) build() {
 	msg(v.field, "setBezeled:", false)
 	msg(v.field, "setBordered:", false)
 	msg(v.field, "setDrawsBackground:", false)
-	msg(v.field, "setFocusRingType:", 1)
+	const focusRingNone = 1
+	msg(v.field, "setFocusRingType:", focusRingNone)
 	msg(v.field, "setFont:", font(22, false))
-	msg(v.field, "setAutoresizingMask:", uint(2))
+	msg(v.field, "setAutoresizingMask:", uint(widthSizable))
 	msg(v.content, "addSubview:", v.field)
 
 	v.buildStop()
@@ -206,9 +214,10 @@ func (v *View) build() {
 		msg(v.list, "setClipsToBounds:", true)
 	}
 	msg(v.content, "addSubview:", v.list)
+	const weightSemibold = 0.3
 	for range view.MaxRows {
 		sec := label(11)
-		msg(sec, "setFont:", msg(class("NSFont"), "systemFontOfSize:weight:", 11.0, 0.3))
+		msg(sec, "setFont:", msg(class("NSFont"), "systemFontOfSize:weight:", 11.0, weightSemibold))
 		msg(sec, "setTextColor:", color("secondaryLabelColor"))
 		msg(sec, "setHidden:", true)
 		msg(v.list, "addSubview:", sec)
@@ -255,7 +264,8 @@ func (v *View) build() {
 			return e
 		})
 	})
-	msg(class("NSEvent"), "addLocalMonitorForEventsMatchingMask:handler:", uint64(1<<10), keys)
+	const eventMaskKeyDown = 1 << 10
+	msg(class("NSEvent"), "addLocalMonitorForEventsMatchingMask:handler:", uint64(eventMaskKeyDown), keys)
 
 	center := msg(class("NSNotificationCenter"), "defaultCenter")
 	observe := func(name string, object objc.ID, fn func()) {
@@ -282,8 +292,9 @@ func (v *View) buildFooter() {
 		sl := slot{box: msg(objc.ID(contentClass).Send(sel("alloc")), "initWithFrame:", rect(0, view.Slide, view.FooterW, 18))}
 		msg(sl.box, "setWantsLayer:", true)
 		sl.spinner = msg(alloc("NSProgressIndicator"), "initWithFrame:", rect(0, 1, view.SpinSize, view.SpinSize))
-		msg(sl.spinner, "setStyle:", 1)
-		msg(sl.spinner, "setControlSize:", 1)
+		const styleSpinning, controlSizeSmall = 1, 1
+		msg(sl.spinner, "setStyle:", styleSpinning)
+		msg(sl.spinner, "setControlSize:", controlSizeSmall)
 		msg(sl.spinner, "setDisplayedWhenStopped:", false)
 		sl.label = label(12)
 		msg(sl.box, "addSubview:", sl.spinner)
@@ -354,7 +365,8 @@ func (v *View) buildStop() {
 	v.stop = msg(alloc("NSButton"), "initWithFrame:", rect(view.StopLeft, 0, view.StopSize, view.StopSize))
 	msg(v.stop, "setBordered:", false)
 	msg(v.stop, "setTitle:", nsString(""))
-	msg(v.stop, "setImagePosition:", uint(1))
+	const imageOnly = 1
+	msg(v.stop, "setImagePosition:", uint(imageOnly))
 	if img := v.icon(icons.StopAll); img != 0 {
 		small := msg(img, "copy")
 		msg(small, "setSize:", nsSize{14, 14})
@@ -606,6 +618,20 @@ func (v *View) moved() {
 	}
 }
 
+const (
+	vkReturn      = 0x24
+	vkTab         = 0x30
+	vkEscape      = 0x35
+	vkKeypadEnter = 0x4c
+	vkDownArrow   = 0x7d
+	vkUpArrow     = 0x7e
+)
+
+const (
+	modifierShift   = 1 << 17
+	modifierCommand = 1 << 20
+)
+
 // key returns false to leave the key to the text field. While an input method such as Pinyin or
 // Kotoeri is composing, every key goes to the field: Enter commits the candidate, the arrows and
 // Tab choose one, and Esc cancels.
@@ -618,18 +644,18 @@ func (v *View) key(e objc.ID) bool {
 	}
 	code := objc.Send[uint16](e, sel("keyCode"))
 	flags := objc.Send[uint](e, sel("modifierFlags"))
-	cmd := flags&(1<<20) != 0
+	cmd := flags&modifierCommand != 0
 	k := view.KeyEvent{}
 	switch {
-	case code == 53:
+	case code == vkEscape:
 		k.Key = view.KeyEsc
-	case code == 36 || code == 76:
+	case code == vkReturn || code == vkKeypadEnter:
 		k.Key = view.KeyEnter
-	case code == 125:
+	case code == vkDownArrow:
 		k.Key = view.KeyDown
-	case code == 126:
+	case code == vkUpArrow:
 		k.Key = view.KeyUp
-	case code == 48 && flags&(1<<17) == 0:
+	case code == vkTab && flags&modifierShift == 0:
 		k.Key = view.KeyTab
 	case cmd:
 		chars := []rune(strings.ToLower(goString(msg(e, "charactersIgnoringModifiers"))))

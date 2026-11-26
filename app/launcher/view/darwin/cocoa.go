@@ -68,7 +68,8 @@ func goString(id objc.ID) string {
 	if id == 0 {
 		return ""
 	}
-	n := objc.Send[uint](id, sel("lengthOfBytesUsingEncoding:"), uint(4))
+	const utf8StringEncoding = 4
+	n := objc.Send[uint](id, sel("lengthOfBytesUsingEncoding:"), uint(utf8StringEncoding))
 	if n == 0 {
 		return ""
 	}
@@ -97,7 +98,8 @@ func font(size float64, bold bool) objc.ID {
 func label(size float64) objc.ID {
 	l := msg(class("NSTextField"), "labelWithString:", nsString(""))
 	msg(l, "setFont:", font(size, false))
-	msg(l, "setLineBreakMode:", uint(4))
+	const lineBreakByTruncatingTail = 4
+	msg(l, "setLineBreakMode:", uint(lineBreakByTruncatingTail))
 	return l
 }
 

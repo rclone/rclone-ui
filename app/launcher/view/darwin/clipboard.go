@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	accessNoPrivacy   = -1
 	accessAlwaysAllow = 2
 	accessAlwaysDeny  = 3
 )
@@ -77,12 +78,12 @@ func peek() (text string, link bool, count string) {
 	clipOnce.Do(clipSetup)
 	pb := msg(class("NSPasteboard"), "generalPasteboard")
 	count = strconv.Itoa(objc.Send[int](pb, sel("changeCount")))
-	access := -1
+	access := accessNoPrivacy
 	if msgBool(pb, "respondsToSelector:", sel("accessBehavior")) {
 		access = objc.Send[int](pb, sel("accessBehavior"))
 	}
 	switch access {
-	case -1, accessAlwaysAllow:
+	case accessNoPrivacy, accessAlwaysAllow:
 		if s := msg(pb, "stringForType:", nsString("public.utf8-plain-text")); s != 0 {
 			text = goString(s)
 		}
