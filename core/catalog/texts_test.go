@@ -442,7 +442,7 @@ func TestSetupTextFallsBackToEnglish(t *testing.T) {
 }
 
 func TestSetupFormats(t *testing.T) {
-	samples := map[byte]any{'q': `a "b"`, 's': "c", 'd': int64(7)}
+	samples := map[setupVerb]any{verbQuoted: `a "b"`, verbText: "c", verbInteger: int64(7)}
 	n := 0
 	for k, format := range englishFile() {
 		if _, ok := setupGroup(k); !ok {

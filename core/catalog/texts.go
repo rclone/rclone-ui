@@ -295,9 +295,17 @@ func (s *Service) BackendIn(typ, provider, lang string) (*BackendOptions, error)
 type setupFormat struct {
 	key     string
 	pattern *regexp.Regexp
-	verbs   []byte
+	verbs   []setupVerb
 	size    int
 }
+
+type setupVerb byte
+
+const (
+	verbQuoted  setupVerb = 'q'
+	verbText    setupVerb = 's'
+	verbInteger setupVerb = 'd'
+)
 
 var formatVerb = regexp.MustCompile(`%[^%a-zA-Z]*[a-zA-Z%]`)
 
@@ -318,13 +326,13 @@ func newSetupFormat(key, format string) *setupFormat {
 			words("%")
 		case "%q":
 			re.WriteString(`("(?:[^"\\]|\\.)*")`)
-			f.verbs = append(f.verbs, 'q')
+			f.verbs = append(f.verbs, verbQuoted)
 		case "%s", "%v":
 			re.WriteString(`(.*?)`)
-			f.verbs = append(f.verbs, 's')
+			f.verbs = append(f.verbs, verbText)
 		case "%d":
 			re.WriteString(`(-?[0-9]+)`)
-			f.verbs = append(f.verbs, 'd')
+			f.verbs = append(f.verbs, verbInteger)
 		default:
 			return nil
 		}
@@ -344,13 +352,13 @@ func (f *setupFormat) match(text string) ([]any, bool) {
 	for i, verb := range f.verbs {
 		s := m[i+1]
 		switch verb {
-		case 'q':
+		case verbQuoted:
 			v, err := strconv.Unquote(s)
 			if err != nil {
 				return nil, false
 			}
 			values[i] = v
-		case 'd':
+		case verbInteger:
 			n, err := strconv.ParseInt(s, 10, 64)
 			if err != nil {
 				return nil, false
