@@ -49,10 +49,17 @@ func setEnv(key, value string) (restore func(), err error) {
 	}, nil
 }
 
+const (
+	nsisPassiveMode = "/P"
+	nsisUpdateMode  = "/UPDATE"
+	nsisWaitPID     = "/WAITPID="
+	nsisRunApp      = "/R"
+)
+
 func nsisArgs(pid int, relaunch bool) string {
-	args := []string{"/P", "/UPDATE", fmt.Sprintf("/WAITPID=%d", pid)}
+	args := []string{nsisPassiveMode, nsisUpdateMode, fmt.Sprintf("%s%d", nsisWaitPID, pid)}
 	if relaunch {
-		args = append(args, "/R")
+		args = append(args, nsisRunApp)
 	}
 	return strings.Join(args, " ")
 }

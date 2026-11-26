@@ -127,6 +127,7 @@ func plistString(file, key string) (string, error) {
 	defer func() { _ = f.Close() }()
 	dec := xml.NewDecoder(f)
 	dec.Strict = false
+	const rootDictEntry = 3
 	depth, wantValue := 0, false
 	for {
 		tok, err := dec.Token()
@@ -139,7 +140,7 @@ func plistString(file, key string) (string, error) {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			depth++
-			if depth != 3 {
+			if depth != rootDictEntry {
 				continue
 			}
 			var text string
