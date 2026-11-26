@@ -1168,8 +1168,8 @@ msgid "Any SFTP client can connect. It is the more secure choice, and needs a us
 msgstr "Se puede conectar cualquier cliente SFTP. Es la opción más segura y requiere usuario y contraseña, o claves."
 
 #: src/pages/Guides/guides.ts
-msgid "Anyone who has the link can open it. Links made here don’t expire: to stop sharing, remove the link in the service itself."
-msgstr "Cualquiera que tenga el enlace puede abrirlo. Los enlaces creados aquí no caducan: para dejar de compartir, quita el enlace en el propio servicio."
+msgid "Anyone who has the link can open it. The expiry time depends on the provider, for example a week on S3 and in private B2 buckets, and no expiry on Google Drive, Dropbox and OneDrive."
+msgstr "Cualquiera que tenga el enlace puede abrirlo. La caducidad depende del proveedor, por ejemplo una semana en S3 y en los buckets privados de B2, y ninguna en Google Drive, Dropbox y OneDrive."
 
 #: src/pages/Settings/sections.tsx
 msgid "Appearance"

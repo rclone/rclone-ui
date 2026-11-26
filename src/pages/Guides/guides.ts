@@ -333,7 +333,7 @@ export const GUIDES: Guide[] = [
                 ],
                 tips: [
                     t`The share button shows on remotes that can make links, such as Google Drive, Dropbox and OneDrive. Files on this computer have none: to share those, upload them first, or serve their folder.`,
-                    t`Anyone who has the link can open it. Links made here don’t expire: to stop sharing, remove the link in the service itself.`,
+                    t`Anyone who has the link can open it. The expiry time depends on the provider, for example a week on S3 and in private B2 buckets, and no expiry on Google Drive, Dropbox and OneDrive.`,
                 ],
             },
         ],

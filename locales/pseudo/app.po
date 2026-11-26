@@ -1166,7 +1166,7 @@ msgid "Any SFTP client can connect. It is the more secure choice, and needs a us
 msgstr ""
 
 #: src/pages/Guides/guides.ts
-msgid "Anyone who has the link can open it. Links made here don’t expire: to stop sharing, remove the link in the service itself."
+msgid "Anyone who has the link can open it. The expiry time depends on the provider, for example a week on S3 and in private B2 buckets, and no expiry on Google Drive, Dropbox and OneDrive."
 msgstr ""
 
 #: src/pages/Settings/sections.tsx

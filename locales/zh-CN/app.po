@@ -1168,8 +1168,8 @@ msgid "Any SFTP client can connect. It is the more secure choice, and needs a us
 msgstr "任何 SFTP 客户端都能连接。这种方式更安全，需要用户名和密码，或密钥。"
 
 #: src/pages/Guides/guides.ts
-msgid "Anyone who has the link can open it. Links made here don’t expire: to stop sharing, remove the link in the service itself."
-msgstr "任何拿到链接的人都能打开它。在这里生成的链接不会过期：要停止共享，请在该服务中删除链接。"
+msgid "Anyone who has the link can open it. The expiry time depends on the provider, for example a week on S3 and in private B2 buckets, and no expiry on Google Drive, Dropbox and OneDrive."
+msgstr "任何拿到链接的人都能打开它。过期时间取决于服务商，例如在 S3 和 B2 私有存储桶中为一周，在 Google Drive、Dropbox 和 OneDrive 中则不会过期。"
 
 #: src/pages/Settings/sections.tsx
 msgid "Appearance"
