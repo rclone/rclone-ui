@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/rclone/rclone/cmd/bisync"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/cache"
 	"github.com/rclone/rclone/fs/walk"
@@ -26,8 +27,6 @@ const (
 	modeResync
 	modeForce
 )
-
-const maxDelete = 50
 
 type state struct {
 	streak  *notifications.Streak
@@ -105,7 +104,7 @@ func resyncing(current map[string]runs.Status[mode], id string) bool {
 }
 
 func (s *Service) bisyncParams(r *run) operations.BisyncSwitches {
-	most := maxDelete
+	most := bisync.DefaultMaxDelete
 	p := operations.UnattendedBisync(operations.BisyncSwitches{
 		MaxDelete: &most, ConflictResolve: "newer", ConflictLoser: "num", CreateEmptySrcDirs: true,
 	}, r.Data.resync, s.o.Workdir)
