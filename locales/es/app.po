@@ -5893,7 +5893,7 @@ msgid "Pick one or more folders or single files. Where they go is a folder, whic
 msgstr "Elige una o varias carpetas o archivos sueltos. El destino es una carpeta, que se crea si todavía no existe."
 
 #: src/pages/Remotes/RemoteCreateDrawer.tsx
-msgid "Pick one, or search every kind above."
+msgid "Pick one or search every kind above."
 msgstr "Elige uno o busca cualquier tipo arriba."
 
 #: src/pages/Templates/index.tsx
@@ -5981,9 +5981,10 @@ msgstr "Elige la carpeta B"
 msgid "Please try again later."
 msgstr "Inténtalo de nuevo más tarde."
 
+#. A heading over the kinds of remote that most people use.
 #: src/pages/Remotes/RemoteCreateDrawer.tsx
-msgid "Popular kinds"
-msgstr "Tipos populares"
+msgid "Popular"
+msgstr "Populares"
 
 #. The network port that the agents' server listens on.
 #: src/pages/Notifications/SmtpDrawer.tsx

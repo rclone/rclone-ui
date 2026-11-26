@@ -5893,8 +5893,8 @@ msgid "Pick one or more folders or single files. Where they go is a folder, whic
 msgstr "Pick one or more folders or single files. Where they go is a folder, which is created if it does not exist yet."
 
 #: src/pages/Remotes/RemoteCreateDrawer.tsx
-msgid "Pick one, or search every kind above."
-msgstr "Pick one, or search every kind above."
+msgid "Pick one or search every kind above."
+msgstr "Pick one or search every kind above."
 
 #: src/pages/Templates/index.tsx
 msgid "Pick templates"
@@ -5981,9 +5981,10 @@ msgstr "Please select Folder B"
 msgid "Please try again later."
 msgstr "Please try again later."
 
+#. A heading over the kinds of remote that most people use.
 #: src/pages/Remotes/RemoteCreateDrawer.tsx
-msgid "Popular kinds"
-msgstr "Popular kinds"
+msgid "Popular"
+msgstr "Popular"
 
 #. The network port that the agents' server listens on.
 #: src/pages/Notifications/SmtpDrawer.tsx

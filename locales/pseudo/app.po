@@ -5891,7 +5891,7 @@ msgid "Pick one or more folders or single files. Where they go is a folder, whic
 msgstr ""
 
 #: src/pages/Remotes/RemoteCreateDrawer.tsx
-msgid "Pick one, or search every kind above."
+msgid "Pick one or search every kind above."
 msgstr ""
 
 #: src/pages/Templates/index.tsx
@@ -5979,8 +5979,9 @@ msgstr ""
 msgid "Please try again later."
 msgstr ""
 
+#. A heading over the kinds of remote that most people use.
 #: src/pages/Remotes/RemoteCreateDrawer.tsx
-msgid "Popular kinds"
+msgid "Popular"
 msgstr ""
 
 #. The network port that the agents' server listens on.

@@ -266,8 +266,12 @@ export default function RemoteCreateDrawer({
                                     >
                                         <SectionTitle
                                             id="popular-types"
-                                            title={t`Popular kinds`}
-                                            description={t`Pick one, or search every kind above.`}
+                                            title={t({
+                                                message: 'Popular',
+                                                comment:
+                                                    'A heading over the kinds of remote that most people use.',
+                                            })}
+                                            description={t`Pick one or search every kind above.`}
                                         />
                                         <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                                             {popular.map((type) => (

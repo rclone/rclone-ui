@@ -5893,8 +5893,8 @@ msgid "Pick one or more folders or single files. Where they go is a folder, whic
 msgstr "选择一个或多个文件夹，或单个文件。目标是一个文件夹，不存在时会自动创建。"
 
 #: src/pages/Remotes/RemoteCreateDrawer.tsx
-msgid "Pick one, or search every kind above."
-msgstr "选择一个，或在上方搜索所有类型。"
+msgid "Pick one or search every kind above."
+msgstr "选择一个或在上方搜索所有类型。"
 
 #: src/pages/Templates/index.tsx
 msgid "Pick templates"
@@ -5981,9 +5981,10 @@ msgstr "请选择文件夹 B"
 msgid "Please try again later."
 msgstr "请稍后再试。"
 
+#. A heading over the kinds of remote that most people use.
 #: src/pages/Remotes/RemoteCreateDrawer.tsx
-msgid "Popular kinds"
-msgstr "常用类型"
+msgid "Popular"
+msgstr "常用"
 
 #. The network port that the agents' server listens on.
 #: src/pages/Notifications/SmtpDrawer.tsx
