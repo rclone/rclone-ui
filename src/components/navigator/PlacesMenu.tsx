@@ -67,81 +67,86 @@ export default function PlacesMenu() {
                 aria-label={t`Panel settings`}
                 className="items-stretch gap-0 p-0 overflow-hidden w-80 rounded-2xl"
             >
-                <div className="flex flex-col divide-y divide-divider">
-                    <SettingSwitch
-                        id="setting-folder-sizes"
-                        icon={HardDriveIcon}
-                        tone="blue"
-                        title={t`Local folder sizes`}
-                        description={t`Measure each folder shown on this computer. Walking large folders takes a while.`}
-                        isSelected={folderSizes}
-                        onValueChange={setFolderSizes}
-                    />
-                    <SettingSwitch
-                        id="setting-file-dates"
-                        icon={CalendarIcon}
-                        tone="orange"
-                        title={t`File dates`}
-                        description={t`For S3 and Swift. Each file's date needs a separate request, so large folders open slowly.`}
-                        isSelected={fileDates}
-                        onValueChange={setFileDates}
-                    />
-                    <SettingSwitch
-                        id="setting-hidden-files"
-                        icon={EyeIcon}
-                        tone="violet"
-                        title={t`Hidden files`}
-                        description={t`Show the files and folders whose names start with a dot.`}
-                        isSelected={hiddenFiles}
-                        onValueChange={setHiddenFiles}
-                    />
-                </div>
-                <div className="flex flex-col gap-0.5 px-4 pt-3 pb-1 border-t border-divider bg-default-50/60 dark:bg-default-50/30">
-                    <p className="text-sm font-semibold">
-                        {t({
-                            message: 'Shortcuts',
-                            comment:
-                                'The disks and folders that the sidebars offer, not keyboard shortcuts.',
-                        })}
-                    </p>
-                    <p className="text-xs text-default-500">
-                        <Trans>Disks and folders both sidebars offer.</Trans>
-                    </p>
-                </div>
-                <ScrollShadow className="flex flex-col px-4 pb-2 divide-y max-h-64 divide-divider bg-default-50/60 dark:bg-default-50/30">
-                    {disks.map((disk, index) => {
-                        const { icon, tone } = getDiskIcon(disk)
-                        // HeroUI's Switch ignores `aria-label` when it has no children, so
-                        // point to the name with aria-labelledby instead.
-                        const labelId = `shortcut-${index}`
-                        return (
-                            <div key={disk} className="flex items-center gap-3 py-2">
-                                <IconTile icon={icon} tone={tone} size="sm" />
-                                <div className="flex flex-col flex-1 min-w-0">
-                                    <span id={labelId} className="text-[13px] font-medium truncate">
-                                        {getDiskLabel(disk)}
-                                    </span>
-                                    <span className="text-[11px] truncate text-default-500">
-                                        {disk}
-                                    </span>
-                                </div>
-                                <Switch
-                                    size="sm"
-                                    aria-labelledby={labelId}
-                                    isSelected={!hiddenLocalPaths.includes(disk)}
-                                    onValueChange={(shown) => setLocalPathHidden(disk, !shown)}
-                                    classNames={{ wrapper: 'me-0' }}
-                                />
-                            </div>
-                        )
-                    })}
-                    {disks.length === 0 && (
-                        <p className="py-2 text-sm text-default-500">
-                            {allDisks === undefined
-                                ? t`Looking for disks…`
-                                : t`No local disks found.`}
+                <ScrollShadow className="flex flex-col max-h-[min(30rem,calc(100vh-6rem))]">
+                    <div className="flex flex-col divide-y divide-divider">
+                        <SettingSwitch
+                            id="setting-folder-sizes"
+                            icon={HardDriveIcon}
+                            tone="blue"
+                            title={t`Local folder sizes`}
+                            description={t`Measure each folder shown on this computer. Walking large folders takes a while.`}
+                            isSelected={folderSizes}
+                            onValueChange={setFolderSizes}
+                        />
+                        <SettingSwitch
+                            id="setting-file-dates"
+                            icon={CalendarIcon}
+                            tone="orange"
+                            title={t`File dates`}
+                            description={t`For S3 and Swift. Each file's date needs a separate request, so large folders open slowly.`}
+                            isSelected={fileDates}
+                            onValueChange={setFileDates}
+                        />
+                        <SettingSwitch
+                            id="setting-hidden-files"
+                            icon={EyeIcon}
+                            tone="violet"
+                            title={t`Hidden files`}
+                            description={t`Show the files and folders whose names start with a dot.`}
+                            isSelected={hiddenFiles}
+                            onValueChange={setHiddenFiles}
+                        />
+                    </div>
+                    <div className="flex flex-col gap-0.5 px-4 pt-3 pb-1 border-t border-divider bg-default-50/60 dark:bg-default-50/30">
+                        <p className="text-sm font-semibold">
+                            {t({
+                                message: 'Shortcuts',
+                                comment:
+                                    'The disks and folders that the sidebars offer, not keyboard shortcuts.',
+                            })}
                         </p>
-                    )}
+                        <p className="text-xs text-default-500">
+                            <Trans>Disks and folders both sidebars offer.</Trans>
+                        </p>
+                    </div>
+                    <div className="flex flex-col px-4 pb-2 divide-y divide-divider bg-default-50/60 dark:bg-default-50/30">
+                        {disks.map((disk, index) => {
+                            const { icon, tone } = getDiskIcon(disk)
+                            // HeroUI's Switch ignores `aria-label` when it has no children, so
+                            // point to the name with aria-labelledby instead.
+                            const labelId = `shortcut-${index}`
+                            return (
+                                <div key={disk} className="flex items-center gap-3 py-2">
+                                    <IconTile icon={icon} tone={tone} size="sm" />
+                                    <div className="flex flex-col flex-1 min-w-0">
+                                        <span
+                                            id={labelId}
+                                            className="text-[13px] font-medium truncate"
+                                        >
+                                            {getDiskLabel(disk)}
+                                        </span>
+                                        <span className="text-[11px] truncate text-default-500">
+                                            {disk}
+                                        </span>
+                                    </div>
+                                    <Switch
+                                        size="sm"
+                                        aria-labelledby={labelId}
+                                        isSelected={!hiddenLocalPaths.includes(disk)}
+                                        onValueChange={(shown) => setLocalPathHidden(disk, !shown)}
+                                        classNames={{ wrapper: 'me-0' }}
+                                    />
+                                </div>
+                            )
+                        })}
+                        {disks.length === 0 && (
+                            <p className="py-2 text-sm text-default-500">
+                                {allDisks === undefined
+                                    ? t`Looking for disks…`
+                                    : t`No local disks found.`}
+                            </p>
+                        )}
+                    </div>
                 </ScrollShadow>
             </PopoverContent>
         </Popover>
