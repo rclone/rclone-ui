@@ -6,9 +6,9 @@ import {
     followShellEvents,
     invalidate,
     invalidates,
-    MAX_WAIT,
+    MAX_WAIT_MS,
     onLive,
-    QUIET,
+    QUIET_MS,
     shellKeys,
 } from './live'
 
@@ -145,7 +145,7 @@ describe('followCoreEvents', () => {
         off()
         expect(heard).toEqual(['t1'])
         expect(stale(queryClient)).toEqual([])
-        vi.advanceTimersByTime(QUIET)
+        vi.advanceTimersByTime(QUIET_MS)
         expect(stale(queryClient)).toEqual(['transfers/ListActive'])
     })
 
@@ -153,7 +153,7 @@ describe('followCoreEvents', () => {
         const queryClient = cached('remotes/List', 'app/Info')
         stop = followCoreEvents(queryClient)
         emit('core.resync')
-        vi.advanceTimersByTime(QUIET)
+        vi.advanceTimersByTime(QUIET_MS)
         expect(stale(queryClient)).toEqual(['app/Info', 'remotes/List'])
     })
 
@@ -162,7 +162,7 @@ describe('followCoreEvents', () => {
         stop = followCoreEvents(queryClient)
         stop()
         emit('remotes.changed', {})
-        vi.advanceTimersByTime(MAX_WAIT)
+        vi.advanceTimersByTime(MAX_WAIT_MS)
         expect(stale(queryClient)).toEqual([])
     })
 
@@ -170,9 +170,9 @@ describe('followCoreEvents', () => {
         const queryClient = cached('remotes/List', 'templates/List')
         stop = followCoreEvents(queryClient)
         emit('remotes.changed', {})
-        vi.advanceTimersByTime(QUIET - 50)
+        vi.advanceTimersByTime(QUIET_MS - 50)
         emit('templates.changed')
-        vi.advanceTimersByTime(QUIET - 50)
+        vi.advanceTimersByTime(QUIET_MS - 50)
         expect(stale(queryClient)).toEqual([])
         vi.advanceTimersByTime(50)
         expect(stale(queryClient)).toEqual(['remotes/List', 'templates/List'])
@@ -182,7 +182,7 @@ describe('followCoreEvents', () => {
         const queryClient = cached('browse/List')
         const spy = vi.spyOn(queryClient, 'invalidateQueries')
         stop = followCoreEvents(queryClient)
-        for (let t = 0; t < MAX_WAIT; t += 100) {
+        for (let t = 0; t < MAX_WAIT_MS; t += 100) {
             emit('files.changed', {})
             vi.advanceTimersByTime(100)
         }
@@ -190,7 +190,7 @@ describe('followCoreEvents', () => {
         expect(spy).toHaveBeenCalledTimes(1)
         emit('files.changed', {})
         stop()
-        vi.advanceTimersByTime(MAX_WAIT)
+        vi.advanceTimersByTime(MAX_WAIT_MS)
         expect(spy).toHaveBeenCalledTimes(1)
     })
 })

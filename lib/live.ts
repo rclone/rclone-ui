@@ -45,8 +45,8 @@ export function invalidate(queryClient: QueryClient, name: keyof CoreEvents) {
     })
 }
 
-export const QUIET = 250
-export const MAX_WAIT = 1000
+export const QUIET_MS = 250
+export const MAX_WAIT_MS = 1000
 
 /**
  * Marks queries stale as the core's events arrive, until the returned function is called. A burst
@@ -70,7 +70,7 @@ export function followCoreEvents(queryClient: QueryClient): () => void {
         const now = Date.now()
         if (timer === null) since = now
         else clearTimeout(timer)
-        timer = setTimeout(flush, Math.min(QUIET, Math.max(0, since + MAX_WAIT - now)))
+        timer = setTimeout(flush, Math.min(QUIET_MS, Math.max(0, since + MAX_WAIT_MS - now)))
     }
     const offs = names.map((name) => Events.On(name, () => heard(name)))
     return () => {
