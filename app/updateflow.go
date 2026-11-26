@@ -13,11 +13,8 @@ import (
 	"github.com/rclone/rclone-ui/core/notifications"
 )
 
-// UpdateRequest says which release to check for. Empty fields mean the latest release on the
-// user's channel. `rcui update --version X` can ask for a specific version.
 type UpdateRequest struct {
 	Version string
-	// Channel is "stable" or "beta".
 	Channel string
 }
 
@@ -36,13 +33,10 @@ type UpdateRelease struct {
 	// Recommended means the running version is below the policy's recommended version, so the app
 	// offers the update at start. Otherwise only "Check for updates" in Settings offers it.
 	Recommended bool `json:"recommended"`
-	// Page is the release's page on GitHub, with its downloads. A portable copy, which doesn't
-	// update itself, sends the user there.
+	// Page is the release's page on GitHub, with its downloads.
 	Page string `json:"page"`
 }
 
-// releaseFor returns the release that the app offers, or nil. found is offered when it is newer
-// than the running version, or when a specific version was asked for, which allows downgrades.
 func releaseFor(found *update.Release, asked string) *UpdateRelease {
 	if asked == "" && !found.Newer() {
 		return nil
@@ -58,44 +52,27 @@ func releaseFor(found *update.Release, asked string) *UpdateRelease {
 	}
 }
 
-// updateFlow is the UI's update flow around the engine in app/update. It decides when to check
-// and what to ask, runs the busy check, stops the core and exits. The engine does the rest. Only
-// one update runs at a time.
 type updateFlow struct {
-	u *ui
-	// enabled is true for a release build, or for a development build that uses a test feed
-	// (see testFeed). The real feed would offer to replace a development build with the latest
-	// release.
+	u       *ui
 	enabled bool
-	// engine holds the options that every engine of the flow starts from: the test feed, and in
-	// the tests, the install type.
-	engine update.Options
+	engine  update.Options
 
-	running   sync.Mutex // held while an update runs
+	running   sync.Mutex
 	startOnce sync.Once
 	mu        sync.Mutex
-	last      *offer // what the last check found
-	// reported is the release that app.update-available was last sent for.
-	reported string
+	last      *offer
+	reported  string
 
-	// installing is held from the moment the core stops until the exit, or until the relaunch
-	// when the install fails. A quit holds it too, so neither can interrupt the other halfway.
-	installing sync.Mutex
-	// quitWaiting is set when a quit is waiting for the install. A successful install then exits
-	// without relaunching.
+	installing  sync.Mutex
 	quitWaiting atomic.Bool
 }
 
-// offer is what a check found. It holds the release as pages see it, plus the engine and the
-// release that install it. install downloads found and never reads the feed again, so the release
-// that gets installed is the one that was offered.
 type offer struct {
 	rel   *UpdateRelease
 	eng   *update.Engine
 	found *update.Release
 }
 
-// release returns the offer as pages see it, or nil when there is no offer.
 func (o *offer) release() *UpdateRelease {
 	if o == nil {
 		return nil
@@ -118,9 +95,6 @@ func (f *updateFlow) channel(req UpdateRequest) update.Channel {
 	return ch
 }
 
-// available reports whether this install can update itself, and why not when it can't, in the
-// app's language. A portable copy can't, but it still checks for updates and sends the user to
-// the release's page (Manual).
 func (f *updateFlow) available() UpdateAvailability {
 	if !f.enabled {
 		return UpdateAvailability{Why: i18n.T("Updates are not available in this build.")}
@@ -131,10 +105,6 @@ func (f *updateFlow) available() UpdateAvailability {
 	return UpdateAvailability{OK: ok, Why: why.Local(), Manual: !ok && e.InstallType() == update.TypePortable}
 }
 
-// check reads the feed. The offer is nil when the app is up to date, and in a build that doesn't
-// update. Only a check with an empty req keeps its offer for Install and reports it to the
-// notification targets. An offer from an update link is not kept, so that a later press of Update
-// in Settings never installs it.
 func (f *updateFlow) check(ctx context.Context, req UpdateRequest) (*offer, error) {
 	if !f.enabled {
 		return nil, nil
@@ -168,8 +138,6 @@ func (f *updateFlow) check(ctx context.Context, req UpdateRequest) (*offer, erro
 	return o, nil
 }
 
-// report sends app.update-available through the core's notification targets. It sends it once
-// per release, because the check runs at every start and on demand.
 func (f *updateFlow) report(rel *UpdateRelease) {
 	f.mu.Lock()
 	sent := f.reported == rel.Version
@@ -194,14 +162,10 @@ func (f *updateFlow) report(rel *UpdateRelease) {
 	f.mu.Unlock()
 }
 
-// startUp runs the startup check in the background, once per run of the UI. It is called once the
-// core's settings are read, because the channel and the skipped version come from them. It is
-// also called when the core failed to start, because a required update may fix the problem.
 func (f *updateFlow) startUp() {
 	f.startOnce.Do(func() { go f.atStart(context.Background()) })
 }
 
-// atStart is the check at start. It offers an update when the policy recommends or requires one.
 func (f *updateFlow) atStart(ctx context.Context) {
 	o, err := f.check(ctx, UpdateRequest{})
 	if err != nil {
@@ -222,7 +186,6 @@ func (f *updateFlow) atStart(ctx context.Context) {
 	}
 	// i18n: %s is the new version, such as 4.0.2.
 	msg := i18n.T("You are running an outdated version of Rclone UI. Please update to the latest version (%s).", rel.Version)
-	// A portable copy offers the release's page, where the user downloads it.
 	avail := f.available()
 	// i18n: The button that installs an update.
 	button := i18n.T("Update")
@@ -241,7 +204,6 @@ func (f *updateFlow) atStart(ctx context.Context) {
 	}
 	if avail.Manual {
 		f.openPage(rel)
-		// The app can't be used below a required version, so it quits once the page is open.
 		if rel.Required {
 			f.u.quit(true)
 		}
@@ -263,12 +225,7 @@ func (f *updateFlow) openPage(rel *UpdateRelease) {
 	}
 }
 
-// requested runs an update that an update link asked for. `rcui update` sends one to the running
-// app, and so can any web page, so the app asks before it installs anything (linkQuestion). A
-// failed check is reported, and so is a version that isn't a valid version, because the command
-// told the user that the app would take over.
 func (f *updateFlow) requested(ctx context.Context, req UpdateRequest) {
-	// CheckVersion only refuses a version that isn't one, so the message says so.
 	if err := update.CheckVersion(req.Version); err != nil {
 		f.u.log.Warn("refused a requested update", "version", req.Version, "error", err)
 		// i18n: %q is what an update link asked for, which isn't a version.
@@ -285,7 +242,6 @@ func (f *updateFlow) requested(ctx context.Context, req UpdateRequest) {
 	if o == nil {
 		return
 	}
-	// A copy that can't update itself gets install's own dialog, which installs nothing.
 	if f.available().OK {
 		title, msg := linkQuestion(o.rel)
 		// i18n: The button that installs an update.
@@ -298,8 +254,6 @@ func (f *updateFlow) requested(ctx context.Context, req UpdateRequest) {
 	f.install(ctx, o)
 }
 
-// linkQuestion returns the title and the text of the question that requested asks before it
-// installs rel.
 func linkQuestion(rel *UpdateRelease) (title, msg string) {
 	switch {
 	case update.CompareVersions(rel.Version, rel.Current) < 0:
@@ -317,10 +271,6 @@ func linkQuestion(rel *UpdateRelease) (title, msg string) {
 	return updateTitle(rel), msg
 }
 
-// install runs the update steps: the download, the busy check, a planned stop of the core, the
-// install and the relaunch. If a step fails, the app keeps running as it was. From the busy check
-// on, the launcher is suspended, as for a quit, and it comes back if the update is cancelled or
-// fails.
 func (f *updateFlow) install(ctx context.Context, o *offer) {
 	if !f.running.TryLock() {
 		return
@@ -357,13 +307,10 @@ func (f *updateFlow) install(ctx context.Context, o *offer) {
 		f.state(UpdateState{Phase: "idle"})
 		return
 	}
-	// From here on, a quit (from the tray or a signal) waits, because exiting during the install
-	// would leave the app half replaced. A quit that has already begun goes first, and if it exits,
-	// the rest of this never runs.
 	f.installing.Lock()
 	defer f.installing.Unlock()
 	if f.u.quitting.Load() {
-		f.u.launcher.Resume() // the quit has its own Suspend, which keeps the launcher hidden
+		f.u.launcher.Resume()
 		art.Remove()
 		return
 	}
@@ -372,16 +319,11 @@ func (f *updateFlow) install(ctx context.Context, o *offer) {
 	f.u.stopCore(ctx, true)
 	relaunch, err := o.eng.Install(ctx, art)
 	if err != nil {
-		// The old version is intact, but its core has stopped and can only start again in a new
-		// process. So the app is started again, and what was running comes back. The quit inside
-		// relaunch waits for this install to return.
 		art.Remove()
 		f.fail(rel.Version, stepInstall, err)
 		go f.u.relaunch("")
 		return
 	}
-	// Nothing else cleans up the staging folders. The Windows installer is kept, because it reads
-	// its file after the app exits.
 	if art.Kind != update.KindNSIS {
 		art.Remove()
 	}
@@ -393,9 +335,6 @@ func (f *updateFlow) install(ctx context.Context, o *offer) {
 	f.u.exit()
 }
 
-// holdInstalls is the quit's side of installing. It waits for an install that is under way, and
-// keeps a new one from starting until the returned func is called. An install that succeeds in the
-// meantime exits without relaunching the app. (On Windows, the installer still starts it.)
 func (f *updateFlow) holdInstalls() (release func()) {
 	if f == nil {
 		return func() {}
@@ -420,9 +359,6 @@ func (s updateStep) String() string {
 	return [...]string{"check", "download", "install"}[s]
 }
 
-// failure returns the text of the dialog that says the step failed with err, in the app's
-// language. The engine's own errors are translated, and other errors (the network's, the OS's)
-// keep their words.
 func (s updateStep) failure(err error) string {
 	switch s {
 	case stepCheck:
@@ -451,8 +387,7 @@ type UpdateAvailability struct {
 	OK  bool   `json:"ok"`
 	Why string `json:"why"`
 	// Manual means the install can't update itself, but still checks for updates, as a portable
-	// copy does. The user downloads a release that a check finds from its page
-	// (UpdateRelease.Page).
+	// copy does.
 	Manual bool `json:"manual"`
 }
 
@@ -462,9 +397,6 @@ func (s *UpdateService) Available() UpdateAvailability { return s.u.updates.avai
 func (s *UpdateService) Check(ctx context.Context) (*UpdateRelease, error) {
 	o, err := s.u.updates.check(ctx, UpdateRequest{})
 	if err != nil {
-		// The engine makes its errors with core/errs, so that the page gets them in the app's
-		// language. errs.Failed keeps them failures, which a second try may fix, rather than
-		// rejected requests.
 		return nil, errs.Failed(err)
 	}
 	return o.release(), nil
@@ -486,7 +418,6 @@ func (s *UpdateService) Install(ctx context.Context) error {
 			return errs.New("Rclone UI is up to date.")
 		}
 	}
-	// The download and the relaunch continue after the page's call returns.
 	go f.install(context.Background(), o)
 	return nil
 }

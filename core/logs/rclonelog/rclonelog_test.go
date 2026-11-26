@@ -21,8 +21,6 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// capture installs the handler on a new log with rclone's level set to lvl, runs fn and
-// returns the lines it logged.
 func capture(t *testing.T, lvl fs.LogLevel, fn func(l *logs.Log)) []logs.Record {
 	t.Helper()
 	l, err := logs.Open(logs.Options{Path: filepath.Join(t.TempDir(), "rcui.log"), Level: "error"})
@@ -47,9 +45,6 @@ func capture(t *testing.T, lvl fs.LogLevel, fn func(l *logs.Log)) []logs.Record 
 	return out
 }
 
-// A line keeps what rclone logged with it (its object, its values and where it was logged) and
-// gets its component. rclone v1.75.1 logs without its caller's context, so a line has no stats
-// group or job.
 func TestLineFromRclone(t *testing.T) {
 	var logLine int
 	rows := capture(t, fs.LogLevelInfo, func(l *logs.Log) {
@@ -111,7 +106,7 @@ func TestSubcomponentFromObjectType(t *testing.T) {
 	for typ, sub := range map[string]string{
 		"*crypt.Object": "crypt", "*union.Fs": "union", "*local.Object": "local", "*memory.Object": "memory",
 		"*operations.thing": "core", "string": "core", "": "core",
-		"map[string]string": "core", "[]*crypt.Object": "crypt", "*s3.Object": "core", // s3 is not linked here
+		"map[string]string": "core", "[]*crypt.Object": "crypt", "*s3.Object": "core",
 	} {
 		if got := h.subcomponent(typ); got != sub {
 			t.Errorf("subcomponent(%q) = %q, want %q", typ, got, sub)
@@ -186,7 +181,6 @@ func TestCredentialsAreHidden(t *testing.T) {
 	}
 }
 
-// Watch sees each line that rclone logs until it is stopped, even without the app's log.
 func TestWatch(t *testing.T) {
 	var mu sync.Mutex
 	var seen []string

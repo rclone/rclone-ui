@@ -48,32 +48,21 @@ import {
 } from './usage'
 import { type UsageScan, useUsageLevel } from './useDiskUsage'
 
-/** The height of a row in px (h-10). Every row has it, so a row's place is its rank times it. */
 const ROW_HEIGHT = 40
-/** How long a row takes to glide to its new place, its bar to grow and its numbers to count, in s. */
 const MOVE = 0.4
-/** Rows drawn above and below the view, so a row moving in arrives from just outside it. */
 const OVERSCAN = 6
 
-/** The columns of the list: name, bar, size, share, files, and the row's buttons. */
 const COLUMNS =
     'grid grid-cols-[minmax(0,1fr)_minmax(9rem,16rem)_5.5rem_3.75rem_5.5rem_4rem] items-center gap-3'
 
 export interface DiskUsageActions {
-    /** Opens a folder in the Commander's active panel. */
     onShow: (path: string) => void
-    /** Deletes an entry, after the usual confirmation. */
     onDelete: (item: UsageItem) => void
     onStop: () => void
     onRescan: () => void
-    /** The core no longer holds the scan. */
     onLost: (request: string) => void
 }
 
-/**
- * A number that counts to its new value instead of jumping, without rendering the row again.
- * With reduced motion, it changes at once.
- */
 function Counting({ value, format }: { value: number; format: (n: number) => string }) {
     const reduce = useReducedMotion()
     const mv = useMotionValue(value)
@@ -93,13 +82,11 @@ const bytesText = (n: number) => formatBytes(Math.round(n))
 const countText = (n: number) => formatNumber(Math.round(n))
 const shareText = (n: number) => formatShare(n)
 
-/** The size of an entry: "—" for a file whose backend doesn't know it. */
 function SizeCell({ item }: { item: UsageItem }) {
     if (!item.isDir && !item.rest && item.unknown > 0) return <span>—</span>
     return <Counting value={item.bytes} format={bytesText} />
 }
 
-/** A summary figure: a label and a number that counts as the scan finds more. */
 function Figure({
     label,
     value,
@@ -119,10 +106,8 @@ function Figure({
     )
 }
 
-/** Where the scan is, in one line: what it reads now, or when it ended and how. */
 function ScanStatus({ scan }: { scan: UsageScan }) {
     const progress = scan.progress
-    // The age of a finished scan, kept current while the drawer is open.
     const [now, setNow] = useState(() => Date.now())
     useEffect(() => {
         const timer = setInterval(() => setNow(Date.now()), 30_000)
@@ -146,7 +131,6 @@ function ScanStatus({ scan }: { scan: UsageScan }) {
             </span>
         )
     }
-    // The clock may be a little behind the core's, and a scan never ends in the future.
     const ago = progress.endedAt ? timeAgo(progress.endedAt, Math.max(now, progress.endedAt)) : ''
     switch (progress.state) {
         case 'stopped':
@@ -168,7 +152,6 @@ function ScanStatus({ scan }: { scan: UsageScan }) {
     }
 }
 
-/** The notes under the totals: what wasn't counted, and why the numbers may differ. */
 function ScanNotes({ progress }: { progress?: Browse.UsageProgress }) {
     if (!progress) return null
     const { unread, unknown } = progress.count
@@ -203,7 +186,6 @@ function ScanNotes({ progress }: { progress?: Browse.UsageProgress }) {
     )
 }
 
-/** The way up from the folder shown: the scan's root, then each folder down to this one. */
 function Crumbs({
     root,
     rel,
@@ -246,7 +228,6 @@ function Crumbs({
     )
 }
 
-/** A column's title. The sortable ones are buttons, and the one in use is stronger. */
 function ColumnTitle({
     label,
     sort,
@@ -282,7 +263,6 @@ function ColumnTitle({
     )
 }
 
-/** An entry, or the folder's smaller files, as a row of the list. */
 function UsageRowView({
     item,
     largest,
@@ -436,11 +416,6 @@ function UsageRowView({
     )
 }
 
-/**
- * The rows of the folder shown, each in its place by rank. A row that changes rank glides to its
- * new place. Only the rows in view are drawn, together with those leaving it, so a folder with
- * thousands of entries scrolls as easily as a small one.
- */
 function UsageList({
     items,
     more,
@@ -498,13 +473,11 @@ function UsageList({
 
     const first = Math.max(0, Math.floor(view.top / ROW_HEIGHT) - OVERSCAN)
     const last = Math.ceil((view.top + view.height) / ROW_HEIGHT) + OVERSCAN
-    // The ranks of the last rows drawn, so a row that moves out of view glides away.
     const was = useRef<ReadonlyMap<string, number>>(new Map())
     const drawn = rowsToDraw(items, was.current, first, last)
     useEffect(() => {
         was.current = new Map(items.map((item, rank) => [item.key, rank]))
     }, [items])
-    // The bars measure against the largest entry, which is the first one when sorted by size.
     const largest = useMemo(
         () => items.reduce((most, item) => Math.max(most, item.bytes), 0),
         [items]
@@ -542,7 +515,6 @@ function UsageList({
     )
 }
 
-/** Rows that stand in for the first entries while the scan starts. */
 function Placeholder() {
     return (
         <div className="flex flex-col gap-0 px-5" aria-hidden={true}>
@@ -565,7 +537,6 @@ function Placeholder() {
     )
 }
 
-/** A whole-drawer message, such as an error, with its action. */
 function Notice({
     icon,
     tone,
@@ -593,8 +564,6 @@ function Notice({
     )
 }
 
-// Mounted only while the drawer is open, so it reads the scan only then. It always opens at the
-// scan's root. The scan itself goes on while the drawer is closed.
 function UsageView({
     scan,
     actions,
@@ -625,7 +594,6 @@ function UsageView({
         useCallback(() => openFolder(parentRel(rel)), [openFolder, rel]),
         actions.onLost
     )
-    // Rows of another folder are never shown, but rows in another order are: they glide to it.
     const level = shown && shown.rel === rel ? shown : null
     const items = useMemo(() => (level ? usageItems(level.level, level.by) : []), [level])
     const total = level?.level.total.bytes ?? 0
@@ -641,7 +609,6 @@ function UsageView({
         [actions, level, onClose]
     )
 
-    // The arrows move the highlight, Enter opens a folder, and Backspace goes up.
     const onKeyDown = useCallback(
         (e: ReactKeyboardEvent) => {
             const at = items.findIndex((item) => item.key === highlighted)
@@ -675,7 +642,6 @@ function UsageView({
         },
         [items, highlighted, open, openFolder, rel]
     )
-    // The list takes the keyboard when the drawer opens.
     const body = useRef<HTMLDivElement>(null)
     useEffect(() => body.current?.focus(), [])
 
@@ -848,11 +814,6 @@ function UsageView({
     )
 }
 
-/**
- * Disk Usage: what takes the space on a whole remote or disk, largest first, as the scan finds
- * it. The scan belongs to the page (`useDiskUsage`), so it goes on when the drawer closes, and
- * the drawer shows it again when it opens.
- */
 export default function DiskUsageDrawer({
     isOpen,
     onClose,

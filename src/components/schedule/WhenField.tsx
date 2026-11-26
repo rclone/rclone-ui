@@ -51,11 +51,6 @@ function NumberSelect({
     )
 }
 
-/**
- * The "When" field: a choice, the fields it needs, and the next runs (or the problem), which the
- * core works out 300 ms after the last change. Times are on the 24-hour clock, as the list and
- * the next runs show them.
- */
 export default function WhenField({
     when,
     cron,
@@ -68,7 +63,6 @@ export default function WhenField({
     error?: string
 }) {
     const { description } = useWhenDescription(cron)
-    // While the user types, the line under the field keeps the last answer.
     const shown = cron.trim() === '' ? undefined : description.data
     const problem = error ?? shown?.problem
     const atTime = when.kind !== 'hour' && when.kind !== 'custom'
@@ -87,7 +81,6 @@ export default function WhenField({
                     onSelectionChange={(keys) => {
                         const kind = [...keys][0] as WhenKind | undefined
                         if (!kind) return
-                        // Custom starts from the expression that the choice wrote.
                         onChange(
                             kind === 'custom' && when.kind !== 'custom'
                                 ? { kind, expression: cron }

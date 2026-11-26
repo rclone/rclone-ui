@@ -1,6 +1,5 @@
 name: ci
 
-# Every push and pull request on main is tested on the three OSes and built for all six targets.
 on:
   push:
     branches: [main]
@@ -17,7 +16,6 @@ permissions:
 jobs:
   api:
     name: API and generated code
-    # macOS 15 on Apple silicon. GitHub retired its macOS 14 runners on November 2, 2026.
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
@@ -65,10 +63,6 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Linux build dependencies
-        # GTK 4 and WebKitGTK 6.0, which is Wails' default stack, and gtk4-layer-shell, which rcui
-        # links. The 26.04 runners have started without working name lookups ("Temporary failure
-        # resolving archive.ubuntu.com"), and once hung here for 25 minutes. So the step waits for
-        # a lookup to answer, tries three times, and gives up after 10 minutes.
         if: runner.os == 'Linux'
         timeout-minutes: 10
         run: |
@@ -88,7 +82,6 @@ jobs:
 
   build:
     name: Build
-    # The release's build and packaging, unsigned (build.yml).
     uses: ./.github/workflows/build.yml
     with:
       release: false

@@ -12,28 +12,16 @@ import {
 import { pathsLine, scheduleOperation } from '../../components/schedule/form'
 import { shortTime } from '../../components/schedule/when'
 
-// What a schedule's row says about it. Its runs are rare and meaningful, so the row says how the
-// last one went, or that one is running.
-
 type Schedule = Schedules.Schedule
 
-/** How a schedule's row says its last run went, in its status column. */
 export interface LastRun {
     label: string
     kind: StatusKind
-    /** When the last run was, such as "3 hours ago", or '' while running or before the first. */
     ago: string
-    /** "Nothing to do" after a run that had nothing to do, or ''. */
     note: string
-    /** The run that the status opens in History, or '' when there is none. */
     transferId: string
 }
 
-/**
- * The last run of a schedule. A run in progress shows as "Running", whatever came before.
- * "Succeeded" covers a run that changed something and one that had nothing to do. "Stopped"
- * covers a run that the user stopped and one that a quit interrupted.
- */
 export function lastRunOf(s: Schedule, now: number): LastRun {
     if (s.running) {
         return { label: t`Running`, kind: 'active', ago: '', note: '', transferId: s.runningId }
@@ -56,13 +44,8 @@ export function lastRunOf(s: Schedule, now: number): LastRun {
     }
 }
 
-/**
- * The sentence that names the schedule that runs next, and when: "in 3 hours" within a day, its
- * date after that, and "soon" when it is due. It is '' while the schedule is paused (no next run).
- */
 export function nextLine(name: string, nextRun: number | null, now: number): string {
     if (nextRun === null) return ''
-    // A run that is due waits for the scheduler's next tick, or for the catch-up after a start.
     if (nextRun <= now) return t`Next: ${name}, soon.`
     if (nextRun - now < DAY) {
         const relative = timeAgo(nextRun, now)
@@ -78,10 +61,8 @@ export function nextLine(name: string, nextRun: number | null, now: number): str
     })
 }
 
-/** A day in ms. */
 const DAY = 86_400_000
 
-/** The line under the window's title: how many schedules are running, and which one runs next. */
 export function summaryOf(schedules: readonly Schedule[], now: number): string {
     const running = schedules.filter((s) => s.running).length
     const on = schedules.filter((s) => !s.paused)
@@ -106,10 +87,6 @@ export function firstLine(error: string): string {
     return error.trim().split('\n')[0]?.trim() ?? ''
 }
 
-/**
- * The notes under a schedule's row: the error of its last run, which is hidden while a run is in
- * progress, and a skipped time.
- */
 export function notesOf(s: Schedule): { error: string; skipped: string } {
     return {
         error: !s.running && s.lastResult === 'failed' ? s.lastError.trim() : '',
@@ -122,10 +99,6 @@ function skippedLine(at: number): string {
     return t`Skipped ${date}. The last run was still going.`
 }
 
-/**
- * The question that Run now asks: "Run {name} now?", plus the warning that the operation's page
- * shows before Sync, Delete and Purge.
- */
 export function runQuestion(s: Schedule): { text: string; warning: boolean } {
     const { sources, destination } = endsOf(s.form)
     const operation = scheduleOperation(s.form)

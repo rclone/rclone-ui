@@ -6,9 +6,6 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// A watcher's run leaves no trace in History when it changed nothing, or when bisync only asked
-// for a merge, which the watcher runs at once. A Resync or a Force that the user asked for is
-// kept, even when it changed nothing, and so is any other end.
 func TestQuiet(t *testing.T) {
 	merge := "bisync needs a merge: empty prior Path1 listing: /w/a..b.path1.lst: bisync aborted"
 	o := (*owner)(nil)
@@ -21,7 +18,7 @@ func TestQuiet(t *testing.T) {
 		quiet  bool
 	}{
 		{modeNormal, false, transfers.StateCompleted, "", &transfers.Summary{Checks: 3}, true},
-		{modeNow, true, transfers.StateCompleted, "", &transfers.Summary{Checks: 3}, true}, // the first merge
+		{modeNow, true, transfers.StateCompleted, "", &transfers.Summary{Checks: 3}, true},
 		{modeNormal, false, transfers.StateCompleted, "", &transfers.Summary{Transfers: 1}, false},
 		{modeNormal, false, transfers.StateCompleted, "", &transfers.Summary{Deletes: 1}, false},
 		{modeResync, true, transfers.StateCompleted, "", &transfers.Summary{Checks: 3}, false},

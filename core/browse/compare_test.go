@@ -35,7 +35,7 @@ func TestCompare(t *testing.T) {
 	})
 	right := MakeTree(t, map[string]string{
 		"same.txt":      "hello",
-		"Diff.txt":      "bbbb", // same size, other content
+		"Diff.txt":      "bbbb",
 		"sizediff.txt":  "abcdef",
 		"onlyR.txt":     "r",
 		"both/":         "",
@@ -59,7 +59,6 @@ func TestCompare(t *testing.T) {
 			t.Errorf("%s: %q, want %q", cl, got[cl], want[cl])
 		}
 	}
-	// The classes come in order, and each pair has the sides that hold its name.
 	var order []Class
 	for _, p := range c.Pairs {
 		if len(order) == 0 || order[len(order)-1] != p.Class {
@@ -77,7 +76,6 @@ func TestCompare(t *testing.T) {
 	}
 }
 
-// With hidden files shown, the names that start with a dot are compared like any other.
 func TestCompareHidden(t *testing.T) {
 	left := MakeTree(t, map[string]string{".env": "e", ".only-left": "l", "a.txt": "a"})
 	right := MakeTree(t, map[string]string{".env": "e", "a.txt": "a"})
@@ -130,9 +128,6 @@ func TestCompareFailsOnAMissingSide(t *testing.T) {
 	}
 }
 
-// A side with more names than CompareMax stops at the cap, and the comparison reports it. That
-// holds whether the other side is also too large or is empty. A comparison of one name against
-// one is complete.
 func TestCompareSaysWhenASideWasCut(t *testing.T) {
 	ctx := context.Background()
 	many := memoryFiles(t, "d", CompareMax+50) + "/d"
@@ -155,7 +150,6 @@ func TestCompareSaysWhenASideWasCut(t *testing.T) {
 			}
 		})
 	}
-	// The API reports it too, even though it sends only CompareMax pairs.
 	res, err := testAPI().Compare(ctx, many, empty, false, false)
 	if err != nil {
 		t.Fatal(err)
@@ -165,8 +159,6 @@ func TestCompareSaysWhenASideWasCut(t *testing.T) {
 	}
 }
 
-// A backend whose listing calls fs.Fatalf fails the comparison, which runs each side as its own
-// job. The core keeps running.
 func TestAFatalListingInCompareIsTheReadsError(t *testing.T) {
 	fx := &Fixture{Inner: MakeTree(t, map[string]string{"a": "a"}), Hook: func(context.Context, string) error {
 		fs.Fatalf(nil, "the backend gave up")

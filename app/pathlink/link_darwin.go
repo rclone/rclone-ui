@@ -12,7 +12,7 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// macLink is the link's path. It is on the default PATH (/etc/paths) and on root's PATH.
+// The default PATH (/etc/paths) and root's PATH both hold /usr/local/bin.
 const macLink = "/usr/local/bin/rclone"
 
 func newLinker() (*Linker, error) {

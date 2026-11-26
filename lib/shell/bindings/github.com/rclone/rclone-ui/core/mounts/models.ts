@@ -10,9 +10,9 @@ import { Create as $Create } from "@wailsio/runtime";
 import * as operations$0 from "../operations/models.js";
 
 /**
- * Automount is a mount that the app starts each time it starts, as the Automounts window edits
- * it: a folder of a remote (RemotePath, "" for its root), the mount point, and the Mount form's
- * option groups (mount, vfs, filter, config, metadata). A remote can have several.
+ * Automount is a mount that the app starts each time it starts: a folder of a remote
+ * (RemotePath, "" for its root), the mount point, and the Mount form's option groups (mount,
+ * vfs, filter, config, metadata). A remote can have several.
  */
 export class Automount {
     "id": string;
@@ -63,10 +63,6 @@ export class Automount {
     }
 }
 
-/**
- * AutomountRow is an automount as the Automounts window lists it, with what the window shows
- * about it now.
- */
 export class AutomountRow {
     "id": string;
     "remote": string;
@@ -134,9 +130,6 @@ export class AutomountRow {
     }
 }
 
-/**
- * MountRow is a running mount as the pages see it.
- */
 export class MountRow {
     "id": string;
     "source": string;
@@ -199,9 +192,6 @@ export class MountRow {
     }
 }
 
-/**
- * StoppedRow is a stopped mount that has uploads waiting.
- */
 export class StoppedRow {
     "folder": string;
     "source": string;
@@ -249,8 +239,7 @@ export class StoppedRow {
 
 /**
  * Support reports whether this computer can mount. When it can't, it says why and links to more
- * information. The Mount page shows it as a notice. On Windows, it offers to install WinFsp
- * when CanInstall is set, and links to WinFsp's downloads otherwise.
+ * information.
  */
 export class Support {
     "supported": boolean;
@@ -263,8 +252,7 @@ export class Support {
     "docs"?: string;
 
     /**
-     * CanInstall is true when WinFsp is missing and its installer is next to the app, so
-     * InstallWinFsp can install it.
+     * CanInstall is true when WinFsp is missing and its installer is next to the app.
      */
     "canInstall"?: boolean;
 

@@ -25,39 +25,24 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// MaxFailures is how many failed files from a plan's sync steps a Record keeps. It keeps the
-// first ones, and the limit matches the number of failed files that the ledger keeps for a
-// transfer.
 const MaxFailures = 1000
 
-// Record tracks what a running plan has done so far, step by step. For each step, it holds the
-// names of the step's Fs as rclone reports them in a finished file's snapshot. These come from
-// fs.ConfigString, such as `gdrive{AbCdE}:photos`, and differ from the connection string that the
-// Fs was opened with. A reader uses them to tell which step a file belongs to. The record also
-// holds when each step ends, and the files that a sync failed to transfer.
 type Record struct {
-	mu    sync.Mutex
-	steps []StepRecord
-	// failed holds the first MaxFailures files that a sync failed to transfer. failures counts
-	// all of them.
+	mu       sync.Mutex
+	steps    []StepRecord
 	failed   []Failure
 	failures int
 }
 
-// StepRecord is the part of a Record for one step.
 type StepRecord struct {
-	// SrcFs and DstFs are the fs.ConfigString names of the Fs that the step opened for Src and
-	// Dst. They are empty until the step opens them.
 	SrcFs, DstFs string
 	Ended        bool
-	Err          error // set once Ended if the step failed
+	Err          error
 }
 
-// Failure is a file that a sync step failed to transfer, as reported by rclone's sync logger. It
-// is named the same way as in a finished file's snapshot: the Fs by fs.ConfigString, and the file
-// by its path inside it. Failures are recorded here because rclone keeps only the last
-// maxCompleted snapshots of a group. A sync that checks thousands of unchanged files a second
-// would push a failure out before anything reads it.
+// Failures are recorded here because rclone keeps only the last maxCompleted snapshots of a
+// group. A sync that checks thousands of unchanged files a second would push a failure out before
+// anything reads it.
 type Failure struct {
 	SrcFs, Name, DstFs, Err string
 	Size                    int64
@@ -66,34 +51,30 @@ type Failure struct {
 
 func NewRecord(p Plan) *Record { return &Record{steps: make([]StepRecord, len(p.Steps))} }
 
-// Steps returns a copy of the step records.
 func (r *Record) Steps() []StepRecord {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]StepRecord(nil), r.steps...)
 }
 
-// Failures returns a copy of the first MaxFailures files that the plan's sync steps failed to
-// transfer, in the order they failed, and the total number of failures.
 func (r *Record) Failures() ([]Failure, int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]Failure(nil), r.failed...), r.failures
 }
 
-// syncLogger returns rclone's logger for step i, which is a sync. It keeps the first files that
-// failed to transfer and counts all of them. rclone calls it from its sync goroutines, where no
-// job runner recovers a panic, so it only checks types and appends. Copy and move steps don't get
-// a logger, because when any logger is set, rclone walks every folder that exists only on the
-// destination (NoProcessDstOnly in fs/sync).
+// rclone calls the logger from its sync goroutines, where no job runner recovers a panic, so it
+// only checks types and appends. Copy and move steps don't get a logger, because when any logger
+// is set, rclone walks every folder that exists only on the destination (NoProcessDstOnly in
+// fs/sync).
 func (r *Record) syncLogger(i int) rcops.LoggerFn {
 	return func(_ context.Context, sigil rcops.Sigil, src, _ fs.DirEntry, err error) {
-		o, ok := src.(fs.ObjectInfo) // a folder or a missing source is not a file failure
+		o, ok := src.(fs.ObjectInfo)
 		if sigil != rcops.TransferError || err == nil || !ok || o.Fs() == nil {
 			return
 		}
 		f := Failure{
-			SrcFs: fs.ConfigString(o.Fs()), // the same name the snapshots use
+			SrcFs: fs.ConfigString(o.Fs()),
 			Name:  o.Remote(), Err: err.Error(), Size: o.Size(), At: time.Now(),
 		}
 		r.mu.Lock()
@@ -113,15 +94,6 @@ func (r *Record) update(i int, fn func(*StepRecord)) {
 	fn(&r.steps[i])
 }
 
-// Run runs the plan on ctx, which belongs to a job (rclone.Run). The plan's config is added to
-// ctx, with the app's own metadata mapper pointed at exe, the running executable. The plan's
-// filter is added to the context of the folder steps. The steps then run, Concurrency at a time.
-// The end of every step is recorded in rec, which may be nil. Every step runs on ctx, so stopping
-// the job cancels them all.
-//
-// The returned error is the job's error. It is set when the options are refused, or when the
-// single step of a Whole plan fails. In a batch, each step fails on its own, and the errors are
-// only in rec.
 func (p Plan) Run(ctx context.Context, exe string, rec *Record) error {
 	if rec == nil {
 		rec = NewRecord(p)
@@ -159,7 +131,6 @@ func (p Plan) Run(ctx context.Context, exe string, rec *Record) error {
 		turns <- struct{}{}
 		wg.Go(func() {
 			defer func() { <-turns }()
-			// A step whose turn comes after a stop doesn't start.
 			err := stepCtx.Err()
 			if err == nil {
 				_, err = rclone.Run(stepCtx, rclone.CallOpts{Group: group}, func(ctx context.Context) error {
@@ -176,7 +147,6 @@ func (p Plan) Run(ctx context.Context, exe string, rec *Record) error {
 	return nil
 }
 
-// runnableConfig returns a plan's config with the app's own metadata mapper pointed at exe.
 func runnableConfig(config Options, exe string) Options {
 	v, ok := config["metadata_mapper"]
 	if !ok {
@@ -184,7 +154,7 @@ func runnableConfig(config Options, exe string) Options {
 	}
 	argv, err := valueOf(fs.SpaceSepList{}, v)
 	if err != nil {
-		return config // setOptions refuses it later, with the option's name
+		return config
 	}
 	out := maps.Clone(config)
 	out["metadata_mapper"] = metadatamap.Runnable(argv.(fs.SpaceSepList), exe)
@@ -208,8 +178,6 @@ func rcValue(v any) any {
 	return n.String()
 }
 
-// bisyncBase returns the start of the names of a bisync's listings (bilib.BasePath), or "" when
-// its working folder can't be told.
 func (p Plan) bisyncBase(ctx context.Context, path1, path2 fs.Fs) string {
 	workDir, _ := p.Bisync["workdir"].(string)
 	if workDir == "" {
@@ -222,8 +190,6 @@ func (p Plan) bisyncBase(ctx context.Context, path1, path2 fs.Fs) string {
 	return bilib.BasePath(ctx, workDir, path1, path2)
 }
 
-// firstBisync reports whether a bisync of path1 and path2 has no listings from an earlier run in
-// its working folder, so rclone refuses it unless it is a resync.
 func (p Plan) firstBisync(ctx context.Context, path1, path2 fs.Fs) bool {
 	if resync, _ := p.Bisync["resync"].(bool); resync {
 		return false
@@ -240,8 +206,7 @@ func (p Plan) firstBisync(ctx context.Context, path1, path2 fs.Fs) bool {
 	return false
 }
 
-// open returns the Fs for a step's path from rclone's cache, where it stays pinned until the job
-// ends. It passes the Fs name to set, so the step's files can be matched to the step.
+// rclone's cache pins the Fs until the job ends.
 func open(ctx context.Context, path string, set func(name string)) (fs.Fs, error) {
 	f, err := cache.Get(ctx, path)
 	if err != nil {
@@ -271,29 +236,21 @@ func (p Plan) runStep(ctx context.Context, i int, s Step, rec *Record) error {
 	case OpCopy:
 		return rcsync.CopyDir(ctx, dst, src, s.CreateEmptySrcDirs)
 	case OpMove:
-		// This also handles a folder rename. MoveDir first tries the backend's own directory
-		// move (same remote, no filters), and otherwise moves file by file on this job's
-		// context. operations.DirMove is not used, because its fallback runs the moves on a
-		// context of its own, outside the job's stats group, and they keep going after a stop.
-		// A rename that only changes a folder's case takes two moves.
+		// operations.DirMove is not used, because its fallback runs the moves on a context of
+		// its own, outside the job's stats group, and they keep going after a stop.
 		if caseOnlyDirs(src, dst) {
 			return moveDirCaseOnly(ctx, s, src, dst)
 		}
 		if err := rcsync.MoveDir(ctx, dst, src, s.DeleteEmptySrcDirs, s.CreateEmptySrcDirs); err != nil || !(s.Rename || s.RemoveSrc) {
 			return err
 		}
-		// A move file by file leaves the old folder, now empty. A backend's own folder move left
-		// nothing to remove.
 		removeEmptied(ctx, src)
 		return nil
 	case OpSync:
-		// A retry of a failed file can't fall back to a sync step, so the sync's failures are
-		// recorded as they happen instead of relying on the snapshots that rclone still holds.
 		return rcsync.Sync(rcops.WithLogger(ctx, rec.syncLogger(i)), dst, src, s.CreateEmptySrcDirs)
 	case OpBisync:
 		// sync/bisync is where rclone turns these parameters into bisync's options. It checks
 		// them, fills in defaults, and sets the dry run in both places that bisync reads it.
-		// The Bisync page's switches are these parameters, so they are passed on unchanged.
 		in := rc.Params{"path1": s.Src, "path2": s.Dst}
 		for name, v := range p.Bisync {
 			in[name] = rcValue(v)
@@ -303,9 +260,7 @@ func (p Plan) runStep(ctx context.Context, i int, s Step, rec *Record) error {
 		_, err := rclone.CallIn(ctx, "sync/bisync", in)
 		said := heard()
 		if first && errors.Is(err, bisync.ErrBisyncAborted) {
-			// bisync only logs why it aborted. Without listings from an earlier run, it needs a
-			// resync to set the baseline. IsFirstRun reads this error back, and the Bisync page
-			// offers the resync.
+			// bisync only logs why it aborted.
 			return fmt.Errorf("%s: %w", noListings, err)
 		}
 		return p.bisyncError(ctx, err, src, dst, said)
@@ -315,7 +270,6 @@ func (p Plan) runStep(ctx context.Context, i int, s Step, rec *Record) error {
 		if s.Rename {
 			return renameFile(ctx, dst, src, s.DstRemote, s.SrcRemote)
 		}
-		// This also handles a retried file in a folder whose case changed (photos/a → Photos/a).
 		return MoveFileCaseSafe(ctx, dst, src, s.DstRemote, s.SrcRemote)
 	case OpDelete:
 		return rcops.Delete(ctx, src)

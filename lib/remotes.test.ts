@@ -11,15 +11,9 @@ vi.mock('./live', () => ({ onLive: () => () => undefined }))
 
 const tick = (ms = 20) => new Promise((resolve) => setTimeout(resolve, ms))
 
-// Returns the data that RemoteEditDrawer seeds its form from. The data must have been fetched
-// since the drawer opened, and must not be left over from before an error.
 const seedable = (r: QueryObserverResult<Record<string, string>>) =>
     r.data && r.isFetchedAfterMount && !r.isError ? r.data : undefined
 
-/**
- * Returns a query client and the Edit drawer's query for the `sftp` remote. The fake core returns
- * `answer()` as the host.
- */
 function remoteQuery(answer: () => string) {
     vi.mocked(api.Get).mockImplementation((async () => {
         const host = answer()
@@ -36,7 +30,6 @@ function remoteQuery(answer: () => string) {
     return { client, observe: () => new QueryObserver(client, options) }
 }
 
-/** Opens the drawer once, so its result is cached. */
 async function openedBefore(observe: ReturnType<typeof remoteQuery>['observe']) {
     const off = observe().subscribe(() => undefined)
     await tick()
@@ -47,7 +40,6 @@ test('the edit form is seeded once, from the answer asked for on open', async ()
     let host = 'old-host'
     const { client, observe } = remoteQuery(() => host)
     await openedBefore(observe)
-    // The remote was saved with a new host since then.
     host = 'new-host'
 
     const opened = observe()
@@ -63,7 +55,6 @@ test('the edit form is seeded once, from the answer asked for on open', async ()
         await client.invalidateQueries()
         await tick()
     }
-    // The cached result comes first, but it wasn't fetched after the drawer opened.
     expect(first.data?.host).toBe('old-host')
     expect(seedable(first)).toBeUndefined()
     expect(seeds).toEqual(['new-host'])
@@ -102,12 +93,10 @@ test('rclone asking the same question again after an answer is the next step', a
             question: { name: 'config_code' } as Option,
             busy: '',
         }
-        // After the answer, the core returns the same question again, word for word.
         vi.mocked(api.CurrentSession).mockImplementation((async () => ({
             ...question,
         })) as unknown as typeof api.CurrentSession)
 
-        // Waiting from the question itself sees no change, so the drawer would hang.
         let settled = false
         nextStep(question).then(() => {
             settled = true

@@ -301,6 +301,7 @@ msgstr ""
 msgid "%s copied to clipboard"
 msgstr ""
 
+#. The name of a duplicated schedule. "copy" means a duplicate here, not the operation.
 #: core/schedules/service.go
 msgid "%s copy"
 msgstr ""

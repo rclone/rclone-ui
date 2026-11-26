@@ -1,25 +1,4 @@
 #!/usr/bin/env bash
-# Runs the checks that CI runs. They come in three parts, and all three run when none is named.
-# The script keeps going after a failure, so one run shows every problem. At the end it fails and
-# lists the steps that failed.
-#
-#   build/check.sh                 # frontend, api and go
-#   build/check.sh frontend api    # only these parts
-#   build/check.sh --race go       # go test with the race detector
-#   build/check.sh bindings        # only the bindings check (build.sh runs it)
-#
-#   frontend  tsc, biome ci, vitest
-#   api       actionlint, go mod tidy -diff (root and tools), the third-party notices, the
-#             translations (that locales/ is in step with the code, that Spanish and Chinese
-#             are complete, and that every translation keeps its placeholders), that no
-#             tracked file still names an old identifier, and the bindings check.
-#             In CI, npm run gen replaces the bindings check: the generated code, which
-#             includes the launcher's icons, must not change. Outside CI nothing in the tree
-#             is regenerated, because the worktree may hold other work in progress.
-#   bindings  generates the bindings into a temporary folder and compares them with
-#             lib/shell/bindings, so a bound API that changed without npm run gen is caught.
-#   go        go vet and go test, build.sh --vet for this machine and for windows/arm64 (the
-#             only vet of the launcher's arm64-only files), and the tools' tests
 set -euo pipefail
 # Use the physical path, because npm names the root package by it, and build/notices finds the
 # root package to skip by comparing the two.
@@ -81,9 +60,6 @@ bindings() {
     fi
 }
 
-# catalogs fails when the translations in locales/ are out of step with the code: a message that
-# was added, changed or removed without `npm run i18n`. It runs npm run i18n and compares the
-# result with what the tree had. Then it puts the tree's files back, so nothing is left changed.
 catalogs() {
     local before
     before=$(mktemp -d)
@@ -98,9 +74,6 @@ catalogs() {
     fi
 }
 
-# identifiers fails when a tracked file, other than a Markdown file, holds one of the old
-# identifiers. The current ones are org.rclone.ui, Rclone.RcloneUI (on WinGet) and
-# github.com/rclone/rclone-ui.
 identifiers() {
     local old=(-e 'com.rclone.ui' -e 'com.rcloneui' -e 'RcloneUI.RcloneUI' -e 'rclone-ui/rclone-ui')
     if git grep -n -F "${old[@]}" -- ':!*.md' ':!build/check.sh'; then
@@ -122,10 +95,8 @@ api() {
     placeholder
     run go run ./build/notices -check
     run catalogs
-    # The shipped languages are complete, and every translation keeps its placeholders.
     run go run ./build/i18n -check
     run identifiers
-    # In CI, generated checks the bindings in the tree itself.
     if [ -n "${CI:-}" ]; then
         run generated
     else

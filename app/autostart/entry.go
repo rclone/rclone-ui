@@ -10,20 +10,11 @@ import (
 	"github.com/rclone/rclone-ui/app/platform"
 )
 
-// This file writes the XDG autostart entries that this package manages itself (see the package
-// comment). Under an AppImage, it is the file that Wails would write,
-// <XDG_CONFIG_HOME or ~/.config>/autostart/org.rclone.ui.desktop, but with the AppImage in Exec.
-// Under Flatpak, the entry goes in the host's autostart folder (the startup gate asks for access
-// to it, see platform.FlatpakMissing). It starts the app through flatpak run, because
-// /app/bin/rcui exists only inside the sandbox. The code builds on every OS so that the tests run
-// everywhere.
-
 type entry struct {
 	file string
 	argv []string
 }
 
-// configDir is the XDG config folder: $XDG_CONFIG_HOME, or ~/.config.
 func configDir(xdgConfigHome string) (string, error) {
 	if xdgConfigHome != "" {
 		return xdgConfigHome, nil
@@ -35,8 +26,7 @@ func configDir(xdgConfigHome string) (string, error) {
 	return filepath.Join(home, ".config"), nil
 }
 
-// entryFile returns the path of the entry that Wails writes, which is also the one written under
-// an AppImage.
+// Wails writes its entry at the same path.
 func entryFile() (string, error) {
 	dir, err := configDir(os.Getenv("XDG_CONFIG_HOME"))
 	if err != nil {
@@ -53,10 +43,9 @@ func appImageEntry(img string) (entry, error) {
 	return entry{file: file, argv: []string{img}}, nil
 }
 
-// flatpakEntry returns an entry in the host's autostart folder that starts the Flatpak at login.
+// /app/bin/rcui exists only inside the sandbox, so the entry starts the app through flatpak run.
 // When the session sets XDG_CONFIG_HOME, Flatpak passes it in as HOST_XDG_CONFIG_HOME, and $HOME
-// is the host's. The file is <Flatpak ID>.flatpak.desktop, so that it never is the entry of a
-// package install of the app (org.rclone.ui.desktop), which has the same ID.
+// is the host's.
 func flatpakEntry() (entry, error) {
 	dir, err := configDir(os.Getenv("HOST_XDG_CONFIG_HOME"))
 	if err != nil {
@@ -98,7 +87,6 @@ func (e entry) write() error {
 	return os.WriteFile(e.file, []byte(contents), 0o644)
 }
 
-// remove removes the entry. A missing entry is not an error.
 func (e entry) remove() error { return removeFile(e.file) }
 
 func removeFile(file string) error {
@@ -108,8 +96,6 @@ func removeFile(file string) error {
 	return nil
 }
 
-// enabled reports whether the entry runs its command line at login. That means the file exists
-// with that Exec line, and the desktop hasn't turned it off.
 func (e entry) enabled() (bool, error) {
 	b, err := os.ReadFile(e.file)
 	if errors.Is(err, os.ErrNotExist) {
@@ -129,8 +115,6 @@ func (e entry) enabled() (bool, error) {
 	return has && !disabled(contents), nil
 }
 
-// disabled reports whether a desktop turned an autostart entry off, either with Hidden=true (the
-// XDG way) or with X-GNOME-Autostart-enabled=false (GNOME's switches).
 func disabled(contents string) bool {
 	for line := range strings.SplitSeq(contents, "\n") {
 		key, value, ok := strings.Cut(line, "=")

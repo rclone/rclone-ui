@@ -19,8 +19,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// fileTools registers the tools that look at files and folders, and make small changes to them.
-// Deleting is a transfer, in transfers.go.
 func (s *Server) fileTools() {
 	s.listFilesTool()
 	s.searchFilesTool()
@@ -33,8 +31,6 @@ func (s *Server) fileTools() {
 	s.listOptionsTool()
 }
 
-// filesLimit is how many entries a list returns when the agent gives no limit. filesLimitMax is
-// the most that an agent can ask for.
 const (
 	filesLimit    = 200
 	filesLimitMax = 1000
@@ -47,8 +43,6 @@ func filesCap(limit int) int {
 	return min(limit, filesLimitMax)
 }
 
-// walkFor is how long a search or a folder's count runs before it stops and returns what it has
-// found, so that a huge remote can't hold the agent for minutes. A test shortens it.
 var walkFor = 30 * time.Second
 
 type filePathIn struct {
@@ -56,12 +50,9 @@ type filePathIn struct {
 }
 
 type fileEntry struct {
-	Name string `json:"name"`
-	// Path is the entry's full path, which the other tools take as it is.
+	Name     string `json:"name"`
 	Path     string `json:"path"`
 	IsFolder bool   `json:"is_folder"`
-	// Size is a file's size in bytes. A folder has none, and neither has a file whose remote
-	// doesn't know it.
 	Size     *int64 `json:"size,omitempty"`
 	Modified string `json:"modified,omitempty"`
 }
@@ -70,7 +61,6 @@ func fileEntryOf(r browse.Row) fileEntry {
 	return fileEntry{Name: r.Name, Path: r.Path, IsFolder: r.IsDir, Size: fileSize(r.IsDir, r.Size), Modified: fileTime(r.ModTime)}
 }
 
-// fileSize returns a file's size, or nil for a folder or a size that the remote doesn't know (-1).
 func fileSize(isDir bool, size int64) *int64 {
 	if isDir || size < 0 {
 		return nil
@@ -78,9 +68,6 @@ func fileSize(isDir bool, size int64) *int64 {
 	return &size
 }
 
-// fileTime returns a row's time as RFC 3339 to the second, which is all that an agent needs.
-// It is "" when the remote gave no time: a file on S3, Swift and the other backends where
-// reading it costs a request per file.
 func fileTime(t string) string {
 	parsed, err := time.Parse(time.RFC3339Nano, t)
 	if err != nil {
@@ -95,13 +82,11 @@ type listFilesIn struct {
 }
 
 type listFilesOut struct {
-	Path    string      `json:"path"`
-	Entries []fileEntry `json:"entries"`
-	// Total is how many entries the folder has. A folder with more than browse.ListMax is
-	// counted up to there.
-	Total     int    `json:"total"`
-	Truncated bool   `json:"truncated,omitempty"`
-	Note      string `json:"note,omitempty"`
+	Path      string      `json:"path"`
+	Entries   []fileEntry `json:"entries"`
+	Total     int         `json:"total"`
+	Truncated bool        `json:"truncated,omitempty"`
+	Note      string      `json:"note,omitempty"`
 }
 
 func (s *Server) listFilesTool() {
@@ -147,15 +132,12 @@ type searchFilesIn struct {
 }
 
 type searchFilesOut struct {
-	Path    string      `json:"path"`
-	Query   string      `json:"query"`
-	Matches []fileEntry `json:"matches"`
-	// Truncated is true when there are more matches than the limit.
-	Truncated bool `json:"truncated,omitempty"`
-	// StoppedEarly is true when the search didn't read the whole folder, so there may be more
-	// matches.
-	StoppedEarly bool   `json:"stopped_early,omitempty"`
-	Note         string `json:"note,omitempty"`
+	Path         string      `json:"path"`
+	Query        string      `json:"query"`
+	Matches      []fileEntry `json:"matches"`
+	Truncated    bool        `json:"truncated,omitempty"`
+	StoppedEarly bool        `json:"stopped_early,omitempty"`
+	Note         string      `json:"note,omitempty"`
 }
 
 func (s *Server) searchFilesTool() {
@@ -170,7 +152,6 @@ func (s *Server) searchFilesTool() {
 		limit := filesCap(in.Limit)
 		bounded, cancel := context.WithTimeout(ctx, walkFor)
 		defer cancel()
-		// One match more than the limit tells whether there are more.
 		rows, _, err := s.o.APIs.SearchRows(bounded, in.Path, in.Query, limit+1)
 		out := searchFilesOut{Path: in.Path, Query: in.Query, Matches: []fileEntry{}}
 		switch {
@@ -196,10 +177,9 @@ func (s *Server) searchFilesTool() {
 }
 
 type folderSizeOut struct {
-	Path  string `json:"path"`
-	Files int64  `json:"files"`
-	Bytes int64  `json:"bytes"`
-	// Complete is false when the count stopped before the end, so the folder holds more.
+	Path     string `json:"path"`
+	Files    int64  `json:"files"`
+	Bytes    int64  `json:"bytes"`
 	Complete bool   `json:"complete"`
 	Note     string `json:"note,omitempty"`
 }
@@ -231,14 +211,12 @@ type compareFoldersIn struct {
 	Limit int    `json:"limit,omitempty" jsonschema:"the most names in each list: 200 when not given, and at most 1000"`
 }
 
-// comparedEntry is a name that only one side of a comparison has.
 type comparedEntry struct {
 	Name     string `json:"name"`
 	IsFolder bool   `json:"is_folder"`
 	Size     *int64 `json:"size,omitempty"`
 }
 
-// comparedPair is a name that both sides of a comparison have, with what each side holds.
 type comparedPair struct {
 	Name          string `json:"name"`
 	LeftIsFolder  bool   `json:"left_is_folder,omitempty"`
@@ -258,17 +236,15 @@ type comparedCounts struct {
 }
 
 type compareFoldersOut struct {
-	Left      string          `json:"left"`
-	Right     string          `json:"right"`
-	Counts    comparedCounts  `json:"counts"`
-	OnlyLeft  []comparedEntry `json:"only_left"`
-	OnlyRight []comparedEntry `json:"only_right"`
-	Different []comparedPair  `json:"different"`
-	// Truncated is true when a list holds fewer names than its count.
-	Truncated bool `json:"truncated,omitempty"`
-	// StoppedEarly is true when a folder held more names than the comparison reads.
-	StoppedEarly bool   `json:"stopped_early,omitempty"`
-	Note         string `json:"note,omitempty"`
+	Left         string          `json:"left"`
+	Right        string          `json:"right"`
+	Counts       comparedCounts  `json:"counts"`
+	OnlyLeft     []comparedEntry `json:"only_left"`
+	OnlyRight    []comparedEntry `json:"only_right"`
+	Different    []comparedPair  `json:"different"`
+	Truncated    bool            `json:"truncated,omitempty"`
+	StoppedEarly bool            `json:"stopped_early,omitempty"`
+	Note         string          `json:"note,omitempty"`
 }
 
 func (s *Server) compareFoldersTool() {
@@ -333,8 +309,6 @@ type publicLinkOut struct {
 	Link string `json:"link"`
 }
 
-// publicLinkTool registers get_public_link. Making a link can share the file on the remote, so
-// the tool isn't read-only.
 func (s *Server) publicLinkTool() {
 	add(s, &mcp.Tool{
 		Name: "get_public_link",
@@ -350,8 +324,6 @@ func (s *Server) publicLinkTool() {
 	})
 }
 
-// readMax is the most bytes of a file that read_file returns, and what it returns unless the
-// agent asks for fewer.
 const readMax = 256 << 10
 
 type readFileIn struct {
@@ -360,13 +332,11 @@ type readFileIn struct {
 }
 
 type readFileOut struct {
-	Path string `json:"path"`
-	Text string `json:"text"`
-	// Size is the whole file's size in bytes, when the remote knows it.
-	Size     *int64 `json:"size,omitempty"`
-	Modified string `json:"modified,omitempty"`
-	// Truncated is true when Text is only the start of the file.
-	Truncated bool `json:"truncated,omitempty"`
+	Path      string `json:"path"`
+	Text      string `json:"text"`
+	Size      *int64 `json:"size,omitempty"`
+	Modified  string `json:"modified,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
 }
 
 func (s *Server) readFileTool() {
@@ -400,8 +370,6 @@ func (s *Server) readFileTool() {
 	})
 }
 
-// withoutCutRune drops the bytes at the end of data that start a character which the read cut
-// off, so that the start of a longer file is still valid UTF-8.
 func withoutCutRune(data []byte) []byte {
 	for i := len(data) - 1; i >= 0 && i >= len(data)-utf8.UTFMax; i-- {
 		if utf8.RuneStart(data[i]) {
@@ -438,15 +406,11 @@ type renameIn struct {
 }
 
 type renamed struct {
-	// Path is the entry's new path.
-	Path string `json:"path"`
-	// TransferID is the transfer that renames a folder, in the background.
+	Path       string `json:"path"`
 	TransferID string `json:"transfer_id,omitempty"`
 	Note       string `json:"note,omitempty"`
 }
 
-// renameTool registers rename. It finds out whether the path is a folder, which the Commander
-// knows from its listing, so that the agent needn't say.
 func (s *Server) renameTool() {
 	add(s, &mcp.Tool{
 		Name: "rename",
@@ -471,7 +435,6 @@ func (s *Server) renameTool() {
 	})
 }
 
-// optionOperations are the operations whose options list_options lists.
 var optionOperations = []operations.Operation{
 	operations.OperationCopy, operations.OperationMove, operations.OperationSync, operations.OperationBisync,
 	operations.OperationDelete, operations.OperationPurge, operations.OperationDownload,
@@ -485,18 +448,13 @@ type listOptionsIn struct {
 }
 
 type optionInfo struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-	// Default is the value that a run takes when the option isn't given: the app's own default
-	// where it has one, and rclone's otherwise.
-	Default string `json:"default,omitempty"`
-	// Choices are the values that a choice or flags option takes.
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`
+	Default string   `json:"default,omitempty"`
 	Choices []string `json:"choices,omitempty"`
-	// Help is the first sentence of rclone's help.
-	Help string `json:"help"`
+	Help    string   `json:"help"`
 }
 
-// optionSection is one group of an operation's options, as its window shows them.
 type optionSection struct {
 	Name    string       `json:"name"`
 	Options []optionInfo `json:"options"`
@@ -507,9 +465,6 @@ type optionsListed struct {
 	Groups    []optionSection `json:"groups"`
 }
 
-// listOptionsTool registers list_options. Its groups are those of the operation's form
-// (operations.FormSections), the same groups that optionGroupsFor sorts an agent's flat options
-// into. The options and their help are rclone's English, whatever the app's language.
 func (s *Server) listOptionsTool() {
 	add(s, &mcp.Tool{
 		Name: "list_options",
@@ -540,8 +495,6 @@ func (s *Server) listOptionsTool() {
 				return optionsListed{}, errs.Errorf("serve_type must be one of %s.", strings.Join(types, ", "))
 			}
 		}
-		// FormSections returns nothing for a download, because no template can be for one. Like a
-		// purge, a download reads only its config group.
 		sections := []operations.FormSection{{Group: operations.GroupConfig, Catalog: []string{operations.GroupConfig}}}
 		if op != operations.OperationDownload {
 			sections = operations.FormSections(op, serve)
@@ -550,10 +503,6 @@ func (s *Server) listOptionsTool() {
 	})
 }
 
-// optionSections describes the options of each group of op's form, from the catalog. An option
-// that two of a group's catalog groups list (copy and sync list many of the same) is described
-// once. Hidden options are left out, and so are those that search doesn't match. A group left
-// without options is left out too.
 func optionSections(cat catalog.Catalog, op operations.Operation, sections []operations.FormSection, search string) []optionSection {
 	blocks := map[string]map[string]*catalog.Option{}
 	for i := range cat.Blocks {
@@ -599,8 +548,6 @@ func optionSections(cat catalog.Catalog, op operations.Operation, sections []ope
 	return out
 }
 
-// optionInfoOf describes an option. appDefault is the app's default for it, as JSON, or nil when
-// the app keeps rclone's.
 func optionInfoOf(o *catalog.Option, appDefault json.RawMessage) optionInfo {
 	info := optionInfo{Name: o.Name, Type: string(o.Kind), Default: o.DefaultText, Help: firstSentence(o.Help)}
 	if appDefault != nil {
@@ -611,8 +558,6 @@ func optionInfoOf(o *catalog.Option, appDefault json.RawMessage) optionInfo {
 			info.Default = string(appDefault)
 		}
 	}
-	// Only a closed set's choices are listed. The other options' choices are suggestions, such
-	// as common sizes, which the type already explains.
 	if o.Kind == catalog.KindChoice || o.Kind == catalog.KindFlags {
 		for _, c := range o.Choices {
 			info.Choices = append(info.Choices, c.Value)
@@ -621,8 +566,6 @@ func optionInfoOf(o *catalog.Option, appDefault json.RawMessage) optionInfo {
 	return info
 }
 
-// firstSentence returns the first sentence of rclone's help, or its first line when that ends
-// first. Some help runs to several paragraphs, which would make list_options long.
 func firstSentence(help string) string {
 	line, _, _ := strings.Cut(strings.TrimSpace(help), "\n")
 	line = strings.TrimSpace(line)
@@ -632,7 +575,6 @@ func firstSentence(help string) string {
 			return line
 		}
 		end := from + i + 1
-		// An abbreviation's dot doesn't end the sentence.
 		if word := strings.ToLower(line[max(0, end-4):end]); !strings.HasSuffix(word, "e.g.") && !strings.HasSuffix(word, "i.e.") && !strings.HasSuffix(word, "etc.") {
 			return line[:end]
 		}

@@ -35,7 +35,6 @@ export default function StartupGroup() {
 
 function StartOnBootRow() {
     const queryClient = useQueryClient()
-    // autostart:changed sets it when any window changes it, this one too (followShellEvents).
     const enabledQuery = useQuery({ queryKey: shellKeys.autostart, queryFn: () => autostart.get() })
 
     return (
@@ -55,7 +54,6 @@ function StartOnBootRow() {
                             kind: 'error',
                         }
                     )
-                    // A change that failed sends no event, so the switch reads the OS again.
                     await queryClient.invalidateQueries({ queryKey: shellKeys.autostart })
                 }
             }}

@@ -15,34 +15,17 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// Options holds values for one of rclone's option blocks, keyed by rclone's option names, in the
-// form that a plan stores them. A scalar is stored as the text a person would type after its flag,
-// as the page gave it ("5m", "10M", "off", "true", "8"). A list option is stored as a list of
-// texts. rclone's parser for each option (rclone.ParseOption) reads the values when the plan is
-// built, and again when it runs.
 type Options map[string]any
 
-// The option blocks that a plan sets.
 const (
 	blockMain   = "main"
 	blockFilter = "filter"
 )
 
-// valueOf parses v, the value that a page or a plan holds for an option, into the option's own
-// type (the type of template), the same way the option's flag would (rclone.ParseOption). A JSON
-// number or boolean is read as its literal text, so a bare number for a size means KiB, as in
-// `--buffer-size 1000`. A single text for a []string option (a repeated flag) is one element. A
-// single text for a comma list or an argv (fs.SpaceSepList, such as metadata_mapper) is split by
-// rclone.
 func valueOf(template any, v any) (any, error) { return rclone.ParseOption(template, v) }
 
-// elementText returns a scalar as text, such as an element of a list option or the value of a
-// backend option.
 func elementText(v any) (string, error) { return rclone.OptionText(v) }
 
-// storedValue converts a value to the form that a plan stores. A scalar becomes its text as
-// given, and a list becomes the texts of its elements. Anything else is kept as it is, so that
-// valueOf refuses it later.
 func storedValue(v any) any {
 	if texts, err := rclone.OptionTexts(v); err == nil {
 		return anyList(texts)
@@ -53,7 +36,6 @@ func storedValue(v any) any {
 	return v
 }
 
-// anyList converts texts to []any, the type that JSON decoding produces for a list.
 func anyList(texts []string) []any {
 	out := make([]any, len(texts))
 	for i, t := range texts {
@@ -62,8 +44,6 @@ func anyList(texts []string) []any {
 	return out
 }
 
-// blockOf returns the registry entry of one of rclone's option blocks, and the items of a fresh
-// copy of its struct (configstruct.Items), which give the names and types of its options.
 func blockOf(name string) (fs.OptionsInfo, map[string]configstruct.Item, error) {
 	info, ok := fs.OptionsRegistry[name]
 	if !ok {
@@ -96,10 +76,6 @@ func unknownOption(block, name string) error {
 	return errs.Errorf("‘%s’ is not an rclone option", name)
 }
 
-// checkKey returns why a transfer can't take the option written key, when rclone reads the
-// group's options from blocks. The key must name an option of one of the blocks, written as
-// rclone writes it (`dry_run`, not `--dry-run`), and the option must be one that a transfer can
-// set for itself (rclone.PerOperation).
 func checkKey(field, key string, blocks []string) error {
 	name := catalog.NormalizeOptionName(key)
 	known := slices.ContainsFunc(blocks, func(block string) bool {
@@ -122,17 +98,10 @@ func notPerOperation(field, name string) error {
 	return errs.Field(field, "%s can't be set for one transfer, because rclone sets it once: for the whole app, or when it first opens a remote.", name)
 }
 
-// transferTags lists the operations that run as transfers, as templates tag them. Mount and
-// serve run as their own process, with the options as command-line flags, so every option
-// takes effect there.
 var transferTags = []Operation{
 	OperationCopy, OperationMove, OperationSync, OperationBisync, OperationDelete, OperationPurge,
 }
 
-// CheckOption returns why a transfer of the operation tag (copy, move, sync, bisync, delete or
-// purge) can't take the option written key: rclone has no option of that name for a transfer,
-// the key is a flag's spelling (`--dry-run`, `dry-run`), or the option is one that rclone sets
-// once for the whole app (rclone.NotPerOperation). It returns nil for any other tag.
 func CheckOption(tag Operation, key string) error {
 	if !slices.Contains(transferTags, tag) {
 		return nil
@@ -140,11 +109,6 @@ func CheckOption(tag Operation, key string) error {
 	return checkKey("options", key, []string{blockMain, blockFilter})
 }
 
-// CheckTemplate refuses a template whose options set a metadata mapper without `metadata`
-// (checkMapper), or two spellings of one option. It also refuses a template for a transfer (one
-// of tags is in transferTags) whose options set one of rclone.NotPerOperation, however its name
-// is spelled. Other keys are left to the page, which shows an unknown option in its Config
-// section.
 func CheckTemplate(tags []Operation, options catalog.Group) error {
 	decoded, err := decodeGroupOn("options", "template", options)
 	if err != nil {
@@ -164,9 +128,6 @@ func CheckTemplate(tags []Operation, options catalog.Group) error {
 	return nil
 }
 
-// typedOptions parses o into the types of a block's options. It refuses a name that the block's
-// registry does not list, because configstruct would silently skip it. It also refuses a value
-// that rclone can't parse, and a main option that rclone's Reload would refuse (checkReload).
 func typedOptions(block string, o Options) (map[string]any, error) {
 	info, items, err := blockOf(block)
 	if err != nil {
@@ -218,10 +179,6 @@ func checkReload(typed map[string]any) error {
 	return nil
 }
 
-// storedOptions converts a group's options to the form that a plan stores. Blank values are left
-// out, and names and values are checked against the block. A scalar is kept as the page gave it
-// (storedValue). A list option is stored as the elements that rclone parsed, so the text of a
-// comma list or an argv is split the way rclone splits it.
 func storedOptions(block string, o options) (Options, error) {
 	set := Options{}
 	for name, v := range o {
@@ -247,9 +204,6 @@ func storedOptions(block string, o options) (Options, error) {
 	return out, nil
 }
 
-// setOptions sets o on opt, which is a block's struct (a copy of rclone's *fs.ConfigInfo or
-// filter.Options). Each value is parsed by rclone's parser for its option and then set on its
-// field (rclone.SetFields). Only the fields named in o are changed.
 func setOptions(block string, o Options, opt any) error {
 	if len(o) == 0 {
 		return nil

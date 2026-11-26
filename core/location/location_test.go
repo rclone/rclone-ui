@@ -13,9 +13,6 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// pathCase is one row of testdata/paths_cases.json, the table that the frontend's lib/paths.ts
-// tests read. Here it checks that the frontend parses a path the same way rclone does, and that
-// Split puts the root where the table says.
 type pathCase struct {
 	ID    string `json:"id"`
 	Input string `json:"input"`
@@ -30,7 +27,6 @@ type pathCase struct {
 	Problem string  `json:"problem"`
 }
 
-// rclonePrefix is the text Problem puts before rclone's own error.
 const rclonePrefix = "Rclone cannot read this path: "
 
 func TestPathCases(t *testing.T) {
@@ -47,7 +43,6 @@ func TestPathCases(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.ID, func(t *testing.T) {
-			// rclone parses paths for the OS it is built for, so only that OS's rows apply.
 			if (c.Host != nil && c.Host.Windows) != (runtime.GOOS == "windows") {
 				t.Skip("another host's row")
 			}
@@ -57,7 +52,6 @@ func TestPathCases(t *testing.T) {
 				if err == nil {
 					t.Errorf("rclone parses it: %+v", parsed)
 				}
-				// The frontend writes its own sentence, and the core quotes rclone.
 				if got := Problem(c.Input).String(); c.Input != "" && !strings.HasPrefix(got, rclonePrefix) {
 					t.Errorf("problem %q", got)
 				}
@@ -66,12 +60,9 @@ func TestPathCases(t *testing.T) {
 				t.Fatalf("rclone refuses it: %v", err)
 			case c.Kind == "local" && parsed.Name != "":
 				t.Errorf("rclone reads the remote %q", parsed.Name)
-			// The table keeps the path exactly as typed, and rclone turns `\` into `/` on Windows.
 			case c.Kind == "remote" && (parsed.Name != *c.Name || parsed.Path != filepath.ToSlash(*c.Path)):
 				t.Errorf("rclone reads name %q path %q, want %q %q", parsed.Name, parsed.Path, *c.Name, *c.Path)
 			}
-			// Paths that rclone accepts but would read differently are reported in the same
-			// words as the frontend.
 			if got := Problem(c.Input).String(); got != c.Problem {
 				t.Errorf("problem %q, want %q", got, c.Problem)
 			}
@@ -85,8 +76,6 @@ func TestPathCases(t *testing.T) {
 	}
 }
 
-// The Fs passed to rclone keeps the slash the user typed, and the rest is a folder when it is
-// written as one.
 func TestSplit(t *testing.T) {
 	for _, tc := range []struct {
 		input, root, rel string
@@ -101,7 +90,6 @@ func TestSplit(t *testing.T) {
 		{"/tmp/x/", ":local:/", "tmp/x", true, true},
 		{"/", ":local:/", "", true, true},
 		{":local:/tmp/x", ":local:/", "tmp/x", false, false},
-		// In a remote's path, `//` is two slashes, not a share.
 		{"gdrive://a", "gdrive:/", "a", false, false},
 	} {
 		at, err := Split(tc.input)
@@ -121,9 +109,6 @@ func TestSplit(t *testing.T) {
 	}
 }
 
-// A listing's rows keep the form of the listed folder's root. The rclone entry (relative to the
-// root, with `/` between names) is put back after the root the user typed, or after the
-// machine's own root for a local path.
 func TestEntry(t *testing.T) {
 	cases := []struct{ folder, rel, want string }{
 		{"gdrive:photos", "photos/a.jpg", "gdrive:photos/a.jpg"},
@@ -137,7 +122,6 @@ func TestEntry(t *testing.T) {
 		cases = append(cases, []struct{ folder, rel, want string }{
 			{"/Users/me", "Users/me/docs", "/Users/me/docs"},
 			{"/", "tmp", "/tmp"},
-			// Outside Windows a backslash is part of a name, and it stays that way.
 			{`/tmp/a\b`, `tmp/a\b/c.txt`, `/tmp/a\b/c.txt`},
 			{`gdrive:a\b`, `a\b/c`, `gdrive:a\b/c`},
 		}...)
@@ -153,7 +137,6 @@ func TestEntry(t *testing.T) {
 	}
 }
 
-// A path that can't be used is reported next to the field, in rclone's words.
 func TestProblem(t *testing.T) {
 	for _, tc := range []struct{ input, want string }{
 		{"gdrive:photos", ""},
@@ -174,7 +157,7 @@ func TestRefusal(t *testing.T) {
 	for _, p := range []string{"-bad:x", "tmp", "C:/Users/me"} {
 		want := Problem(p).String()
 		if want == "" {
-			continue // C:/Users/me on Windows
+			continue
 		}
 		if err := Refusal(p); err == nil || err.Error() != want || !errs.Is(err) || errs.FieldOf(err) != "" {
 			t.Errorf("%s: refusal %v, want %q", p, err, want)
@@ -190,8 +173,6 @@ func TestRefusal(t *testing.T) {
 	}
 }
 
-// A local path that isn't absolute would be read from the app's working directory, so it is
-// refused, whether it is written as a plain path or with the local backend.
 func TestProblemRelativeLocal(t *testing.T) {
 	want := "This is not a full path. Use one that starts with /."
 	full := []string{"/tmp", ":local:/tmp", ":local,case_sensitive=true:/tmp", "gdrive:x", "gdrive:"}
@@ -199,7 +180,6 @@ func TestProblemRelativeLocal(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		want = `This is not a full path. Use one that starts with a drive, as in C:\.`
 		full = append(full, `C:\x`, `c:/x`, `\\srv\share\x`, `\x`)
-		// A drive with no separator means the folder last used on that drive.
 		relative = append(relative, `c:x`, "C:", `:local:D:x`)
 	}
 	for _, p := range relative {
@@ -214,8 +194,6 @@ func TestProblemRelativeLocal(t *testing.T) {
 	}
 }
 
-// TestRenameRemote checks the one rule that every saved path follows when a remote is renamed:
-// rclone's reading of the path decides, and a connection string keeps its parameters.
 func TestRenameRemote(t *testing.T) {
 	for _, c := range []struct {
 		in, want string

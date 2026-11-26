@@ -41,8 +41,6 @@ function FileTile({ entry }: { entry: Entry }) {
     )
 }
 
-// Lazy-loaded so that each viewer's heavy WASM or WebGL bundle loads only when a matching file
-// is opened. This keeps them out of the main bundle and the Browser bundle.
 const PdfPreview = lazy(() => import('./PdfPreview'))
 const DocxPreview = lazy(() => import('./DocxPreview'))
 const XlsxPreview = lazy(() => import('./XlsxPreview'))
@@ -51,11 +49,8 @@ const CodeMirrorPreview = lazy(() => import('./CodeMirrorPreview'))
 
 const CODE_VIEWER_TYPES = new Set(['text', 'code', 'config'])
 
-// Shown with the browser's own elements, directly from the signed URL.
 const MEDIA_TYPES = new Set(['image', 'video', 'audio'])
 
-// Documents open in a dedicated inline viewer, chosen by extension. Any other extension falls
-// through to the media and text cases, or to the download fallback below.
 const DOCUMENT_VIEWERS: Record<string, LazyExoticComponent<ComponentType<PreviewViewerProps>>> = {
     pdf: PdfPreview,
     docx: DocxPreview,
@@ -82,7 +77,6 @@ export default function PreviewDrawer({
     item: Entry | null
     onClose: () => void
 }) {
-    // When expanded, the drawer widens to almost the full width of the window (97vw).
     const [expanded, setExpanded] = useState(false)
 
     const fileType = item ? getFileType(item) : 'unknown'
@@ -91,20 +85,13 @@ export default function PreviewDrawer({
     const ext = item ? getFileExtension(item.name) : ''
     const DocumentViewer: LazyExoticComponent<ComponentType<PreviewViewerProps>> | undefined =
         DOCUMENT_VIEWERS[ext]
-    // Only documents have a size limit (DOCUMENT_MAX). Images, video and audio stream through
-    // the signed URL whatever their size, and the text viewer loads only the start of a large
-    // file (CodeMirrorPreview).
     const isTooLarge = !!DocumentViewer && item?.size !== undefined && item.size > DOCUMENT_MAX
 
-    // The core streams the file through a signed URL that supports ranges, so a video can seek.
     const media = useMediaUrl(item && canPreview && !isTooLarge ? item.fullPath : undefined)
     const previewUrl = media.url ?? null
 
-    // The URL that an <img>, <video> or <audio> element couldn't load (missing, refused, expired,
-    // or in a format it can't play). It is stored by URL, so the next file starts fresh.
     const [failedUrl, setFailedUrl] = useState<string | null>(null)
 
-    // Downloads the file as an attachment, which the system browser saves.
     const handleDownload = useCallback(() => {
         if (!item) return
         mediaUrl(item.fullPath, false)
@@ -135,8 +122,6 @@ export default function PreviewDrawer({
             )
         }
 
-        // Shown for types that can't be rendered inline, and for formats of an otherwise
-        // previewable type that no viewer handles (such as .odt).
         const unsupportedFallback = (
             <PreviewNotice
                 visual={<FileTile entry={item} />}
@@ -161,7 +146,6 @@ export default function PreviewDrawer({
             )
         }
 
-        // There is no URL, so nothing below could show the file.
         if (media.error) {
             return (
                 <PreviewError
@@ -171,13 +155,10 @@ export default function PreviewDrawer({
             )
         }
 
-        // The viewers receive the URL while it is still being signed and show it as loading, so
-        // a viewer that is already open stays mounted from one file to the next.
         if (DocumentViewer) {
             return <DocumentViewer url={previewUrl} name={item.name} onDownload={handleDownload} />
         }
 
-        // A .csv file is classified as a spreadsheet, but it is shown as delimited text.
         if (CODE_VIEWER_TYPES.has(fileType) || ext === 'csv') {
             return (
                 <CodeMirrorPreview url={previewUrl} name={item.name} onDownload={handleDownload} />

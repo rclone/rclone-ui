@@ -7,12 +7,6 @@ import (
 	"strings"
 )
 
-// A message that is saved (a transfer's error, a schedule's last error) may be shown months
-// later, in another language than the app had when it happened. Save writes a Text with its
-// English message and its values, and Saved reads it back as a Text, which is then shown in the
-// language of the day. Anything else, such as rclone's own error, is saved as its plain words.
-
-// savedMark starts a saved Text. No message starts with this control character.
 const savedMark = "\x1e"
 
 type savedText struct {
@@ -23,7 +17,6 @@ type savedText struct {
 	Args   []any  `json:"a,omitempty"`
 }
 
-// savedArg is a value that is itself a Text.
 type savedArg struct {
 	Text *savedText `json:"t"`
 }
@@ -78,7 +71,6 @@ func (t Text) saved() *savedText {
 		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, bool, string:
 			s.Args = append(s.Args, v)
 		default:
-			// Any other value is saved as fmt would print it.
 			s.Args = append(s.Args, fmt.Sprint(v))
 		}
 	}
@@ -108,7 +100,6 @@ func (s *savedText) text() Text {
 	for _, a := range s.Args {
 		switch v := a.(type) {
 		case map[string]any:
-			// A nested Text, which the decoder gives as a map: read it again as one.
 			if b, err := json.Marshal(v["t"]); err == nil {
 				var inner savedText
 				dec := json.NewDecoder(strings.NewReader(string(b)))
@@ -120,7 +111,6 @@ func (s *savedText) text() Text {
 			}
 			t.args = append(t.args, "")
 		case json.Number:
-			// A whole number is an int again, so that %d formats it.
 			if i, err := v.Int64(); err == nil {
 				t.args = append(t.args, int(i))
 			} else if f, err := v.Float64(); err == nil {

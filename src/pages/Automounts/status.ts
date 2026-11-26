@@ -10,17 +10,12 @@ export interface Status {
     kind: StatusKind
 }
 
-/**
- * The status on an automount's row. A missing remote comes first, because the automount can't
- * mount until the remote is back.
- */
 export function statusOf(a: Pick<Automount, 'mountId' | 'remoteMissing'>): Status {
     if (a.remoteMissing) return { label: t`Remote missing`, kind: 'warning' }
     if (a.mountId) return { label: t`Mounted`, kind: 'success' }
     return { label: t`Not mounted`, kind: 'idle' }
 }
 
-/** Reports whether the row offers "Mount now". */
 export function canMountNow(a: Pick<Automount, 'enabled' | 'mountId' | 'remoteMissing'>): boolean {
     return a.enabled && !a.mountId && !a.remoteMissing
 }
@@ -34,7 +29,6 @@ export function searchFields(a: Automount): string[] {
     return [sourceOf(a), a.mountPoint]
 }
 
-/** The line under the window's title. */
 export function summaryOf(automounts: readonly Automount[]): string {
     const mounted = automounts.filter((a) => a.mountId).length
     const off = automounts.filter((a) => !a.enabled).length

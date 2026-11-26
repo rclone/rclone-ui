@@ -25,8 +25,8 @@ export function CheckName(name: string): $CancellablePromise<string> {
 }
 
 /**
- * CheckRemote checks one remote again, for its edit form. Health reports checking until the
- * check finishes, and remotes.health reports its result.
+ * CheckRemote checks one remote again. Health reports checking until the check finishes, and
+ * remotes.health reports its result.
  */
 export function CheckRemote(name: string): $CancellablePromise<void> {
     return $Call.ByID(3327434750, name);

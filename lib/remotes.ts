@@ -15,10 +15,6 @@ import type {
 
 export type { ConfigStep, FsInfoView, HealthResult, Remote }
 
-// The remotes in the config. The list includes each remote's type and cached fsinfo.
-// remotes.changed and remotes.health keep the queries fresh.
-
-/** The pseudo-remotes the navigator lists beside the real ones. */
 const NOT_REMOTES = new Set(['UI_LOCAL_FS', 'UI_FAVORITES'])
 
 export function useRemotes() {
@@ -57,7 +53,6 @@ export function useNameProblem(name: string, ask: boolean) {
     return ask ? data || undefined : undefined
 }
 
-/** Every remote's health, by name: ok (with its quota), faulty, checking or unknown. */
 export function useRemoteHealth() {
     return useQuery({ queryKey: coreKey('remotes', 'Health'), queryFn: () => api.Health() })
 }
@@ -88,10 +83,6 @@ export function filenApiKey(email: string, password: string, code: string): Prom
     return api.FilenAPIKey(email, password, code)
 }
 
-/**
- * A remote's capabilities, from the cached fsinfo in the list. The core refreshes it in the
- * background, and sends remotes.changed when the new fsinfo is in.
- */
 export function useFsInfo(remote: string | undefined | null) {
     const { remotes, query } = useRemotes()
     const data = useMemo<FsInfoView | undefined>(
@@ -142,10 +133,6 @@ export function finished(step: ConfigStep | null | undefined): boolean {
     return !!step && FINISHED.has(step.state)
 }
 
-/**
- * Starts a config session (create, update or reconnect). remotes.session events report its later
- * steps.
- */
 export async function startSession(
     req: Pick<SessionRequest, 'kind' | 'name'> &
         Partial<Pick<SessionRequest, 'newName' | 'type' | 'values' | 'nonInteractive'>>

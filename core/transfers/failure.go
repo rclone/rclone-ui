@@ -7,13 +7,8 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// failed reports whether a transfer's error only counts its failed steps (summaryError).
 func failed(errText string) bool { return strings.HasSuffix(errText, " operations failed") }
 
-// failureText returns a failed transfer's error as the user should read it. A transfer whose
-// steps failed records only how many did ("1 of 1 operations failed"), so the reason is added:
-// the first error not tied to a file (general), or else the failed files, with the first one's
-// error. It is used alone when only one step ran.
 func failureText(err, general i18n.Text, failedFiles int, fileErr string) i18n.Text {
 	errText := err.String()
 	if !failed(errText) {
@@ -26,7 +21,7 @@ func failureText(err, general i18n.Text, failedFiles int, fileErr string) i18n.T
 	case failedFiles == 1 && fileErr != "":
 		// i18n: Why a transfer failed. The value is the file's error.
 		reason = i18n.M("1 file failed: %s", fileErr)
-	case failedFiles >= maxFailed && fileErr != "": // the ledger keeps only the first maxFailed
+	case failedFiles >= maxFailed && fileErr != "":
 		// i18n: Why a transfer failed. The values are how many files failed at least, and the first one's error.
 		reason = i18n.MN("at least %d file failed. The first error: %s", "at least %d files failed. The first error: %s", maxFailed, maxFailed, fileErr)
 	case failedFiles > 1 && fileErr != "":
@@ -43,8 +38,6 @@ func failureText(err, general i18n.Text, failedFiles int, fileErr string) i18n.T
 	return i18n.M("%s: %s", err, reason)
 }
 
-// FailureText returns a failed transfer's error as the user should read it, in a notification or
-// a schedule's last error (see failureText).
 func (s *Service) FailureText(ctx context.Context, t Transfer) i18n.Text {
 	text := t.ErrorText()
 	if t.ID == "" || !failed(t.Error) {

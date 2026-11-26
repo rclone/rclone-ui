@@ -16,8 +16,6 @@ import (
 	"github.com/rclone/rclone/fs/config/obscure"
 )
 
-// encryptedConfig returns plain encrypted with password, as rclone writes it. It leaves rclone
-// with no key, so the child gets its own.
 func encryptedConfig(t *testing.T, plain, password string) []byte {
 	t.Helper()
 	if err := config.SetConfigPassword(password); err != nil {
@@ -44,14 +42,11 @@ func writeOutside(t *testing.T, path string, data []byte) {
 	}
 }
 
-// startChild writes a config holding plain, encrypted with password unless password is "". It
-// then sets up a child on it the way the core does (a key file, --ask-password=false): rclone's
-// init installs its storage, then Ready runs. It returns the config's path.
 func startChild(t *testing.T, plain, password string) string {
 	t.Helper()
 	ci := fs.GetConfig(context.Background())
 	ask := ci.AskPassword
-	ci.AskPassword = false // as every child runs (see core/children/rclone.go)
+	ci.AskPassword = false
 	orig := config.GetConfigPath()
 	t.Cleanup(func() {
 		ci.AskPassword = ask
@@ -89,13 +84,9 @@ const (
 	outside = "[box]\ntype = memory\ntoken = 2\n\n[other]\ntype = memory\n"
 )
 
-// TestChildRefusesToSaveAfterAFailedReload checks a child whose config password is changed or
-// newly set by another process. The reload fails, and the child's next save (a token refresh)
-// leaves the file as the other process wrote it, rather than writing plain text. Once the file
-// can be read again (here, because the password was removed), saves resume.
 func TestChildRefusesToSaveAfterAFailedReload(t *testing.T) {
 	for _, c := range []struct {
-		name, password string // the config's password when the child starts; "" for a plain file
+		name, password string
 	}{
 		{"password changed", "old"},
 		{"password set", ""},
@@ -105,12 +96,11 @@ func TestChildRefusesToSaveAfterAFailedReload(t *testing.T) {
 			newer := encryptedConfig(t, outside, "new")
 
 			writeOutside(t, path, newer)
-			_ = config.SetValueAndSave("box", "token", "refreshed") // a token refresh
+			_ = config.SetValueAndSave("box", "token", "refreshed")
 			if got, _ := os.ReadFile(path); !bytes.Equal(got, newer) {
 				t.Fatalf("the child saved over the file:\n%s", got)
 			}
 
-			// With the password removed, the file can be read again, and the child saves.
 			writeOutside(t, path, []byte(outside))
 			_ = config.SetValueAndSave("box", "token", "3")
 			got, err := os.ReadFile(path)
@@ -124,15 +114,11 @@ func TestChildRefusesToSaveAfterAFailedReload(t *testing.T) {
 	}
 }
 
-// TestChildSavesPlainAfterThePasswordIsRemoved checks a child whose config password is removed
-// by another process. The child reads the file again (rclone reads a plain file whatever key it
-// holds), and its next save stays plain and keeps what the other process wrote, rather than
-// encrypting it with the old password.
 func TestChildSavesPlainAfterThePasswordIsRemoved(t *testing.T) {
 	path := startChild(t, before, "old")
 
 	writeOutside(t, path, []byte(outside))
-	_ = config.SetValueAndSave("box", "token", "refreshed") // a token refresh
+	_ = config.SetValueAndSave("box", "token", "refreshed")
 	got, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

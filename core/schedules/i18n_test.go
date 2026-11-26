@@ -12,8 +12,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/testutil"
 )
 
-// TestLastErrorIsSaved checks that a run's error is saved with its message and values, that the
-// service reads it in English, and that the API gives it in the app's language.
 func TestLastErrorIsSaved(t *testing.T) {
 	r := &fakeRunner{refuse: []error{errs.Errorf("couldn't find remote %q", "gone")}}
 	f := newFixture(t, r)
@@ -49,8 +47,6 @@ func TestLastErrorIsSaved(t *testing.T) {
 	}
 }
 
-// TestBisyncErrorIsTranslatable checks that the scheduler's own wording of a bisync's trouble is
-// a translatable message with the folder in it, and that other errors are kept as they are.
 func TestBisyncErrorIsTranslatable(t *testing.T) {
 	deletes := i18n.Saved("too many deletes on Path2 - 60% > 50%")
 	got := bisyncError(deletes, "/a", "/b")

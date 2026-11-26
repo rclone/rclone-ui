@@ -1,6 +1,3 @@
-// Package testutil holds helpers that the core's tests share: failing on an error, waiting for a
-// condition, and a TestMain that gives the process a home folder of its own. It imports nothing
-// from the core, so any package's tests can use it, including core/rclone's.
 package testutil
 
 import (
@@ -33,14 +30,11 @@ func Eventually(t testing.TB, d time.Duration, what string, cond func() bool) {
 	}
 }
 
-// homeVars are the environment variables that tell a program where the user's folders are. They
-// cover rclone's config and cache, the keychain fallback, and a child's own home.
 var homeVars = []string{"HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA"}
 
 // Home points every per-user folder of this process, and of the children it starts, at dir, and
-// unsets RCLONE_CONFIG. That way, nothing from the user's own setup is read or written. rclone
-// chose its default config file during its init, based on the real home, so Home also points that
-// default at dir/rclone/rclone.conf.
+// unsets RCLONE_CONFIG. rclone chose its default config file during its init, based on the real
+// home, so Home also points that default at dir/rclone/rclone.conf.
 func Home(dir string) {
 	_ = os.Unsetenv("RCLONE_CONFIG")
 	for _, k := range homeVars {

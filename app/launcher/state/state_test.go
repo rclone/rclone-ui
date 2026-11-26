@@ -19,7 +19,6 @@ import (
 	"github.com/rclone/rclone-ui/core/vfs"
 )
 
-// fakeCore is a fake core with one running transfer and nothing else.
 type fakeCore struct{}
 
 func (fakeCore) ActiveTransfers(context.Context) ([]transfers.Transfer, error) {
@@ -41,7 +40,6 @@ type noVfs struct{}
 
 func (noVfs) Forget(context.Context, string) error { return nil }
 
-// eventually fails the test unless ok becomes true within ten seconds.
 func eventually(t *testing.T, what string, ok func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
@@ -53,8 +51,6 @@ func eventually(t *testing.T, what string, ok func() bool) {
 	}
 }
 
-// TestServicesOnlyWhileReady: while the core isn't running, no core action and no folder listing
-// is available.
 func TestServicesOnlyWhileReady(t *testing.T) {
 	store := corestate.New(fakeCore{}, slog.New(slog.DiscardHandler))
 	h := New(store, fakeCore{})
@@ -71,10 +67,6 @@ func TestServicesOnlyWhileReady(t *testing.T) {
 	}
 }
 
-// progressHandled subscribes to store after the launcher's state. Each change goes to the
-// subscribers in turn, so when this subscriber hears of progress, the state has handled that
-// progress and every change before it. The function it returns waits until this subscriber has
-// heard of progress while the transfer was at pct.
 func progressHandled(t *testing.T, store *corestate.Store) (wait func(pct int)) {
 	var heard atomic.Int64
 	heard.Store(math.MinInt64)
@@ -89,8 +81,6 @@ func progressHandled(t *testing.T, store *corestate.Store) (wait func(pct int)) 
 	}
 }
 
-// TestProgressIsToldOnceASecond: progress that arrives faster than progressEvery is reported once,
-// after that time has passed. Progress that nobody follows still lands, but isn't reported.
 func TestProgressIsToldOnceASecond(t *testing.T) {
 	store := corestate.New(fakeCore{}, slog.New(slog.DiscardHandler))
 	h := New(store, fakeCore{})
@@ -111,8 +101,6 @@ func TestProgressIsToldOnceASecond(t *testing.T) {
 	}
 	store.CoreReady(context.Background())
 	eventually(t, "the first read", func() bool { return !store.Snapshot().Loaded.IsZero() })
-	// The reads' own reports come before this progress, which isn't reported because nobody
-	// follows it yet.
 	progress(-1)
 	handled(-1)
 	h.FollowProgress(true)

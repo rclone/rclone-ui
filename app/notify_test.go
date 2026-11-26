@@ -11,7 +11,6 @@ import (
 
 func TestUnshownToastFallsBack(t *testing.T) {
 	var dialogs []string
-	// The notifier was never started, so the OS shows no toasts.
 	n := &notifier{log: slog.New(slog.DiscardHandler), dialog: func(title, _ string) { dialogs = append(dialogs, title) }}
 	n.send("Copied!", "Serve details copied to clipboard")
 	n.show(toast{title: "Mount failed", body: "photos: no such remote"})
@@ -21,8 +20,7 @@ func TestUnshownToastFallsBack(t *testing.T) {
 	}
 }
 
-// TestToastRoute passes the toast's data through JSON, as macOS and Windows do before they pass
-// it back with a click.
+// macOS and Windows pass a toast's data through JSON before they pass it back with a click.
 func TestToastRoute(t *testing.T) {
 	o := toast{title: "Copy finished", route: "/history?id=t1"}.options()
 	if o.ID == "" || o.Title != "Copy finished" {

@@ -21,7 +21,6 @@ import (
 
 var ErrTargetNotFound = errs.NotFound("target", "Notification target not found.")
 
-// urlKey returns a key for url that ignores case, used to keep target urls unique.
 func urlKey(url string) string {
 	sum := sha256.Sum256([]byte(strings.ToLower(url)))
 	return hex.EncodeToString(sum[:])
@@ -48,7 +47,6 @@ func (s *Service) scanTarget(row db.Scanner) (NotificationTarget, error) {
 	return t, nil
 }
 
-// unreadableEvents is the error shown on a listed target whose saved events are not valid JSON.
 const unreadableEvents = "Its events can't be read. Choose them again and save it."
 
 // Targets lists the saved targets, oldest first. A target whose events can't be read is listed
@@ -198,9 +196,6 @@ func (s *Service) SetEnabled(ctx context.Context, id string, enabled bool) error
 	return nil
 }
 
-// record saves a delivery's outcome on its target, unless the target has been deleted since. The
-// error is saved with i18n.Save, so that a page can show it later in the language the app has
-// then.
 func (s *Service) record(ctx context.Context, id string, sendErr error) {
 	var lastErr any
 	if sendErr != nil {
@@ -231,7 +226,6 @@ func (s *Service) exec(ctx context.Context, query string, args ...any) (int64, e
 
 func (s *Service) changed() { s.bus.Publish(bus.NotificationsChanged, nil) }
 
-// wrapTarget adds context to err, but returns the errors that a page shows unchanged.
 func wrapTarget(what string, err error) error {
 	var ae *errs.FieldError
 	if errors.As(err, &ae) || errors.Is(err, ErrTargetNotFound) {

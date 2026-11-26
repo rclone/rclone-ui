@@ -9,11 +9,8 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// appImageLibs is an AppImage's LD_LIBRARY_PATH, as its AppRun sets it.
 const appImageLibs = "/tmp/.mount_RcloneXYZ/usr/lib/:/tmp/.mount_RcloneXYZ/usr/lib/x86_64-linux-gnu/:/usr/lib"
 
-// TestAppImageLibraryPath checks that the variable counts as the AppImage's only when running
-// under an AppImage.
 func TestAppImageLibraryPath(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -32,9 +29,6 @@ func TestAppImageLibraryPath(t *testing.T) {
 	}
 }
 
-// TestAppImageLibraryPathOfThisProcess checks that under an AppImage, AppImageLibraryPath returns
-// its LD_LIBRARY_PATH and leaves the app's own variable unchanged. Outside an AppImage it returns
-// "".
 func TestAppImageLibraryPathOfThisProcess(t *testing.T) {
 	t.Setenv("APPIMAGE", "/home/u/Rclone-UI-4.0.0-linux-x86_64.AppImage")
 	t.Setenv("LD_LIBRARY_PATH", appImageLibs)
@@ -50,8 +44,6 @@ func TestAppImageLibraryPathOfThisProcess(t *testing.T) {
 	}
 }
 
-// TestWithLibraryPath checks that a child's environment gets the AppImage's value unchanged, in
-// place of any other value. Outside an AppImage the environment is left alone.
 func TestWithLibraryPath(t *testing.T) {
 	env := []string{"HOME=/home/u", "LD_LIBRARY_PATH=/opt/lib"}
 	if got := withLibraryPath(slices.Clone(env), ""); !slices.Equal(got, env) {
@@ -63,8 +55,6 @@ func TestWithLibraryPath(t *testing.T) {
 	}
 }
 
-// TestChildrenGetTheLibraryPathBack checks that a child the supervisor starts (this executable
-// again) gets the AppImage's LD_LIBRARY_PATH, even when the core's own value differs.
 func TestChildrenGetTheLibraryPathBack(t *testing.T) {
 	for _, c := range []struct{ name, libs, want string }{
 		{"an AppImage", appImageLibs, "LD_LIBRARY_PATH " + appImageLibs + " true"},

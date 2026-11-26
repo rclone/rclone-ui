@@ -16,11 +16,9 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// realFixture runs the schedules through a real transfer service, which tells the same
-// notification targets, so a test sees everything that is sent.
 func realFixture(t *testing.T) (*fixture, *transfers.Service) {
 	t.Helper()
-	f := newFixture(t, nil, func(o *Options) { o.Now = time.Now }) // the transfers' times are real
+	f := newFixture(t, nil, func(o *Options) { o.Now = time.Now })
 	return f, f.ts
 }
 
@@ -35,8 +33,6 @@ func exists(path string) bool {
 	return err == nil
 }
 
-// runNow runs a schedule and waits for its run to end. It returns the schedule as the run left
-// it.
 func (f *fixture) runNow(id string) *Schedule {
 	f.t.Helper()
 	testutil.Must(f.t, f.s.RunNow(context.Background(), id))
@@ -48,7 +44,6 @@ func (f *fixture) runNow(id string) *Schedule {
 	return got
 }
 
-// rows counts the transfers in History.
 func (f *fixture) rows() int {
 	f.t.Helper()
 	var n int
@@ -58,7 +53,6 @@ func (f *fixture) rows() int {
 	return n
 }
 
-// sentEvents returns the events sent to the targets, and the desktop's titles.
 func (f *fixture) sentEvents() (events []notifications.NotificationEvent, toasts []string) {
 	for _, s := range f.notes.all() {
 		events = append(events, s.event)
@@ -69,10 +63,6 @@ func (f *fixture) sentEvents() (events []notifications.NotificationEvent, toasts
 	return events, toasts
 }
 
-// A scheduled Copy through the transfer service: a run that copied files stays in History, with
-// the schedule as its origin, and only job.completed goes out, with the schedule's name. The next
-// run changes nothing and leaves no row. A dry run in the form is dropped at save, so the run is
-// real.
 func TestScheduledCopy(t *testing.T) {
 	f, ts := realFixture(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -82,7 +72,7 @@ func TestScheduledCopy(t *testing.T) {
 	})), When: "@daily"})
 
 	got := f.runNow(sc.ID)
-	copied := filepath.Join(dst, filepath.Base(src), "a.txt") // a folder is copied into the destination
+	copied := filepath.Join(dst, filepath.Base(src), "a.txt")
 	if got.LastResult != ResultCompleted || got.LastTransferID == "" || !exists(copied) {
 		t.Fatalf("first run: %+v", got)
 	}
@@ -105,9 +95,6 @@ func TestScheduledCopy(t *testing.T) {
 		t.Errorf("a run that changed nothing sent %v", events)
 	}
 
-	// A retry from History is the user's own run: it keeps the schedule as its origin, but the
-	// schedule's last run stays as it was. The run fails on a folder that has the new file's
-	// name, which rclone doesn't write over on any OS.
 	write(t, filepath.Join(src, "b.txt"), "b")
 	inTheWay := filepath.Join(filepath.Dir(copied), "b.txt")
 	testutil.Must(t, os.Mkdir(inTheWay, 0o700))
@@ -130,21 +117,16 @@ func TestScheduledCopy(t *testing.T) {
 	if after := f.get(sc.ID); after.LastTransferID != got.LastTransferID || after.LastResult != ResultFailed {
 		t.Errorf("the retry counted as the schedule's run: %+v", after)
 	}
-	// The retry is the user's, so the transfer service told about it.
 	events, _ = f.sentEvents()
 	if !slices.Contains(events, notifications.NotificationEventJobStarted) {
 		t.Errorf("the retry wasn't told about: %v", events)
 	}
 }
 
-// A run that fails within the first second is recorded as failed, and the targets and the desktop
-// hear about it once, from the scheduler, as "{name} failed". A run refused before it starts
-// leaves no row, and is told about the same way.
 func TestScheduledFailures(t *testing.T) {
 	f, _ := realFixture(t)
 	src, dst := t.TempDir(), t.TempDir()
 	write(t, filepath.Join(src, "a.txt"), "a")
-	// A file has the name of the folder that the copy makes, so the copy fails on any OS.
 	write(t, filepath.Join(dst, filepath.Base(src)), "in the way")
 	sc := f.save(Input{Name: "Docs", Form: form("copy", copyArgs([]string{src}, dst)), When: "@daily"})
 	got := f.runNow(sc.ID)
@@ -172,9 +154,6 @@ func TestScheduledFailures(t *testing.T) {
 	}
 }
 
-// A scheduled Move and Purge remove their own source, so the next runs have nothing to do and
-// leave no trace. A Move leaves out the one source that is gone. A Delete of a folder keeps the
-// folder and runs again.
 func TestMoveAndPurgeRunOutOfSources(t *testing.T) {
 	f, _ := realFixture(t)
 	dir, dst := t.TempDir(), t.TempDir()
@@ -183,7 +162,7 @@ func TestMoveAndPurgeRunOutOfSources(t *testing.T) {
 	write(t, two, "2")
 	mv := f.save(Input{Name: "Move", Form: form("move", copyArgs([]string{one, two}, dst)), When: "@daily"})
 	write(t, filepath.Join(dst, "keep"), "")
-	testutil.Must(t, os.Remove(two)) // gone before the first run
+	testutil.Must(t, os.Remove(two))
 	got := f.runNow(mv.ID)
 	if got.LastResult != ResultCompleted || exists(one) || !exists(filepath.Join(dst, "one.txt")) {
 		t.Fatalf("the first move: %+v", got)
@@ -218,10 +197,6 @@ func TestMoveAndPurgeRunOutOfSources(t *testing.T) {
 	}
 }
 
-// A scheduled bisync: its first run finds no listings, which leaves no trace, and the scheduler
-// merges the folders at once, newer wins, which baselines it. After a critical error (rclone sets
-// its listings aside as .lst-err), a baselined schedule fails with what to do, and doesn't merge
-// on its own. Merge again merges the folders and the runs go on.
 func TestScheduledBisync(t *testing.T) {
 	f, _ := realFixture(t)
 	a, b := t.TempDir(), t.TempDir()

@@ -2,13 +2,11 @@ package notifications
 
 import "github.com/rclone/rclone-ui/core/i18n"
 
-// category is a category of the catalog. Catalog translates its label.
 type category struct {
 	ID    NotificationCategory
 	label i18n.Text
 }
 
-// event is an event of the catalog. meta translates its label and description.
 type event struct {
 	ID                 NotificationEvent
 	label, description i18n.Text
@@ -16,7 +14,6 @@ type event struct {
 	Severity           NotificationSeverity
 }
 
-// meta returns the event as a page or a notification shows it, in the app's language.
 func (e event) meta() NotificationEventMeta {
 	return NotificationEventMeta{
 		ID: e.ID, Label: e.label.Local(), Description: e.description.Local(),
@@ -24,8 +21,6 @@ func (e event) meta() NotificationEventMeta {
 	}
 }
 
-// categories and events make up the catalog. A schedule's runs send the job.* events, with the
-// schedule's name. There is no rclone.update-available, because rclone updates with the app.
 var categories = []category{
 	// i18n: A group of notification events, in the Notifications window.
 	{NotificationCategoryTransfers, i18n.M("Transfers")},
@@ -102,8 +97,6 @@ var events = []event{
 	},
 }
 
-// testEvent is the event that "Send Test" sends. It is not in the catalog, so no target can
-// subscribe to it.
 var testEvent = event{
 	ID: "test",
 	// i18n: The title of the notification that "Send Test" sends.
@@ -112,7 +105,6 @@ var testEvent = event{
 	Severity:    NotificationSeverityInfo,
 }
 
-// lookup returns the catalog's entry for id, in the app's language.
 func lookup(id NotificationEvent) (NotificationEventMeta, bool) {
 	for _, e := range events {
 		if e.ID == id {
@@ -122,7 +114,6 @@ func lookup(id NotificationEvent) (NotificationEventMeta, bool) {
 	return NotificationEventMeta{}, false
 }
 
-// Catalog returns the event catalog, as the target form lists it, in the app's language.
 func (s *Service) Catalog() NotificationCatalog {
 	c := NotificationCatalog{
 		Categories: make([]NotificationCategoryMeta, len(categories)),

@@ -1,8 +1,3 @@
-/**
- * lib/shell is the only way that pages reach the app's Go side (through Wails). Pages use this
- * module, and never use `@wailsio/runtime` or the generated app bindings directly. The core's APIs
- * are in lib/core/api.ts.
- */
 import { t } from '@lingui/core/macro'
 import { Clipboard, Dialogs, Events, Flags, System, Window } from '@wailsio/runtime'
 import {
@@ -46,19 +41,11 @@ export type {
     PathLinkState,
 }
 
-/** The core's states (CoreState in app/core.go). */
 export { CoreState }
 
-/** The kinds of the launcher's footer status (view.StatusKind). */
 export const LauncherStatus = StatusKind
 
 type Unlisten = () => void
-
-// ---------------------------------------------------------------------------------------------
-// Platform. These calls are synchronous, and read the flags that the app puts in every window.
-// Paths are built for the machine that the core runs on, which is this one, so lib/paths reads
-// the machine here without asking the core. Outside a window (in the tests) there is no shell to
-// ask, so the machine reads as Linux with no home folder.
 
 export type Platform = 'macos' | 'windows' | 'linux'
 
@@ -84,23 +71,19 @@ function flag<T>(key: string, fallback: T): T {
     }
 }
 
-/** Rclone UI's version. */
 export function version(): string {
     return flag('version', 'dev')
 }
 
-/** The OS's family and version, for bug reports. */
 export async function osDetails(): Promise<{ family: string; version: string }> {
     const info = await SystemService.Info()
     return { family: info.osName || info.os, version: info.osVersion }
 }
 
-/** The desktop shell and its version ("Wails v3.1.0"), for bug reports. */
 export async function shellDetails(): Promise<string> {
     return (await SystemService.Info()).shell
 }
 
-/** Whether this is a release build. A dev build has the test pages and the test language. */
 export function isProduction(): boolean {
     return flag('production', false)
 }
@@ -113,18 +96,13 @@ export function systemLanguage(): string {
     return flag('systemLanguage', 'en')
 }
 
-/** The user's home folder, where local pickers start. */
 export function homeDir(): string {
     return inWindow() ? flag('homeDir', '') : ''
 }
 
-/** The app's data folder, which `--data-dir` can change. Pages keep state per data folder. */
 export function dataDir(): string {
     return flag('dataDir', '')
 }
-
-// ---------------------------------------------------------------------------------------------
-// Windows
 
 /**
  * Opens the window for a route ("/remotes?action=create"). The route sets the window's name
@@ -180,12 +158,6 @@ export const currentWindow = {
     },
 }
 
-// ---------------------------------------------------------------------------------------------
-// Dialogs. Messages, questions, prompts and rclone's config questions are shown inside the page,
-// by DialogHost (src/components/DialogHost.tsx), one at a time and in order. The Open and Save
-// panels are the OS's own. The caller passes translated text. The default labels are translated
-// when a dialog is asked, because this module loads before the language (src/boot.ts).
-
 export type { DialogKind }
 
 export interface MessageOptions {
@@ -205,7 +177,6 @@ export interface AskOptions {
     kind?: DialogKind
     okLabel?: string
     cancelLabel?: string
-    /** As in MessageOptions. */
     destructive?: boolean
     /** Closes the dialog when it aborts. The promise then resolves false. */
     signal?: AbortSignal
@@ -376,7 +347,6 @@ function dialogFolder(directory: string | undefined): string | undefined {
     return isWindows() ? homeDir() || undefined : undefined
 }
 
-/** Splits a suggested path into the folder that the Save panel opens in and the name it shows. */
 function splitDefaultPath(path = ''): { directory: string; filename: string } {
     const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
     if (cut < 0) return { directory: '', filename: path }
@@ -421,38 +391,26 @@ export async function saveText(
     return path || null
 }
 
-// ---------------------------------------------------------------------------------------------
-// Clipboard and opening things
-
 export const clipboard = {
     setText: (text: string): Promise<void> => Clipboard.SetText(text),
 }
 
-/** Opens a URL in the default browser. Under an AppImage, it runs in the host's environment. */
 export async function openUrl(url: string | URL): Promise<void> {
     await SystemService.OpenURL(String(url))
 }
 
-/** Shows a file or folder in the file manager, selected. */
 export async function revealPath(path: string): Promise<void> {
     await SystemService.RevealPath(path)
 }
-
-// ---------------------------------------------------------------------------------------------
-// Autostart
 
 export const autostart = {
     get: (): Promise<boolean> => SystemService.Autostart(),
     /** Every window then hears `autostart:changed`. */
     set: (on: boolean): Promise<void> => SystemService.SetAutostart(on),
-    /** Calls back when a window turned starting at login on or off. */
     onChanged(callback: (on: boolean) => void): Unlisten {
         return Events.On('autostart:changed', (event) => callback(event.data))
     },
 }
-
-// ---------------------------------------------------------------------------------------------
-// The app's life
 
 /** Quits through the app's quit flow, which asks first when something is running. */
 export async function quit(): Promise<void> {
@@ -467,9 +425,6 @@ export async function quit(): Promise<void> {
 export function relaunch(open = ''): Promise<boolean> {
     return SystemService.Relaunch(open)
 }
-
-// ---------------------------------------------------------------------------------------------
-// The core's status. The core runs in the app's process, and pages call it through lib/core.
 
 export const core = {
     /** Calls back with the core's status now, then on every change. */
@@ -494,12 +449,7 @@ export const core = {
     },
 }
 
-// ---------------------------------------------------------------------------------------------
-// Logs. Console lines are written to the app's log file (<data>/logs/rcui.log).
-
 const consoleMethods = ['log', 'debug', 'info', 'warn', 'error'] as const
-// A release build logs at Info, and SystemService.Log writes `log` and `debug` at Debug. If they
-// were forwarded, each would cost a call and then be dropped.
 const releaseConsoleMethods = ['info', 'warn', 'error'] as const
 let consoleForwarded = false
 
@@ -530,16 +480,11 @@ export function forwardConsole(): void {
             SystemService.Log(method, name, args.map(stringify).join(' ')).catch(() => undefined)
         }
     }
-    // Uncaught errors reach the log too, so a page that fails to load leaves its reason there.
     window.addEventListener('error', (e) => console.error('[uncaught]', e.message, e.error))
     window.addEventListener('unhandledrejection', (e) => console.error('[unhandled]', e.reason))
 }
 
-// ---------------------------------------------------------------------------------------------
-// Launcher
-
 export const launcher = {
-    /** The shortcut to use when the user never recorded one. */
     defaultShortcut: (): string => flag('defaultShortcut', 'CmdOrCtrl+Shift+/'),
     show: (): Promise<void> => LauncherService.Show(),
     /**
@@ -550,19 +495,12 @@ export const launcher = {
     setShortcut: (shortcut?: string): Promise<void> => LauncherService.SetShortcut(shortcut ?? ''),
 }
 
-/** A key that the launcher's page leaves to the launcher (see linux.PageService.Key in Go). */
 export type LauncherKey = 'up' | 'down' | 'enter' | 'esc' | 'tab' | 'actions' | 'row'
 
-/** Sends a call that answers nothing. A failure only goes to the log. */
 function fire(call: Promise<unknown>) {
     call.catch((error: unknown) => console.error('[launcher page]', error))
 }
 
-/**
- * The launcher's page, which draws the launcher on Linux (src/pages/Launcher). It reports what
- * the user does, and hears what to draw from the launcher's window alone. The launcher is native
- * on macOS and Windows.
- */
 export const launcherPage = {
     ready: (): Promise<LauncherInit> => LauncherPageService.Ready(),
     query: (text: string, seq: number) => fire(LauncherPageService.Query(text, seq)),
@@ -590,9 +528,6 @@ export const launcherPage = {
     },
 }
 
-// ---------------------------------------------------------------------------------------------
-// Updates
-
 export const updater = {
     /**
      * Whether this install updates itself, and if not, why (Flatpak, packages). A portable copy
@@ -611,9 +546,6 @@ export const updater = {
     },
 }
 
-// ---------------------------------------------------------------------------------------------
-// rclone on PATH
-
 export const pathLink = {
     status: (): Promise<PathLinkState> => PathService.Status(),
     /**
@@ -622,14 +554,10 @@ export const pathLink = {
      */
     enable: (): Promise<PathLinkState> => PathService.Enable(),
     disable: (): Promise<PathLinkState> => PathService.Disable(),
-    /** Calls back with the link's state after a window turned it on or off. */
     onChanged(callback: (state: PathLinkState) => void): Unlisten {
         return Events.On('pathlink:changed', (event) => callback(event.data))
     },
 }
-
-// ---------------------------------------------------------------------------------------------
-// AI agents
 
 /**
  * The MCP server that lets AI agents use the app (core/agents). The settings turn it on and off,

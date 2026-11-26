@@ -9,14 +9,10 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// newCompressed serves a tree of <file>.zst files (and uncompressed files), decompressing a file
-// on each request. A window loads each file once, and caching them would keep the decompressed
-// build in memory for as long as the app runs. A folder is reported as not found, so its path is
-// treated as a route.
 func newCompressed(tree fs.FS, modTime time.Time) http.Handler {
 	dec, err := zstd.NewReader(nil, zstd.WithDecoderConcurrency(0))
 	if err != nil {
-		panic(err) // fails only with invalid options
+		panic(err)
 	}
 	load := func(name string) ([]byte, error) {
 		packed, err := readFile(tree, name+ZstdSuffix)

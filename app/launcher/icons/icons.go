@@ -1,7 +1,3 @@
-// Package icons holds the launcher's glyphs, which are the regular variants of Zappicon icons.
-// They are SVG documents that each view draws with its OS's own renderer, so they stay sharp at
-// any scale and can be tinted per row. gen (go generate) writes icons_gen.go from
-// node_modules/@zappicon/react, for the names below.
 package icons
 
 import (
@@ -15,7 +11,6 @@ import (
 // Name identifies a glyph by the name of its Zappicon file.
 type Name string
 
-// The launcher's glyphs, named by what they stand for. After adding one, run go generate.
 const (
 	Copy       Name = "page"
 	Move       Name = "arrow-right-square"
@@ -59,14 +54,10 @@ const (
 	Browser    Name = "globe-simple"
 )
 
-// SVG returns the glyph's document (24×24, black, to be tinted), or "" for an unknown name.
 func SVG(n Name) string { return svgs[n] }
 
-// All returns every glyph's name, sorted.
 func All() []Name { return slices.Sorted(maps.Keys(svgs)) }
 
-// Tinted returns the glyph's document in a colour (#rrggbb), for the views that can't tint a
-// black image themselves. It returns "" for an unknown name.
 func Tinted(n Name, colour string) string {
 	return strings.ReplaceAll(svgs[n], `"#000"`, `"`+colour+`"`)
 }

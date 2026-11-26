@@ -10,8 +10,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/late"
 )
 
-// TestLastErrorIsSaved checks that a delivery's error is saved in its translatable form, that the
-// service reads it back in English, and that the API gives it in the app's language.
 func TestLastErrorIsSaved(t *testing.T) {
 	f := newFixture(t)
 	target := f.create(hook("https://example.com/hook", NotificationEventJobStarted))
@@ -45,8 +43,6 @@ func TestLastErrorIsSaved(t *testing.T) {
 	}
 }
 
-// TestMessages checks the bodies that are built from parts: the sources of a job, with a plural
-// for the ones left out, and the crashes of the app.
 func TestMessages(t *testing.T) {
 	for _, c := range []struct {
 		p     Payload
@@ -73,7 +69,6 @@ func TestMessages(t *testing.T) {
 		}
 	}
 
-	// In another language, the whole message is translated, with the values in it.
 	i18n.SetLanguage(i18n.Pseudo)
 	t.Cleanup(func() { i18n.SetLanguage(i18n.English) })
 	title, body := Job{Operation: "sync", Sources: []string{"a:"}, Destination: "d:"}.Message(NotificationEventJobCompleted)

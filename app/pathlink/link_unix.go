@@ -42,8 +42,6 @@ func (l *Linker) Status() State {
 	return st
 }
 
-// shCommand returns the command a POSIX shell uses to run exe. That is its name when its folder
-// is on PATH (as for the deb's /usr/bin/rcui), or else its path, quoted when needed.
 func shCommand(exe string, dirs []string) string {
 	if indexOf(dirs, filepath.Dir(exe), false) >= 0 {
 		return filepath.Base(exe)
@@ -78,8 +76,6 @@ func (l *Linker) Enable() (State, error) {
 	return l.Status(), nil
 }
 
-// foreign returns Enable's error when something else has the link's name. For a broken link, the
-// error says where the link pointed.
 func foreign(link string) error {
 	shown := errs.Errorf("An rclone that isn't Rclone UI's is already at %s. Rclone UI leaves it as it is: remove it first to use Rclone UI's.", link)
 	if target, err := os.Readlink(link); err == nil {
@@ -117,8 +113,6 @@ func (l *Linker) Disable() (State, error) {
 	return l.Status(), nil
 }
 
-// Refresh points an existing link's pointer to this app again, which is needed after the app has
-// moved.
 func (l *Linker) Refresh() error {
 	if !l.unsupported.IsZero() || !l.ours() {
 		return nil
@@ -129,7 +123,6 @@ func (l *Linker) Refresh() error {
 	return l.point()
 }
 
-// ours reports whether the link leads to this app, either through the pointer or directly.
 func (l *Linker) ours() bool {
 	info, err := os.Lstat(l.link)
 	if err != nil || info.Mode()&fs.ModeSymlink == 0 {
@@ -145,7 +138,6 @@ func (l *Linker) ours() bool {
 	return filepath.Clean(target) == filepath.Clean(l.pointer) || sameFile(l.link, l.exe)
 }
 
-// point makes the pointer lead to the app, replacing the old pointer with a single rename.
 func (l *Linker) point() error {
 	if err := os.MkdirAll(filepath.Dir(l.pointer), 0o755); err != nil {
 		return err
@@ -153,9 +145,6 @@ func (l *Linker) point() error {
 	return replaceSymlink(l.exe, l.pointer)
 }
 
-// makeLink creates the link to the pointer. It does so directly when the folder is writable or can
-// be created (as with ~/.local/bin), or else through the administrator prompt (as with macOS's
-// /usr/local/bin).
 func (l *Linker) makeLink() error {
 	dir := filepath.Dir(l.link)
 	if l.asAdmin == nil || writable(dir) {
@@ -169,7 +158,6 @@ func (l *Linker) makeLink() error {
 		i18n.T("Rclone UI wants to add rclone to your PATH."))
 }
 
-// userRclone returns the first rclone on PATH that isn't this app, and its position.
 func (l *Linker) userRclone(dirs []string) (string, int) {
 	for i, dir := range dirs {
 		if dir == "" {
@@ -188,7 +176,6 @@ func (l *Linker) userRclone(dirs []string) (string, int) {
 	return "", -1
 }
 
-// replaceSymlink makes name a link to target, replacing any existing link with a single rename.
 func replaceSymlink(target, name string) error {
 	tmp := name + ".rcui-new"
 	_ = os.Remove(tmp)
@@ -211,7 +198,6 @@ func sameFile(a, b string) bool {
 	return err == nil && os.SameFile(ia, ib)
 }
 
-// writable reports whether this user can create files in dir, or create dir.
 func writable(dir string) bool {
 	for {
 		if _, err := os.Stat(dir); err == nil {
@@ -225,5 +211,4 @@ func writable(dir string) bool {
 	}
 }
 
-// shQuote is POSIX single-quoting.
 func shQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

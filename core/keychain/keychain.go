@@ -1,7 +1,3 @@
-// Package keychain stores the app's secrets (config passwords, the SMTP password) in the OS
-// keychain: the macOS Keychain, the Windows Credential Manager, or the Secret Service on Linux.
-// When no keychain is available (on headless Linux, or in Flatpak without the secrets portal),
-// the secrets are stored in a 0600 file in the data directory instead.
 package keychain
 
 import (
@@ -18,15 +14,12 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// Service is the service name that the secrets are stored under.
 const Service = "org.rclone.ui"
 
-// FileName is the name of the fallback file in the data directory.
 const FileName = "secrets.json"
 
 var ErrNotFound = errors.New("no such secret")
 
-// Keychain reads and writes secrets by account ("config:<path>", "smtp").
 type Keychain struct {
 	file string
 	mu   sync.Mutex
@@ -36,9 +29,6 @@ func New(dataDir string) *Keychain {
 	return &Keychain{file: filepath.Join(dataDir, FileName)}
 }
 
-// Get returns the secret of account, or ErrNotFound. It checks the file first. The file only
-// holds secrets set while no keychain was available, so any copy that the keychain has from
-// before is older. (Set removes the file's copy once the keychain accepts the secret.)
 func (k *Keychain) Get(account string) (string, error) {
 	v, ferr := k.fileGet(account)
 	if ferr == nil {
@@ -49,19 +39,15 @@ func (k *Keychain) Get(account string) (string, error) {
 	case err == nil:
 		return v, nil
 	case errors.Is(ferr, ErrNotFound):
-		// The secret isn't in the file, and the keychain doesn't have it or isn't available.
 		return "", ErrNotFound
 	default:
-		return "", ferr // the file can't be read
+		return "", ferr
 	}
 }
 
-// Set stores the secret of account in the keychain, or in the file when no keychain is
-// available. Falling back to the file is logged, so a secret kept in a file is never a surprise.
 func (k *Keychain) Set(account, secret string) error {
 	err := keyring.Set(Service, account, secret)
 	if err == nil {
-		// The file must not keep a copy that the keychain has, because Get reads the file first.
 		if ferr := k.fileDelete(account); ferr != nil {
 			return fmt.Errorf("the secret is in the keychain, but an older copy in %s couldn't be removed: %w", k.file, ferr)
 		}
@@ -74,9 +60,6 @@ func (k *Keychain) Set(account, secret string) error {
 	return nil
 }
 
-// Delete removes the secret of account, wherever it is. A missing secret is not an error. A
-// keychain that isn't available is an error, and is logged, because it may still have the secret
-// from before it became unavailable.
 func (k *Keychain) Delete(account string) error {
 	ferr := k.fileDelete(account)
 	err := keyring.Delete(Service, account)
@@ -159,5 +142,4 @@ func (k *Keychain) fileDelete(account string) error {
 	return k.write(m)
 }
 
-// ConfigAccount returns the account that an rclone config file's password is stored under.
 func ConfigAccount(path string) string { return "config:" + filepath.Clean(path) }

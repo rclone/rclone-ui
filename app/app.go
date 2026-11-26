@@ -1,10 +1,3 @@
-// Package app is the UI role. It is the Wails application that owns the windows, the launcher, the
-// tray, the menus, deep links, the single-instance lock, autostart, notifications and the update
-// flow. It also runs the core inside the same process (see core.go). Pages call it through the
-// bound services in services.go, which lib/shell wraps.
-//
-// The tray is created before the app runs, and the launcher right after it, both before the core
-// starts. That way a failed boot always leaves the user a way to quit.
 package app
 
 import (
@@ -56,9 +49,7 @@ import (
 //go:embed appicon.png
 var appIcon []byte
 
-// appID is the name the OS knows the app by. It is the GTK application ID and the base of the
-// single-instance lock's name. Under Flatpak it must be the Flatpak app ID, because the sandbox
-// only lets the app own D-Bus names under that ID.
+// Under Flatpak, the sandbox only lets the app own D-Bus names under the Flatpak app ID.
 func appID() string {
 	if id := os.Getenv("FLATPAK_ID"); id != "" {
 		return id
@@ -66,10 +57,6 @@ func appID() string {
 	return "org.rclone.ui"
 }
 
-// uniqueID is the name of the single-instance lock. There is one lock per data directory, so a
-// copy on another data directory (--data-dir) doesn't hand its launch over to the installed app
-// and doesn't receive that app's links. The copy on sharedDir, the OS's default data directory,
-// takes the app's ID. A portable copy passes no sharedDir, so it never shares a lock.
 func uniqueID(dataDir, sharedDir string) string {
 	id := appID()
 	if dataDir == "" {
@@ -81,7 +68,7 @@ func uniqueID(dataDir, sharedDir string) string {
 		}
 		dir = filepath.Clean(dir)
 		if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-			dir = strings.ToLower(dir) // file systems on these OSes ignore case
+			dir = strings.ToLower(dir)
 		}
 		return dir
 	}
@@ -94,17 +81,12 @@ func uniqueID(dataDir, sharedDir string) string {
 	return id + ".d" + hex.EncodeToString(sum[:8])
 }
 
-// options are the flags of `rcui ui`, plus an optional rclone:// link.
 type options struct {
 	dataDir string
 	hidden  bool
 	link    string
-	// open is a route to open in a window right away, as in `rcui ui --open /test`. A relaunch
-	// uses it to reopen the window that asked for the relaunch.
-	open string
-	// after is the ID of a process to wait for before starting. A relaunch sets it to the process
-	// it replaces, which holds the single-instance lock and the data folder until it exits.
-	after int
+	open    string
+	after   int
 }
 
 func parseOptions(args []string) (options, error) {
@@ -127,7 +109,6 @@ func parseOptions(args []string) (options, error) {
 		if len(args) == 0 {
 			break
 		}
-		// This is a link or a stray argument. Skip it and keep parsing.
 		rest = append(rest, args[0])
 		args = args[1:]
 	}
@@ -147,21 +128,16 @@ type ui struct {
 	windows  *windows.Manager
 	launcher *host.Host
 	tray     *tray.Tray
-	// store is the one copy of the core's state that the tray and the launcher show.
 	store    *corestate.Store
 	notifier *notifier
 	updates  *updateFlow
 
-	cores coreHost
-	// apis are the core's APIs that pages call. They are bound before the core starts.
-	apis *core.APIs
-	// agents is the MCP server that lets AI agents use the app, while the settings turn it on.
+	cores  coreHost
+	apis   *core.APIs
 	agents *agents.Server
 
-	quitMu   sync.Mutex
-	quitting atomic.Bool
-	// sessionEnding is set when the OS is ending the session (a logout, a restart or a shutdown)
-	// and the app has agreed to let it end (see shouldQuit and wndProc).
+	quitMu        sync.Mutex
+	quitting      atomic.Bool
 	sessionEnding atomic.Bool
 
 	links links
@@ -170,10 +146,9 @@ type ui struct {
 	noStartup   atomic.Bool
 	firstReady  sync.Once
 
-	applied uiSettings // the core's settings as the UI last applied them
+	applied uiSettings
 }
 
-// Run runs the UI role and returns the process's exit code.
 func Run(args []string) int {
 	opts, err := parseOptions(args)
 	if err != nil {
@@ -225,15 +200,9 @@ func (u *ui) setup() error {
 		return fmt.Errorf("could not open the log: %w", err)
 	}
 	u.logs = l
-	// The app speaks the system's language until the core has read the language setting
-	// (core/settings), which is before any window opens but after the first dialogs can show.
 	u.applied.language = i18n.SetLanguage("")
-	// The APIs read the log and the data folder at once, so they are created once both are known,
-	// before the services that bind them.
 	u.apis = core.NewAPIs(core.APIOptions{Emit: u.emitToCaller, Log: l, DataDir: u.dataDir})
 	keepCrashes(filepath.Dir(l.Path()))
-	// A panic that was recovered is logged with its stack. Each such line is also sent as a
-	// crash report, when the user shares them.
 	slog.SetDefault(slog.New(telemetry.TapPanics(l.Handler(), u.apis.Panic)))
 	u.log = logs.Logger(logs.CompUI, "")
 	u.log.Info("starting", "version", version.App, "os", runtime.GOOS, "arch", runtime.GOARCH, "production", u.production)
@@ -243,7 +212,6 @@ func (u *ui) setup() error {
 		return err
 	}
 	u.exe = exe
-	// The agents' server stays stopped until the settings turn it on (loadSettings).
 	u.agents = agents.New(agents.Options{
 		APIs: u.apis, Log: logs.Logger(logs.CompUI, "agents"), DataDir: u.dataDir, Version: version.App,
 		OpenWindow: func(route string) error { return u.windows.Open(route) },
@@ -297,7 +265,6 @@ func (u *ui) setup() error {
 	})
 
 	u.windows = windows.New(u.app, u.log, u.production)
-	// Which windows are used, in the usage data that the user shares (core/telemetry).
 	u.windows.Opened = u.apis.Screen
 	u.store = corestate.New(corestate.APIReader(u.apis), u.log.With("src", "corestate"))
 	u.launcher = host.New(host.Options{
@@ -321,7 +288,6 @@ func (u *ui) setup() error {
 				u.log.Error("could not open a window", "route", url, "error", err)
 			}
 		},
-		// Opening the browser can wait on a command, and a menu click must not block.
 		GitHub: func() {
 			go func() {
 				if err := u.openURL(providers.GitHubURL); err != nil {
@@ -342,9 +308,8 @@ func (u *ui) setup() error {
 			go u.openLink(link)
 		}
 	})
-	// On macOS, opening the app again from Finder, Spotlight or Launchpad while it runs doesn't
-	// start a second instance. It sends a reopen event instead. Show the launcher, as a second
-	// launch does on other systems, because the menu bar icon may be hidden behind the notch.
+	// On macOS, opening the app again while it runs sends a reopen event instead of starting a
+	// second instance.
 	u.app.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) {
 		u.launcher.Show()
 	})
@@ -361,19 +326,12 @@ func (u *ui) started() {
 	if err := u.launcher.Create(); err != nil {
 		u.log.Error("could not create the launcher", "error", err)
 	}
-	// Use the default shortcut until the core's settings replace it (see loadSettings), so the
-	// launcher can be reached even when the core never starts.
 	if err := u.launcher.SetShortcut(launcher.DefaultShortcut); err != nil {
 		u.log.Error("could not register the launcher shortcut", "error", err)
 	}
 	u.notifier.start()
-	// Only a release build on the app's own data does this. A development build, or a copy that
-	// runs on another data directory (for tests or a scratch run), must never take over the
-	// installed app's login item or its rclone:// links. A portable copy runs on its own data
-	// folder, so it registers itself for the links, as the README in its zip says.
 	if u.production && u.opts.dataDir == "" {
 		u.registerScheme()
-		// An enabled rclone link is updated when the app has moved.
 		if err := pathlink.Refresh(); err != nil {
 			u.log.Warn("could not refresh the rclone link", "error", err)
 		}
@@ -381,9 +339,6 @@ func (u *ui) started() {
 
 	u.startCore()
 
-	// Links wait until the screens are known. A link that arrived earlier is opened now, together
-	// with the launch's own link. (macOS reports a launch link as an event, which can arrive
-	// before this point.)
 	if u.opts.link != "" {
 		u.openLink(u.opts.link)
 	}
@@ -400,9 +355,8 @@ func (u *ui) started() {
 	u.devEval()
 }
 
-// waitForScreens waits until Wails knows the screens. On macOS, Wails reads them in its own
-// didFinishLaunching handler, which races with ApplicationStarted. Every window is placed on a
-// screen, so no window can be created before the screens are known.
+// On macOS, Wails reads the screens in its own didFinishLaunching handler, which races with
+// ApplicationStarted.
 func (u *ui) waitForScreens(limit time.Duration) {
 	deadline := time.Now().Add(limit)
 	for len(u.app.Screen.GetAll()) == 0 && time.Now().Before(deadline) {
@@ -413,10 +367,6 @@ func (u *ui) waitForScreens(limit time.Duration) {
 	}
 }
 
-// flatpakGate runs when the Flatpak lacks a permission it needs: access to the host's files, to
-// the autostart folder, to the session bus and, on GNOME, to GNOME Shell's extensions. It explains
-// the problem, offers the command that grants them, and exits. A user who granted disk access
-// before the app needed the rest has to run the command again.
 func (u *ui) flatpakGate(m platform.Missing) {
 	cmd := platform.FlatpakOverride()
 	msg := i18n.T("You are running the flatpak version of Rclone UI, which is sandboxed.") + "\n\n" + flatpakNeeds(m) +
@@ -430,7 +380,6 @@ func (u *ui) flatpakGate(m platform.Missing) {
 	u.exit()
 }
 
-// flatpakNeeds returns the part of flatpakGate's message that lists the missing permissions.
 func flatpakNeeds(m platform.Missing) string {
 	var needs []string
 	if m.Disk {
@@ -457,7 +406,6 @@ func flatpakNeeds(m platform.Missing) string {
 	return head + "\n\n• " + strings.Join(needs, "\n• ") + "\n\n" + grant
 }
 
-// registerScheme registers this executable for rclone:// links where no installer does it.
 func (u *ui) registerScheme() {
 	if platform.IsFlatpak() {
 		return
@@ -467,7 +415,7 @@ func (u *ui) registerScheme() {
 	case "linux":
 		exe = os.Getenv("APPIMAGE")
 		if exe == "" {
-			return // deb and rpm declare the scheme in their .desktop file
+			return
 		}
 	case "darwin":
 		return
@@ -477,16 +425,10 @@ func (u *ui) registerScheme() {
 	}
 }
 
-// coreDown clears what the core was running, because it stopped along with the core. The store
-// forgets it for both the tray and the launcher, so no dead mount is listed as active and no stop
-// button stays enabled.
 func (u *ui) coreDown() {
 	u.store.CoreDown()
 }
 
-// showStartup opens the startup window once, when the core is first ready or when it failed. It
-// does nothing if a deep link, --hidden or the "Show Startup screen" setting (see loadSettings)
-// turned it off.
 func (u *ui) showStartup() {
 	if u.noStartup.Load() || u.quitting.Load() {
 		return
@@ -496,19 +438,14 @@ func (u *ui) showStartup() {
 			u.log.Error("could not open the startup window", "error", err)
 			return
 		}
-		// On Linux the window shows only once. "Show Startup screen" is turned off after the
-		// first time.
 		if runtime.GOOS == "linux" {
 			go u.hideStartupFromNow(context.Background())
 		}
 	})
 }
 
-// openLink handles a deep link once the boot knows the screens (see started). A link that arrives
-// earlier waits until then.
 func (u *ui) openLink(raw string) { u.links.add(raw, u.handleLink) }
 
-// handleLink opens a deep link's window. It returns true once the window is open.
 func (u *ui) handleLink(raw string) bool {
 	link, ok := deeplink.Parse(raw)
 	if !ok {
@@ -525,19 +462,13 @@ func (u *ui) handleLink(raw string) bool {
 		u.log.Error("could not open the link's window", "error", err)
 		return false
 	}
-	// A link at start replaces the startup window. If the link's window failed to open, the
-	// startup window still shows.
 	u.noStartup.Store(true)
 	return true
 }
 
-// links holds the deep links on their way to handleLink. They wait until release is called,
-// because no window can open before the screens are known. Windows and Linux report a launch link
-// both as an argument and as an event, so a link seen twice within a few seconds is handled
-// once. The few seconds count from when its window opened, so a link whose window failed is
-// tried again when it is reported again.
+// Wails on Windows and Linux reports a launch link both as an argument and as an event.
 type links struct {
-	mu      sync.Mutex // held while a link is handled, so two reports of the same link don't race
+	mu      sync.Mutex
 	open    bool
 	pending []string
 	last    string
@@ -554,7 +485,6 @@ func (l *links) add(raw string, handle func(string) bool) {
 	l.handle(raw, handle)
 }
 
-// release handles the waiting links in order, and makes every later link be handled right away.
 func (l *links) release(handle func(string) bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -580,8 +510,6 @@ func (u *ui) secondInstance(data application.SecondInstanceData) {
 		u.openLink(link)
 		return
 	}
-	// `rcui mcp` starts the app hidden when it finds none. When the app was running after all,
-	// nothing should show.
 	if slices.Contains(data.Args, "--hidden") {
 		return
 	}
@@ -594,8 +522,6 @@ func (u *ui) hideWindows() {
 	}
 }
 
-// handleSignals makes SIGINT and SIGTERM quit through the quit flow, without asking. A second
-// signal exits at once.
 func (u *ui) handleSignals() {
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
@@ -608,7 +534,6 @@ func (u *ui) handleSignals() {
 	}()
 }
 
-// flags returns the values that pages read synchronously (see lib/shell and Flags.GetFlag).
 func (u *ui) flags() map[string]any {
 	home, _ := os.UserHomeDir()
 	return map[string]any{
@@ -617,10 +542,8 @@ func (u *ui) flags() map[string]any {
 		"homeDir":         home,
 		"dataDir":         u.dataDir,
 		"defaultShortcut": launcher.DefaultShortcut,
-		// The app's language for this system, which a window starts in until it has read the
-		// language setting (lib/i18n.ts).
-		"systemLanguage": i18n.System(),
-		"languages":      i18n.Languages(),
+		"systemLanguage":  i18n.System(),
+		"languages":       i18n.Languages(),
 	}
 }
 

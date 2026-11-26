@@ -30,7 +30,6 @@ func rect(x, y, w, h float64) nsRect { return nsRect{nsPoint{x, y}, nsSize{w, h}
 
 var sels sync.Map
 
-// sel caches selectors, because registering one takes the runtime's lock.
 func sel(name string) objc.SEL {
 	if s, ok := sels.Load(name); ok {
 		return s.(objc.SEL)
@@ -69,7 +68,7 @@ func goString(id objc.ID) string {
 	if id == 0 {
 		return ""
 	}
-	n := objc.Send[uint](id, sel("lengthOfBytesUsingEncoding:"), uint(4)) // UTF-8
+	n := objc.Send[uint](id, sel("lengthOfBytesUsingEncoding:"), uint(4))
 	if n == 0 {
 		return ""
 	}
@@ -98,11 +97,10 @@ func font(size float64, bold bool) objc.ID {
 func label(size float64) objc.ID {
 	l := msg(class("NSTextField"), "labelWithString:", nsString(""))
 	msg(l, "setFont:", font(size, false))
-	msg(l, "setLineBreakMode:", uint(4)) // truncate the tail
+	msg(l, "setLineBreakMode:", uint(4))
 	return l
 }
 
-// attributed returns s with the runes at the indexes in bold drawn in bold. The caller releases it.
 func attributed(s string, size float64, col objc.ID, bold []int) objc.ID {
 	attrs := msg(class("NSMutableDictionary"), "dictionary")
 	msg(attrs, "setObject:forKey:", font(size, false), nsString("NSFont"))

@@ -11,7 +11,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// A template's flat options go into the groups of the operation's form, as its page shows them.
 func TestTemplateGroups(t *testing.T) {
 	const options = `{"transfers": 4, "max_age": "1d", "metadata_include": ["a=b"], "ignore_existing": true, ` +
 		`"vfs_cache_mode": "full", "allow_other": true, "addr": ":8080", "no_such": 1}`
@@ -35,16 +34,12 @@ func TestTemplateGroups(t *testing.T) {
 		own, config, filter, metadata, vfs string
 		skipped                            []string
 	}{
-		// A copy option lands in the copy group. vfs is left out for a copy, and so is an unknown
-		// option.
 		{"copy", `{"ignore_existing":true}`, `{"transfers":4}`, `{"max_age":"1d"}`, `{"metadata_include":["a=b"]}`, ``,
 			[]string{"addr", "allow_other", "no_such", "vfs_cache_mode"}},
-		// A purge reads only its config group, so its filters are left out, not refused.
 		{"purge", ``, `{"ignore_existing":true,"transfers":4}`, ``, ``, ``,
 			[]string{"addr", "allow_other", "max_age", "metadata_include", "no_such", "vfs_cache_mode"}},
 		{"delete", ``, `{"ignore_existing":true,"transfers":4}`, `{"max_age":"1d"}`, `{"metadata_include":["a=b"]}`, ``,
 			[]string{"addr", "allow_other", "no_such", "vfs_cache_mode"}},
-		// A mount keeps its vfs option.
 		{"mount", `{"allow_other":true}`, `{"transfers":4}`, `{"max_age":"1d"}`, `{"metadata_include":["a=b"]}`, `{"vfs_cache_mode":"full"}`,
 			[]string{"addr", "ignore_existing", "no_such"}},
 		{"serve", `{"addr":":8080"}`, `{"transfers":4}`, `{"max_age":"1d"}`, `{"metadata_include":["a=b"]}`, `{"vfs_cache_mode":"full"}`,
@@ -75,7 +70,6 @@ func TestTemplateGroups(t *testing.T) {
 			t.Errorf("%s: skipped %v, want %v", c.op, got, c.skipped)
 		}
 	}
-	// The numbers keep every digit.
 	g, _, _ := TemplateGroups("copy", "", flat(`{"max_size": 12345678901234567890}`))
 	if group(g.Filter) != `{"max_size":12345678901234567890}` {
 		t.Errorf("a big number: %s", group(g.Filter))
@@ -85,7 +79,6 @@ func TestTemplateGroups(t *testing.T) {
 	}
 }
 
-// flat returns a template's options from their JSON.
 func flat(raw string) catalog.Group {
 	var g catalog.Group
 	if err := json.Unmarshal([]byte(raw), &g); err != nil {
@@ -94,7 +87,6 @@ func flat(raw string) catalog.Group {
 	return g
 }
 
-// FormSections names the catalog groups that each group of a form takes, as FormGroups fills them.
 func TestFormSections(t *testing.T) {
 	text := func(sections []FormSection) []string {
 		var out []string
@@ -122,7 +114,6 @@ func TestFormSections(t *testing.T) {
 	}
 }
 
-// The form that runs a template builds the same settings as the page's form would.
 func TestTemplateArgsBuild(t *testing.T) {
 	f, err := TemplateArgs("copy", []string{"/a", "/b"}, "/c", flat(`{"transfers": 4, "max_age": "1d", "vfs_cache_mode": "full"}`))
 	if err != nil || f.Copy == nil {
@@ -135,7 +126,6 @@ func TestTemplateArgsBuild(t *testing.T) {
 	if s.config["transfers"] != "4" || s.filter["max_age"] != "1d" {
 		t.Errorf("settings %+v", s)
 	}
-	// A purge's filters are left out, so the start doesn't refuse them.
 	f, err = TemplateArgs("purge", []string{"/a"}, "", flat(`{"max_age": "1d", "transfers": 4}`))
 	if err != nil || f.Purge == nil {
 		t.Fatal(f, err)
@@ -145,19 +135,16 @@ func TestTemplateArgsBuild(t *testing.T) {
 	}
 }
 
-// A template's export writes its options with rclone's own flags, quoted for the shell.
 func TestTemplateFlags(t *testing.T) {
 	for _, c := range []struct {
 		options, goos, want string
 	}{
 		{`{"vfs_cache_mode": "full", "transfers": 8, "fast_list": true}`, "linux",
 			`--fast-list=true --transfers=8 --vfs-cache-mode=full`},
-		// A repeated flag gets one flag per element. A blank value and an empty list are left out.
 		{`{"exclude": ["*.tmp", "My Files/**"], "max_age": null, "include": [], "min_size": " "}`, "darwin",
 			`--exclude='*.tmp' --exclude='My Files/**'`},
 		{`{"backup_dir": "gdrive:it's old"}`, "linux", `--backup-dir='gdrive:it'\''s old'`},
 		{`{"backup_dir": "gdrive:it's old"}`, "windows", `--backup-dir='gdrive:it''s old'`},
-		// A name that rclone doesn't have is still written.
 		{`{"no_such": "x"}`, "linux", `--no-such=x`},
 	} {
 		got, err := TemplateFlags(flat(c.options), "/opt/rcui", c.goos)
@@ -165,7 +152,6 @@ func TestTemplateFlags(t *testing.T) {
 			t.Errorf("%s on %s: %q %v, want %q", c.options, c.goos, got, err, c.want)
 		}
 	}
-	// The app's own metadata mapper runs this executable.
 	got, err := TemplateFlags(flat(`{"metadata_mapper": ["metadata-map", "--map", "a=b"]}`), "/opt/Rclone UI/rcui", "linux")
 	if want := `--metadata-mapper='"/opt/Rclone UI/rcui" metadata-map --map a=b'`; err != nil || got != want {
 		t.Errorf("the mapper: %q %v, want %q", got, err, want)
@@ -188,7 +174,6 @@ func TestTemplateArgsRefusals(t *testing.T) {
 			t.Errorf("%s: %v, want %q", c.tag, err, c.want)
 		}
 	}
-	// A missing source is left to the start, which says which path is missing.
 	f, err := TemplateArgs("sync", nil, "/c", flat(`{}`))
 	if err != nil {
 		t.Fatal(err)
@@ -196,7 +181,6 @@ func TestTemplateArgsRefusals(t *testing.T) {
 	if raw, err := f.MarshalArgs(); err != nil || string(raw) != `{"destination":"/c"}` {
 		t.Errorf("sync without a source: %s %v", raw, err)
 	}
-	// Each tag runs as its own operation.
 	for _, tag := range transferTags {
 		if f, err := TemplateArgs(tag, []string{"/a"}, "/c", flat(`{}`)); err != nil || f.Operation != tag || f.Check() != nil {
 			t.Errorf("%s: %+v %v", tag, f, err)

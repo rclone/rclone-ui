@@ -1,8 +1,5 @@
 //go:build darwin
 
-// Package darwin is the launcher window on macOS, written in Go on top of Cocoa. The window is a
-// non-activating panel, so it can take keyboard focus without activating the app, which macOS
-// may refuse to do. It uses Liquid Glass on macOS 26 and an always-active blur on earlier versions.
 package darwin
 
 import (
@@ -16,44 +13,32 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// View is the launcher panel. There is one per process, and Cocoa callbacks find it through
-// current.
 type View struct {
 	ev view.Events
 
 	panel, content, field, header objc.ID
-	// list holds the rows and their group labels, and clips them at its bottom edge, so the last
-	// row of a long list is drawn only in part.
-	list        objc.ID
-	groupLabels []objc.ID // one label per row, shown above the row when it starts a group
-	rows        []row
-	icons       map[icons.Name]objc.ID
-	// footer holds the footer line, which shows the hints or a status. It has two slots.
-	// slots[active] holds the line shown now, and the other slot holds the line it replaced
-	// (see view.Swaps).
-	footer    objc.ID
-	slots     [2]slot
-	active    int
-	line      view.Line
-	stop      objc.ID
-	stopHover bool
-	// language is the language that the panel's own labels were last set in (see label).
-	language string
+	list                          objc.ID
+	groupLabels                   []objc.ID
+	rows                          []row
+	icons                         map[icons.Name]objc.ID
+	footer                        objc.ID
+	slots                         [2]slot
+	active                        int
+	line                          view.Line
+	stop                          objc.ID
+	stopHover                     bool
+	language                      string
 
 	snap           view.Snapshot
 	visible        bool
-	left, top      float64      // the top-left corner, in screen points
-	settingFrame   bool         // set while the view moves the panel, so the move isn't reported
-	hoverX, hoverY float64      // the last known pointer position, in screen points
-	scrolled       float64      // the fraction of a row scrolled but not yet reported
-	blocks         []objc.Block // kept for the life of the process
-	// When the panel loses keyboard focus while a mouse button is down, the cause may be a click
-	// elsewhere or a drag starting there. The panel then waits for the button to be released
-	// before reporting the blur, so the drag can still be dropped on it. dragOver is set while a
-	// drag is over the panel, and waitTimer checks the buttons while the panel waits.
-	dragOver  bool
-	waitTimer objc.ID
-	waitTick  objc.Block
+	left, top      float64
+	settingFrame   bool
+	hoverX, hoverY float64
+	scrolled       float64
+	blocks         []objc.Block
+	dragOver       bool
+	waitTimer      objc.ID
+	waitTick       objc.Block
 }
 
 type row struct {
@@ -74,14 +59,12 @@ func guard(where string, fn func()) {
 	fn()
 }
 
-// guarded is guard for a callback that returns a value. It returns otherwise after a panic.
 func guarded[T any](where string, otherwise T, fn func() T) (out T) {
 	out = otherwise
 	defer recovered(where)
 	return fn()
 }
 
-// recovered must be deferred.
 func recovered(where string) {
 	if v := recover(); v != nil && current != nil && current.ev.Panicked != nil {
 		current.ev.Panicked("launcher view: "+where, v)
@@ -92,7 +75,6 @@ var (
 	panelClass, contentClass, hoverClass, stopClass objc.Class
 )
 
-// New builds the panel, hidden. It must be called once, on the main thread.
 func New(ev view.Events) (*View, error) {
 	if current != nil {
 		return nil, errors.New("the launcher's window exists already")
@@ -120,7 +102,6 @@ func registerClasses() error {
 		{Cmd: sel("acceptsFirstMouse:"), Fn: func(objc.ID, objc.SEL, objc.ID) bool { return true }},
 		{Cmd: sel("mouseDown:"), Fn: func(_ objc.ID, _ objc.SEL, e objc.ID) { guard("mouseDown", func() { current.mouseDown(e) }) }},
 		{Cmd: sel("scrollWheel:"), Fn: func(_ objc.ID, _ objc.SEL, e objc.ID) { guard("scrollWheel", func() { current.scrollWheel(e) }) }},
-		// NSDraggingDestination, for files dragged onto the panel.
 		{Cmd: sel("draggingEntered:"), Fn: func(objc.ID, objc.SEL, objc.ID) uint {
 			return guarded("draggingEntered", dragNone, func() uint { return current.dragEntered() })
 		}},
@@ -164,11 +145,11 @@ func (v *View) build() {
 		rect(0, 0, view.Width, full), uint(titled|nonactivating|fullSize), uint(2), false)
 	msg(v.panel, "setTitlebarAppearsTransparent:", true)
 	msg(v.panel, "setTitleVisibility:", 1)
-	for b := range uint(3) { // close, minimise, zoom
+	for b := range uint(3) {
 		msg(msg(v.panel, "standardWindowButton:", b), "setHidden:", true)
 	}
-	msg(v.panel, "setLevel:", 3)                         // floating
-	msg(v.panel, "setCollectionBehavior:", uint(1|1<<8)) // every Space, over full-screen apps
+	msg(v.panel, "setLevel:", 3)
+	msg(v.panel, "setCollectionBehavior:", uint(1|1<<8))
 	msg(v.panel, "setFloatingPanel:", true)
 	msg(v.panel, "setBecomesKeyOnlyIfNeeded:", false)
 	msg(v.panel, "setHidesOnDeactivate:", false)
@@ -181,7 +162,7 @@ func (v *View) build() {
 	// The content goes inside the glass, because only there does AppKit apply the glass's
 	// legibility treatment.
 	v.content = msg(objc.ID(contentClass).Send(sel("alloc")), "initWithFrame:", rect(0, 0, view.Width, full))
-	msg(v.content, "setAutoresizingMask:", uint(2|16)) // width, height
+	msg(v.content, "setAutoresizingMask:", uint(2|16))
 	if g := class("NSGlassEffectView"); g != 0 {
 		glass := msg(msg(g, "alloc"), "initWithFrame:", rect(0, 0, view.Width, full))
 		msg(glass, "setCornerRadius:", view.Radius)
@@ -192,9 +173,9 @@ func (v *View) build() {
 		msg(v.panel, "setContentView:", glass)
 	} else {
 		fx := msg(alloc("NSVisualEffectView"), "initWithFrame:", rect(0, 0, view.Width, full))
-		msg(fx, "setMaterial:", 6)     // popover
-		msg(fx, "setState:", 1)        // always active
-		msg(fx, "setBlendingMode:", 0) // behind the window
+		msg(fx, "setMaterial:", 6)
+		msg(fx, "setState:", 1)
+		msg(fx, "setBlendingMode:", 0)
 		msg(fx, "setWantsLayer:", true)
 		msg(msg(fx, "layer"), "setCornerRadius:", view.Radius)
 		msg(msg(fx, "layer"), "setMasksToBounds:", true)
@@ -206,7 +187,7 @@ func (v *View) build() {
 	msg(v.field, "setBezeled:", false)
 	msg(v.field, "setBordered:", false)
 	msg(v.field, "setDrawsBackground:", false)
-	msg(v.field, "setFocusRingType:", 1) // none
+	msg(v.field, "setFocusRingType:", 1)
 	msg(v.field, "setFont:", font(22, false))
 	msg(v.field, "setAutoresizingMask:", uint(2))
 	msg(v.content, "addSubview:", v.field)
@@ -227,7 +208,7 @@ func (v *View) build() {
 	msg(v.content, "addSubview:", v.list)
 	for range view.MaxRows {
 		sec := label(11)
-		msg(sec, "setFont:", msg(class("NSFont"), "systemFontOfSize:weight:", 11.0, 0.3)) // semibold
+		msg(sec, "setFont:", msg(class("NSFont"), "systemFontOfSize:weight:", 11.0, 0.3))
 		msg(sec, "setTextColor:", color("secondaryLabelColor"))
 		msg(sec, "setHidden:", true)
 		msg(v.list, "addSubview:", sec)
@@ -239,7 +220,7 @@ func (v *View) build() {
 		r.title = label(15)
 		r.sub = label(12)
 		r.tail = label(12)
-		msg(r.tail, "setAlignment:", 2) // right
+		msg(r.tail, "setAlignment:", 2)
 		r.hint = label(12)
 		msg(r.hint, "setAlignment:", 2)
 		inner := view.Width - 2*view.Padding
@@ -263,8 +244,6 @@ func (v *View) build() {
 		uint(moved|enteredExited|always|inVisibleRect), hover, objc.ID(0))
 	msg(v.content, "addTrackingArea:", area)
 
-	// The launcher sees keys before the text field does. Keys it doesn't handle, such as typing,
-	// go on to the field.
 	keys := objc.NewBlock(func(_ objc.Block, e objc.ID) objc.ID {
 		return guarded("key", e, func() objc.ID {
 			if msg(e, "window") != v.panel {
@@ -296,8 +275,6 @@ func (v *View) build() {
 	v.blocks = append(v.blocks, keys)
 }
 
-// buildFooter builds the footer line: two slots in a box that is Slide taller above and below,
-// so a line that moves in or out stays inside it.
 func (v *View) buildFooter() {
 	v.footer = msg(objc.ID(contentClass).Send(sel("alloc")), "initWithFrame:", rect(18, 0, view.FooterW, 18+2*view.Slide))
 	msg(v.content, "addSubview:", v.footer)
@@ -305,8 +282,8 @@ func (v *View) buildFooter() {
 		sl := slot{box: msg(objc.ID(contentClass).Send(sel("alloc")), "initWithFrame:", rect(0, view.Slide, view.FooterW, 18))}
 		msg(sl.box, "setWantsLayer:", true)
 		sl.spinner = msg(alloc("NSProgressIndicator"), "initWithFrame:", rect(0, 1, view.SpinSize, view.SpinSize))
-		msg(sl.spinner, "setStyle:", 1)       // spinning
-		msg(sl.spinner, "setControlSize:", 1) // small
+		msg(sl.spinner, "setStyle:", 1)
+		msg(sl.spinner, "setControlSize:", 1)
 		msg(sl.spinner, "setDisplayedWhenStopped:", false)
 		sl.label = label(12)
 		msg(sl.box, "addSubview:", sl.spinner)
@@ -320,7 +297,6 @@ func (v *View) buildFooter() {
 	v.fill(v.slots[v.active], v.line)
 }
 
-// fill puts line in sl. A status is also set as the tooltip, because its text may be cut off.
 func (v *View) fill(sl slot, line view.Line) {
 	text, col, left := line.Hints, color("secondaryLabelColor"), 0.0
 	switch line.Status.Kind {
@@ -346,8 +322,6 @@ func (v *View) fill(sl slot, line view.Line) {
 	msg(sl.label, "setToolTip:", nsString(tip))
 }
 
-// showLine shows the footer line for s. When view.Swaps allows it, the old line moves up and out
-// while the new one moves up from below.
 func (v *View) showLine(s view.Snapshot) {
 	line := view.FooterLine(s)
 	switch {
@@ -380,7 +354,7 @@ func (v *View) buildStop() {
 	v.stop = msg(alloc("NSButton"), "initWithFrame:", rect(view.StopLeft, 0, view.StopSize, view.StopSize))
 	msg(v.stop, "setBordered:", false)
 	msg(v.stop, "setTitle:", nsString(""))
-	msg(v.stop, "setImagePosition:", uint(1)) // image only
+	msg(v.stop, "setImagePosition:", uint(1))
 	if img := v.icon(icons.StopAll); img != 0 {
 		small := msg(img, "copy")
 		msg(small, "setSize:", nsSize{14, 14})
@@ -421,8 +395,6 @@ func (v *View) Show(at *view.Placement) {
 		v.top = vf.Origin.Y + vf.Size.H - dy // AppKit's y grows upward
 	}
 	v.visible = true
-	// Record the current pointer position, so rows appearing under it don't count as a move and
-	// don't change the selection.
 	m := msgPoint(class("NSEvent"), "mouseLocation")
 	v.hoverX, v.hoverY = m.X, m.Y
 	v.scrolled = 0
@@ -437,8 +409,6 @@ func (v *View) Hide() {
 	msg(v.panel, "orderOut:", objc.ID(0))
 }
 
-// resigned handles the panel losing keyboard focus. It reports the blur at once, unless a mouse
-// button is down (see View.dragOver).
 func (v *View) resigned() {
 	if !v.visible || v.ev.Blur == nil {
 		return
@@ -454,7 +424,6 @@ func (v *View) resigned() {
 	}
 }
 
-// checkButtons reports the blur that waited, unless a drop gave the panel focus again.
 func (v *View) checkButtons() {
 	if v.dragOver || objc.Send[uint](class("NSEvent"), sel("pressedMouseButtons")) != 0 {
 		return
@@ -473,8 +442,6 @@ func (v *View) stopWaiting() {
 	v.dragOver = false
 }
 
-// dragCopy is NSDragOperationCopy. Dropped files are copied or moved, depending on what the user
-// then picks. dragNone is NSDragOperationNone, which refuses them.
 const (
 	dragCopy = 1
 	dragNone = 0
@@ -521,8 +488,6 @@ func (v *View) SetQuery(text string, selectAll bool) {
 	}
 }
 
-// label translates the view's own labels. Render calls it, so they follow a change of language.
-// The panel's title doesn't show, but VoiceOver reads it.
 func (v *View) label() {
 	if lang := i18n.Language(); lang != v.language {
 		v.language = lang
@@ -547,7 +512,7 @@ func (v *View) Render(s view.Snapshot) {
 			msg(sec, "setHidden:", true)
 			continue
 		}
-		y := view.RowTop(s, i) - top // relative to the list
+		y := view.RowTop(s, i) - top
 		x := s.Rows[i]
 		msg(sec, "setHidden:", x.Group == "")
 		if x.Group != "" {
@@ -664,7 +629,7 @@ func (v *View) key(e objc.ID) bool {
 		k.Key = view.KeyDown
 	case code == 126:
 		k.Key = view.KeyUp
-	case code == 48 && flags&(1<<17) == 0: // tab, not shift-tab
+	case code == 48 && flags&(1<<17) == 0:
 		k.Key = view.KeyTab
 	case cmd:
 		chars := []rune(strings.ToLower(goString(msg(e, "charactersIgnoringModifiers"))))
@@ -689,8 +654,6 @@ func (v *View) mouseMoved(e objc.ID) {
 	if !msgBool(v.panel, "isKeyWindow") {
 		msg(v.panel, "makeKeyAndOrderFront:", objc.ID(0))
 	}
-	// Only real mouse movement selects a row, so compare screen coordinates. The panel appearing,
-	// or rows shifting under a still pointer, doesn't move the selection.
 	m := msgPoint(class("NSEvent"), "mouseLocation")
 	if m.X == v.hoverX && m.Y == v.hoverY {
 		return
@@ -716,7 +679,6 @@ func (v *View) mouseDown(e objc.ID) {
 	msg(v.panel, "performWindowDragWithEvent:", e)
 }
 
-// scrollWheel counts each wheel line as one row, and adds trackpad points up to rows.
 func (v *View) scrollWheel(e objc.ID) {
 	if !v.visible || v.ev.Scroll == nil {
 		return
@@ -734,10 +696,8 @@ func (v *View) scrollWheel(e objc.ID) {
 	}
 }
 
-// rowAt returns the drawn row at y, measured from the panel's top, or -1.
 func (v *View) rowAt(y float64) int { return view.RowAt(y, v.snap) }
 
-// mouseScreen returns the visible frame of the screen that has the mouse.
 func mouseScreen(screens objc.ID) nsRect {
 	m := msgPoint(class("NSEvent"), "mouseLocation")
 	for i := uint(0); i < objc.Send[uint](screens, sel("count")); i++ {

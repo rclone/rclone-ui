@@ -1,7 +1,3 @@
-// Command gen writes icons_gen.go. For every Name in icons.go, it stores the regular variant of
-// that Zappicon glyph as an SVG document. It reads the variant's ES module (the paths' `d` and
-// fill rule) and adds the same half-unit stroke that the pages' global.css adds, so the
-// launcher's glyphs have the same weight as the pages' icons.
 package main
 
 import (
@@ -49,7 +45,6 @@ func main() {
 	check(os.WriteFile("icons_gen.go", out, 0o644))
 }
 
-// svg returns the regular variant of the glyph in module file f.
 func svg(f string) (string, error) {
 	src, err := os.ReadFile(f)
 	if err != nil {
@@ -61,7 +56,6 @@ func svg(f string) (string, error) {
 		return "", fmt.Errorf("%s: no regular variant", f)
 	}
 	s = s[i:]
-	// the variant ends where the next one starts
 	if j := strings.Index(s[1:], "\n  [\""); j >= 0 {
 		s = s[:j+1]
 	}

@@ -45,10 +45,9 @@ type Schedule struct {
 	// not stored.
 	Warning string `json:"warning,omitempty"`
 
-	lastError i18n.Text // LastError as a translatable text
+	lastError i18n.Text
 }
 
-// local returns s with its last error in the app's language, as a page shows it.
 func (s *Schedule) local() *Schedule {
 	if s != nil {
 		s.LastError = s.lastError.Local()
@@ -74,16 +73,13 @@ type Description struct {
 }
 
 const (
-	ResultCompleted = "completed"
-	// ResultNothing is a run that completed having changed nothing, or a Move, Delete or Purge
-	// whose sources were all gone.
+	ResultCompleted   = "completed"
 	ResultNothing     = "nothing"
 	ResultFailed      = "failed"
 	ResultStopped     = "stopped"
 	ResultInterrupted = "interrupted"
 )
 
-// Operations are the operations that a schedule can run.
 var Operations = []operations.Operation{
 	operations.OperationCopy, operations.OperationMove, operations.OperationSync,
 	operations.OperationBisync, operations.OperationDelete, operations.OperationPurge,

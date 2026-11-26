@@ -21,17 +21,14 @@ func sysProcAttr() *syscall.SysProcAttr {
 	return &syscall.SysProcAttr{CreationFlags: windows.CREATE_NO_WINDOW | windows.CREATE_NEW_PROCESS_GROUP}
 }
 
-// osState holds the supervisor's Job Object. Every child is assigned to it, and Windows kills
-// them all when the app's handle to it closes, however the app ends. The handle is not
-// inheritable, so no child holds it.
 type osState struct {
 	once sync.Once
 	job  windows.Handle
 	err  error
 }
 
-// afterStart assigns the child to the job. os/exec can't start a process suspended, so if the
-// app is killed before this runs, the child is orphaned. children.json covers that case.
+// os/exec can't start a process suspended, so if the app is killed before this runs, the child
+// is orphaned.
 func (o *osState) afterStart(pid int) error {
 	o.once.Do(func() { o.job, o.err = newKillOnCloseJob() })
 	if o.err != nil {

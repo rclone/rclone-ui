@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-// appImage returns $APPIMAGE when this process runs from that AppImage's mount ($APPDIR), using
-// the same rule as pathlink. It returns "" for any other install.
 func appImage() string {
 	img, dir := os.Getenv("APPIMAGE"), os.Getenv("APPDIR")
 	if img == "" || dir == "" {

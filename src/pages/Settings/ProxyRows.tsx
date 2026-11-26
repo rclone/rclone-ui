@@ -9,8 +9,7 @@ import { ask, message, relaunch } from '../../../lib/shell'
 import { SettingRow } from './SettingsGroup'
 
 /**
- * The proxy that rclone and the app's own requests go through, and the hosts that skip it. A
- * change restarts the app, because rclone reads the proxy only when it starts.
+ * A change restarts the app, because rclone reads the proxy only when it starts.
  */
 export default function ProxyRows() {
     const urlId = useId()
@@ -21,7 +20,6 @@ export default function ProxyRows() {
     const [proxyUrl, setProxyUrl] = useState('')
     const [newHost, setNewHost] = useState('')
     const [isTestingProxy, setIsTestingProxy] = useState(false)
-    // Only one save runs at a time. The controls are disabled until it finishes.
     const [isSaving, setIsSaving] = useState(false)
 
     useEffect(() => {
@@ -32,17 +30,11 @@ export default function ProxyRows() {
 
     const ignoredHosts = useMemo(() => proxy?.ignoredHosts || [], [proxy?.ignoredHosts])
 
-    // The proxy as last saved. It comes from the settings, or from the result of a save until
-    // the settings catch up. Each change starts from this value, so removing a host right after
-    // another one doesn't bring the first one back.
     const saved = useRef({ url: proxy?.url || '', ignoredHosts })
     useEffect(() => {
         saved.current = { url: proxy?.url || '', ignoredHosts }
     }, [proxy?.url, ignoredHosts])
 
-    // Saves the proxy, then restarts the app when the change needs it. What was running starts
-    // again. If something is running, the user is asked first, and the setting is saved before
-    // that question either way. Returns true when the new proxy is in effect.
     const saveProxy = async (url: string, hosts: string[]): Promise<boolean> => {
         const res = await updateSettings({ proxy: { url, ignoredHosts: hosts } })
         saved.current = {
@@ -55,8 +47,6 @@ export default function ProxyRows() {
         return relaunch('/settings?section=network')
     }
 
-    // Saves the proxy and tells the user the result: an error, a proxy that isn't in effect yet,
-    // or "saved and applied" when sayApplied is set. Returns false on an error.
     const save = async (url: string, hosts: string[], sayApplied: boolean): Promise<boolean> => {
         let applied: boolean
         setIsSaving(true)
@@ -172,7 +162,6 @@ export default function ProxyRows() {
                     <div className="flex flex-row gap-2">
                         <Button
                             color="primary"
-                            // As wide as the bandwidth's "Save", so the two fields end together.
                             className="min-w-32"
                             onPress={() => handleUpdateProxyUrl(proxyUrl)}
                             data-focus-visible="false"
@@ -200,7 +189,6 @@ export default function ProxyRows() {
                 </div>
             </SettingRow>
 
-            {/* The hosts matter only with a proxy, so they show once one is entered. */}
             {(proxyUrl || ignoredHosts.length > 0) && (
                 <SettingRow
                     stacked={true}

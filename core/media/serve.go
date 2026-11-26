@@ -30,7 +30,6 @@ func (s *Signer) Listen() error {
 	return nil
 }
 
-// Shutdown stops serving, which ends the previews' reads.
 func (s *Signer) Shutdown(ctx context.Context) {
 	if s.srv == nil {
 		return
@@ -71,9 +70,6 @@ func devOrigins(devURL string) []string {
 	return origins
 }
 
-// cors lets the app's pages read the responses with fetch, which a preview uses to read a file
-// in ranges. The signature keeps other pages from loading the files, and CORS keeps their scripts
-// from reading the responses.
 func cors(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := r.Header.Get("Origin"); origin != "" && allowedOrigin(origin) {

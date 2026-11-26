@@ -13,14 +13,8 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// bisyncHelpParam matches one parameter in the help of sync/bisync, such as
-// "- name (required) - (type) …".
 var bisyncHelpParam = regexp.MustCompile(`(?m)^- (\w+) `)
 
-// The bisyncParams list matches the parameters of rclone's sync/bisync (its rc help,
-// cmd/bisync/rc.md) in both directions. The Bisync page may set every documented parameter except
-// the two paths, which are a step's Src and Dst, and every name that the page may set is one that
-// rclone reads.
 func TestBisyncParamsAreRclones(t *testing.T) {
 	call := rc.Calls.Get("sync/bisync")
 	if call == nil {
@@ -38,21 +32,17 @@ func TestBisyncParamsAreRclones(t *testing.T) {
 			t.Errorf("rclone's sync/bisync takes %s, which the Bisync page can't set", name)
 		}
 	}
-	// rclone reads maxDelete, which its help doesn't list (rcBisync in cmd/bisync/rc.go).
 	for _, name := range bisyncParams {
 		if !slices.Contains(documented, name) && name != "maxDelete" {
 			t.Errorf("%s is not a parameter of rclone's sync/bisync", name)
 		}
 	}
-	// maxDelete is read before the paths, so a value out of range is refused by name.
 	_, _, err := rclone.Call(context.Background(), "sync/bisync", rc.Params{"maxDelete": 200}, rclone.CallOpts{})
 	if err == nil || !strings.Contains(err.Error(), "maxDelete") {
 		t.Errorf("rclone's sync/bisync does not read maxDelete: %v", err)
 	}
 }
 
-// A bisync that runs by itself drops the switches of a run that someone started, and keeps the
-// rest. Only the switches that are on become parameters.
 func TestUnattendedBisync(t *testing.T) {
 	most := 10
 	s := UnattendedBisync(BisyncSwitches{

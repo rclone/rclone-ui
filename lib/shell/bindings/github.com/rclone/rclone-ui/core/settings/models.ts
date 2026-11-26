@@ -163,10 +163,6 @@ export class Patch {
      * working.
      */
     "newAgentToken"?: boolean;
-
-    /**
-     * TelemetryEnabled is the user's choice about sharing usage data and crash reports.
-     */
     "telemetryEnabled"?: boolean | null;
 
     /** Creates a new Patch instance. */
@@ -425,10 +421,6 @@ export class Updates {
      * Channel is "stable" or "beta".
      */
     "channel": string;
-
-    /**
-     * SkippedVersion is the release the user chose to skip.
-     */
     "skippedVersion": string;
 
     /** Creates a new Updates instance. */

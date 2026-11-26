@@ -43,7 +43,6 @@ func TestSaveListReplaceDelete(t *testing.T) {
 	if b.Options == nil || len(b.Options) != 0 {
 		t.Errorf("normalised %v", b)
 	}
-	// Replacing keeps the place in the list.
 	a.Name = "Faster"
 	if _, err := s.Save(ctx, a); err != nil {
 		t.Fatal(err)
@@ -52,7 +51,6 @@ func TestSaveListReplaceDelete(t *testing.T) {
 	if err != nil || !slices.Equal(names(all), []string{"Faster", "Photos"}) {
 		t.Fatalf("list %v %v", names(all), err)
 	}
-	// The saved templates read back as Check normalized them.
 	if got := all[0]; got.ID != a.ID || text(got.Options) != `{"transfers":16}` || !slices.Equal(got.Tags, []operations.Operation{"copy", "sync"}) {
 		t.Errorf("read back %v", got)
 	}
@@ -85,8 +83,6 @@ func TestRefusals(t *testing.T) {
 	}
 }
 
-// A template stores the app's own metadata mapper as the mapping panel writes it, however it was
-// typed. A mapper without `metadata` is refused, as a start would refuse it.
 func TestSaveStoresTheMapper(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New(), "")
@@ -105,8 +101,6 @@ func TestSaveStoresTheMapper(t *testing.T) {
 	}
 }
 
-// A template keeps its paths without blank sources and with the destination trimmed. A template
-// without paths stores none.
 func TestPaths(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New(), "")
@@ -136,7 +130,6 @@ func TestPaths(t *testing.T) {
 	if err != nil || len(all) != 2 || all[0].Paths == nil || !reflect.DeepEqual(*all[0].Paths, want) {
 		t.Fatalf("listed %+v %v", all, err)
 	}
-	// Only a destination is kept too, with an empty list of sources.
 	only, err := s.Save(ctx, &Template{ID: "dest", Name: "Dest", Paths: &Paths{Destination: "dst:"}})
 	if err != nil || only.Paths == nil || len(only.Paths.Sources) != 0 || only.Paths.Sources == nil {
 		t.Errorf("only a destination: %+v %v", only.Paths, err)
@@ -157,7 +150,6 @@ func TestPathRefusals(t *testing.T) {
 			t.Errorf("Check(%+v) = %v, want a refusal of paths", p, err)
 		}
 	}
-	// A mount point on Windows can be a drive letter or *.
 	for _, dest := range []string{"M:", "*"} {
 		if _, err := Check(&Template{Name: "x", Tags: []operations.Operation{"mount"}, Paths: &Paths{Sources: []string{"src:"}, Destination: dest}}); err != nil {
 			t.Errorf("mount point %s: %v", dest, err)
@@ -165,8 +157,6 @@ func TestPathRefusals(t *testing.T) {
 	}
 }
 
-// Saving checks the options against the template's tags, as their starts would: an option that
-// none of them takes is refused.
 func TestOptionsCheckedForEachTag(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New(), "")
@@ -177,13 +167,11 @@ func TestOptionsCheckedForEachTag(t *testing.T) {
 	}{
 		{[]operations.Operation{"copy", "sync"}, `{"transfers": 4, "max_age": "1d", "metadata": true}`, ""},
 		{[]operations.Operation{"mount", "serve"}, `{"vfs_cache_mode": "full", "no_such": 1}`, ""},
-		// An option that only one of the tags takes is kept: the copy's run leaves it out.
 		{[]operations.Operation{"copy", "mount"}, `{"vfs_cache_mode": "full"}`, ""},
 		{[]operations.Operation{"copy", "delete"}, `{"vfs_cache_mode": "full"}`, "Copy: vfs_cache_mode is not one of the options rclone takes here."},
 		{[]operations.Operation{"move"}, `{"--transfers": 4}`, "Move: --transfers is written transfers here."},
 		{[]operations.Operation{"purge"}, `{"no_such": 1}`, "Purge: no_such is not one of the options rclone takes here."},
 		{[]operations.Operation{"bisync"}, `{"bwlimit": "1M"}`, "bwlimit can't be set for one transfer"},
-		// A cleared value is left out, as a start leaves it out.
 		{[]operations.Operation{"copy"}, `{"vfs_cache_mode": null, "no_such": " "}`, ""},
 	} {
 		_, err := s.Save(ctx, &Template{Name: "x", Tags: c.tags, Options: opts(c.options)})
@@ -200,7 +188,6 @@ func TestOptionsCheckedForEachTag(t *testing.T) {
 	}
 }
 
-// A template runs as one of its tags with its paths and options, sorted into the form's groups.
 func TestRunArgs(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New(), "")
@@ -243,8 +230,6 @@ func TestRunArgs(t *testing.T) {
 	}
 }
 
-// A template for an operation that takes one source (sync, bisync, mount or serve) can't have
-// several. Blank sources don't count.
 func TestOneSource(t *testing.T) {
 	two := &Paths{Sources: []string{"src:x", "src:y"}, Destination: "dst:"}
 	for _, tag := range []operations.Operation{"sync", "bisync", "mount", "serve"} {
@@ -298,7 +283,6 @@ func TestGroups(t *testing.T) {
 	}
 }
 
-// The export holds each chosen template, in the list's order, with its options as a command line.
 func TestExport(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New(), "/opt/rcui")
@@ -334,7 +318,6 @@ func TestExport(t *testing.T) {
 	}
 }
 
-// A page that asks about a template that doesn't exist gets not_found, not invalid.
 func TestAPINotFound(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New(), "")

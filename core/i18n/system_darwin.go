@@ -5,8 +5,6 @@ import (
 	"regexp"
 )
 
-// quoted finds the languages in the output of `defaults read -g AppleLanguages`, which is a
-// list such as ("en-US", "zh-Hans-US").
 var quoted = regexp.MustCompile(`"([^"]+)"`)
 
 // systemLanguages returns the user's preferred languages, in order, from System Settings. A GUI

@@ -18,7 +18,6 @@ import {
 } from './describe'
 
 const NOW = new Date(2026, 9, 2, 22, 0).getTime()
-// The tests run in English (src/testSetup.ts), so the dates are written as English writes them.
 const time = (ms: number) => formatDate(ms, { hour: '2-digit', minute: '2-digit' })
 const at = (daysAgo: number, hours: number, minutes: number) =>
     new Date(2026, 9, 2 - daysAgo, hours, minutes).getTime()
@@ -26,7 +25,6 @@ const at = (daysAgo: number, hours: number, minutes: number) =>
 type Transfer = Transfers.Transfer
 type TransferProgress = Bus.TransferProgress
 
-/** Builds a transfer. The state and the operation are strings, as the core sends them. */
 function transfer(
     over: Omit<Partial<Transfer>, 'state' | 'operation'> & {
         state?: `${Transfers.State}`

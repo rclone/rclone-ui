@@ -1,8 +1,5 @@
 package core
 
-// This test binary is also the serve child that TestStartServeShutdown starts. When it runs as a
-// rclone child (marked by childenv), it runs rclone's command line, as main.go does.
-
 import (
 	"context"
 	"database/sql"
@@ -51,11 +48,6 @@ func TestMain(m *testing.M) {
 	testutil.Main(m, nil)
 }
 
-// The core starts in this process on rclone's default config file, which is encrypted and whose
-// password it doesn't know. RCLONE_CONFIG names another file, which the core ignores. An unlock
-// opens the file: the remotes get their rows and remotes.changed is sent. The core answers API
-// calls and runs a serve as a child, with the one config file. On Shutdown it stops the child and
-// removes the running file, so the next start isn't mistaken for one after a crash.
 func TestStartUnlockServeShutdown(t *testing.T) {
 	dir := t.TempDir()
 	runDir, err := os.MkdirTemp("", "rc") // a socket's path must stay short
@@ -71,7 +63,7 @@ func TestStartUnlockServeShutdown(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := rcloneconfig.GetConfigPath() // testutil.Home's file
+	conf := rcloneconfig.GetConfigPath()
 	enc, err := rclone.EncryptConfig([]byte("[box]\ntype = local\n"), "s3cret")
 	if err != nil {
 		t.Fatal(err)
@@ -82,8 +74,6 @@ func TestStartUnlockServeShutdown(t *testing.T) {
 	testutil.Must(t, os.WriteFile(other, []byte("[other]\ntype = local\n"), 0o600))
 	t.Setenv("RCLONE_CONFIG", other)
 
-	// A stand-in for PostHog keeps what the core sends, as text, to check at the end that it
-	// holds nothing of the user's.
 	var (
 		sentMu sync.Mutex
 		sent   []string
@@ -95,13 +85,11 @@ func TestStartUnlockServeShutdown(t *testing.T) {
 		sentMu.Unlock()
 		_, _ = w.Write([]byte(`{"status":1}`))
 	}))
-	// It closes after the core has shut down (the cleanup below), which sends what is waiting.
 	t.Cleanup(posthog.Close)
 	type event struct {
 		Event      string         `json:"event"`
 		Properties map[string]any `json:"properties"`
 	}
-	// events returns what the stand-in has got so far: the events, and the text they came in.
 	events := func() (out []event, text string) {
 		t.Helper()
 		sentMu.Lock()
@@ -125,12 +113,7 @@ func TestStartUnlockServeShutdown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A test that fails halfway still stops its core, so the core's goroutines and its child
-	// can't reach into the tests that run after it. Only the first Shutdown does anything.
 	t.Cleanup(func() { c.Shutdown(context.Background(), false) })
-	// hasSent waits until the stand-in has got n events named name. The core queues an event on a
-	// goroutine of its own, some time after the test can see what the event is about. So the test
-	// waits for each event where it is due, and nothing depends on which goroutine ran first.
 	hasSent := func(name string, n int) {
 		t.Helper()
 		testutil.Eventually(t, 30*time.Second, fmt.Sprintf("%d %s sent", n, name), func() bool {
@@ -175,14 +158,12 @@ func TestStartUnlockServeShutdown(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("no remotes.changed after the unlock")
 	}
-	// Sharing starts off on Linux, and the core sends once it is on.
 	on := true
 	if _, err := apis.Settings.Update(ctx, settings.Patch{TelemetryEnabled: &on}); err != nil {
 		t.Fatal(err)
 	}
 	hasSent("app_started", 1)
 
-	// A copy from the "box" remote to a local folder, which is sent by its kind and its backends.
 	started, err := apis.Transfers.Start(ctx,
 		operations.CopyArgs{Sources: []string{"box:" + folder}, Destination: filepath.Join(dir, "copied")}.Form(),
 		transfers.StartOptions{Origin: transfers.OriginCommander})
@@ -209,7 +190,6 @@ func TestStartUnlockServeShutdown(t *testing.T) {
 		t.Errorf("remote_fsinfo after the unlock: %v", rows)
 	}
 
-	// The watchers and schedules that keep running while the app is open, for the quit dialog.
 	if k := c.KeepsRunning(ctx); k != (Kept{}) {
 		t.Errorf("kept with none: %+v", k)
 	}
@@ -221,8 +201,6 @@ func TestStartUnlockServeShutdown(t *testing.T) {
 	if k := c.KeepsRunning(ctx); k != (Kept{Watchers: 1, Schedules: 1}) {
 		t.Errorf("kept: %+v", k)
 	}
-	// A new watcher runs at once, and a pause lets that run finish. Wait for its end, so that its
-	// bisync isn't still running when Busy is read below.
 	testutil.Eventually(t, 30*time.Second, "the watcher's first run", func() bool {
 		got, err := apis.Watchers.Get(ctx, w.ID)
 		return err == nil && got.LastRunAt != nil
@@ -233,8 +211,6 @@ func TestStartUnlockServeShutdown(t *testing.T) {
 		t.Errorf("kept with everything paused: %+v", k)
 	}
 
-	// The core sends a serve once it hears that the serve runs, and reads the serve from the list
-	// then. So each serve is sent before the test stops it.
 	served := 0
 	serve := func() serves.Serve {
 		t.Helper()
@@ -255,8 +231,6 @@ func TestStartUnlockServeShutdown(t *testing.T) {
 		return v
 	}
 
-	// Stop Everything stops what Busy lists, and leaves the paused watcher and schedule as they
-	// are.
 	serve()
 	if b := c.Busy(ctx); len(b.Items) != 1 || b.Items[0].Kind != "serve" || b.Running != (Running{Serves: 1}) {
 		t.Fatalf("busy %+v", b)
@@ -285,8 +259,6 @@ func TestStartUnlockServeShutdown(t *testing.T) {
 		t.Errorf("the running file: %v", err)
 	}
 
-	// The run is described by counts and types, each serve by its protocol and backend, and nothing
-	// names the user's folders, files or remotes.
 	sentEvents, all := events()
 	count := map[string]int{}
 	for _, e := range sentEvents {

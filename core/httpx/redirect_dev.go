@@ -9,11 +9,6 @@ import (
 	"strings"
 )
 
-// devRedirect sends the requests for some hosts to another server, so that a development run can
-// talk to a local stand-in for a service, such as a fake Telegram Bot API. RCUI_DEV_REDIRECT lists
-// them as host=url pairs separated by commas:
-// "api.telegram.org=http://127.0.0.1:8766,hooks.slack.com=http://127.0.0.1:8767". A request
-// keeps its path and query. Without the variable, rt is returned as it is.
 func devRedirect(rt http.RoundTripper) http.RoundTripper {
 	to := map[string]*url.URL{}
 	for pair := range strings.SplitSeq(os.Getenv("RCUI_DEV_REDIRECT"), ",") {

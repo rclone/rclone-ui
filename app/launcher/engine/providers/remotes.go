@@ -9,12 +9,8 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// Remotes offers the remotes (Browse, with the other actions in the ⌘K panel), editing a remote,
-// and the remotes list and new remote screens in the Remotes window.
 type Remotes struct{}
 
-// The words that list every remote as a command: "browse" (a drill-in), "edit" and "automount".
-// Each is a message of words separated by commas, which a translation gives in its language.
 var (
 	// i18n: Words that, typed in the launcher, list every remote to browse, separated by commas. The first one is the command itself.
 	browseWords = i18n.M("browse, explore, open, view, files")
@@ -31,8 +27,6 @@ var (
 	newWords = i18n.M("new, remote, create, add")
 )
 
-// Query lists the remotes that a word matches (or, for an empty query, the ones used often), and
-// the remotes' settings.
 func (Remotes) Query(_ context.Context, q engine.Query, d *engine.Data) []engine.Result {
 	return inGroup(engine.GroupRemotes, remotes(q, d))
 }
@@ -47,7 +41,6 @@ func remotes(q engine.Query, d *engine.Data) []engine.Result {
 		}.Say(i18n.M("New Remote"), newWords),
 	}
 	if len(q.Paths) > 0 {
-		// A remote typed as a path gets its settings here. Other providers offer the operations.
 		seen := map[string]bool{}
 		for _, p := range q.Paths {
 			if p.Local || seen[p.Remote] {
@@ -62,8 +55,6 @@ func remotes(q engine.Query, d *engine.Data) []engine.Result {
 	for _, r := range d.Remotes {
 		res := remoteResult(r, d)
 		if browsing {
-			// For browse, each remote is shown as "Browse gdrive" instead of its usual row, which
-			// the browse words find with its name: "explore gd".
 			res.Score = 140
 			res = res.Say(i18n.M("Browse %s", r.Name), i18n.Text{})
 			local, english := engine.Words(browseWords)
@@ -91,7 +82,6 @@ func remotes(q engine.Query, d *engine.Data) []engine.Result {
 	if local, english := command(browseWords); only(q, local, english) {
 		out = append(out, back())
 	}
-	// A remote's name typed after a command ("copy gdr"): Tab completes it to the remote's root.
 	if w := q.TypingWord; w != "" && len(q.Terms) > 1 {
 		for _, r := range d.Remotes {
 			m, ok := match.Match(w, r.Name)
@@ -111,8 +101,6 @@ func remotes(q engine.Query, d *engine.Data) []engine.Result {
 	return out
 }
 
-// remoteResult returns a remote's result. Its default action browses it, and the ⌘K panel lists
-// everything else that can start from its root.
 func remoteResult(r engine.Remote, d *engine.Data) engine.Result {
 	root := r.Name + ":"
 	p := engine.Path{Text: root, Remote: r.Name, Features: r.Features}
@@ -121,7 +109,6 @@ func remoteResult(r engine.Remote, d *engine.Data) engine.Result {
 		Icon: icons.Remote, Keywords: []string{r.Type}, Score: 100,
 		Actions: append(pathActions(p, d, true), copyText("copy-name", i18n.T("Copy Name"), root)), Complete: root,
 	}
-	// "browse gdrive" finds the remote, in the app's language and in English.
 	local, english := command(browseWords)
 	res.Keywords = append(res.Keywords, local+" "+r.Name)
 	if english != local {
@@ -153,8 +140,6 @@ func autoMountResult(name string, d *engine.Data) engine.Result {
 	}.Say(title, words)
 }
 
-// newAutomount returns an action that opens the Automounts window with a new automount of source,
-// a remote's root or a folder in it.
 func newAutomount(source string) engine.Action {
 	return engine.Action{ID: "automount", Name: i18n.T("New Automount"), Icon: icons.Automounts, Opens: true,
 		Run: func(_ context.Context, env engine.Env) error {
@@ -163,8 +148,6 @@ func newAutomount(source string) engine.Action {
 		}}
 }
 
-// remotesWindow returns an action that opens the Remotes window, with an action on a remote. name
-// is the action's name, in the app's language.
 func remotesWindow(id, name, action, remote string) engine.Action {
 	return engine.Action{ID: id, Name: name, Icon: icons.Remotes, Opens: true, Run: func(_ context.Context, env engine.Env) error {
 		env.OpenWindow("Remotes", withParams("/remotes", "action", action, "remote", remote))

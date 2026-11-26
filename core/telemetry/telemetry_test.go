@@ -18,14 +18,12 @@ import (
 	"github.com/rclone/rclone-ui/core/settings"
 )
 
-// event is one event as PostHog receives it.
 type event struct {
 	Event      string         `json:"event"`
 	DistinctID string         `json:"distinct_id"`
 	Properties map[string]any `json:"properties"`
 }
 
-// receiver is a stand-in for PostHog that keeps what it receives.
 type receiver struct {
 	*httptest.Server
 	mu     sync.Mutex
@@ -60,7 +58,6 @@ func (p *receiver) got() []event {
 	return append([]event(nil), p.events...)
 }
 
-// shared is the choice of a user who shares data.
 var shared = settings.Telemetry{Enabled: true, ID: "0b0f2f0a-1111-4222-8333-444455556666"}
 
 func service(p *receiver, o Options) *Service {
@@ -132,8 +129,6 @@ func TestCaptureSendsUnderTheUsersID(t *testing.T) {
 	}
 }
 
-// TestTurningOffDropsWhatWaits checks that an event still waiting to be sent when the user turns
-// sharing off is never sent.
 func TestTurningOffDropsWhatWaits(t *testing.T) {
 	p := newPostHog(t)
 	s := service(p, Options{})
@@ -182,7 +177,6 @@ func TestScrub(t *testing.T) {
 	for in, want := range map[string]string{
 		"runtime error: index out of range [1] with length 1":                     "runtime error: index out of range [1] with length 1",
 		`couldn't list files: Propfind "http://10.0.0.5:8080/": context canceled`: "couldn't list files: Propfind <quoted>: context canceled",
-		// A path is taken out whole, spaces included, up to the end of its part of the message.
 		"open /Users/me/Secret Plans/a.txt: permission denied":                    "open <path>: permission denied",
 		`open C:\Users\me\My Documents\taxes.xlsx: access denied`:                 "open <path>: access denied",
 		`\\nas\share\Bob's files is not reachable`:                                "<path>",
@@ -203,7 +197,6 @@ func TestScrub(t *testing.T) {
 	}
 }
 
-// boom panics three calls down, so that its stack has frames to read.
 func boom(n int) {
 	if n == 0 {
 		var m map[string]int
@@ -306,8 +299,6 @@ func TestCrashOf(t *testing.T) {
 	}
 }
 
-// TestCrashLogReportsEachCrashOnce checks that a crash left by the last run is reported once, and
-// that a crash from a run in which nothing was shared is never sent.
 func TestCrashLogReportsEachCrashOnce(t *testing.T) {
 	p := newPostHog(t)
 	path := filepath.Join(t.TempDir(), "crash.log")
@@ -315,7 +306,6 @@ func TestCrashLogReportsEachCrashOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A run in which nothing is shared reads past the crash.
 	quiet := service(p, Options{})
 	quiet.Apply(settings.Telemetry{})
 	quiet.CrashLog(path)
@@ -328,7 +318,6 @@ func TestCrashLogReportsEachCrashOnce(t *testing.T) {
 		t.Fatalf("a crash from a run that shared nothing was sent: %+v", got)
 	}
 
-	// The next crash is appended, and reported once.
 	f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
 	_, _ = f.WriteString("fatal error: concurrent map writes\n\ngoroutine 9 [running]:\nmain.work()\n\tgithub.com/rclone/rclone-ui/main.go:12 +0x1\n")
 	_ = f.Close()
@@ -356,8 +345,6 @@ func TestCrashLogReportsEachCrashOnce(t *testing.T) {
 	}
 }
 
-// TestReportsEachErrorOnceAndScrubsIt checks that an error that repeats is reported once in a
-// run, that its message is scrubbed, and that a run stops at its most reports.
 func TestReportsEachErrorOnceAndScrubsIt(t *testing.T) {
 	p := newPostHog(t)
 	s := service(p, Options{Names: func() []string { return []string{"work-drive"} }})
@@ -382,8 +369,6 @@ func TestReportsEachErrorOnceAndScrubsIt(t *testing.T) {
 	}
 }
 
-// TestTapPanicsReportsWhatIsLoggedWithAStack checks that a recovered panic is reported by being
-// logged the way every recover in the app logs it, and that other errors aren't.
 func TestTapPanicsReportsWhatIsLoggedWithAStack(t *testing.T) {
 	var got []string
 	log := slog.New(TapPanics(slog.NewTextHandler(io.Discard, nil), func(source, value, stack string) {

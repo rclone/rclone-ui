@@ -5,13 +5,7 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
-/**
- * Usage is one key's history.
- */
 export class Usage {
-    /**
-     * Key identifies the result (the launcher's Key).
-     */
     "key": string;
     "count": number;
 

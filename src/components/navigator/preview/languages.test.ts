@@ -20,8 +20,6 @@ describe('the text viewer’s languages', () => {
         expect(hasLanguage('a.__proto__')).toBe(false)
     })
 
-    // Each loader must name a real module and export. A typo would otherwise only show up as
-    // missing colors.
     it('loads every language it lists', async () => {
         const names = [
             'a.js',
@@ -87,7 +85,6 @@ describe('the text viewer’s languages', () => {
         expect(await grammar('nginx-site.conf')).toBe('nginx')
         expect(await grammar('extensions.conf')).toBe('asterisk')
         expect(await grammar('/etc/asterisk/extensions.conf')).toBe('asterisk')
-        // Other files keep their extension's grammar.
         expect(await grammar('app.conf')).toBe('properties')
         expect(await grammar('setup.cfg')).toBe('properties')
         expect(hasLanguage('notes.txt')).toBe(false)

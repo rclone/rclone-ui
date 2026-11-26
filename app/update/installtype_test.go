@@ -27,8 +27,6 @@ func TestUninstallKeyIsTheInstallers(t *testing.T) {
 	}
 }
 
-// A portable copy doesn't update itself, and says how to update it by hand in plain words. It
-// has no artifact of its own, so a check reads the platform's installer, as for a copied binary.
 func TestPortableDoesNotUpdateItself(t *testing.T) {
 	e := New(Options{Installed: TypePortable})
 	if it := e.InstallType(); it != TypePortable {

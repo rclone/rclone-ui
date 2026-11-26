@@ -15,11 +15,6 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// TestMountEnds runs a real mount child (nfsmount on macOS, FUSE on Linux). When its stdin closes
-// (the app is gone), it unmounts and exits. When it is killed instead, it leaves a broken mount
-// point that ClearLeftovers clears. On macOS that check uses the recorded NFS port and never
-// touches the folder, which would hang on a dead NFS mount. On Linux the folder returns ENOTCONN.
-// The test is skipped where this user can't mount.
 func TestMountEnds(t *testing.T) {
 	if testing.Short() {
 		t.Skip("mounts")
@@ -63,7 +58,7 @@ func TestMountEnds(t *testing.T) {
 		u, err := a.s.Start(Spec{
 			Name: name, Kind: KindMount, MountPoint: mp, NFSPort: port, Rclone: args, ConfigPath: a.config,
 			Component: logs.CompMounts, Subcomponent: name,
-			Ready: func(ctx context.Context, _ *Process) error { // the mount table lists it
+			Ready: func(ctx context.Context, _ *Process) error {
 				for {
 					if ok, err := Mounted(mp); err != nil || ok {
 						return err
@@ -100,7 +95,7 @@ func TestMountEnds(t *testing.T) {
 	t.Run("TheWatchdogUnmounts", func(t *testing.T) {
 		u, _ := start(t, "watchdog")
 		p := u.Process()
-		_ = p.stdin.Close() // as when the app dies
+		_ = p.stdin.Close()
 		waitClosed(t, p.exited, 20*time.Second, "the child to exit")
 		if ok, _ := Mounted(mp); ok {
 			t.Fatal("still mounted after the child's watchdog ran")
@@ -111,7 +106,7 @@ func TestMountEnds(t *testing.T) {
 		u, port := start(t, "killed")
 		p := u.Process()
 		rec := Record{ID: u.ID(), Kind: KindMount, Name: "killed", PID: p.PID(), StartTime: p.startTime, MountPoint: mp, NFSPort: port}
-		if err := kill(p.cmd.Process); err != nil { // like a crash, with no unmount
+		if err := kill(p.cmd.Process); err != nil {
 			t.Fatal(err)
 		}
 		waitClosed(t, u.Done(), 20*time.Second, "the down")

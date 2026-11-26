@@ -28,10 +28,6 @@ type Watcher = Core.Watcher
 
 const LOOK = WINDOWS.watchers
 
-/**
- * The Watchers window. A watcher keeps two folders the same with a bisync every minute. The list
- * follows the core's watchers.changed events.
- */
 export default function Watchers() {
     const query = useWatchers()
     const now = useNow()
@@ -79,7 +75,6 @@ const STEPS = [
     t`Then every minute, what changed in one is copied to the other.`,
 ]
 
-/** `title` is for the error dialog. `log` says in English what failed, for the log. */
 async function call(fn: () => Promise<void>, title: string, log: string) {
     try {
         await fn()

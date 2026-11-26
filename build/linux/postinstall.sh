@@ -1,6 +1,4 @@
 #!/bin/sh
-# Refresh the desktop and icon caches so that the menus and the rclone:// handler pick up the
-# new .desktop file and icons.
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database -q /usr/share/applications || true
 fi

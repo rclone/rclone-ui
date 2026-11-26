@@ -17,9 +17,7 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// Artifact is a downloaded release artifact.
 type Artifact struct {
-	// Path is the file. It stays in the engine's staging folder until SaveAs moves it.
 	Path    string
 	Kind    Kind
 	Release *Release
@@ -50,10 +48,6 @@ func (e *Engine) Download(ctx context.Context, rel *Release, progress func(done,
 	return &Artifact{Path: dst, Kind: rel.Kind, Release: rel}, nil
 }
 
-// stagingDir makes a new folder for one download, private to this user. It always creates a new
-// folder and never reuses an existing one. In a shared temp folder (like /tmp on Linux), a folder
-// that another user (or root, after `sudo rcui update`) created first would block the update, or
-// let them swap the downloaded file before it is installed.
 func (e *Engine) stagingDir(version string) (string, error) {
 	dir, err := os.MkdirTemp(e.opts.StagingDir, "rcui-update-"+safeName(version)+"-")
 	if err != nil {
@@ -62,15 +56,10 @@ func (e *Engine) stagingDir(version string) (string, error) {
 	return dir, nil
 }
 
-// stallTimeout is how long a download may receive nothing before it fails. It is a variable so
-// that tests can change it. Without it, a server that stops sending would keep the update at
-// "downloading" forever.
 var stallTimeout = time.Minute
 
-// errStalled is the error for a download that received nothing for stallTimeout.
 var errStalled = errs.New("the server sent nothing for a minute")
 
-// get streams url into dst, and fails unless every byte the server announced arrived.
 func (e *Engine) get(ctx context.Context, url, dst string, progress func(done, total int64)) (err error) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
@@ -115,7 +104,6 @@ func (e *Engine) get(ctx context.Context, url, dst string, progress func(done, t
 		return errs.Errorf("download failed: %w", err)
 	}
 	if progress != nil {
-		// The throttled reports may have left out the last bytes.
 		progress(n, resp.ContentLength)
 	}
 	if resp.ContentLength >= 0 && n != resp.ContentLength {
@@ -124,7 +112,6 @@ func (e *Engine) get(ctx context.Context, url, dst string, progress func(done, t
 	return f.Sync()
 }
 
-// stallReader restarts the stall timer whenever bytes arrive.
 type stallReader struct {
 	r     io.Reader
 	timer *time.Timer
@@ -138,11 +125,8 @@ func (s *stallReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// progressEvery is how often a download reports its progress. io.Copy writes every 32 KB, and
-// each report becomes an event sent to every window.
 const progressEvery = 100 * time.Millisecond
 
-// progressWriter reports the bytes written to it, at most once every progressEvery.
 type progressWriter struct {
 	done, total int64
 	last        time.Time
@@ -158,8 +142,6 @@ func (p *progressWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-// urlFileName returns the file name at the end of a URL ("Rclone-UI-4.0.0-macos-arm64.app.tar.gz"), or ""
-// when the URL doesn't parse.
 func urlFileName(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -169,7 +151,6 @@ func urlFileName(raw string) string {
 	return name
 }
 
-// artifactName returns the artifact's file name from its URL, made safe to store under.
 func artifactName(rel *Release) string {
 	name := safeName(urlFileName(rel.URL))
 	if name == "" || name == "." {
@@ -180,7 +161,6 @@ func artifactName(rel *Release) string {
 	return name
 }
 
-// safeName makes sure a file name is a single path element.
 func safeName(s string) string {
 	return strings.Map(func(r rune) rune {
 		if r == '/' || r == '\\' || r == ':' || r < ' ' {
@@ -190,8 +170,6 @@ func safeName(s string) string {
 	}, s)
 }
 
-// checkKind checks the file's first bytes. A feed that points to the wrong file (such as a deb
-// where an AppImage belongs) fails here, before anything is replaced.
 func checkKind(file string, kind Kind) error {
 	f, err := os.Open(file)
 	if err != nil {
@@ -224,7 +202,6 @@ func checkKind(file string, kind Kind) error {
 }
 
 // SaveAs moves the artifact to dst (a file, or a folder to put it in) and returns its new path.
-// `rcui update --output` uses it.
 func (a *Artifact) SaveAs(dst string) (string, error) {
 	if info, err := os.Stat(dst); err == nil && info.IsDir() {
 		dst = filepath.Join(dst, filepath.Base(a.Path))
@@ -246,13 +223,11 @@ func (a *Artifact) SaveAs(dst string) (string, error) {
 	return dst, nil
 }
 
-// Remove deletes the artifact and its staging folder.
 func (a *Artifact) Remove() {
 	_ = os.Remove(a.Path)
-	_ = os.Remove(filepath.Dir(a.Path)) // removed only if empty, since SaveAs may have moved the file
+	_ = os.Remove(filepath.Dir(a.Path))
 }
 
-// copyFile copies src to dst through a temporary file next to dst.
 func copyFile(src, dst string, mode os.FileMode) (err error) {
 	in, err := os.Open(src)
 	if err != nil {

@@ -9,7 +9,6 @@ import (
 	"testing"
 )
 
-// TestSocketModes checks that a rclone child's rc socket is 0600, whatever umask it inherits.
 func TestSocketModes(t *testing.T) {
 	old := syscall.Umask(0o002) // would make the socket group-writable, enough to connect on Linux
 	defer syscall.Umask(old)

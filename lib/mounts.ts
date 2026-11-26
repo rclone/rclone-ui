@@ -1,7 +1,3 @@
-// The mounts, as the pages use them. Each mount is a child process of the core, running on the
-// config it was started with (core/mounts). mounts.changed keeps the queries fresh and reports
-// when a start has succeeded or failed.
-
 import { t } from '@lingui/core/macro'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
@@ -14,11 +10,6 @@ import { ask, message, openUrl, platform } from './shell'
 
 const UPLOADS_POLL_MS = 3000
 
-/**
- * How often to fetch the mounts again. mounts.changed is only sent when a mount's state changes,
- * not as its uploads finish, so the list is polled while some uploads are pending. Returns false
- * otherwise.
- */
 export function uploadsPollInterval(
     mounts: readonly Pick<Mounts.MountRow, 'uploadsPending'>[] = []
 ) {
@@ -47,10 +38,6 @@ export function useStoppedMounts() {
     return { mounts, query }
 }
 
-/**
- * The automounts, each with whether it is mounted now. An automount mounts a folder of a remote
- * each time the app starts. automounts.changed and mounts.changed keep the list fresh.
- */
 export function useAutomounts() {
     return useQuery({
         queryKey: coreKey('mounts', 'ListAutomounts'),
@@ -128,7 +115,7 @@ export function followStart<T extends { id: string }>(
     })
     const offResync = onResync(() => {
         if (recheck) recheck()
-        else sawResync = true // start() hasn't returned yet, so recheck once it has
+        else sawResync = true
     })
     const off = () => {
         offChange()
@@ -139,7 +126,7 @@ export function followStart<T extends { id: string }>(
             new Promise<T>((resolve, reject) => {
                 let done = false
                 const finish = ({ state, error, cannotMount }: Result) => {
-                    if (done) return // an event and a re-read can both report the result
+                    if (done) return
                     done = true
                     off()
                     if (state === 'running') resolve(started)
@@ -153,7 +140,6 @@ export function followStart<T extends { id: string }>(
                             else if (now.running)
                                 finish({ state: 'running', error: '', cannotMount: false })
                         },
-                        // The next resync tries again. Until then, the events can still settle it.
                         () => undefined
                     )
                 }
@@ -169,7 +155,6 @@ export function followStart<T extends { id: string }>(
     )
 }
 
-/** Reads a mount again for followStart: whether it runs, or undefined when it is gone. */
 async function mountRow(id: string): Promise<{ running: boolean } | undefined> {
     const mount = (await api.List(false)).find((m) => m.id === id)
     return mount && { running: mount.state === 'running' }
@@ -189,7 +174,6 @@ export async function startMount(args: Operations.MountArgs): Promise<Mounts.Mou
     )
 }
 
-/** Starts a stopped mount again on its cache, and returns it once it runs. */
 export async function mountAgain(folder: string): Promise<Mounts.MountRow> {
     return await followStart(
         'mounts.changed',
@@ -199,7 +183,6 @@ export async function mountAgain(folder: string): Promise<Mounts.MountRow> {
     )
 }
 
-/** Mounts an automount now, and returns the mount once it runs. */
 export async function mountAutomount(id: string): Promise<Mounts.MountRow> {
     return await followStart(
         'mounts.changed',
@@ -209,12 +192,10 @@ export async function mountAutomount(id: string): Promise<Mounts.MountRow> {
     )
 }
 
-/** Unmounts a mount, and returns once it is gone. */
 export async function stopMount(id: string): Promise<void> {
     await api.Stop(id)
 }
 
-/** Deletes the waiting uploads of a stopped mount. */
 export async function discardStopped(folder: string): Promise<void> {
     await api.Discard(folder)
 }

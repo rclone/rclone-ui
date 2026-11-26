@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	// http: a remote that a test serves itself, to hold a transfer or a start's plan in the middle
-	// of a request.
 	_ "github.com/rclone/rclone/backend/http"
 	_ "github.com/rclone/rclone/backend/local"
 	_ "github.com/rclone/rclone/backend/memory"
@@ -30,8 +28,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// TestMain initialises rclone once for the package, over an empty config: the tests use local
-// folders and the memory backend.
 func TestMain(m *testing.M) {
 	slog.SetDefault(slog.New(slog.DiscardHandler))
 	testutil.Main(m, func(dir string) error {
@@ -48,22 +44,19 @@ func TestMain(m *testing.M) {
 	})
 }
 
-// fixture is a Service over a fresh app.db. Its loops run until the test ends, after a shutdown
-// that stops whatever is still running.
 type fixture struct {
 	t     *testing.T
 	s     *Service
 	db    *db.DB
 	bus   *bus.Bus
 	notes *notes
-	// ctx is a start's context.
-	ctx context.Context
+	ctx   context.Context
 
 	evMu   sync.Mutex
 	events []bus.Event
 
 	saidMu sync.Mutex
-	said   map[string]chan struct{} // closed once the transfer's end was reported in full
+	said   map[string]chan struct{}
 }
 
 func newFixture(t *testing.T, tweak ...func(*Options)) *fixture {
@@ -99,8 +92,6 @@ func newFixture(t *testing.T, tweak ...func(*Options)) *fixture {
 		tw(&o)
 	}
 	f.s = New(o)
-	// The end callbacks run before the notifications are sent, so a test that checks them waits
-	// for the whole report instead.
 	f.s.reported = func(id string) {
 		ch := f.saidOf(id)
 		f.saidMu.Lock()
@@ -129,7 +120,6 @@ func (f *fixture) saidOf(id string) chan struct{} {
 	return ch
 }
 
-// published returns every event with that name so far.
 func (f *fixture) published(name string) []bus.Event {
 	f.evMu.Lock()
 	defer f.evMu.Unlock()
@@ -142,8 +132,6 @@ func (f *fixture) published(name string) []bus.Event {
 	return out
 }
 
-// settled waits for the end handlers, then for the events they published to be recorded. An
-// event that an end didn't publish by then will never be published.
 func (f *fixture) settled() {
 	f.t.Helper()
 	f.s.ends.Wait()
@@ -152,7 +140,6 @@ func (f *fixture) settled() {
 	testutil.Eventually(f.t, 5*time.Second, "the events recorded", func() bool { return len(f.published("test.settled")) > n })
 }
 
-// toasts returns the desktop notifications (notify.os) published so far.
 func (f *fixture) toasts() []bus.NotifyOSData {
 	var out []bus.NotifyOSData
 	for _, ev := range f.published(bus.NotifyOS) {
@@ -161,7 +148,6 @@ func (f *fixture) toasts() []bus.NotifyOSData {
 	return out
 }
 
-// waitEnded blocks until the transfer has ended (or ctx ends) and returns it as it ended.
 func waitEnded(ctx context.Context, s *Service, id string) (Transfer, error) {
 	for {
 		s.mu.Lock()
@@ -184,7 +170,6 @@ func waitEnded(ctx context.Context, s *Service, id string) (Transfer, error) {
 	}
 }
 
-// wait waits for a transfer's end to be written and reported, for 30 s at most.
 func (f *fixture) wait(id string) Transfer {
 	f.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -198,8 +183,6 @@ func (f *fixture) wait(id string) Transfer {
 	case <-ctx.Done():
 		f.t.Fatalf("the end of %s was not said", id)
 	}
-	// transfers.changed reports the end after the end callbacks run, and the subscription
-	// records it a moment later.
 	for !f.endPublished(id) {
 		select {
 		case <-ctx.Done():
@@ -210,7 +193,6 @@ func (f *fixture) wait(id string) Transfer {
 	return t
 }
 
-// endPublished reports whether a transfers.changed event for the end of id has been recorded.
 func (f *fixture) endPublished(id string) bool {
 	for _, ev := range f.published(bus.TransfersChanged) {
 		if d := ev.Data.(bus.TransfersChangedData); d.ID == id && d.State != "queued" && d.State != "running" {
@@ -235,7 +217,6 @@ func (f *fixture) get(id string) Transfer {
 	return t
 }
 
-// exec runs one statement on the writer.
 func (f *fixture) exec(q string, args ...any) {
 	f.t.Helper()
 	if _, err := f.db.W.ExecContext(context.Background(), q, args...); err != nil {
@@ -243,8 +224,6 @@ func (f *fixture) exec(q string, args ...any) {
 	}
 }
 
-// seed inserts a ledger row directly. set overrides columns of the default row, which is an
-// ended copy.
 func (f *fixture) seed(id string, created int64, set map[string]any) {
 	f.t.Helper()
 	cols := map[string]any{
@@ -263,10 +242,8 @@ func (f *fixture) seed(id string, created int64, set map[string]any) {
 	f.exec(`INSERT INTO transfers (`+strings.Join(names, ", ")+`) VALUES (`+strings.Join(marks, ", ")+`)`, args...)
 }
 
-// page is the origin of a transfer that an operation page started.
 var page = Origin{Kind: OriginPage}
 
-// notes records what the service notified.
 type notes struct {
 	bus *bus.Bus
 	mu  sync.Mutex
@@ -285,8 +262,6 @@ func (n *notes) Notify(_ context.Context, event notifications.NotificationEvent,
 	n.got = append(n.got, note{event, j})
 }
 
-// Desktop shows a desktop notification as the notification service does once the UI has
-// subscribed: on the bus.
 func (n *notes) Desktop(_ context.Context, e notifications.NotificationEvent, p notifications.Payload, d notifications.Desktop) {
 	n.bus.Publish(bus.NotifyOS, d.NotifyOS(e, p))
 }
@@ -303,7 +278,6 @@ func (n *notes) events(seq int64) []notifications.NotificationEvent {
 	return out
 }
 
-// groups returns every stats group that rclone holds.
 func groups(t *testing.T) []string {
 	t.Helper()
 	out, err := rc.Calls.Get("core/group-list").Fn(context.Background(), rc.Params{})
@@ -333,8 +307,6 @@ func mustJSON(t *testing.T, v any) json.RawMessage {
 	return raw
 }
 
-// formOf returns the form of operation with args, which are its arguments or their JSON. It goes
-// through the JSON that the args column stores, so a form that DecodeForm refuses fails the test.
 func formOf(t *testing.T, operation operations.Operation, args any) operations.Form {
 	t.Helper()
 	raw, ok := args.(json.RawMessage)
@@ -348,7 +320,6 @@ func formOf(t *testing.T, operation operations.Operation, args any) operations.F
 	return f
 }
 
-// groupsOf returns option groups as a page sends them, from pairs of name and JSON.
 func groupsOf(kv ...string) operations.Groups {
 	var b strings.Builder
 	b.WriteByte('{')
@@ -366,7 +337,6 @@ func groupsOf(kv ...string) operations.Groups {
 	return g
 }
 
-// planOf returns a plan with these steps, like the ones that a retry or a resume starts.
 func planOf(steps ...operations.Step) *operations.Plan {
 	return &operations.Plan{V: operations.PlanVersion, Steps: steps}
 }

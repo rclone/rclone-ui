@@ -12,9 +12,6 @@ import {
 export type { ConfigFile }
 export { ConfigStatus }
 
-// The config file is rclone's own default file. config.changed refetches it, along with
-// everything that depends on it.
-
 export function useConfig() {
     return useQuery({ queryKey: coreKey('config', 'Get'), queryFn: () => api.Get() })
 }
@@ -88,7 +85,6 @@ export function useConfigText(enabled: boolean) {
     })
 }
 
-/** Reads the config file's text as it is on disk now. */
 export function readConfigText(): Promise<string> {
     return api.ReadText()
 }
@@ -107,7 +103,6 @@ export async function setConfigPassword(password: string, remember: boolean): Pr
     await api.SetPassword(password, remember)
 }
 
-/** Removes the config's encryption. */
 export async function removeConfigPassword(): Promise<void> {
     await api.RemovePassword()
 }
@@ -122,7 +117,6 @@ export async function setPasswordCommand(command: string): Promise<void> {
     await api.SetPasswordCommand(command)
 }
 
-/** Forgets the config's password that the keychain holds. */
 export async function forgetConfigPassword(): Promise<void> {
     await api.ForgetPassword()
 }

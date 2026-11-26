@@ -263,8 +263,6 @@ const ICON_SIZE_MAP = {
     lg: 'size-6',
 } as const
 
-// Folders are filled, as in the system's file browser. Files are drawn in two tones of their
-// kind's color, so the kinds tell apart at a glance.
 const KIND: Record<
     Exclude<FileType, 'folder'>,
     { icon: typeof PlainFileIcon; className: string }

@@ -24,24 +24,18 @@ import (
 // as subprocesses of this process. rclone's core/command starts them without --config, so they
 // would read rclone's default file, and without a key, so an encrypted file wouldn't open. This
 // version runs each subprocess with the tunnel's own config: its path, and for an encrypted
-// file, a one-time key file for that subprocess. It refuses the updater, and the words that
-// start the app itself rather than rclone.
+// file, a one-time key file for that subprocess.
 
-// key is the config's obscured key, used to write the subprocesses' key files in keyDir. It is
-// nil for a plain config.
 var (
 	keyMu  sync.Mutex
 	key    []byte
 	keyDir string
 )
 
-// loadConfig reads the config and keeps its key. When the app runs this command as a child, the
-// key is in a one-time file, which is read and kept before rclone reads and deletes it. In a
-// terminal, rclone asks for the password (or reads RCLONE_CONFIG_PASS, or runs
-// --password-command). It then hands the key over the way it does for its own daemon mode, and
-// this function takes it from there. In both cases, the config refuses to save after a failed
-// reload (childenv.GuardConfig). Otherwise a password changed in the meantime would end up as a
-// plain file.
+// When the app runs this command as a child, the key is in a one-time file, which is read and
+// kept before rclone reads and deletes it. In a terminal, rclone asks for the password (or reads
+// RCLONE_CONFIG_PASS, or runs --password-command). It then hands the key over the way it does
+// for its own daemon mode, and this function takes it from there.
 func loadConfig() error {
 	childenv.GuardConfig()
 	if path := os.Getenv(childenv.KeyFileEnv); path != "" {
@@ -64,7 +58,7 @@ func loadConfig() error {
 	config.PassConfigKeyForDaemonization = false
 	path := os.Getenv(childenv.KeyFileEnv)
 	if path == "" {
-		return nil // a plain config
+		return nil
 	}
 	b, err := os.ReadFile(path)
 	_ = os.Remove(path)
@@ -78,7 +72,6 @@ func loadConfig() error {
 	return nil
 }
 
-// installCommand replaces rclone's core/command with this one.
 func installCommand() {
 	orig := rc.Calls.Get("core/command")
 	if orig == nil {
@@ -89,8 +82,6 @@ func installCommand() {
 	rc.Add(c)
 }
 
-// runCommand is rclone's rcRunCommand, but it gives the subprocess the tunnel's config, and
-// refuses the commands that a phone may not run (refusedCommand).
 func runCommand(ctx context.Context, in rc.Params) (rc.Params, error) {
 	command, err := in.GetString("command")
 	if err != nil {
@@ -129,7 +120,6 @@ func runCommand(ctx context.Context, in rc.Params) (rc.Params, error) {
 	if err != nil {
 		return nil, fmt.Errorf("response object is required\n%w", err)
 	}
-	// Use the tunnel's own config file, unless the command names one.
 	if _, ok := opt["config"]; !ok {
 		allArgs = append(allArgs, "--config", config.GetConfigPath())
 	}
@@ -162,19 +152,10 @@ func runCommand(ctx context.Context, in rc.Params) (rc.Params, error) {
 	return nil, cmd.Run()
 }
 
-// refused are the commands that a phone may not run through core/command. The updater replaces
-// this executable and restarts the app, which nothing reached over a public address should be
-// able to do. self-update is an alias of selfupdate.
 var refused = []string{"update", "selfupdate", "self-update"}
 
-// roles are the first words that main sends to the app rather than to rclone (dispatch in
-// main.go). With them, a phone could start a window, the metadata mapper or the agents' server
-// on the computer. rclone: links and macOS's -psn_ argument also start the window.
 var roles = []string{"ui", "metadata-map", "mcp"}
 
-// appRole returns the role word or link that would make the subprocess run as the app rather
-// than rclone, or "". main compares the first word exactly. This check is stricter, because the
-// caller has already lowercased the word and trimmed its spaces.
 func appRole(word string) string {
 	switch {
 	case slices.Contains(roles, word):
@@ -191,12 +172,6 @@ func appRole(word string) string {
 // serves calls concurrently.
 var findMu sync.Mutex
 
-// refusedCommand returns the command of a core/command call that the tunnel refuses, or "". That
-// is either the command the subprocess would run, found in args the way cobra finds it below root
-// (skipping flags before it, and resolving an alias to its command's name), or an app role in
-// the first word, which main checks before rclone's commands. Each word is compared regardless of
-// case or surrounding spaces.
-//
 // cobra looks for the command twice: in the words as sent, which is how the subprocess reads them,
 // and in the words lowercased and trimmed. Both are needed. A flag's case changes how cobra
 // skips it: -P is rclone's --progress, which takes no value, while -p is no flag of rclone's, so
@@ -222,7 +197,6 @@ func refusedCommand(root *cobra.Command, args []string) string {
 	return ""
 }
 
-// refusedIn returns the refused command that cobra finds in args below root, or "".
 func refusedIn(root *cobra.Command, args []string) string {
 	findMu.Lock()
 	found, _, _ := root.Find(args)
@@ -235,9 +209,6 @@ func refusedIn(root *cobra.Command, args []string) string {
 	return ""
 }
 
-// commandEnv returns this process's environment for a subprocess. When the config is encrypted,
-// it adds a one-time key file for that subprocess. cleanup removes the file if the subprocess
-// never read it.
 func commandEnv() (env []string, cleanup func(), err error) {
 	env, cleanup = os.Environ(), func() {}
 	keyMu.Lock()
@@ -254,8 +225,6 @@ func commandEnv() (env []string, cleanup func(), err error) {
 	return append(env, childenv.KeyFileEnv+"="+name), cleanup, nil
 }
 
-// refusal returns the error for a refused command. The updater must be run on the computer
-// itself.
 func refusal(name string) error {
 	if slices.Contains(refused, name) {
 		return fmt.Errorf("the tunnel does not run %s: update Rclone UI on the computer it runs on", name)

@@ -8,13 +8,13 @@ import (
 )
 
 type entry struct {
-	comments []string // "# " lines, which a translator wrote
-	notes    []string // "#. " lines, which the code wrote for the translator
-	refs     []string // "#: " lines, the files that use the message
+	comments []string
+	notes    []string
+	refs     []string
 	ctx      string
 	id       string
 	plural   string
-	strs     []string // msgstr, or msgstr[0], msgstr[1]…
+	strs     []string
 }
 
 func (e *entry) key() string { return e.ctx + "\x04" + e.id }
@@ -31,9 +31,8 @@ func (e *entry) translated() bool {
 	return true
 }
 
-// catalog is a PO file: its header (the entry with an empty msgid) and its messages.
 type catalog struct {
-	header  []string // the header's "Key: value" lines, in order
+	header  []string
 	entries []*entry
 }
 
@@ -55,13 +54,11 @@ func (c *catalog) headerValue(name string) string {
 	return ""
 }
 
-// parsePO reads a PO file. It reads what gettext's tools and Lingui write: comments, msgctxt,
-// msgid, msgid_plural, msgstr and msgstr[n], each with continuation lines.
 func parsePO(text string) (*catalog, error) {
 	c := &catalog{}
 	cur := &entry{}
-	var target *string // the string that a continuation line adds to
-	started := false   // cur has a msgid
+	var target *string
+	started := false
 	flush := func() {
 		if !started {
 			return
@@ -92,12 +89,12 @@ func parsePO(text string) (*catalog, error) {
 		switch {
 		case strings.TrimSpace(line) == "":
 			flush()
-		case strings.HasPrefix(line, "#~"): // an obsolete message, which is dropped
+		case strings.HasPrefix(line, "#~"):
 		case strings.HasPrefix(line, "#."):
 			cur.notes = append(cur.notes, strings.TrimSpace(line[2:]))
 		case strings.HasPrefix(line, "#:"):
 			cur.refs = append(cur.refs, strings.TrimSpace(line[2:]))
-		case strings.HasPrefix(line, "#,"): // flags, which nothing here uses
+		case strings.HasPrefix(line, "#,"):
 		case strings.HasPrefix(line, "#"):
 			cur.comments = append(cur.comments, strings.TrimSpace(line[1:]))
 		case strings.HasPrefix(line, "msgctxt "):
@@ -145,8 +142,6 @@ func parsePO(text string) (*catalog, error) {
 	return c, nil
 }
 
-// String writes the catalog as a PO file, with its messages in the order of their keys, so that
-// the file only changes when a message does.
 func (c *catalog) String() string {
 	var b strings.Builder
 	b.WriteString("msgid \"\"\nmsgstr \"\"\n")
@@ -186,7 +181,6 @@ func (c *catalog) String() string {
 	return b.String()
 }
 
-// quote writes a string as PO does: in double quotes, with only what must be escaped.
 func quote(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`, "\t", `\t`)
 	return `"` + r.Replace(s) + `"`

@@ -8,7 +8,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// Kind is how an option's value is edited.
 type Kind string
 
 const (
@@ -49,9 +48,8 @@ type Option struct {
 	Help string `json:"help"`
 	// Groups lists rclone's groups for a global option ("Copy,Performance").
 	Groups string `json:"groups"`
-	// Type is rclone's type name ("SizeSuffix").
-	Type string `json:"type"`
-	Kind Kind   `json:"kind"`
+	Type   string `json:"type"`
+	Kind   Kind   `json:"kind"`
 	// DefaultText is the default as rclone writes it. Default is the default as rclone's JSON.
 	DefaultText string          `json:"defaultText"`
 	Default     json.RawMessage `json:"default"`
@@ -80,7 +78,6 @@ type Backend struct {
 	MetadataInfo *fs.MetadataInfo `json:"metadataInfo"`
 }
 
-// Block is one of rclone's option blocks (main, vfs, mount…).
 type Block struct {
 	Name    string   `json:"name"`
 	Options []Option `json:"options"`
@@ -96,9 +93,6 @@ type Section struct {
 	Options []OptionRef `json:"options"`
 }
 
-// Catalog is rclone's reference data: its backends, its option blocks, and the sections that the
-// forms show. Defaults holds the app's default options (see Defaults), which the pages show in
-// their option groups.
 type Catalog struct {
 	Version  string                      `json:"version"`
 	Backends []Backend                   `json:"backends"`
@@ -128,8 +122,7 @@ type BackendOptions struct {
 }
 
 type ParsedCommand struct {
-	Args []string `json:"args"`
-	// Groups holds the options of each catalog group that the command sets.
+	Args    []string         `json:"args"`
 	Groups  map[string]Group `json:"groups"`
 	Skipped []SkippedFlag    `json:"skipped"`
 }
@@ -139,17 +132,16 @@ type SkippedFlag struct {
 	// Reason is in English. LocalSkipped gives the app's own reasons in the app's language.
 	Reason string `json:"reason"`
 
-	text i18n.Text // Reason as a translatable text, when it is the app's own
+	text i18n.Text
 }
 
-// Skip returns a skipped flag with one of the app's own reasons, which LocalSkipped translates.
 func Skip(flag string, reason i18n.Text) SkippedFlag {
 	return SkippedFlag{Flag: flag, Reason: reason.String(), text: reason}
 }
 
 // LocalSkipped returns a copy of skipped for a page, with the app's own reasons in the app's
 // language. A reason that is rclone's, such as a value it refused, keeps rclone's words. A nil
-// list gives an empty one, which the page reads as a list.
+// list gives an empty one.
 func LocalSkipped(skipped []SkippedFlag) []SkippedFlag {
 	out := make([]SkippedFlag, len(skipped))
 	for i, s := range skipped {

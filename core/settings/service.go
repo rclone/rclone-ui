@@ -1,8 +1,3 @@
-// Package settings stores the app's settings document (types.go). The core applies the proxy to
-// rclone, and the language to everything the Go side says (core/i18n). The ui applies the rest:
-// the launcher shortcut, the tray icon, the startup window and the update channel. Pages change
-// the settings through the API. The ui reads them through the same API and reloads them on each
-// settings.changed event.
 package settings
 
 import (
@@ -26,8 +21,6 @@ import (
 	"github.com/rclone/rclone-ui/core/version"
 )
 
-// invalid puts the field's path before the message of refusal (an errs.Field error), because the
-// Settings page shows the message as is. The field's own description stays without the path.
 func invalid(refusal error) error {
 	// i18n: A setting's path, such as proxy.url, then why its value is refused.
 	return errs.Errorf("%s: %w", errs.FieldOf(refusal), refusal)
@@ -58,8 +51,6 @@ func (s *Service) OnBwLimit(fn func(ctx context.Context, limit string)) {
 
 func New(d *db.DB, b *bus.Bus) *Service { return &Service{db: d, bus: b} }
 
-// defaultChannel is the update channel of a build with the given version. A pre-release such as
-// 4.0.0-beta.1 follows the betas, so that it is offered the next beta.
 func defaultChannel(v string) string {
 	if strings.Contains(v, "-") {
 		return "beta"
@@ -83,11 +74,10 @@ func Defaults() Settings {
 // they are off, and the user turns them on.
 func TelemetryDefault(goos string) bool { return goos != "linux" }
 
-// newToken returns a random token for the agents' server: 32 bytes, in URL-safe base64.
 func newToken() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		panic(err) // crypto/rand doesn't fail on the systems the app runs on
+		panic(err)
 	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }
@@ -103,9 +93,6 @@ func (s *Service) Get(ctx context.Context) (Settings, error) {
 	return out, err
 }
 
-// load reads the settings in tx, as Get returns them: the saved document over the defaults, so a
-// field that it lacks keeps its default. A document that can't be read fails, because falling
-// back to the defaults would let the next Update overwrite it.
 func load(ctx context.Context, tx *sql.Tx) (Settings, error) {
 	var doc string
 	err := tx.QueryRowContext(ctx, `SELECT doc FROM settings WHERE id = 1`).Scan(&doc)
@@ -129,8 +116,6 @@ func load(ctx context.Context, tx *sql.Tx) (Settings, error) {
 // when part of the change only applies after the app starts again. That is the proxy, which
 // rclone reads when it starts.
 func (s *Service) Update(ctx context.Context, p Patch) (out Settings, restart bool, err error) {
-	// Read and write in one write transaction. When two updates run at once, the second one
-	// reads what the first wrote, so neither loses the other's change.
 	var cur, next Settings
 	if err := s.db.Write(ctx, func(tx *sql.Tx) error {
 		var err error
@@ -156,7 +141,6 @@ func (s *Service) Update(ctx context.Context, p Patch) (out Settings, restart bo
 		return Settings{}, false, err
 	}
 	if cur.General.Language != next.General.Language {
-		// Before the event, so that whoever handles it already speaks the new language.
 		i18n.SetLanguage(next.General.Language)
 	}
 	restart = cur.Proxy.URL != next.Proxy.URL || !slices.Equal(cur.Proxy.IgnoredHosts, next.Proxy.IgnoredHosts)

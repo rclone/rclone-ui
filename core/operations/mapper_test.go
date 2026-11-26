@@ -8,9 +8,6 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// A metadata mapper without `metadata` is refused wherever the options are read: a transfer's
-// groups, a purge's config group, a mount's and a serve's command line, and a template. rclone
-// would never run it, so its rules would do nothing.
 func TestMapperNeedsMetadata(t *testing.T) {
 	const mapper = `"metadata_mapper": ["metadata-map", "--map", "a=b"]`
 	refused := func(name string, err error) {
@@ -32,7 +29,6 @@ func TestMapperNeedsMetadata(t *testing.T) {
 	_, err = ServeCommand(ServeArgs{Type: "webdav", Source: "gdrive:", Options: groups("metadata", `{`+mapper+`}`)}, ServeEnv{})
 	refused("serve", err)
 
-	// rclone reads the text "true" as true, and a blank mapper runs nothing.
 	for _, g := range []Groups{
 		groups("metadata", `{`+mapper+`, "metadata": "true"}`),
 		groups("metadata", `{`+mapper+`, "metadata": true}`),
@@ -43,7 +39,6 @@ func TestMapperNeedsMetadata(t *testing.T) {
 			t.Errorf("%+v: %v", g.Metadata, err)
 		}
 	}
-	// A mapper that runs another program needs it too.
 	_, err = settingsOf(OperationCopy, groups("config", `{"metadata_mapper": "/opt/bin/mapper -v"}`))
 	refused("another program", err)
 
@@ -58,8 +53,6 @@ func TestMapperNeedsMetadata(t *testing.T) {
 	}
 }
 
-// StoreMapper stores the app's own mapper, typed as one text, as the list that the mapping panel
-// writes. A list, and a mapper that runs another program, are kept as they are.
 func TestStoreMapper(t *testing.T) {
 	g := groups(
 		"metadata", `{"metadata_mapper": "metadata-map --set \"note=a b\""}`,

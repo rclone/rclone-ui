@@ -10,10 +10,6 @@ const DOT: Record<StatusKind, string> = {
     idle: 'bg-default-400',
 }
 
-/**
- * A dot in the color of a status. Put it beside a label that says the status in words: the dot
- * must not be the only cue.
- */
 export function StatusDot({ kind, className }: { kind: StatusKind; className?: string }) {
     return (
         <span aria-hidden={true} className={cn('relative inline-flex size-2 shrink-0', className)}>

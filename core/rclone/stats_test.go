@@ -13,10 +13,6 @@ import (
 	"github.com/rclone/rclone/fstest/mockobject"
 )
 
-// TestStatsAreRclones checks that every key Stats reads exists in rclone's stats result and
-// reads back what rclone put there, both in this process and as JSON from a child's rc. If an
-// rclone upgrade renames a key or changes its type, this test fails, instead of the Transfers
-// page or the Dashboard quietly showing a zero.
 func TestStatsAreRclones(t *testing.T) {
 	ctx := context.Background()
 	stats := accounting.NewStats(ctx)
@@ -63,8 +59,6 @@ func TestStatsAreRclones(t *testing.T) {
 	}
 }
 
-// keysOf checks that out has each json key of struct type typ (at path). For slices of structs,
-// it checks the first element.
 func keysOf(t *testing.T, typ reflect.Type, out rc.Params, path string) {
 	t.Helper()
 	for f := range typ.Fields() {

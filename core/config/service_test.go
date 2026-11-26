@@ -28,12 +28,12 @@ import (
 // Every test shares one rclone, as the core does, because rclone's config is process-wide.
 var (
 	store       *rclone.Store
-	defaultConf string // rclone's default file for the tests ($XDG_CONFIG_HOME/rclone/rclone.conf)
+	defaultConf string
 )
 
 func TestMain(m *testing.M) {
 	testutil.Main(m, func(dir string) error {
-		configDir := filepath.Join(dir, "rclone") // Home sets XDG_CONFIG_HOME to dir
+		configDir := filepath.Join(dir, "rclone")
 		if err := os.MkdirAll(configDir, 0o700); err != nil {
 			return err
 		}
@@ -59,8 +59,6 @@ func (m memSecrets) Get(a string) (string, error) {
 func (m memSecrets) Set(a, s string) error { m[a] = s; return nil }
 func (m memSecrets) Delete(a string) error { delete(m, a); return nil }
 
-// newService returns a service on a fresh database for the file at path. rclone goes back to its
-// default file when the test ends.
 func newService(t *testing.T, path string, secrets Secrets) *Service {
 	t.Helper()
 	if secrets == nil {
@@ -81,7 +79,6 @@ func newService(t *testing.T, path string, secrets Secrets) *Service {
 	return s
 }
 
-// start does what the core does at start: Prepare, rclone's open, and Attach.
 func start(t *testing.T, s *Service) {
 	t.Helper()
 	path, pw, err := s.Prepare(context.Background())
@@ -94,7 +91,6 @@ func start(t *testing.T, s *Service) {
 	s.Attach(store)
 }
 
-// writeConfig writes a config file in a folder of its own, encrypted when password isn't "".
 func writeConfig(t *testing.T, text, password string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "rclone.conf")
@@ -111,8 +107,6 @@ func writeConfig(t *testing.T, text, password string) string {
 	return path
 }
 
-// TestTheDefaultFile checks that the service manages rclone's default file, and that
-// RCLONE_CONFIG doesn't change it.
 func TestTheDefaultFile(t *testing.T) {
 	t.Setenv("RCLONE_CONFIG", writeConfig(t, "[team]\ntype = memory\n", ""))
 	s := New(Options{DB: testdb.Open(t), Bus: bus.New(), Secrets: memSecrets{}})
@@ -127,8 +121,6 @@ func TestTheDefaultFile(t *testing.T) {
 	}
 }
 
-// TestUnlockAndText checks a locked file: unlocking it, the text editor, the children's password,
-// and turning its encryption off and on again.
 func TestUnlockAndText(t *testing.T) {
 	ctx := context.Background()
 	path := writeConfig(t, "[aa]\ntype = memory\n", "s3cret")
@@ -158,7 +150,6 @@ func TestUnlockAndText(t *testing.T) {
 		t.Error("remember didn't keep it")
 	}
 
-	// The text editor reads and writes the encrypted file.
 	if err := s.WriteText(ctx, "[box]\ntype = memory\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -173,12 +164,10 @@ func TestUnlockAndText(t *testing.T) {
 		t.Error("rclone didn't read the new text")
 	}
 
-	// Children get the password (the supervisor writes it to a key file).
 	if pw, err := s.ChildPassword(ctx); err != nil || pw != "s3cret" {
 		t.Fatalf("child password %q %v", pw, err)
 	}
 
-	// Turn encryption off and on again, in the same process.
 	if c, err = s.RemovePassword(ctx); err != nil || c.Encrypted || rclone.IsEncrypted(path) {
 		t.Fatalf("remove password: %+v %v", c, err)
 	}
@@ -193,8 +182,6 @@ func TestUnlockAndText(t *testing.T) {
 	}
 }
 
-// TestPasswordCommand checks that a password command is stored, that a command that can't be
-// read is refused, and that the next start opens the file with the command's output.
 func TestPasswordCommand(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the command is echo")
@@ -218,8 +205,6 @@ func TestPasswordCommand(t *testing.T) {
 	}
 }
 
-// TestPasswordChangeRefusedWhileChildrenRun checks that a running child blocks a change of the
-// file's password. The child is named in the error, and the file is unchanged.
 func TestPasswordChangeRefusedWhileChildrenRun(t *testing.T) {
 	ctx := context.Background()
 	path := writeConfig(t, "[aa]\ntype = memory\n", "s3cret")
@@ -230,7 +215,7 @@ func TestPasswordChangeRefusedWhileChildrenRun(t *testing.T) {
 	}
 	const label = "Mount box:photos at /Volumes/photos, The remote tunnel"
 	var running []i18n.Text
-	s.inUse = func() []i18n.Text { return running } // as Options.InUse
+	s.inUse = func() []i18n.Text { return running }
 
 	running = []i18n.Text{i18n.M("Mount %s at %s", "box:photos", "/Volumes/photos"), i18n.M("The remote tunnel")}
 	before, err := os.ReadFile(path)
@@ -262,11 +247,9 @@ func TestPasswordChangeRefusedWhileChildrenRun(t *testing.T) {
 	}
 }
 
-// TestSetPasswordOnAnUnreadableConfig checks that a file rclone can't read can't be encrypted.
-// Its text isn't known, so an empty config would replace it.
 func TestSetPasswordOnAnUnreadableConfig(t *testing.T) {
 	ctx := context.Background()
-	const text = "RCLONE_ENCRYPT_V9:\nAAAA\n" // encrypted by a newer rclone
+	const text = "RCLONE_ENCRYPT_V9:\nAAAA\n"
 	path := writeConfig(t, text, "")
 	s := newService(t, path, nil)
 	start(t, s)
@@ -281,8 +264,6 @@ func TestSetPasswordOnAnUnreadableConfig(t *testing.T) {
 	}
 }
 
-// readOnlyFolder returns a file in a folder, and a function that makes the folder read-only or
-// writable again.
 func readOnlyFolder(t *testing.T, text, password string) (string, func(bool)) {
 	t.Helper()
 	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
@@ -303,9 +284,6 @@ func readOnlyFolder(t *testing.T, text, password string) (string, func(bool)) {
 	}
 }
 
-// TestPasswordChangeSaveFailsKeepsTheOldKey checks that when the write of a password change
-// fails, rclone's key, the keychain and the run's password stay as they were. rclone's next save
-// then keeps the file as it was (plain, or under the old password).
 func TestPasswordChangeSaveFailsKeepsTheOldKey(t *testing.T) {
 	ctx := context.Background()
 	t.Run("plain", func(t *testing.T) {
@@ -359,9 +337,6 @@ func TestPasswordChangeSaveFailsKeepsTheOldKey(t *testing.T) {
 	})
 }
 
-// TestSavePasswordOnAnOpenConfigDoesntReopen checks that unlocking a config that's already open
-// (to save its password) only remembers the password. The remotes aren't told that the file
-// opened.
 func TestSavePasswordOnAnOpenConfigDoesntReopen(t *testing.T) {
 	ctx := context.Background()
 	path := writeConfig(t, "[aa]\ntype = memory\n", "s3cret")
@@ -388,8 +363,6 @@ func TestSavePasswordOnAnOpenConfigDoesntReopen(t *testing.T) {
 	}
 }
 
-// TestExportOntoItselfIsRefused checks that exporting onto the config file, or onto a link to it,
-// is refused and leaves the file unchanged.
 func TestExportOntoItselfIsRefused(t *testing.T) {
 	ctx := context.Background()
 	const text = "[box]\ntype = memory\n"
@@ -414,8 +387,6 @@ func TestExportOntoItselfIsRefused(t *testing.T) {
 	}
 }
 
-// TestExportWritesACopy checks that the copy holds the file's bytes and replaces the existing
-// file.
 func TestExportWritesACopy(t *testing.T) {
 	ctx := context.Background()
 	path := writeConfig(t, "[aa]\ntype = memory\n", "s3cret")
@@ -437,8 +408,6 @@ func TestExportWritesACopy(t *testing.T) {
 	}
 }
 
-// TestWriteTextThroughASymlink checks that the text editor writes to the target of a linked
-// config, and that the link stays a link, as it does when rclone saves.
 func TestWriteTextThroughASymlink(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks need a privilege on Windows")
@@ -472,9 +441,6 @@ func (c *countingSecrets) Get(a string) (string, error) {
 	return c.memSecrets.Get(a)
 }
 
-// TestGetAsksTheKeychainOnlyForAnEncryptedFile checks that Get doesn't read the keychain for a
-// plain or missing file, because a keychain may ask the user at each read. For an encrypted
-// file, it reads the keychain once per Get.
 func TestGetAsksTheKeychainOnlyForAnEncryptedFile(t *testing.T) {
 	ctx := context.Background()
 	for _, tc := range []struct {
@@ -500,8 +466,6 @@ func TestGetAsksTheKeychainOnlyForAnEncryptedFile(t *testing.T) {
 	}
 }
 
-// TestSaveErrorReachesGet checks that a failed save of the config is shown until a save
-// succeeds.
 func TestSaveErrorReachesGet(t *testing.T) {
 	ctx := context.Background()
 	path, readOnly := readOnlyFolder(t, "[a]\ntype = memory\n", "")
@@ -523,8 +487,6 @@ func TestSaveErrorReachesGet(t *testing.T) {
 	}
 }
 
-// TestRclonesNextSaveFollowsAPasswordChange checks that once a password change is written,
-// rclone's own saves (after a token refresh) use the new key, or no key once it's removed.
 func TestRclonesNextSaveFollowsAPasswordChange(t *testing.T) {
 	ctx := context.Background()
 	path := writeConfig(t, "", "")
@@ -572,8 +534,6 @@ func TestRclonesNextSaveFollowsAPasswordChange(t *testing.T) {
 	}
 }
 
-// keychainLog is a keychain that records the state of the config file each time its entry
-// changes: which password opens the file, and whether rclone has it open.
 type keychainLog struct {
 	memSecrets
 	path string
@@ -607,21 +567,12 @@ func (k *keychainLog) Delete(a string) error {
 	return k.memSecrets.Delete(a)
 }
 
-// TestPasswordChangeKeepsThePasswordUntilTheFileOpens covers rclone saving the config after a
-// password change is written but before rclone opens the file with the new key (a token refresh
-// during a transfer, for example). Usually that save reads the changed file first, so the change
-// holds. When the save can't tell that the file changed (because file times are too coarse), it
-// writes the file under the old key. The keychain and this run must then keep the old password
-// until the file opens with the new one, or without one. Until that happens, the change is
-// refused and the file stays open with the old password.
 func TestPasswordChangeKeepsThePasswordUntilTheFileOpens(t *testing.T) {
 	ctx := context.Background()
 	path := writeConfig(t, "", "old")
 	k := &keychainLog{memSecrets: memSecrets{keychain.ConfigAccount(path): "old"}, path: path}
 	s := newService(t, path, k)
 	start(t, s)
-	// Add a remote, because a token refresh needs one. An empty file says nothing about a
-	// password, and a save of it keeps rclone's key.
 	rcloneconfig.FileSetValue("box", "type", "memory")
 	rcloneconfig.SaveConfig()
 	const (
@@ -638,7 +589,6 @@ func TestPasswordChangeKeepsThePasswordUntilTheFileOpens(t *testing.T) {
 				return err
 			}
 			if how == unseen {
-				// This writes the file as rclone had it, under the old key or without one.
 				return writeAtomic(path, before)
 			}
 			return store.Save()
@@ -685,7 +635,6 @@ func TestPasswordChangeKeepsThePasswordUntilTheFileOpens(t *testing.T) {
 		t.Errorf("the keychain changed as\n%q\nwant\n%q", k.log, want)
 	}
 
-	// When the race keeps a plain file plain, the file doesn't take the new password.
 	k.log = nil
 	raced(unseen)
 	if _, err := s.SetPassword(ctx, "new", true); !errors.Is(err, errRekeyRaced) {
@@ -696,11 +645,6 @@ func TestPasswordChangeKeepsThePasswordUntilTheFileOpens(t *testing.T) {
 	}
 }
 
-// TestPasswordRemovedOutsideIsForgotten covers the file's password being removed outside the app
-// (with "rclone config encryption remove" in a terminal). Once rclone has the file open in plain
-// text and has dropped its key, the password is forgotten here and in the keychain. Get shows the
-// file as not encrypted, and rclone's next save stays plain. An emptied file says nothing about a
-// password, so the password is kept.
 func TestPasswordRemovedOutsideIsForgotten(t *testing.T) {
 	ctx := context.Background()
 	path := writeConfig(t, "[aa]\ntype = memory\n", "old")
@@ -708,7 +652,7 @@ func TestPasswordRemovedOutsideIsForgotten(t *testing.T) {
 	secrets := memSecrets{account: "old"}
 	s := newService(t, path, secrets)
 	start(t, s)
-	store.OnState(s.StateChanged) // as the core wires it
+	store.OnState(s.StateChanged)
 	outside := func(text string, at time.Duration) {
 		t.Helper()
 		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
@@ -719,7 +663,7 @@ func TestPasswordRemovedOutsideIsForgotten(t *testing.T) {
 			t.Fatal(err)
 		}
 		store.Poll()
-		store.Poll() // the store accepts an emptied file only when a second check still sees it
+		store.Poll()
 	}
 
 	outside("", time.Minute)
@@ -747,9 +691,6 @@ func TestPasswordRemovedOutsideIsForgotten(t *testing.T) {
 	}
 }
 
-// TestWriteTextWaitsForAPasswordChange checks that a text write that begins during a password
-// change reads the file after the change is done. It then writes it encrypted with the new
-// password, instead of writing plain text over the encrypted file.
 func TestWriteTextWaitsForAPasswordChange(t *testing.T) {
 	ctx := context.Background()
 	path := writeConfig(t, "[a]\ntype = memory\n", "")
@@ -785,8 +726,6 @@ type lockedKeychain struct{ memSecrets }
 
 func (lockedKeychain) Set(string, string) error { return errors.New("the keychain is locked") }
 
-// TestUnlockWithAKeychainThatRefuses checks that the unlock succeeds, and that Get says the
-// password wasn't saved until the password is forgotten.
 func TestUnlockWithAKeychainThatRefuses(t *testing.T) {
 	ctx := context.Background()
 	path := writeConfig(t, "[bb]\ntype = memory\n", "pw")
@@ -800,13 +739,11 @@ func TestUnlockWithAKeychainThatRefuses(t *testing.T) {
 	if got, err := s.ForgetPassword(ctx); err != nil || got.SaveError != "" {
 		t.Errorf("forgotten: %+v %v", got, err)
 	}
-	// When the password isn't meant to be kept, there is nothing to report.
 	if got, err := s.Unlock(ctx, "pw", false); err != nil || got.SaveError != "" {
 		t.Errorf("unlocked without keeping it: %+v %v", got, err)
 	}
 }
 
-// A page gets the file's messages in the app's language, and the service keeps them in English.
 func TestShownIsTranslated(t *testing.T) {
 	c := &ConfigFile{}
 	c.setMessage(i18n.M("Unlocked, but the password couldn't be saved to the keychain: %s", errors.New("locked")))
@@ -820,9 +757,6 @@ func TestShownIsTranslated(t *testing.T) {
 	}
 }
 
-// TestWriteTextAfterAnOutsidePasswordChange checks that the text editor doesn't write the file
-// with a password that no longer opens it, which would undo a change made outside the app. The
-// run forgets that password.
 func TestWriteTextAfterAnOutsidePasswordChange(t *testing.T) {
 	ctx := context.Background()
 	path := writeConfig(t, "[aa]\ntype = memory\n", "old")

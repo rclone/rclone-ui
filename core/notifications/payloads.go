@@ -8,15 +8,10 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// Payload is the content of one event. Message returns the title and body that every provider
-// shows. The value itself, as JSON, is the data sent to generic webhooks.
 type Payload interface {
 	Message(event NotificationEvent) (title, body string)
 }
 
-// redacted returns p with any credentials in its remotes and errors hidden, the same way the logs
-// hide them (logs.Redact). This matters because a payload leaves the machine, for a chat service
-// or a webhook's owner.
 func redacted(p Payload) Payload {
 	switch v := p.(type) {
 	case Job:
@@ -46,22 +41,16 @@ func redacted(p Payload) Payload {
 	return p
 }
 
-// Job is the payload of job.started, job.completed and job.failed.
 type Job struct {
-	// JobID is the transfer's seq, which is the number that the pages show.
-	JobID       int64
-	Operation   string
-	Sources     []string
-	Destination string // "" for none, sent as null
-	// DurationSeconds is set when the job ends (completed or failed).
+	JobID           int64
+	Operation       string
+	Sources         []string
+	Destination     string
 	DurationSeconds *int64
-	Error           string // set for job.failed
-	// Schedule is the name of the schedule that ran the job, or "" when the user ran it.
-	Schedule string
+	Error           string
+	Schedule        string
 }
 
-// MarshalJSON writes a job as generic webhooks receive it: the id as `jobid`, the sources never
-// null, and a null destination when there is none.
 func (j Job) MarshalJSON() ([]byte, error) {
 	var dest *string
 	if j.Destination != "" {
@@ -82,8 +71,6 @@ func (j Job) MarshalJSON() ([]byte, error) {
 	}{j.JobID, j.Operation, sources, dest, j.DurationSeconds, j.Error, j.Schedule})
 }
 
-// Message returns the event's label as the title, and a body that describes what ran ("copy of
-// a:x, b:y and 2 more to c:z"), in the app's language.
 func (j Job) Message(event NotificationEvent) (string, string) {
 	meta, _ := lookup(event)
 	body := jobBody(j.Operation, sourcesText(j.Sources), j.Destination)
@@ -98,7 +85,6 @@ func (j Job) Message(event NotificationEvent) (string, string) {
 	return meta.Label, body
 }
 
-// sourcesText lists a job's sources: all of them up to two, or the first two and how many more.
 func sourcesText(sources []string) string {
 	if len(sources) <= 2 {
 		return strings.Join(sources, ", ")
@@ -108,7 +94,6 @@ func sourcesText(sources []string) string {
 	return i18n.N("%s and %d more", "%s and %d more", n, strings.Join(sources[:2], ", "), n)
 }
 
-// jobBody describes what a job ran: its operation, from source to destination. Either may be "".
 func jobBody(operation, source, destination string) string {
 	switch {
 	case source != "" && destination != "":
@@ -122,7 +107,6 @@ func jobBody(operation, source, destination string) string {
 	return operation
 }
 
-// jobFromTo describes a job with its sources and its destination, as in "copy of a:x to b:y".
 func jobFromTo(operation, source, destination string) string {
 	switch operation {
 	case "copy":
@@ -140,7 +124,6 @@ func jobFromTo(operation, source, destination string) string {
 	return i18n.T("%s of %s to %s", operation, source, destination)
 }
 
-// jobFrom describes a job without a destination, as in "delete of a:x".
 func jobFrom(operation, source string) string {
 	switch operation {
 	case "delete":
@@ -163,18 +146,12 @@ func jobFrom(operation, source string) string {
 	return i18n.T("%s of %s", operation, source)
 }
 
-// MountFailed is the payload of mount.failed, sent when a mount could not start, crashed, or was
-// skipped at startup.
 type MountFailed struct {
 	Source      string `json:"source"`
-	Destination string `json:"destination"` // the mount point
+	Destination string `json:"destination"`
 	Error       string `json:"error"`
-	// Skipped is true when an automount found the source unreachable and didn't mount it.
-	// Mounting would show an empty folder at the mount point, which would look like lost files.
-	Skipped bool `json:"-"`
-	// Reason explains what is wrong with a skipped source (missing, or a file). It is "" when the
-	// source didn't respond.
-	Reason string `json:"-"`
+	Skipped     bool   `json:"-"`
+	Reason      string `json:"-"`
 }
 
 func (m MountFailed) Message(NotificationEvent) (string, string) {
@@ -189,7 +166,6 @@ func (m MountFailed) Message(NotificationEvent) (string, string) {
 	return i18n.T("Mount failed"), i18n.T("Failed to mount %s: %s", m.Source, m.Error)
 }
 
-// ServeFailed is the payload of serve.failed, sent when a serve could not start or stopped.
 type ServeFailed struct {
 	Type   string `json:"type"`
 	Addr   string `json:"addr"`
@@ -202,8 +178,6 @@ func (s ServeFailed) Message(NotificationEvent) (string, string) {
 	return i18n.T("Serve failed"), i18n.T("Failed to serve %s over %s on %s: %s", s.Source, s.Type, s.Addr, s.Error)
 }
 
-// WatcherFailed is the payload of watcher.failed, sent when a watcher's sync fails for the first
-// time after it last succeeded.
 type WatcherFailed struct {
 	Name  string `json:"name"`
 	PathA string `json:"pathA"`
@@ -217,10 +191,7 @@ func (w WatcherFailed) Message(NotificationEvent) (string, string) {
 	return i18n.T("Watcher failed"), i18n.T("%s: %s", w.Name, strings.TrimSpace(line))
 }
 
-// Crashed is the payload of app.crashed, sent when the app's previous run stopped
-// unexpectedly.
 type Crashed struct {
-	// Crashes is how many runs in a row stopped unexpectedly.
 	Crashes int    `json:"crashes"`
 	Error   string `json:"error,omitempty"`
 }
@@ -242,7 +213,6 @@ func (c Crashed) Message(NotificationEvent) (string, string) {
 	return title, i18n.T("Rclone UI quit unexpectedly and was started again.")
 }
 
-// UpdateAvailable is the payload of app.update-available.
 type UpdateAvailable struct {
 	Version string `json:"version"`
 	Current string `json:"current"`
@@ -254,8 +224,6 @@ func (u UpdateAvailable) Message(NotificationEvent) (string, string) {
 	return i18n.T("Update available"), i18n.T("Rclone UI %s is available (this is %s).", u.Version, u.Current)
 }
 
-// testMessage returns the title and body of a test send, in the app's language. The body names
-// the target if it has a name.
 func testMessage(name string) (string, string) {
 	title := testEvent.label.Local()
 	if name = strings.TrimSpace(name); name != "" {

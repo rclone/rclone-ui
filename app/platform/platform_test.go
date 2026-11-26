@@ -85,7 +85,6 @@ func TestFlatpakOverride(t *testing.T) {
 	if !grantsTalk("[Session Bus Policy]\norg.gnome.Shell.Extensions=talk\n", GnomeShellExtensions) {
 		t.Error("an override's talk-name")
 	}
-	// What the override writes to .flatpak-info satisfies the gate.
 	info := "[Context]\nshared=network;ipc;\nsockets=x11;wayland;fallback-x11;session-bus;\n" +
 		"filesystems=host;xdg-config/autostart:create;\n[Session Bus Policy]\norg.gnome.Shell.Extensions=talk\n"
 	if m := missing(info, true); m.Any() {

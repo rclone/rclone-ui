@@ -41,18 +41,12 @@ export function GetSmtp(): $CancellablePromise<$models.SMTPView> {
     });
 }
 
-/**
- * ListTargets lists the targets, with their last errors in the app's language.
- */
 export function ListTargets(): $CancellablePromise<$models.NotificationTarget[]> {
     return $Call.ByID(1758741533).then(($result: any) => {
         return $$createType5($result);
     });
 }
 
-/**
- * ReportUpdate sends app.update-available when the shell's updater finds a new release.
- */
 export function ReportUpdate(u: $models.UpdateAvailable): $CancellablePromise<void> {
     return $Call.ByID(2384175842, u);
 }
@@ -79,9 +73,6 @@ export function TestSmtp(to: string): $CancellablePromise<$models.Outcome> {
     });
 }
 
-/**
- * UpdateTarget replaces a target. Its last error comes back in the app's language.
- */
 export function UpdateTarget(id: string, $in: $models.TargetInput): $CancellablePromise<$models.NotificationTarget> {
     return $Call.ByID(1679055525, id, $in).then(($result: any) => {
         return $$createType3($result);

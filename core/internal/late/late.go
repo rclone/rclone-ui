@@ -1,6 +1,3 @@
-// Package late provides a value that is set once, possibly after the pages have already asked for
-// it. The shell binds the core's APIs before the core starts, so a call that arrives early waits
-// for its service. Call and Do wait for the service and then run the call.
 package late
 
 import (
@@ -11,7 +8,6 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// Value is a value that is set once, later. Get waits for it.
 type Value[T any] struct {
 	once  sync.Once
 	ready chan struct{}
@@ -19,7 +15,6 @@ type Value[T any] struct {
 	err   error
 }
 
-// New creates an unset value.
 func New[T any]() *Value[T] { return &Value[T]{ready: make(chan struct{})} }
 
 // Set sets the value. Only the first call to Set or Fail counts.
@@ -65,9 +60,7 @@ func (l *Value[T]) Get(ctx context.Context) (T, error) {
 	}
 }
 
-// Call waits for v's value and calls fn with it. It is the body of most API methods, which
-// return fn's result and error unchanged: the shell gives every error its code
-// (rclone.ErrorOf).
+// Call waits for v's value and calls fn with it.
 func Call[S, T any](ctx context.Context, v *Value[S], fn func(S) (T, error)) (T, error) {
 	s, err := v.Get(ctx)
 	if err != nil {
@@ -77,8 +70,7 @@ func Call[S, T any](ctx context.Context, v *Value[S], fn func(S) (T, error)) (T,
 	return fn(s)
 }
 
-// CallValue is Call for a service method that returns a pointer. The pages get the value it
-// points to, because none of these results is ever missing: a nil pointer comes back as T's
+// CallValue is Call for a service method that returns a pointer. A nil pointer comes back as T's
 // zero value.
 func CallValue[S, T any](ctx context.Context, v *Value[S], fn func(S) (*T, error)) (T, error) {
 	p, err := Call(ctx, v, fn)
@@ -120,7 +112,7 @@ func (l *Value[T]) Do(ctx context.Context, fn func(T) error) error {
 	return fn(v)
 }
 
-// Of returns a value that is already set to v. Tests use it to give an API a running service.
+// Of returns a value that is already set to v.
 func Of[T any](v T) *Value[T] {
 	l := New[T]()
 	l.Set(v)

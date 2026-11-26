@@ -1,8 +1,6 @@
 import { t } from '@lingui/core/macro'
 import { message } from './shell'
 
-// Signals that the user explicitly stopped a call (for example, by dismissing the reconnect
-// prompt), so retry layers should stop instead of running the call and prompting again.
 export class UserCancelledError extends Error {
     constructor(message: string) {
         super(message)
@@ -10,10 +8,6 @@ export class UserCancelledError extends Error {
     }
 }
 
-/**
- * The core's error (core/errs): a code, the message as is, and the details that a page acts on.
- * A bound call rejects with an error whose cause is this object.
- */
 export interface CoreError {
     code:
         | 'invalid'
@@ -26,16 +20,9 @@ export interface CoreError {
         | 'canceled'
         | 'unavailable'
     message: string
-    /** The rejected fields of an invalid request, keyed by the names the form uses. */
     fields?: { field: string; description: string }[]
-    /**
-     * The thing that doesn't exist (not_found), that isn't supported (unsupported), or that is
-     * missing (precondition, such as `bisync_baseline` for a first bisync).
-     */
     what?: string
-    /** The remote whose sign-in expired (reconnect). */
     remote?: string
-    /** The transfer that a failed start recorded. */
     transfer?: { id: string; seq: number }
 }
 
@@ -59,10 +46,6 @@ export function refusedFields(error: unknown): Record<string, string> {
     return out
 }
 
-/**
- * The codes for which a second try may succeed: the core couldn't handle the request yet, or
- * rclone failed.
- */
 const TRANSIENT = new Set<CoreError['code']>(['unavailable', 'failed'])
 
 /**
@@ -82,9 +65,6 @@ export function isTransient(error: unknown): boolean {
     return !e || TRANSIENT.has(e.code)
 }
 
-// The text to show the user for a thrown value. The core's message comes translated from Go, and
-// the caller translates its own fallback. Pass `String(error)` as the fallback to show the raw
-// value.
 export function formatErrorMessage(
     error: unknown,
     fallback = t`An unknown error occurred`
@@ -97,20 +77,15 @@ export function formatErrorMessage(
 interface ReportErrorOptions {
     title: string
     fallback?: string
-    // The values passed to console.error before the dialog, with the error added at the end, so
-    // `['[saveConfig] failed']` becomes console.error('[saveConfig] failed', error). Without it,
-    // the title is logged with the error.
     log?: unknown[]
 }
 
-// Logs the error to the console, which the app's log keeps, and shows an error dialog.
 export async function reportError(error: unknown, options: ReportErrorOptions): Promise<void> {
     const { title, fallback, log } = options
     console.error(...(log ?? [title]), error)
     await message(formatErrorMessage(error, fallback), { title, kind: 'error' })
 }
 
-// A ready-made TanStack Query `onError` handler that reports through reportError.
 export function onErrorDialog(
     title: string,
     fallback?: string,

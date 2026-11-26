@@ -32,7 +32,6 @@ function emit(name: string, data?: unknown) {
     for (const callback of [...(fake.listeners.get(name) ?? [])]) callback({ name, data })
 }
 
-/** Returns a client with one cached query for each method, given as `<domain>/<Method>`. */
 function cached(...methods: string[]) {
     const queryClient = new QueryClient()
     for (const m of methods) {
@@ -42,7 +41,6 @@ function cached(...methods: string[]) {
     return queryClient
 }
 
-/** Lists the methods whose queries are stale, as `<domain>/<Method>`. */
 function stale(queryClient: QueryClient) {
     return queryClient
         .getQueryCache()
@@ -51,9 +49,7 @@ function stale(queryClient: QueryClient) {
         .sort()
 }
 
-/** The core's bound APIs (core/<domain>/api.ts), as `<domain>/<Method>`. */
 function boundMethods(): string[] {
-    // The folder name is the service name, the same name that lib/core/api.ts exports.
     const bound = import.meta.glob<Record<string, unknown>>(
         './shell/bindings/github.com/rclone/rclone-ui/core/*/api.ts',
         { eager: true }
@@ -81,7 +77,6 @@ describe('invalidates', () => {
         }
     })
 
-    // A target covers its domain's queries, or one method's, whatever their input.
     it('each event makes stale exactly the methods that its targets name', () => {
         const methods = boundMethods()
         for (const [event, targets = []] of Object.entries(invalidates)) {
@@ -193,7 +188,6 @@ describe('followCoreEvents', () => {
         }
         expect(stale(queryClient)).toEqual(['browse/List'])
         expect(spy).toHaveBeenCalledTimes(1)
-        // A stop stops a burst that is still going on.
         emit('files.changed', {})
         stop()
         vi.advanceTimersByTime(MAX_WAIT)
@@ -219,7 +213,6 @@ describe('followShellEvents', () => {
     it('keeps the agents’ command, which their event leaves out', () => {
         const queryClient = new QueryClient()
         const stop = followShellEvents(queryClient)
-        // Before the first read there is nothing to update.
         emit('agents:changed', { running: true, url: 'http://127.0.0.1:5590/mcp', error: '' })
         expect(queryClient.getQueryData(shellKeys.agents)).toBeUndefined()
         queryClient.setQueryData(shellKeys.agents, {

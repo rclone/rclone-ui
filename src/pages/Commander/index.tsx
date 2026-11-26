@@ -40,30 +40,20 @@ import {
 } from './snapshot'
 import TransfersBar, { useActivityTip } from './TransfersBar'
 
-/** How long the scroll position must stay still before it is saved, in ms. */
 const SAVE_SCROLL_AFTER = 250
 
 type Side = 'left' | 'right'
 
-/** The remote that a panel shows, or null for this computer. */
 function remoteOf(loc: PanelLocation | null): string | null {
     return !loc?.remote || loc.remote === 'UI_LOCAL_FS' ? null : loc.remote
 }
 
-/**
- * Parses a place given in the route. As in rclone, `remote:dir` is on a remote, and anything else
- * is local.
- */
 function parsePanelTarget(raw: string | null): Place | undefined {
     if (!raw) return undefined
     const place = placeOf(raw)
     return { remote: place.remote, path: place.cwd }
 }
 
-/**
- * Commander as it was left (`snapshot.ts`). Every change is saved at once, and the scroll position
- * once it stays still.
- */
 function useSnapshot() {
     const [key] = useState(() => snapshotKey(dataDir()))
     const query = usePageQuery()
@@ -140,7 +130,6 @@ function useSnapshot() {
         },
         [save]
     )
-    // A panel that moves to another folder starts at its top, so the kept scroll position is reset.
     const placesNow = useRef(places)
     const moved = useCallback((side: Side, place: Place) => {
         const was = placesNow.current[side]
@@ -159,12 +148,6 @@ function useSnapshot() {
     return { opening, tracked, setTracked, barOpen, setBarOpen, moved, sorted, selected, scrolled }
 }
 
-/**
- * The Commander page: two file panels for browsing remotes and local disks. The route's `?left=`
- * and `?right=` (from a deep link or the launcher) set where the panels start. Otherwise they
- * start where they were left. Without either, the left panel starts at home, and the right one
- * at the first remote's root.
- */
 export default function Commander() {
     const leftPanelRef = useRef<FilePanelHandle>(null)
     const rightPanelRef = useRef<FilePanelHandle>(null)
@@ -176,8 +159,6 @@ export default function Commander() {
         destination: string
     } | null>(null)
 
-    // The ids of the transfers that this page started, which its bar shows. The first transfer
-    // started while the bar is closed opens a dialog that says where to follow it.
     const { tracked: trackedIds, setTracked: setTrackedIds } = memory
     const showActivityTip = useActivityTip(memory.barOpen, memory.setBarOpen)
     const handleJobStarted = useCallback(
@@ -193,7 +174,6 @@ export default function Commander() {
         rightPanelRef.current?.refresh()
     }, [])
 
-    // The folder and the selection of each panel, used by the Compare and Batch Rename actions.
     const [leftLoc, setLeftLoc] = useState<PanelLocation | null>(null)
     const [rightLoc, setRightLoc] = useState<PanelLocation | null>(null)
     const handleLeftNavigate = useCallback(
@@ -238,10 +218,7 @@ export default function Commander() {
         ? undefined
         : t`Open a folder in both panels to compare.`
 
-    // Batch Rename needs at least 2 selected items in exactly one panel. The items are copied when
-    // the drawer opens, so the drawer keeps them during its closing animation.
     const renameSel = leftSel.length > 0 ? leftSel : rightSel
-    // A favorite is a bookmark. Renaming it would rename the real folder it points to.
     const renameInFavorites =
         renameSel.length > 0 && (leftSel.length > 0 ? leftLoc : rightLoc)?.remote === 'UI_FAVORITES'
     const renameDisabledReason =
@@ -260,9 +237,6 @@ export default function Commander() {
         track('batch_rename_opened', { items: renameSel.length })
     }, [renameSel])
 
-    // Renamed entries have new keys, so the old selection is out of date either way. The renames
-    // run as one recorded transfer, which is shown in the bar. When it ends, the folders are
-    // listed again.
     const handleBatchRenameDone = useCallback(
         (transferId: string | undefined) => {
             if (transferId) handleJobStarted(transferId)
@@ -276,8 +250,6 @@ export default function Commander() {
         setDropOperation({ items, destination })
     }, [])
 
-    // Saves an entry to this computer. It runs as a normal transfer (the save operation), so it
-    // is listed in History and can be retried.
     const handleDownload = useCallback(
         async (entry: Entry) => {
             const savePath = await save({
@@ -300,14 +272,10 @@ export default function Commander() {
         [handleJobStarted]
     )
 
-    // Removes entries that were renamed, deleted or moved away from both panels' selections.
-    // Otherwise Batch Rename or a drag would send paths that no longer exist.
     const deselect = useCallback((paths: string[]) => {
         for (const ref of [leftPanelRef, rightPanelRef]) ref.current?.deselect(paths)
     }, [])
 
-    // Rename and delete actions for a row, shared with the picker. Deleting a folder runs as a
-    // transfer, which the bar shows.
     const { rename: handleRename, remove: handleDelete } = useEntryActions(
         useCallback((entry: Entry) => deselect([entry.key]), [deselect]),
         { onTransfer: handleJobStarted }
@@ -333,13 +301,8 @@ export default function Commander() {
         }
     }, [])
 
-    // The panel the user works in: the last one clicked or focused. Its selection shows in the
-    // accent, and the keyboard's shortcuts act on it.
     const [active, setActive] = useState<Side>('left')
 
-    // Disk Usage scans the whole remote, or the whole disk, of the panel whose status bar it was
-    // opened from. The scan belongs to the page, so it goes on while the drawer is closed and shows
-    // again when it opens. "Show in panel" opens a folder in the panel that the scan came from.
     const diskUsage = useDiskUsage()
     const [diskUsageOpen, setDiskUsageOpen] = useState(false)
     const [usageSide, setUsageSide] = useState<Side>('left')
@@ -359,16 +322,11 @@ export default function Commander() {
         [diskUsage.open, leftFrom, rightFrom, leftLoc, rightLoc]
     )
 
-    // Mount opens the Mount window on a panel's folder, which is on a remote. The window suggests
-    // the mount point.
     const handleMount = useCallback((from: string) => {
         openWindow(`/mount?initialSource=${encodeURIComponent(from)}`).catch((error: unknown) =>
             reportError(error, { title: t`Window not opened` })
         )
     }, [])
-    // A deleted file leaves the scan at once. A folder is deleted by a recorded transfer, which the
-    // bar shows, and leaves the scan when the transfer completes. Each delete is remembered by its
-    // path until it is done, because a second one can start before the first ends.
     const deleting = useRef(new Map<string, UsageItem>())
     const { forget } = diskUsage
     const { remove: removeFromUsage } = useEntryActions(
@@ -416,8 +374,6 @@ export default function Commander() {
 
     usePeekKey()
 
-    // ⌘R lists both panels' folders again. ⌘↑ opens the active panel's parent folder, and ⌘F puts
-    // the focus in its search field.
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return
@@ -473,7 +429,6 @@ export default function Commander() {
                     isActive={true}
                     isFocused={active === side}
                     keys={keys}
-                    // The gap between the panels is the splitter's.
                     className={side === 'left' ? 'pr-0' : 'pl-0'}
                 />
             </div>
@@ -487,7 +442,6 @@ export default function Commander() {
                     {panel('left')}
                 </Panel>
                 <Separator className="relative w-4 group/split outline-hidden">
-                    {/* A grip that shows while the splitter is hovered, dragged or focused. */}
                     <span
                         aria-hidden={true}
                         className={cn(

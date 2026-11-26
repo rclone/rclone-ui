@@ -1,7 +1,3 @@
-// The History window's tab and search. They are kept in the window's session storage, so a page
-// that opens again (as it does for another window's "Show transfer") finds them as they were
-// left. A new window starts at All.
-
 import { t } from '@lingui/core/macro'
 import type { EndedState } from '../../../lib/transfers/ended'
 
@@ -10,11 +6,8 @@ export type Status = 'all' | 'running' | 'completed' | 'failed' | 'stopped'
 interface StatusTab {
     key: Status
     label: string
-    /** The title when the tab has no transfers. */
     empty: string
-    /** The line under that title, or '' for no line. */
     none: string
-    /** The line when no transfer of the tab matches the search. */
     noMatch: (search: string) => string
 }
 
@@ -75,7 +68,6 @@ export const STATUSES: StatusTab[] = [
 export const isStatus = (value: unknown): value is Status =>
     STATUSES.some((status) => status.key === value)
 
-/** The state that the core filters the ended list by, for a tab. All and Running don't filter. */
 export function endedStateOf(status: Status): EndedState {
     return status === 'all' || status === 'running' ? '' : status
 }
@@ -92,7 +84,6 @@ type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem'>
 const session = (): Storage | undefined =>
     typeof sessionStorage === 'undefined' ? undefined : sessionStorage
 
-/** Reads what the window showed last, or All with no search. */
 export function readShown(storage = session()): Shown {
     try {
         const kept = JSON.parse(storage?.getItem(KEY) ?? '{}') as Partial<Shown>
@@ -108,7 +99,5 @@ export function readShown(storage = session()): Shown {
 export function saveShown(shown: Shown, storage = session()) {
     try {
         storage?.setItem(KEY, JSON.stringify(shown))
-    } catch {
-        // A storage that is full or off only means that the window forgets.
-    }
+    } catch {}
 }

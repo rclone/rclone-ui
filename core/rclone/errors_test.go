@@ -17,11 +17,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// TestErrorOf checks the one classifier that every error a page receives goes through. The core's
-// own errors keep their code, even when wrapped, and come before rclone's: a canceled call that
-// names a reconnect is still canceled. rclone's advice to reconnect names the remote, rclone's
-// missing file or folder is not_found with a sentence of the app's own, and anything else is
-// failed with its message unchanged.
 func TestErrorOf(t *testing.T) {
 	gone := errs.NotFound("watcher", "This watcher no longer exists.")
 	expired := errors.New(`token expired - manually refresh with "rclone config reconnect work:"`)
@@ -60,9 +55,6 @@ func TestErrorOf(t *testing.T) {
 	}
 }
 
-// TestErrorOfSentences checks that the rclone errors a user can meaningfully hit are recognised by
-// their type, even when wrapped, and get a sentence of the app's own with rclone's words after
-// it. Their code doesn't change, and the sentence is translated when the page receives it.
 func TestErrorOfSentences(t *testing.T) {
 	dial := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("no route")}
 	for _, c := range []struct {
@@ -87,7 +79,6 @@ func TestErrorOfSentences(t *testing.T) {
 			t.Errorf("%s: %s %q, want failed %q", c.name, e.Code, e.Message, c.want)
 		}
 	}
-	// An error of any other type keeps rclone's words alone.
 	if e := ErrorOf(errors.New("bucket does not exist")); e.Message != "bucket does not exist" {
 		t.Errorf("an unknown error: %q", e.Message)
 	}

@@ -6,10 +6,6 @@ import type { Tone } from '../../components/look/tones'
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 
-/**
- * Bytes as a size people read, in steps of 1024: "640 GB", "1.3 TB". The number is written as the
- * app's language writes it ("1,3 TB" in Spanish).
- */
 export function formatSize(bytes: number): string {
     if (!Number.isFinite(bytes) || bytes < 0) return '0 B'
     let value = bytes
@@ -27,24 +23,20 @@ export function spaceFree(size: string): string {
     return t({ message: `${size} free`, comment: 'The space left on storage: "37 GB free".' })
 }
 
-/** Names or short items in a row, as the app's language lists them: "a, b, c". */
 export function listed(items: string[]): string {
     return new Intl.ListFormat(locale(), { style: 'narrow', type: 'conjunction' }).format(items)
 }
 
-/** What a remote stores, as far as its backend reports it. */
 export interface Usage {
     used?: number
     free?: number
     total?: number
-    /** How full it is, from 0 to 1, when both the use and the size are known. */
     ratio?: number
 }
 
 const known = (n: number | null | undefined): n is number =>
     n !== null && n !== undefined && Number.isFinite(n)
 
-/** A remote's usage from its last check, or undefined when the check reported none. */
 export function usageOf(health: HealthResult | undefined): Usage | undefined {
     const about = health?.state === 'ok' ? health.about : undefined
     if (!about) return undefined
@@ -64,16 +56,10 @@ export function usageOf(health: HealthResult | undefined): Usage | undefined {
     return { used, free, total, ratio }
 }
 
-/** A remote this full is nearly out of space, and its meter turns red. */
 export const NEARLY_FULL = 0.9
 
-/**
- * The colors of the parts of the storage bar, given in turn to the remotes that report their use.
- * A remote's meter has the color of its part.
- */
 const PALETTE: Tone[] = ['blue', 'violet', 'green', 'orange', 'pink', 'cyan', 'indigo', 'lime']
 
-/** Whether the last check found a problem: no connection, or no answer at all. */
 export function needsAttention(health: HealthResult | undefined): boolean {
     return health?.state === 'faulty' || health?.state === 'unknown'
 }
@@ -83,26 +69,14 @@ export interface Summary {
     failing: number
     noAnswer: number
     checking: number
-    /**
-     * The storage whose use is known, biggest first, each with its color. Remotes on the same
-     * storage (aliases of one disk) share a part: `remotes` names them, and `remote` is the label.
-     */
     parts: { remote: string; remotes: string[]; used: number; tone: Tone }[]
-    /** The space used and left, counting shared storage once. */
     used: number
     free: number
-    /** How many remotes report how much they use. */
     reporting: number
-    /** How many connected remotes don't report it. */
     silent: number
     tones: Record<string, Tone>
 }
 
-/**
- * The remotes' health and storage, counted together for the top of the window. Remotes that report
- * exactly the same use, space left and size are taken to be on the same storage (aliases of one
- * disk, or a crypt over a remote), which is counted once.
- */
 export function summarize(
     remotes: string[],
     health: Record<string, HealthResult | undefined> | undefined

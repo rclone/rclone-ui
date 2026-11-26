@@ -9,10 +9,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// Dropped offers what can be done with files dropped on the launcher. They can be copied or moved
-// to where the text says (a typed path, a remote, or a folder listed by completion), or to a
-// place chosen in the operation's window. A single dropped folder can also be browsed, synced or
-// served.
 type Dropped struct{}
 
 func (Dropped) Query(_ context.Context, q engine.Query, d *engine.Data) []engine.Result {
@@ -23,7 +19,6 @@ func (Dropped) Query(_ context.Context, q engine.Query, d *engine.Data) []engine
 	folder := len(q.Dropped) == 1 && isDir(q.Dropped[0].Text)
 	var out []engine.Result
 	if len(q.Paths) > 0 {
-		// a destination was typed, so it comes first
 		dest := pathArg(q.Paths[len(q.Paths)-1])
 		short := q.Paths[len(q.Paths)-1].Short()
 		// i18n: %[1]s is what was dropped on the launcher (a file's name, or "3 items"), and %[2]s where it goes.
@@ -36,7 +31,6 @@ func (Dropped) Query(_ context.Context, q engine.Query, d *engine.Data) []engine
 			out = append(out, droppedResult("sync-to", i18n.T("Sync %[1]s to %[2]s", label, short), dest, icons.Sync, 180, transferTo("sync", "Sync", q.Dropped, dest)))
 		}
 	} else {
-		// offer the remotes as destinations: typing a name picks one, and Tab goes into it
 		for _, r := range d.Remotes {
 			root := r.Name + ":"
 			// i18n: %s is a remote's type, such as "drive" or "s3".
@@ -76,8 +70,6 @@ func droppedResult(id, title, subtitle string, icon icons.Name, score int, actio
 		Score: score, Actions: actions}
 }
 
-// transferTo returns an action that opens the operation's window with the dropped files as its
-// sources, and dest as its destination when there is one. name is the operation's window.
 func transferTo(id, name string, sources []engine.Path, dest string) engine.Action {
 	params := make([]string, 0, 2*len(sources)+2)
 	for _, s := range sources {
@@ -89,8 +81,6 @@ func transferTo(id, name string, sources []engine.Path, dest string) engine.Acti
 	return a
 }
 
-// transferName returns the name of the action that sends dropped files with operation id, to a
-// destination when here is set ("Copy Here"), or else to one chosen in its window ("Copy").
 func transferName(id string, here bool) string {
 	switch {
 	case id == "move" && here:
@@ -109,9 +99,6 @@ func transferName(id string, here bool) string {
 	return i18n.T("Copy")
 }
 
-// droppedLabel describes what was dropped: the file's name (a string), or the number of items (a
-// message). The rows pass it as a value to their own messages, which translate a message value
-// along with themselves.
 func droppedLabel(ps []engine.Path) any {
 	if len(ps) == 1 {
 		return filepath.Base(ps[0].Text)

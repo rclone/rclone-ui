@@ -16,10 +16,6 @@ import { GLOSS, TONE_GRADIENT, type Tone } from '../look/tones'
 import { WindowHeader } from '../look/WindowHeader'
 import { useListSearch } from './list'
 
-// The window that the Schedules, Watchers and Automounts windows share (ListWindow). Its parts are
-// exported for the windows that lay out their own list: Templates uses the search and the states,
-// and the Notifications window's rows use the same status column.
-
 const NONE: never[] = []
 
 interface ListWords {
@@ -28,7 +24,6 @@ interface ListWords {
     noMatch: string
 }
 
-/** A window that isn't listed here gets texts that don't name its things. */
 function listWords(look: WindowLook): ListWords {
     switch (look) {
         case WINDOWS.schedules:
@@ -58,12 +53,6 @@ function listWords(look: WindowLook): ListWords {
     }
 }
 
-/**
- * A list window. It shows a skeleton while the list loads, the error and Retry when the load
- * fails, and `empty` with its steps and `action` when the list is empty. Otherwise it shows the
- * header, a search field once the list is long (SEARCH_FROM), then `notice` and the rows.
- * `drawers` are rendered in every state, so that a drawer stays open while the list reloads.
- */
 export function ListWindow<T extends { id: string }>({
     look,
     query,
@@ -78,20 +67,15 @@ export function ListWindow<T extends { id: string }>({
 }: {
     look: WindowLook
     query: UseQueryResult<T[]>
-    /** The texts of an item that the search looks in. The same function on every render. */
     fields: (t: T) => string[]
-    /** The line under the window's title. */
     summary: ReactNode
-    /** The button that makes a new thing. */
     action: ReactNode
     empty: { title: string; description: string; steps: readonly string[] }
     notice?: ReactNode
-    /** Says why nothing matches the search, which is passed trimmed. Shown under "No … match". */
     noMatch: (search: string) => string
     row: (t: T) => ReactNode
     drawers: ReactNode
 }) {
-    // A core that returns no list sends null.
     const items: readonly T[] = query.data ?? NONE
     const { search, setSearch, searching, shown } = useListSearch(items, fields)
     const rowMotion = useRowMotion()
@@ -179,14 +163,9 @@ export function ListWindow<T extends { id: string }>({
     )
 }
 
-/** The two lines of a row's text: the name or the status word, and a detail under it. */
 export const ROW_LINE_1 = 'leading-5 truncate'
 export const ROW_LINE_2 = 'text-xs leading-4 truncate text-default-500 tabular-nums'
 
-/**
- * The status column of a row: a dot and its word, and under them `when` and `note` ("2 minutes
- * ago · Nothing to do"). With `onOpen`, it is a button, and `openTip` is its tooltip.
- */
 export function RowStatus({
     kind,
     label,
@@ -236,15 +215,10 @@ export function RowStatus({
     )
 }
 
-/** The page around a list window. On macOS it leaves room for the traffic lights. */
 export function pageClass(macos: boolean) {
     return cn('relative flex flex-col h-screen', macos && 'pt-7')
 }
 
-/**
- * How a row enters and leaves the list. Rows that are there when the list loads don't animate
- * (AnimatePresence initial={false}).
- */
 export function useRowMotion(): HTMLMotionProps<'li'> {
     const reduced = useReducedMotion()
     return {
@@ -255,7 +229,6 @@ export function useRowMotion(): HTMLMotionProps<'li'> {
     }
 }
 
-/** The panel that holds a list's rows. It is a `@container`, so rows lay out by its width. */
 export function ListPanel({ label, children }: { label: string; children: ReactNode }) {
     return (
         <Panel className="@container">
@@ -376,7 +349,6 @@ export function NoMatch({
     )
 }
 
-/** The three steps under a window's empty state, which say how its things work. */
 export function Steps({ steps, tone }: { steps: readonly string[]; tone: Tone }) {
     return (
         <ol className="grid gap-3 text-left sm:grid-cols-3">

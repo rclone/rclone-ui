@@ -27,9 +27,9 @@ func (r *recorder) Desktop(_ context.Context, _ NotificationEvent, _ Payload, d 
 
 func TestStreak(t *testing.T) {
 	type step struct {
-		after time.Duration // how far the clock moves first
-		up    bool          // call Up, or else Failed
-		sent  bool          // what Failed returns
+		after time.Duration
+		up    bool
+		sent  bool
 	}
 	failed := func(after time.Duration, sent bool) step { return step{after: after, sent: sent} }
 	up := func(after time.Duration) step { return step{after: after, up: true} }
@@ -82,7 +82,6 @@ func TestStreak(t *testing.T) {
 	}
 }
 
-// A streak with a desktop shows each event that it sends on the desktop too, and nothing more.
 func TestStreakDesktop(t *testing.T) {
 	r := &recorder{}
 	k := NewStreak(r, NotificationEventWatcherFailed, &Desktop{Route: "/watchers"})

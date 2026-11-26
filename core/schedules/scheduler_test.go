@@ -16,14 +16,10 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// daily saves a Copy that runs every day at 13:00 UTC. The fixture's clock is 12:00:30.
 func daily(f *fixture, name string) *Schedule {
 	return f.save(Input{Name: name, Form: form("copy", copyArgs([]string{"/a"}, "/b")), When: "0 13 * * *"})
 }
 
-// A schedule runs once at its time, through the transfer service, with the schedule's id and name
-// as its origin, and with a preset that reopens the page. The next tick in the same minute
-// starts nothing.
 func TestRunsAtItsTime(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
@@ -64,14 +60,12 @@ func TestRunsAtItsTime(t *testing.T) {
 	}
 }
 
-// When the app was closed through many times, the schedule runs once, after the wait that
-// follows the start, and its last due is the latest time that passed.
 func TestManyMissedTimesRunOnce(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
 	f.boot()
 	sc := daily(f, "Photos")
-	f.at(time.Date(2026, 11, 10, 18, 0, 0, 0, time.UTC)) // four days later, as at a start
+	f.at(time.Date(2026, 11, 10, 18, 0, 0, 0, time.UTC))
 	f.s.boot(f.ctx)
 	f.tick()
 	if r.count() != 0 {
@@ -92,14 +86,13 @@ func TestManyMissedTimesRunOnce(t *testing.T) {
 	}
 }
 
-// A computer that slept through a time runs it once, after a wait like the one after a start.
 func TestAWakeWaitsToo(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
 	f.boot()
 	daily(f, "Photos")
 	f.tick()
-	f.sleep(3 * time.Hour) // asleep through 13:00
+	f.sleep(3 * time.Hour)
 	f.tick()
 	if r.count() != 0 {
 		t.Fatal("ran at once after the wake")
@@ -111,8 +104,6 @@ func TestAWakeWaitsToo(t *testing.T) {
 	}
 }
 
-// The runs that catch up wait while the config is locked, and start 10 s apart once it is
-// unlocked.
 func TestCatchUpWaitsForTheConfigAndSpacesTheStarts(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
@@ -141,13 +132,10 @@ func TestCatchUpWaitsForTheConfigAndSpacesTheStarts(t *testing.T) {
 	}
 }
 
-// Creating a schedule, resuming it, or changing its time counts its times from now, so a time that
-// has passed doesn't start a run. Run now runs a paused schedule and doesn't change its last due.
 func TestNoCatchUpAfterCreateResumeOrEdit(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
 	f.boot()
-	// Every minute: any change of the clock would make it due.
 	sc := f.save(Input{Name: "Often", Form: form("copy", copyArgs([]string{"/a"}, "/b")), When: "*/30 * * * *"})
 	f.tick()
 	if r.count() != 0 {
@@ -180,7 +168,7 @@ func TestNoCatchUpAfterCreateResumeOrEdit(t *testing.T) {
 		t.Fatal("resuming started a catch-up run")
 	}
 	f.sleep(2 * time.Hour)
-	f.tick() // the wait after a wake
+	f.tick()
 	in := Input{ID: sc.ID, Name: "Often", Form: form("copy", copyArgs([]string{"/a"}, "/b")), When: "*/20 * * * *"}
 	if _, err := f.s.Save(context.Background(), in); err != nil {
 		t.Fatal(err)
@@ -192,8 +180,6 @@ func TestNoCatchUpAfterCreateResumeOrEdit(t *testing.T) {
 	}
 }
 
-// A clock set back moves the last due back to now, so the schedule runs at its next time instead
-// of waiting until the clock catches up.
 func TestClockSetBack(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
@@ -214,8 +200,6 @@ func TestClockSetBack(t *testing.T) {
 	}
 }
 
-// When a schedule is due while its run is still going, the time is skipped and recorded. The
-// skip is cleared when the next run starts. Pausing during a run lets it finish.
 func TestOverlapIsSkipped(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
@@ -245,10 +229,6 @@ func TestOverlapIsSkipped(t *testing.T) {
 	}
 }
 
-// What a run records and sends: a run that changed nothing records "nothing to do" and sends
-// nothing; one that changed something sends job.completed with the schedule's name and no
-// desktop notification; a failure sends job.failed and "{name} failed" on the desktop, which opens
-// the run in History. A stop and an interrupted run send nothing. No run ever sends job.started.
 func TestWhatARunRecordsAndSends(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
@@ -311,8 +291,6 @@ func TestWhatARunRecordsAndSends(t *testing.T) {
 	}
 }
 
-// A run refused before it started records the error without a transfer, and tells the targets
-// and the desktop, whose notification opens the Schedules window.
 func TestRefusedRun(t *testing.T) {
 	r := &fakeRunner{refuse: []error{errs.New("couldn't find remote \"gone\"")}}
 	f := newFixture(t, r)
@@ -334,8 +312,6 @@ func TestRefusedRun(t *testing.T) {
 	}
 }
 
-// A Move, Delete or Purge leaves out the sources that are gone. With none left, the run has
-// nothing to do: nothing is recorded in History or sent.
 func TestMissingSourcesAreLeftOut(t *testing.T) {
 	missing := func(p string) error { return errs.Errorf("%w", &operations.SourceMissingError{Path: p}) }
 	r := &fakeRunner{refuse: []error{missing("/a")}}
@@ -354,10 +330,9 @@ func TestMissingSourcesAreLeftOut(t *testing.T) {
 	if got := f.get(sc.ID); got.LastResult != ResultNothing || got.Running || r.count() != 1 {
 		t.Fatalf("all gone: %+v, %d starts", got, r.count())
 	}
-	if n := len(f.notes.all()); n != 1 { // the first run's job.completed
+	if n := len(f.notes.all()); n != 1 {
 		t.Errorf("%d notifications", n)
 	}
-	// A Copy whose source is missing fails.
 	cp := daily(f, "Copy")
 	r.refuse = []error{missing("/a")}
 	testutil.Must(t, f.s.RunNow(context.Background(), cp.ID))
@@ -367,8 +342,6 @@ func TestMissingSourcesAreLeftOut(t *testing.T) {
 	}
 }
 
-// Editing a schedule during its run leaves the run as it started. Deleting it lets the run finish,
-// and its end changes nothing.
 func TestEditOrDeleteDuringARun(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
@@ -396,9 +369,6 @@ func TestEditOrDeleteDuringARun(t *testing.T) {
 	}
 }
 
-// A run cut short by a quit runs once more at the next start, after the wait. A run whose end was
-// never recorded takes its transfer's state. After a crash, nothing runs again. A stopped run
-// doesn't run again.
 func TestInterruptedRunsRunAgain(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
@@ -409,16 +379,14 @@ func TestInterruptedRunsRunAgain(t *testing.T) {
 		f.goes.Wait()
 		_ = i
 	}
-	r.end(0, transfers.StateInterrupted, "", nil) // A: its end was recorded at the quit
-	r.end(2, transfers.StateStopped, "", nil)     // C: stopped by the user
-	// B's end was never recorded: its transfer is still open in the record, so it was cut short.
+	r.end(0, transfers.StateInterrupted, "", nil)
+	r.end(2, transfers.StateStopped, "", nil)
 	testutil.Must(t, f.db.Write(context.Background(), func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(context.Background(), `INSERT INTO transfers (id, seq, created_ms, state, operation,
 			sources, origin_kind, request, stats_group) VALUES ('t2', 2, 1, 'interrupted', 'copy', '[]', 'schedule', '{}', 'g')`)
 		return err
 	}))
 
-	// The next start.
 	g := newFixture(t, r, func(o *Options) {})
 	g.db, g.s.o.DB = f.db, f.db
 	g.at(f.clock().Add(10 * time.Minute))
@@ -445,7 +413,6 @@ func TestInterruptedRunsRunAgain(t *testing.T) {
 		t.Error("ran again twice")
 	}
 
-	// After a crash, a run cut short doesn't run again.
 	r.end(3, transfers.StateInterrupted, "", nil)
 	h := newFixture(t, r, func(o *Options) { o.Crashed = true })
 	h.s.o.DB = f.db
@@ -457,10 +424,6 @@ func TestInterruptedRunsRunAgain(t *testing.T) {
 	}
 }
 
-// Every scheduled bisync runs unattended: resilient, recover, and a lock that expires, without
-// force, resync or dry run whatever its form says. A merge is a resync, newer wins. A bisync that
-// was never merged keeps quiet about a run that finds no listings, and a baselined one only about
-// a run that asks for a merge.
 func TestBisyncRunsUnattended(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
@@ -486,7 +449,6 @@ func TestBisyncRunsUnattended(t *testing.T) {
 		quiet(transfers.StateFailed, "cannot find prior Path1 or Path2 listings", changed) {
 		t.Error("the quiet failures of a bisync that was never merged")
 	}
-	// The run found no listings: a merge starts at once.
 	r.end(0, transfers.StateFailed, "cannot find prior Path1 or Path2 listings", nil)
 	f.goes.Wait()
 	if r.count() != 2 {

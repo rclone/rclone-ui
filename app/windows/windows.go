@@ -1,7 +1,3 @@
-// Package windows opens and finds the app's windows, and sets their sizes and placement. A route
-// decides its window's name and shape (see ForRoute). Opening a route whose window is already open
-// focuses that window and passes it the route. Standard windows cascade around the screen's
-// centre.
 package windows
 
 import (
@@ -20,17 +16,14 @@ import (
 	"github.com/rclone/rclone-ui/app/platform"
 )
 
-// The events that a window receives alone.
 const (
 	// EventCloseAsked tells a window that the user asked to close it while its page guards the
 	// close (see GuardClose). The page asks the user, and closes the window itself.
 	EventCloseAsked = "window:close"
-	// EventRoute tells an open window to switch to a route, which is the event's data. Opening a
-	// route whose window is already open sends it (see Open).
+	// EventRoute tells an open window to switch to a route, which is the event's data.
 	EventRoute = "window:route"
 )
 
-// Default size of a standard window.
 const (
 	DefaultWidth  = 840
 	DefaultHeight = 725
@@ -41,26 +34,20 @@ type Manager struct {
 	log        *slog.Logger
 	production bool
 	mu         sync.Mutex
-	// Opened is called with the name of each of the app's own windows as it opens ("Commander").
-	// The shell sets it once, before any window opens.
-	Opened func(name string)
-	// closing is set when the app is quitting. After that, no window shows again.
-	closing atomic.Bool
+	Opened     func(name string)
+	closing    atomic.Bool
 
 	themeMu sync.Mutex
-	themes  map[string]string // each window's theme, as its page set it with SetTheme
-	theme   string            // the theme a page set last, which new windows start with
+	themes  map[string]string
+	theme   string
 
 	guardMu sync.Mutex
-	guarded map[string]bool // the windows whose pages asked to confirm a close (GuardClose)
+	guarded map[string]bool
 }
 
 func New(app *application.App, log *slog.Logger, production bool) *Manager {
 	m := &Manager{app: app, log: log, production: production, themes: map[string]string{}, guarded: map[string]bool{}}
 	if runtime.GOOS == "windows" {
-		// Windows are created with an explicit theme (see base), so that Wails doesn't reapply
-		// the system's theme on every change. Windows that follow the system are updated here
-		// instead.
 		app.Event.OnApplicationEvent(events.Windows.SystemThemeChanged, func(*application.ApplicationEvent) {
 			m.reapplyThemes()
 		})
@@ -83,19 +70,15 @@ func Caller(ctx context.Context) (application.Window, bool) {
 	return w, ok && w != nil
 }
 
-// dispatcher is a window that can receive an event of its own.
 type dispatcher interface {
 	DispatchWailsEvent(event *application.CustomEvent)
 }
 
-// route tells an open window to switch to url. The event goes to that window alone, because
-// Wails' Emit would send it to every window.
+// Wails' Emit would send the event to every window.
 func route(w dispatcher, url string) {
 	w.DispatchWailsEvent(&application.CustomEvent{Name: EventRoute, Data: url})
 }
 
-// reuse brings an open window to the front and passes it the route. It returns false when no such
-// window is open.
 func (m *Manager) reuse(name, url string) bool {
 	w, ok := m.app.Window.GetByName(name)
 	if !ok {
@@ -122,8 +105,6 @@ func (m *Manager) primary() (*application.Screen, error) {
 	return nil, errors.New("no screen found")
 }
 
-// openCount returns the number of visible windows that a new window cascades from. The startup
-// window doesn't count.
 func (m *Manager) openCount() int {
 	n := 0
 	for _, w := range m.app.Window.GetAll() {
@@ -160,7 +141,6 @@ func (m *Manager) Open(url string) error {
 	default:
 		m.openStandard(opts, screen)
 	}
-	// Only the app's own windows are named: a route from outside can't put its text there.
 	if _, own := titleOf(name); own && m.Opened != nil {
 		m.Opened(name)
 	}
@@ -179,7 +159,6 @@ func (m *Manager) openStandard(opts application.WebviewWindowOptions, screen *ap
 	minW, minH = grow(minW, ts), grow(minH, ts)
 	maxW, maxH = grow(maxW, ts), grow(maxH, ts)
 	area := Area{Width: screen.WorkArea.Width, Height: screen.WorkArea.Height}
-	// A small screen at a high display scale can be smaller than the default size.
 	w, h = min(w, area.Width), min(h, area.Height)
 	minW, minH = min(minW, w), min(minH, h)
 	var x, y int
@@ -205,8 +184,6 @@ func (m *Manager) openFull(opts application.WebviewWindowOptions, screen *applic
 }
 
 func (m *Manager) openSmall(opts application.WebviewWindowOptions, screen *application.Screen) {
-	// The page has a fixed layout and the window can't be resized. When the screen is too small
-	// for it, the page is zoomed out to fit.
 	opts.Width, opts.Height, opts.Zoom = fit(800, 500, platform.TextScale(), Area{Width: screen.WorkArea.Width, Height: screen.WorkArea.Height})
 	opts.Frameless = true
 	opts.DisableResize = true
@@ -221,15 +198,13 @@ func (m *Manager) openSmall(opts application.WebviewWindowOptions, screen *appli
 	}
 	opts.Mac.DisableShadow = true
 	if runtime.GOOS == "darwin" {
-		// Transparent WebKitGTK windows can fail to render with Wayland DMA-BUF, so the window is
-		// opaque on Linux. It is opaque on Windows too.
+		// Transparent WebKitGTK windows can fail to render with Wayland DMA-BUF.
 		opts.BackgroundType = application.BackgroundTypeTransparent
 	}
 	win := m.app.Window.NewWithOptions(opts)
 	m.showWhenReady(win, opts, func() {
 		// On Windows, a window put on top covers every ordinary window, the app's own dialogs and
-		// prompts included. One that opened before this window, such as the config password's
-		// prompt, keeps it an ordinary window.
+		// prompts included.
 		if runtime.GOOS == "windows" && interaction.Open() {
 			return
 		}
@@ -237,8 +212,6 @@ func (m *Manager) openSmall(opts application.WebviewWindowOptions, screen *appli
 	})
 }
 
-// base returns the options that every window shares. The window's title is the one its page has,
-// in the app's language (Title), so the title bar is right before the page has loaded.
 func (m *Manager) base(name, url string) application.WebviewWindowOptions {
 	m.themeMu.Lock()
 	theme := m.theme
@@ -252,25 +225,18 @@ func (m *Manager) base(name, url string) application.WebviewWindowOptions {
 		ZoomControlEnabled:         false,
 		DevToolsEnabled:            !m.production,
 		DefaultContextMenuDisabled: m.production,
-		// Never use SystemDefault. With it, Wails reapplies the system's theme to the title bar
-		// every time the system's theme changes, replacing the theme that the app's settings
-		// force. New handles the system's changes for the windows that follow it.
+		// With SystemDefault, Wails reapplies the system's theme to the title bar every time the
+		// system's theme changes, replacing the theme that the app's settings force.
 		Windows: application.WindowsWindow{Theme: windowsTheme(theme)},
 	}
 }
 
-// overlayTitleBar puts the traffic lights over the content, without the window's title. The
-// pages leave room for the traffic lights. Each window keeps its title for the Window menu and
-// Mission Control. It only applies on macOS: Windows and Linux show the title in their title bar.
 var overlayTitleBar = application.MacTitleBar{
 	AppearsTransparent: true,
 	FullSizeContent:    true,
 	HideTitle:          true,
 }
 
-// showWhenReady shows a window that was created hidden once its page has loaded the Wails
-// runtime, so it never flashes white. After 2 seconds it is shown anyway. opts are the options
-// that the window was created with.
 func (m *Manager) showWhenReady(w *application.WebviewWindow, opts application.WebviewWindowOptions, after func()) {
 	m.hookClose(w)
 	var once sync.Once
@@ -293,10 +259,9 @@ func (m *Manager) showWhenReady(w *application.WebviewWindow, opts application.W
 	time.AfterFunc(2*time.Second, show)
 }
 
-// placeAgain moves a window that was just shown to the position it was created with. On Linux,
-// Wails places a hidden window before GTK gives it a surface, so the move does nothing, and the
-// window manager chooses the position. Wails places a window that it creates visible a second
-// time after it is shown, in the same way. On Wayland, the compositor always chooses.
+// On Linux, Wails places a hidden window before GTK gives it a surface, so the move does nothing,
+// and the window manager chooses the position. Wails places a window that it creates visible a
+// second time after it is shown, in the same way. On Wayland, the compositor always chooses.
 func placeAgain(w *application.WebviewWindow, opts application.WebviewWindowOptions) {
 	if opts.Screen == nil {
 		return
@@ -305,8 +270,6 @@ func placeAgain(w *application.WebviewWindow, opts application.WebviewWindowOpti
 	w.SetPosition(placement(opts.Screen.WorkArea, opts, width, height))
 }
 
-// placement returns the screen position of a window of the given size, as Wails computes it: in
-// the centre of the work area, or at the options' X and Y within it.
 func placement(area application.Rect, opts application.WebviewWindowOptions, width, height int) (x, y int) {
 	if opts.InitialPosition == application.WindowCentered {
 		return area.X + (area.Width-width)/2, area.Y + (area.Height-height)/2
@@ -316,8 +279,7 @@ func placement(area application.Rect, opts application.WebviewWindowOptions, wid
 
 // GuardClose sets whether closing the named window asks its page first. A page guards its window
 // while it holds unsaved changes. A guarded window doesn't close: it gets EventCloseAsked, and its
-// page asks the user, then stops the guard and closes the window itself. A quit closes every
-// window without asking, because the quit flow asks about what is running.
+// page asks the user, then stops the guard and closes the window itself.
 func (m *Manager) GuardClose(name string, on bool) {
 	m.guardMu.Lock()
 	defer m.guardMu.Unlock()
@@ -334,8 +296,6 @@ func (m *Manager) isGuarded(name string) bool {
 	return m.guarded[name]
 }
 
-// hookClose stops the close of a guarded window and tells its page (see GuardClose). A page that
-// loads again starts unguarded, so a reload can never leave a window that won't close.
 func (m *Manager) hookClose(w *application.WebviewWindow) {
 	name := w.Name()
 	m.GuardClose(name, false)
@@ -351,9 +311,8 @@ func (m *Manager) hookClose(w *application.WebviewWindow) {
 	})
 }
 
-// SetTheme sets a window's appearance: "dark", "light", or "" to follow the system. Wails only
-// sets the theme when a window is created, so this also sets it on an open window (see setTheme,
-// which has one version per OS). Windows opened later start with this theme.
+// SetTheme sets a window's appearance: "dark", "light", or "" to follow the system. Windows
+// opened later start with this theme. Wails only sets the theme when a window is created.
 func (m *Manager) SetTheme(w application.Window, theme string) {
 	m.themeMu.Lock()
 	m.themes[w.Name()], m.theme = theme, theme
@@ -365,8 +324,6 @@ func (m *Manager) SetTheme(w application.Window, theme string) {
 	application.InvokeSync(func() { setTheme(native, theme) })
 }
 
-// reapplyThemes sets each window's theme again after the system's theme changed, so that a window
-// that follows the system picks up the new theme. Only Windows needs this.
 func (m *Manager) reapplyThemes() {
 	for _, w := range m.app.Window.GetAll() {
 		native := w.NativeWindow()
@@ -383,11 +340,8 @@ func (m *Manager) reapplyThemes() {
 	}
 }
 
-// grow scales a size by the text scale.
 func grow(v int, scale float64) int { return int(float64(v)*scale + 0.5) }
 
-// fit returns the size of a window whose page is w by h and is enlarged by scale, and the zoom
-// that makes the page fit when area is smaller than that.
 func fit(w, h int, scale float64, area Area) (width, height int, zoom float64) {
 	width, height, zoom = grow(w, scale), grow(h, scale), 1
 	if area.Width <= 0 || area.Height <= 0 {

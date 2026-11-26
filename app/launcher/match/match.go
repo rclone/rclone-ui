@@ -1,7 +1,3 @@
-// Package match does the launcher's fuzzy matching. A pattern matches when its letters appear in
-// order anywhere in a text. Matches are scored so that the ones a person most likely means come
-// first (at the start of a word, as a run of letters, or at the start of the text). The matched
-// positions are returned so they can be drawn bold.
 package match
 
 import (
@@ -9,37 +5,29 @@ import (
 	"unicode"
 )
 
-// Scores. A matched letter is worth scoreMatch, and its position can add a bonus. Every letter
-// skipped between two matched ones costs a little, and the first skipped letter costs more.
 const (
 	scoreMatch       = 16
 	gapStart         = -3
 	gapExtension     = -1
-	bonusBoundary    = 8  // at the start of a word: after a space, `-`, `_`, `/`, `:` or `.`
-	bonusCamel       = 7  // an upper-case letter after a lower-case one
-	bonusConsecutive = 4  // right after the previous matched letter
-	bonusFirstChar   = 2  // multiplier for the bonus of the pattern's first letter
-	bonusPrefix      = 20 // the match starts at the start of the text
-	bonusWholeWord   = 12 // the pattern is a whole word of the text
+	bonusBoundary    = 8
+	bonusCamel       = 7
+	bonusConsecutive = 4
+	bonusFirstChar   = 2
+	bonusPrefix      = 20
+	bonusWholeWord   = 12
 )
 
-// ExactBonus is added when the pattern matches the whole text.
 const ExactBonus = 100
 
-// Exact reports whether pattern equals text, ignoring case and surrounding spaces. Such a match
-// earns ExactBonus.
 func Exact(pattern, text string) bool {
 	return strings.EqualFold(strings.TrimSpace(pattern), strings.TrimSpace(text))
 }
 
-// Result is a match: its score and the positions of the matched runes in the text, in order.
 type Result struct {
 	Score     int
 	Positions []int
 }
 
-// Match finds each of pattern's words in text as letters in order, ignoring case. ok is false
-// unless every word matches. An empty pattern matches with score 0.
 func Match(pattern, text string) (Result, bool) {
 	words := strings.Fields(pattern)
 	if len(words) == 0 {
@@ -72,14 +60,10 @@ func Match(pattern, text string) (Result, bool) {
 	return total, true
 }
 
-// matchWord matches one word. It finds the first place where all its letters appear in order,
-// then tightens the match backwards from the end to the shortest span ending there, and scores
-// it.
 func matchWord(p, text, lower []rune) (Result, bool) {
 	if len(p) == 0 {
 		return Result{}, true
 	}
-	// forward pass: find the earliest position where the last letter can match
 	pi, end := 0, -1
 	for i, r := range lower {
 		if r == p[pi] {
@@ -93,13 +77,10 @@ func matchWord(p, text, lower []rune) (Result, bool) {
 	if end < 0 {
 		return Result{}, false
 	}
-	// A contiguous occurrence at the start of a word beats the first scattered one ("cp" is
-	// scattered in "Copy" but a word in "cp files"), so look for the best contiguous one too.
 	best, bestScore := []int(nil), -1<<30
 	if pos, ok := contiguous(p, text, lower); ok {
 		best, bestScore = pos, score(text, lower, pos, len(p))
 	}
-	// backward pass from end: find the latest start that still matches, for the shortest span
 	start := end
 	pi = len(p) - 1
 	for i := end; i >= 0; i-- {
@@ -125,8 +106,6 @@ func matchWord(p, text, lower []rune) (Result, bool) {
 	return Result{Score: bestScore, Positions: best}, true
 }
 
-// contiguous finds p as a run of letters at its best position: the first one at the start of a
-// word if there is one, and otherwise the first one.
 func contiguous(p, text, lower []rune) ([]int, bool) {
 	first := -1
 	for i := 0; i+len(p) <= len(lower); i++ {
@@ -189,8 +168,6 @@ func score(text, lower []rune, pos []int, n int) int {
 	return s
 }
 
-// boundary returns the bonus that a match at i earns for its position: bonusBoundary at the start
-// of a word, bonusCamel at a camelCase hump or at a digit after a letter, and 0 elsewhere.
 func boundary(text []rune, i int) int {
 	if i == 0 {
 		return bonusBoundary

@@ -11,7 +11,6 @@ import (
 	"testing"
 )
 
-// tarEntry is one entry of a test archive: a file (body), a folder (dir) or a link (link).
 type tarEntry struct {
 	name, body, link string
 	dir              bool
@@ -75,7 +74,6 @@ func infoPlist(exe, version string) string {
 </plist>`
 }
 
-// bundleEntries is an app bundle laid out the way build/updater's tar-app writes it.
 func bundleEntries(exe, version string) []tarEntry {
 	return []tarEntry{
 		{name: "Rclone UI.app/", dir: true},
@@ -89,7 +87,6 @@ func bundleEntries(exe, version string) []tarEntry {
 }
 
 func TestUntarBundle(t *testing.T) {
-	// Only macOS installs an app bundle, and Windows files have no execute bit to keep.
 	if runtime.GOOS == "windows" {
 		t.Skip("an app bundle is installed on macOS only")
 	}
@@ -160,7 +157,7 @@ func TestBundleExecutableMissing(t *testing.T) {
 	dir := t.TempDir()
 	archive := filepath.Join(dir, "a.tar.gz")
 	entries := bundleEntries("rcui", "4.0.2")
-	writeTarGz(t, archive, entries[:3]) // Info.plist without the executable
+	writeTarGz(t, archive, entries[:3])
 	dst := filepath.Join(dir, "Rclone UI.app")
 	if err := untarBundle(archive, dst); err != nil {
 		t.Fatal(err)

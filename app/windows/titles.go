@@ -2,12 +2,6 @@ package windows
 
 import "github.com/rclone/rclone-ui/core/i18n"
 
-// Title returns the title of the window named name ("Settings", "Wizard") in the app's language.
-// The window gets it when it is made, so its title bar never shows another language while its
-// page loads. The pages hold the same titles (src/routes.ts) and set them again once they have
-// loaded, which also follows a change of language. A test keeps the two lists the same.
-//
-// A window without a title of its own (the startup screen, the launcher) keeps its name.
 func Title(name string) string {
 	if title, ok := titleOf(name); ok {
 		return title
@@ -15,8 +9,6 @@ func Title(name string) string {
 	return name
 }
 
-// titleOf returns the title of the window named name, and false for a name that isn't one of the
-// app's titled windows.
 func titleOf(name string) (string, bool) {
 	switch name {
 	case "Settings":

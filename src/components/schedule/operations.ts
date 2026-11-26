@@ -22,10 +22,6 @@ export function operationTone(operation: string): Tone {
     return isScheduleOperation(operation) ? WINDOWS[operation].tone : 'blue'
 }
 
-/**
- * The route that opens a schedule's operation page in edit mode. The page opens with the
- * schedule's form, and `?schedule=` makes its Start save the schedule instead.
- */
 export function editRoute(schedule: { id: string; form: Operations.Form }) {
     const preset = encodePreset(schedule.form)
     return `/${scheduleOperation(schedule.form)}?preset=${preset}&schedule=${encodeURIComponent(schedule.id)}`

@@ -24,10 +24,6 @@ export interface Section {
     tone: Tone
 }
 
-/**
- * The groups of the Settings window, in the order that the window shows them. The key is the
- * group's anchor, which `/settings?section=` opens.
- */
 export const SECTIONS = {
     appearance: {
         title: t`Appearance`,
@@ -54,11 +50,9 @@ export const SECTIONS = {
         tone: 'indigo',
     },
     rclone: {
-        // rclone's name, which is the same in every language.
         title: 'Rclone',
         description: t`The rclone that Rclone UI runs, in your terminal too.`,
         icon: RcloneMark,
-        // rclone's own color.
         tone: 'sky',
     },
     agents: {

@@ -24,8 +24,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/testdb"
 )
 
-// fixture is a Service over a fresh app.db. Its senders run until the test ends, and hooks
-// answers the webhooks, so nothing goes over the network.
 type fixture struct {
 	t       *testing.T
 	s       *Service
@@ -58,8 +56,6 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
-// memSecrets is an in-memory keychain. When getErr is set it can't be read, and when setErr is
-// set it can't be written.
 type memSecrets struct {
 	mu             sync.Mutex
 	m              map[string]string
@@ -98,7 +94,6 @@ func (m *memSecrets) Delete(account string) error {
 	return nil
 }
 
-// changed waits for n notifications.changed events, and fails the test after 5 seconds.
 func (f *fixture) changed(n int) {
 	f.t.Helper()
 	deadline := time.After(5 * time.Second)
@@ -114,7 +109,6 @@ func (f *fixture) changed(n int) {
 	}
 }
 
-// quiet reports whether no notifications.changed arrives within d.
 func (f *fixture) quiet(d time.Duration) bool {
 	deadline := time.After(d)
 	for {
@@ -148,14 +142,11 @@ func (f *fixture) get(id string) NotificationTarget {
 	return t
 }
 
-// captured is one webhook call, as the endpoint received it.
 type captured struct {
 	URL, ContentType, Event string
 	Body                    string
 }
 
-// fakeTransport answers webhook calls in the test process. reply decides the response to each
-// call, given its 0-based number. When reply is nil, every call gets a 200.
 type fakeTransport struct {
 	mu    sync.Mutex
 	calls []captured
@@ -191,7 +182,6 @@ func (ft *fakeTransport) set(reply func(n int, r *http.Request) (int, error)) {
 	ft.mu.Unlock()
 }
 
-// testCert is a self-signed certificate for 127.0.0.1, and a pool that trusts it.
 func testCert(t *testing.T) (tls.Certificate, *x509.CertPool) {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

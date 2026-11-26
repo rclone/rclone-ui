@@ -11,7 +11,6 @@ import type {
 export { TrayIcon } from './shell/bindings/github.com/rclone/rclone-ui/core/settings/models'
 export type { Patch, Settings }
 
-/** settings.changed keeps the query fresh. */
 export function useSettings() {
     const query = useQuery({ queryKey: coreKey('settings', 'Get'), queryFn: () => api.Get() })
     return { settings: query.data, ...query }

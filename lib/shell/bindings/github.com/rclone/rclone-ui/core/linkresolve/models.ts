@@ -6,7 +6,7 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
- * Kind is the type of media at a resolved address. The Download page uses it to pick a preview.
+ * Kind is the type of media at a resolved address.
  */
 export enum Kind {
     /**
@@ -86,8 +86,8 @@ export class Resolved {
 }
 
 /**
- * Site is one website whose page addresses are resolved. Name is shown in the Download page's
- * tooltip. A host in Hosts matches itself and its subdomains.
+ * Site is one website whose page addresses are resolved. A host in Hosts matches itself and its
+ * subdomains.
  */
 export class Site {
     "name": string;

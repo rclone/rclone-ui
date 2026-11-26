@@ -39,7 +39,6 @@ func testLister() (*Lister, *clock) {
 	return l, c
 }
 
-// epochOf returns the generation of the (fs, dir) listing in l. An invalidation changes it.
 func epochOf(l *Lister, fsName, dir string) uint64 {
 	fsName, dir = Clean(fsName, dir)
 	l.mu.Lock()
@@ -47,7 +46,6 @@ func epochOf(l *Lister, fsName, dir string) uint64 {
 	return l.stateLocked(listingKey{fsName, dir}).gen
 }
 
-// listOf lists through l and returns the emitted rows and fetchedAt.
 func listOf(t *testing.T, l *Lister, fsName, dir string, fresh bool, max int) ([]Entry, int64, error) {
 	t.Helper()
 	var rows []Entry
@@ -112,15 +110,15 @@ func TestListingKeep(t *testing.T) {
 	fx := &Fixture{Inner: MakeTree(t, map[string]string{"a/1": "1"})}
 	root := AddFixture(fx)
 	l, c := testLister()
-	l.fresh = 24 * time.Hour // test only the keep rule
+	l.fresh = 24 * time.Hour
 
-	for range 3 { // requested every 20 min, so it is kept
+	for range 3 {
 		if _, _, err := listOf(t, l, root, "a", false, ListMax); err != nil {
 			t.Fatal(err)
 		}
 		c.add(20 * time.Minute)
 	}
-	c.add(9 * time.Minute) // 29 minutes since the last request
+	c.add(9 * time.Minute)
 	if _, _, err := listOf(t, l, root, "a", false, ListMax); err != nil || fx.Lists() != 1 {
 		t.Fatalf("kept while asked for: %d listings, %v", fx.Lists(), err)
 	}
@@ -203,7 +201,7 @@ func TestTrailingSlashRetry(t *testing.T) {
 		defer mu.Unlock()
 		dirs = append(dirs, dir)
 		if !strings.HasSuffix(dir, "/") {
-			return errRefused // this backend wants folders with a slash
+			return errRefused
 		}
 		return nil
 	}}
@@ -213,7 +211,6 @@ func TestTrailingSlashRetry(t *testing.T) {
 	if err != nil || !slices.Equal(paths(rows), []string{"a/1"}) {
 		t.Fatalf("%v %v", paths(rows), err)
 	}
-	// The root is not retried, because "" has no form with a trailing slash.
 	if _, _, err := listOf(t, l, root, "", false, ListMax); !errors.Is(err, errRefused) {
 		t.Fatalf("root: %v", err)
 	}
@@ -224,9 +221,6 @@ func TestTrailingSlashRetry(t *testing.T) {
 	}
 }
 
-// TestTrailingSlashRetryKeepsTheFirstError checks that when the retry also fails, the first
-// listing's error is returned rather than the retry's. S3, for example, has no folder whose name
-// ends in a slash.
 func TestTrailingSlashRetryKeepsTheFirstError(t *testing.T) {
 	errNotFound := errors.New("directory not found")
 	fx := &Fixture{Inner: MakeTree(t, map[string]string{"a/1": "1"}), Hook: func(_ context.Context, dir string) error {
@@ -265,14 +259,12 @@ func TestCleanAndTheAbsoluteRoot(t *testing.T) {
 			t.Errorf("Clean(%q, %q) = %q, %q", tc.fs, tc.dir, gotFs, gotDir)
 		}
 	}
-	// The two roots are two separate listings.
 	l, _ := testLister()
 	if epochOf(l, "r:", "") == epochOf(l, "r:/", "") || epochOf(l, "r:", "/a") != epochOf(l, "r:/", "a/") {
 		t.Error("keys: r: and r:/ must differ, r: + /a and r:/ + a/ must not")
 	}
 }
 
-// memoryFiles creates n files in folder dir of a new memory bucket and returns the bucket's fs.
 func memoryFiles(t *testing.T, dir string, n int) string {
 	t.Helper()
 	bucket := fmt.Sprintf(":memory:bkt-%s", strings.ToLower(strings.ReplaceAll(t.Name(), "/", "-")))
@@ -315,7 +307,6 @@ func TestAPagedListingStopsAtTheCap(t *testing.T) {
 			if len(rows) != tc.wantRows || fx.Tranches() != tc.wantTranches || fx.Lists() != 1 {
 				t.Fatalf("%d rows, %d pages, %d listings", len(rows), fx.Tranches(), fx.Lists())
 			}
-			// The cached copy serves the same cap, sorted as a whole. A bigger cap asks rclone again.
 			again, _, _ := listOf(t, l, root, "d", false, tc.max)
 			if len(again) != tc.wantRows || fx.Lists() != 1 {
 				t.Fatalf("again: %d rows, %d listings", len(again), fx.Lists())
@@ -341,7 +332,7 @@ func TestInvalidation(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		do   func(l *Lister)
-		want []string // "fs|dir" of the listings invalidated
+		want []string
 	}{
 		{"an entry changed: its folder, itself and below", func(l *Lister) { l.InvalidatePaths("mem:a/b") },
 			[]string{"mem:|a", "mem:|a/b", "mem:|a/b/c", "mem,x=y:|a"}},

@@ -1,4 +1,3 @@
-// Package syncx adds helpers that the sync package lacks.
 package syncx
 
 import (
@@ -28,14 +27,14 @@ func Wait(ctx context.Context, wg *sync.WaitGroup, d time.Duration) bool {
 }
 
 // Runner runs the core's background work on its own goroutines, with a context that ends when the
-// core shuts down. *core.Core is one. Go runs a loop and starts it again after a panic. GoOnce runs
-// one-shot work, which a panic ends for good, because running it twice would repeat it.
+// core shuts down. Go runs a loop and starts it again after a panic. GoOnce runs one-shot work,
+// which a panic ends for good.
 type Runner interface {
 	Go(name string, fn func(ctx context.Context))
 	GoOnce(name string, fn func(ctx context.Context))
 }
 
-// RunnerFunc is a Runner that runs both kinds of work with the same function. Tests use it.
+// RunnerFunc is a Runner that runs both kinds of work with the same function.
 type RunnerFunc func(name string, fn func(ctx context.Context))
 
 func (f RunnerFunc) Go(name string, fn func(ctx context.Context)) { f(name, fn) }

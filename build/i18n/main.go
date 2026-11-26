@@ -1,31 +1,3 @@
-// Command i18n keeps the translations in locales/ in step with the code (see locales/README.md).
-//
-// The windows' messages are collected by Lingui (`lingui extract`) into locales/<language>/app.po.
-// This command does the same for the Go side: it reads the calls that carry text for the user
-// (core/i18n's T, N, M and MN, and core/errs' constructors) and writes their messages to
-// locales/en/core.po. It then brings every other language's core.po in step: a new message is
-// added without a translation, and a message that the code no longer has is dropped.
-//
-//	go run ./build/i18n                 # write the Go side's catalogs (npm run i18n runs it)
-//	go run ./build/i18n -check          # fail when anything is out of step (build/check.sh)
-//	go run ./build/i18n -rclone         # write locales/en/rclone.json from the linked rclone
-//	go run ./build/i18n -rclone -prune  # the same, and drop the keys that this rclone lacks
-//
-// -check fails when:
-//   - a call's message isn't a string constant;
-//   - a core.po differs from what the code gives now;
-//   - a language in languages.json lacks one of its files;
-//   - a language that ships complete (see `complete`) lacks a translation, in app.po or core.po;
-//   - a translation's placeholders differ from its English message's, in a .po file or in a
-//     setup question of rclone.json.
-//
-// It also warns, without failing, when a language's rclone.json lacks translations for the keys
-// of en/rclone.json, or has keys that en no longer has. It compares the files with each other, and
-// doesn't read rclone's registry.
-//
-// -rclone writes rclone's own text (see runRclone in rclone.go). The text comes from a command of
-// its own, build/i18n/rclonetext, because that command links all of rclone and this one must stay
-// quick for npm run i18n and -check.
 package main
 
 import (
@@ -39,12 +11,8 @@ import (
 	"strings"
 )
 
-// complete lists the languages that ship with every message translated. Any other language may
-// be partly translated, and shows English for the rest.
 var complete = []string{"es", "zh-CN"}
 
-// plurals gives the Plural-Forms header of the languages that the app ships. A language that
-// isn't here keeps the header its file has, which its translator writes.
 var plurals = map[string]string{
 	"en":    "nplurals=2; plural=(n != 1);",
 	"es":    "nplurals=2; plural=(n != 1);",
@@ -81,8 +49,6 @@ func main() {
 	}
 }
 
-// run writes the Go side's catalogs, or with check only compares them, and returns what is out
-// of step. With check, it also returns the warnings about rclone's text (reviewRclone).
 func run(dir string, check bool) (problems, warnings []string, err error) {
 	langs, err := languages(dir)
 	if err != nil {
@@ -181,8 +147,6 @@ func rel(dir, path string) string {
 	return filepath.ToSlash(r)
 }
 
-// merge returns lang's catalog for the code's messages: each message with the translation that
-// have holds for it, and with the code's notes and files. English's catalog has no translations.
 func merge(x *extraction, have *catalog, lang string) *catalog {
 	out := &catalog{header: []string{
 		"Content-Type: text/plain; charset=utf-8",
@@ -211,8 +175,6 @@ func merge(x *extraction, have *catalog, lang string) *catalog {
 		e.strs = make([]string, want)
 		if old := have.find(e.key()); old != nil && lang != "en" {
 			e.comments = old.comments
-			// A translation is kept only while the message has the same shape: a message
-			// that gained or lost its plural needs a new one.
 			if (old.plural != "") == (m.plural != "") {
 				copy(e.strs, old.strs)
 			}
@@ -235,9 +197,6 @@ func pluralCount(forms string) int {
 	return 2
 }
 
-// review returns what is wrong with a language's catalog: a missing translation, when the
-// language ships complete, and a translation whose placeholders differ from its message's. icu
-// says that the messages are Lingui's (ICU MessageFormat), and not fmt formats.
 func review(c *catalog, path string, icu, mustBeComplete bool) []string {
 	var problems []string
 	missing := 0
@@ -286,7 +245,6 @@ var (
 	verb         = regexp.MustCompile(`%(\[(\d+)\])?[-+# 0]*[0-9.]*([a-zA-Z%])`)
 )
 
-// icuPlaceholders returns the names of the values and the tags that an ICU message uses, sorted.
 func icuPlaceholders(msg string) string {
 	set := map[string]bool{}
 	for _, m := range icuArgument.FindAllStringSubmatchIndex(msg, -1) {
@@ -301,10 +259,6 @@ func icuPlaceholders(msg string) string {
 	return joined(set)
 }
 
-// verbs returns the values that a fmt format uses, as "position:verb" pairs, sorted. A
-// translation may put them in another order ("%[2]s"), so each is named by its position. A
-// message about a count may leave the count out of one of its forms ("One file"), so its
-// values are compared as a set that may shrink: see review.
 func verbs(format string, plural bool) string {
 	set := map[string]bool{}
 	next := 1
@@ -319,13 +273,11 @@ func verbs(format string, plural bool) string {
 		next = pos + 1
 		v := m[3]
 		if v == "w" || v == "v" {
-			v = "s" // an error or any value reads as text
+			v = "s"
 		}
 		set[fmt.Sprintf("%d:%s", pos, v)] = true
 	}
 	if plural {
-		// The forms of one message may use different values, so only their kinds are compared
-		// where both use them. That is too loose to check here, so a plural's forms pass.
 		return ""
 	}
 	return joined(set)

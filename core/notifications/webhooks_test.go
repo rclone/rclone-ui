@@ -18,8 +18,6 @@ import (
 
 var update = flag.Bool("update", false, "rewrite testdata/notifications goldens")
 
-// goldenTargets has one target per provider. The Telegram one has a thread id, to show that every
-// query parameter moves into the body.
 var goldenTargets = []struct {
 	provider NotificationProvider
 	url      string
@@ -31,8 +29,6 @@ var goldenTargets = []struct {
 	{NotificationProviderWebhook, "https://example.com/hooks/rclone"},
 }
 
-// goldenEvents covers every catalog event and the test send. Each name is the name of its golden
-// file.
 var goldenEvents = []struct {
 	name  string
 	event NotificationEvent
@@ -63,8 +59,6 @@ var goldenEvents = []struct {
 		Notes: "Faster listings & fixes"}},
 }
 
-// TestPayloadGoldens renders every event for every provider, sends the webhooks through the
-// real sending path, and compares what the endpoints receive with testdata/notifications.
 func TestPayloadGoldens(t *testing.T) {
 	at := time.Date(2026, 1, 2, 3, 4, 5, 678_000_000, time.UTC)
 	ft := &fakeTransport{}
@@ -165,7 +159,6 @@ func TestPayloadShapes(t *testing.T) {
 		}
 		return r, body
 	}
-	// Slack's markup is escaped, so there is no link and no mention.
 	if r, b := decode(NotificationProviderSlack, "https://hooks.slack.com/services/T/B/x"); b["text"] != "*A &lt;b&gt;*\nB &amp; C" || r.event != "" {
 		t.Errorf("slack: %v %q", b, r.event)
 	}
@@ -191,11 +184,8 @@ func TestPayloadShapes(t *testing.T) {
 	}
 }
 
-// TestLongTextIsCut: Telegram and Discord refuse a text over their limit, so a long body is cut
-// to fit, counted in UTF-16 code units as they count it. Slack and generic webhooks get it whole.
 func TestLongTextIsCut(t *testing.T) {
 	meta, _ := lookup(NotificationEventJobFailed)
-	// "😀" is two UTF-16 code units, and "&" counts as one once Telegram reads the HTML.
 	long := strings.Repeat("a&😀", 3000)
 	m := message{meta: meta, title: "Transfer failed", body: long, at: time.Now()}
 	body := func(p NotificationProvider, url string) map[string]any {
@@ -233,7 +223,6 @@ func TestLongTextIsCut(t *testing.T) {
 	if b := body(NotificationProviderWebhook, "https://example.com/hook"); b["body"] != long {
 		t.Error("the generic webhook's body was cut")
 	}
-	// A short text is left as it is.
 	if clip("héllo", 5) != "héllo" || clip("héllo!", 5) != "héll…" || clip("😀😀😀", 5) != "😀😀…" {
 		t.Errorf("clip: %q %q %q", clip("héllo", 5), clip("héllo!", 5), clip("😀😀😀", 5))
 	}
@@ -243,7 +232,7 @@ func TestWebhookRetry(t *testing.T) {
 	refused := errors.New("dial tcp 10.0.0.1:443: connect: connection refused")
 	for _, c := range []struct {
 		name    string
-		replies []any // a status, or an error
+		replies []any
 		calls   int
 		err     string
 	}{
@@ -305,24 +294,19 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
-// TestRefusalReason: a refused call is reported with the reason the service gave, so that the
-// target's error says what to fix ("chat not found") rather than only a status.
 func TestRefusalReason(t *testing.T) {
 	for _, c := range []struct{ body, contentType, want string }{
 		{`{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}`, "application/json", "Bad Request: chat not found"},
 		{`{"message": "Unknown Webhook", "code": 10015}`, "application/json; charset=utf-8", "Unknown Webhook"},
-		// Slack answers with an error code, as text/html.
 		{"no_team", "text/html", "no_team (the webhook's URL is wrong)"},
 		{"invalid_token", "text/plain; charset=utf-8", "invalid_token (the webhook's URL is wrong, or it was revoked)"},
 		{"  no_service\n", "text/html", "no_service (the webhook was removed, or its URL is wrong)"},
 		{"rollup_error", "text/html", "rollup_error"},
 		{"Bad gateway", "text/html", ""},
-		// Nothing short and readable: the status alone.
 		{"<html><body>Bad gateway</body></html>", "text/html", ""},
 		{strings.Repeat("x", 400), "text/plain", ""},
 		{`{"ok":false}`, "application/json", ""},
 		{`not json`, "application/json", ""},
-		// A secret in the reply is hidden as in any error.
 		{"cannot reach https://u:hunter2@example.com", "text/plain", "cannot reach https://u:***@example.com"},
 	} {
 		if got := refusal([]byte(c.body), c.contentType); got != c.want {
@@ -343,9 +327,6 @@ func TestRefusalReason(t *testing.T) {
 	}
 }
 
-// TestRetryWaitsAsAsked: a 429 says how long to wait, in Retry-After (Slack, Discord) or in
-// Telegram's retry_after. The retry waits that long, unless it is over maxRetryWait, in which case
-// there is no retry.
 func TestRetryWaitsAsAsked(t *testing.T) {
 	h := func(k, v string) http.Header { return http.Header{k: {v}} }
 	for _, c := range []struct {
@@ -357,7 +338,6 @@ func TestRetryWaitsAsAsked(t *testing.T) {
 		{h("Retry-After", "0.25"), "", 250 * time.Millisecond},
 		{http.Header{}, `{"ok":false,"error_code":429,"parameters":{"retry_after":5}}`, 5 * time.Second},
 		{http.Header{}, `{"ok":false}`, 0},
-		// Discord's body, when the header is missing.
 		{http.Header{}, `{"message": "You are being rate limited.", "retry_after": 1.5, "global": false}`, 1500 * time.Millisecond},
 		{h("Retry-After", "Wed, 21 Oct 2026 07:28:00 GMT"), "", 0},
 	} {

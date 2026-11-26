@@ -92,8 +92,6 @@ func tauriUpdaterReads(t *testing.T, b []byte) bool {
 	return has("platforms") || has("url") && has("signature")
 }
 
-// TestTauriUpdaterRule checks that tauriUpdaterReads accepts a feed in the Tauri app's own format.
-// Without that, its check in TestManifest could never fail.
 func TestTauriUpdaterRule(t *testing.T) {
 	for _, c := range []struct {
 		feed  string
@@ -135,15 +133,11 @@ func TestPolicy(t *testing.T) {
 	}
 }
 
-// TestPublished checks the names of the files that a release publishes. There must be no
-// latest.json and no file under the Tauri app's names (Rclone.UI_*), because other updaters and
-// package managers look for those.
 func TestPublished(t *testing.T) {
 	names := Published("4.0.0-beta.1")
 	if len(names) != 17 {
 		t.Errorf("%d files: %v", len(names), names)
 	}
-	// The portable zips are published, but no update installs them.
 	updates := updateFiles("4.0.0-beta.1")
 	for _, zip := range []string{"Rclone-UI-4.0.0-beta.1-windows-x64-portable.zip", "Rclone-UI-4.0.0-beta.1-windows-arm64-portable.zip"} {
 		if !slices.Contains(names, zip) {

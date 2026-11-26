@@ -7,7 +7,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/late"
 )
 
-// LogRecord is one line of the log, in the form the About page shows.
 type LogRecord struct {
 	N int64 `json:"n"`
 	// Time is when the line was written, in ms since the epoch.
@@ -23,7 +22,6 @@ type LogRecord struct {
 	Count        int64  `json:"count"`
 }
 
-// Files holds the paths of the log file and its folder.
 type Files struct {
 	Core   string `json:"core"`
 	Folder string `json:"folder"`

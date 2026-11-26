@@ -15,12 +15,10 @@ import (
 )
 
 const (
-	tickEvery = time.Second
-	// liveTransferred is how many of the newest finished files transfers.progress includes.
+	tickEvery       = time.Second
 	liveTransferred = 50
 )
 
-// startTicker starts the progress ticker unless it is already running. The caller holds s.mu.
 func (s *Service) startTicker() {
 	if s.ticking {
 		return
@@ -29,7 +27,6 @@ func (s *Service) startTicker() {
 	s.run.Go("transfers.progress", s.tickLoop)
 }
 
-// tickLoop runs one tick a second while any transfer is running, and returns when none is.
 func (s *Service) tickLoop(ctx context.Context) {
 	t := time.NewTicker(tickEvery)
 	defer t.Stop()
@@ -48,10 +45,6 @@ func (s *Service) tickLoop(ctx context.Context) {
 	}
 }
 
-// tick reads each running transfer's stats through the pointer to its own group, never through
-// an rc call by the group's name. It merges the files they finished into transfer_files in one
-// transaction, and publishes transfers.progress. It returns false when nothing is running, and
-// the ticker then stops.
 func (s *Service) tick(ctx context.Context) bool {
 	s.mu.Lock()
 	if len(s.running) == 0 {
@@ -74,15 +67,14 @@ func (s *Service) tick(ctx context.Context) bool {
 	for _, rn := range all {
 		done := rn.stats.Transferred()
 		capCompleted(rn.stats)
-		stepOf := stepMatcher(rn.plan, rn.rec.Steps()) // what the steps have opened by now
+		stepOf := stepMatcher(rn.plan, rn.rec.Steps())
 		items[rn.id] = progressOf(rn.seq, rn.stats, done)
 		if rn.watcher {
 			p := items[rn.id]
 			p.Watcher = true
 			items[rn.id] = p
 		}
-		// Keep only what is new since the last tick, because rclone lists up to maxCompleted
-		// files again each time.
+		// rclone lists up to maxCompleted finished files again on each tick.
 		seen := make(map[fileKey]int64, len(done))
 		var rows []fileRow
 		for _, snap := range done {
@@ -109,8 +101,6 @@ func (s *Service) tick(ctx context.Context) bool {
 			}
 			defer m.close()
 			for _, mg := range merges {
-				// If the transfer's end was written since, the end merged its files and trimmed
-				// them to their limits. These rows would come after it, so skip them.
 				var open bool
 				err := tx.QueryRowContext(ctx, `SELECT ended_ms IS NULL FROM transfers WHERE id = ?`, mg.id).Scan(&open)
 				if errors.Is(err, sql.ErrNoRows) || err == nil && !open {
@@ -131,9 +121,6 @@ func (s *Service) tick(ctx context.Context) bool {
 			s.log.ErrorContext(ctx, "recording transfers' files", "error", err)
 		}
 	}
-	// Publish only the transfers that still run. One that ended after its numbers were read may
-	// have had its end reported already, and the pages would treat it as live again. The numbers
-	// are published under the lock, so an end that comes later is reported after them.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	live := make(map[string]bus.TransferProgress, len(all))
@@ -149,7 +136,6 @@ func (s *Service) tick(ctx context.Context) bool {
 	return true
 }
 
-// progressOf returns one running transfer's numbers in the form that transfers.progress sends.
 func progressOf(seq int64, stats *accounting.StatsInfo, done []accounting.TransferSnapshot) bus.TransferProgress {
 	st := rclone.StatsOf(stats, false)
 	p := bus.TransferProgress{

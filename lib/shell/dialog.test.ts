@@ -3,14 +3,11 @@ import { Kind, Option } from './bindings/github.com/rclone/rclone-ui/core/catalo
 import { type DialogRequest, settle, subscribe } from './dialog'
 import { ask, askOption, message, prompt } from './index'
 
-// The pages' dialogs are a queue that DialogHost shows. These tests stand in for the host: they
-// read the queue and answer its head.
 let queue: DialogRequest[] = []
 subscribe((q) => {
     queue = q
 })
 
-/** Answers the dialog at the head of the queue, as the host does. */
 function answer(value: string | null) {
     const head = queue[0]
     if (!head) throw new Error('no dialog')

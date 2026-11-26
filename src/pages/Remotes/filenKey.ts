@@ -3,19 +3,10 @@ import { refusedFields } from '../../../lib/errors'
 import { filenApiKey } from '../../../lib/remotes'
 import { prompt } from '../../../lib/shell'
 
-/**
- * The core's message about the two-factor code, when it needs one. The core asks for the code by
- * refusing the `code` field. Returns undefined when the core didn't ask.
- */
 function codeAsked(error: unknown): string | undefined {
     return refusedFields(error).code
 }
 
-/**
- * Gets the account's API key, in the same way as `filen export-api-key`. Asks for the two-factor
- * code when the account needs one. Resolves null when the user cancels that prompt, or leaves it
- * empty.
- */
 export async function generateFilenApiKey({
     email,
     password,

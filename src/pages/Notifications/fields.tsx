@@ -3,21 +3,12 @@ import type { ReactNode } from 'react'
 import { Panel } from '../../components/look/Panel'
 import { SectionTitle } from '../../components/look/SectionTitle'
 
-// The forms of the Notifications sheets lay their fields out like the rows of the Settings
-// window: the field's name on the left and its input on the right, one row per field, on a panel
-// with hairlines between the rows.
-
-/** How wide a row's input is: medium for a port or a choice, wide for a URL that takes the row. */
 const WIDTHS = {
     medium: 'w-44',
     normal: 'w-full max-w-xs',
     wide: 'flex-1',
 } as const
 
-/**
- * The classNames that make a HeroUI Input or Select with labelPlacement="outside-left" and
- * size="sm" a row of a form panel: the name on the left, the input on the right.
- */
 export function rowField(width: keyof typeof WIDTHS = 'normal') {
     return {
         base: 'flex-row items-start justify-between w-full max-w-none gap-x-6 px-4 py-2.5',

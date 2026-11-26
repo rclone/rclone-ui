@@ -29,8 +29,7 @@ func newLinker() (*Linker, error) {
 		return nil, err
 	}
 	// Inside an AppImage, the executable is in a mount that disappears when the process exits.
-	// The image file itself stays, and the runtime passes on the name it was called by (see
-	// main.go).
+	// The image file itself stays, and the runtime passes on the name it was called by.
 	if img, dir := os.Getenv("APPIMAGE"), os.Getenv("APPDIR"); img != "" && dir != "" && strings.HasPrefix(exe, filepath.Clean(dir)+"/") {
 		exe = img
 	}

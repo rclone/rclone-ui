@@ -1,14 +1,9 @@
-// The Wizard as it was left, kept in localStorage for each data folder, because a closed window
-// loses its sessionStorage. Opening the Wizard again shows the same step with the same answers.
-// "Start over" clears it, and so does opening the plan's operation page.
-
 import { WHEN_CHOICES, type WhenForm } from '../../components/schedule/when'
 import { type Answers, type Choice, GOALS, KEEPS, METADATAS, refineFor, WHENS } from './flow'
 
 export interface WizardState {
     answers: Answers
     cursor: number
-    /** The answers as they were when the user went to change one from the plan. */
     editing?: Answers
 }
 
@@ -34,10 +29,6 @@ function readSchedule(value: unknown): WhenForm | undefined {
     return value as unknown as WhenForm
 }
 
-/**
- * Reads stored answers. An invalid answer is left out, so its step asks again. A refine is kept
- * only if its goal offers it, because any other names no operation.
- */
 function readAnswers(value: unknown): Answers | undefined {
     if (!isObject(value)) return undefined
     const answers: Answers = {}
@@ -66,7 +57,6 @@ export function readState(stored: unknown): WizardState {
     return editing ? { answers, cursor, editing } : { answers, cursor }
 }
 
-/** The storage key for a data folder: its places are its own. */
 export function stateKey(dataDir: string): string {
     return `wizard:${dataDir}`
 }
@@ -87,7 +77,5 @@ export function saveState(
 ) {
     try {
         storage?.setItem(key, JSON.stringify(state))
-    } catch {
-        // A full or unavailable storage only means that the Wizard starts fresh next time.
-    }
+    } catch {}
 }

@@ -1,10 +1,3 @@
-// Command zstdassets compresses the Vite build for embedding. It empties -dst, then writes every
-// file of -src to it as <file>.zst. A file that zstd shrinks by less than a tenth (images, fonts)
-// is copied as it is. app/assets serves both kinds. Files and folders whose names start with a dot
-// (a Finder .DS_Store that Vite copied from public/) are skipped, so that they aren't embedded in
-// every binary.
-//
-//	go -C tools run ./zstdassets -src ../dist -dst ../app/assets/dist
 package main
 
 import (

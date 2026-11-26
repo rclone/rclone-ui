@@ -7,9 +7,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// The retry plan. A failed file is matched to the step it failed in by the Fs names that rclone
-// reports (transfer_files.input), and a step that failed as a whole is retried as it was.
-
 var retryConfig = operations.Options{"ignore_existing": "true"}
 
 func failedTransfer(name, srcFs, dstFs string, step int) failedFile {
@@ -58,8 +55,6 @@ func TestRetryPlanFileInsideAFolder(t *testing.T) {
 	if items[0].Step == nil || *items[0].Step != 0 {
 		t.Errorf("input index %v", items[0].Step)
 	}
-	// A selection becomes one plan with the original's options. The filter applies only to
-	// folder steps, so not to this file.
 	got := retryOf(items, src.plan)
 	if !reflect.DeepEqual(got.Steps, []operations.Step{want}) || !reflect.DeepEqual(got.Config, retryConfig) ||
 		got.Steps[0].Folder() || got.Check() != nil {
@@ -91,9 +86,7 @@ func TestRetryPlanStepFailedAsAWhole(t *testing.T) {
 			{Op: operations.OpCopy, Src: "/data/never/", Dst: "/backup/never"},
 			download,
 		}},
-		out: &outcome{V: 1, Errors: []string{"", "object not found", "directory not found", "404"}},
-		// A failed file in a step that did not fail doesn't count as a failure of that step. For
-		// example, rclone may have retried it successfully.
+		out:    &outcome{V: 1, Errors: []string{"", "object not found", "directory not found", "404"}},
 		failed: []failedFile{failedTransfer("late.txt", "/data/ok", "/backup/ok", 0)},
 	}
 	items := retryPlan(src)
@@ -158,16 +151,12 @@ func TestRetryPlanSync(t *testing.T) {
 	if p := retryOf(items, src.plan); p.Whole() || !reflect.DeepEqual(p.Config, retryConfig) {
 		t.Errorf("a sync's retry %+v", p)
 	}
-	// Bisync keeps its own record of both sides, so the way to retry it is to run it again.
 	src.plan.Steps[0].Op = operations.OpBisync
 	if items := retryPlan(src); len(items) != 0 {
 		t.Errorf("bisync plan %+v", items)
 	}
 }
 
-// rclone counts each error once. A folder step with more errors than failed files had failures
-// that were never seen, so it is retried whole. With no outcome (a stopped transfer), no step is
-// known to have failed as a whole, and the files that were seen are what can be retried.
 func TestRetryPlanMissedFailures(t *testing.T) {
 	failed := failedTransfer("a.jpg", ":local:/data/photos", "gdrive:backup/photos", 0)
 	for _, tc := range []struct {
@@ -189,15 +178,12 @@ func TestRetryPlanMissedFailures(t *testing.T) {
 }
 
 func TestRetryPlanStoppedOrderAndHistory(t *testing.T) {
-	// With no outcome (a stopped transfer's outcome is not read), the files collected while it
-	// ran are retried. A file whose step is unknown goes to the only folder.
 	stray := failedTransfer("b.jpg", "/elsewhere", "", 0)
 	stray.step = nil
 	stopped := folderCopy(nil, failedTransfer("a.jpg", ":local:/data/photos", "gdrive:backup/photos", 0), stray)
 	if got := plannedOf(retryPlan(stopped)); len(got) != 2 || got[0].label != "a.jpg" || got[1].label != "b.jpg" {
 		t.Errorf("stopped plan %+v", got)
 	}
-	// They are listed by name, not in the order they finished.
 	src := folderCopy([]string{"x"},
 		failedTransfer("Porto/b.jpg", ":local:/data/photos", "gdrive:backup/photos", 0),
 		failedTransfer("Lisbon/z.jpg", ":local:/data/photos", "gdrive:backup/photos", 0),
@@ -209,8 +195,6 @@ func TestRetryPlanStoppedOrderAndHistory(t *testing.T) {
 	if !reflect.DeepEqual(labels, []string{"Lisbon/a.jpg", "Lisbon/z.jpg", "Porto/b.jpg"}) {
 		t.Errorf("labels %v", labels)
 	}
-	// A plan that this build can't read (from a newer build) leaves nothing to retry. The
-	// transfer is only history.
 	old := folderCopy([]string{"x"}, failedTransfer("a.jpg", ":local:/data/photos", "", 0))
 	old.plan = operations.Plan{}
 	if items := retryPlan(old); len(items) != 0 {

@@ -38,21 +38,17 @@ const photos: PanelSnapshot = {
 }
 
 test('the route’s place wins, and the rest comes back only for the same place', () => {
-    // No route place: the panel opens where it was left, as it was left.
     expect(openingOf(undefined, photos)).toEqual({
         place: photos.place,
         restore: { sort: photos.sort, selection: photos.selection, scrollTop: 500 },
     })
-    // The route names the same place: the panel takes back its sort, selection and scroll.
     expect(openingOf({ remote: 'gdrive', path: 'photos' }, photos).restore?.scrollTop).toBe(500)
-    // The route names another place: it opens there, fresh.
     expect(openingOf({ remote: 'gdrive', path: 'docs' }, photos)).toEqual({
         place: { remote: 'gdrive', path: 'docs' },
     })
     expect(openingOf({ remote: 'UI_LOCAL_FS', path: '/tmp' }, undefined)).toEqual({
         place: { remote: 'UI_LOCAL_FS', path: '/tmp' },
     })
-    // Neither: the panel opens at its default place.
     expect(openingOf(undefined, undefined)).toEqual({})
 })
 
@@ -132,7 +128,6 @@ test('bad stored data is fixed on read', () => {
         tracked: ['a', 'b'],
         barOpen: false,
     })
-    // Text that isn't JSON starts fresh.
     const storage = memoryStorage()
     storage.setItem('k', '{')
     expect(loadSnapshot('k', storage)).toEqual({ tracked: [], barOpen: false })
@@ -140,7 +135,6 @@ test('bad stored data is fixed on read', () => {
 
 test('the scroll position resets when a panel changes folder', () => {
     const photosPlace = { remote: 'gdrive', path: 'photos' }
-    // The panel's first report is where it was restored, so the scroll stays.
     expect(scrollAfterMove(undefined, photosPlace, 500)).toBe(500)
     expect(scrollAfterMove(photosPlace, { ...photosPlace }, 500)).toBe(500)
     expect(scrollAfterMove(photosPlace, { remote: 'gdrive', path: 'photos/2024' }, 500)).toBe(0)

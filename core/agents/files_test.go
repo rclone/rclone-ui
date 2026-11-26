@@ -12,8 +12,6 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// fileTree writes files under a new temporary folder and returns its real path. files maps a
-// slash-separated path to its content, and a path that ends in / is an empty folder.
 func fileTree(t *testing.T, files map[string]string) string {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -38,10 +36,8 @@ func fileTree(t *testing.T, files map[string]string) string {
 	return root
 }
 
-// onBox returns a local path as a path on the tests' remote, box.
 func onBox(p string) string { return "box:" + filepath.ToSlash(p) }
 
-// entryNames returns the names of entries, in their order.
 func entryNames(entries []fileEntry) []string {
 	out := make([]string, len(entries))
 	for i, e := range entries {
@@ -50,15 +46,12 @@ func entryNames(entries []fileEntry) []string {
 	return out
 }
 
-// shortWalks makes searches and counts stop at once, until the test ends.
 func shortWalks(t *testing.T) {
 	was := walkFor
 	walkFor = time.Nanosecond
 	t.Cleanup(func() { walkFor = was })
 }
 
-// A folder's entries come folders first, then by name, each with its full path, and the list
-// stops at the limit.
 func TestListFiles(t *testing.T) {
 	cs := connect(t)
 	root := fileTree(t, map[string]string{"b.txt": "bb", "A.txt": "a", "c/": "", "B/": "", ".hidden": "h"})
@@ -74,8 +67,6 @@ func TestListFiles(t *testing.T) {
 		t.Errorf("a file: %+v", file)
 	}
 
-	// The listing is read again each time, so a file that the agent wrote by other means shows
-	// at once.
 	if err := os.WriteFile(filepath.Join(root, "d.txt"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +74,6 @@ func TestListFiles(t *testing.T) {
 	if len(out.Entries) != 2 || out.Total != 6 || !out.Truncated || out.Note == "" {
 		t.Errorf("at most two, after a new file: %+v", out)
 	}
-	// A local path's entries have local paths.
 	out = must[listFilesOut](t, cs, "list_files", map[string]any{"path": root})
 	if out.Total != 6 || out.Entries[0].Path != filepath.Join(root, "B") {
 		t.Errorf("a local folder: %+v", out)
@@ -96,8 +86,6 @@ func TestListFiles(t *testing.T) {
 	}
 }
 
-// A search finds names at any depth, ignoring case and what starts with a dot, and stops at the
-// limit or when its time is up.
 func TestSearchFiles(t *testing.T) {
 	cs := connect(t)
 	root := fileTree(t, map[string]string{
@@ -131,7 +119,6 @@ func TestSearchFiles(t *testing.T) {
 	}
 }
 
-// A folder's size counts everything below it, and says when the count stopped early.
 func TestFolderSize(t *testing.T) {
 	cs := connect(t)
 	root := fileTree(t, map[string]string{"a/one": "1", "a/sub/two": "22", "b/": ""})
@@ -148,8 +135,6 @@ func TestFolderSize(t *testing.T) {
 	}
 }
 
-// Two folders compare one level deep, with counts for every class and lists that stop at the
-// limit.
 func TestCompareFolders(t *testing.T) {
 	cs := connect(t)
 	left := fileTree(t, map[string]string{"same.txt": "x", "diff.txt": "aaa", "mine.txt": "l", "both/": "", "lonely/": "", "kind": "a file"})
@@ -183,7 +168,6 @@ func TestCompareFolders(t *testing.T) {
 	}
 }
 
-// A local disk can't make public links, and a root is no entry to link to.
 func TestPublicLinkRefusals(t *testing.T) {
 	cs := connect(t)
 	root := fileTree(t, map[string]string{"a.txt": "a"})
@@ -194,8 +178,6 @@ func TestPublicLinkRefusals(t *testing.T) {
 	}
 }
 
-// A text file reads whole or as its start, cut between characters, and a file that isn't text
-// is refused.
 func TestReadFile(t *testing.T) {
 	cs := connect(t)
 	root := fileTree(t, map[string]string{
@@ -210,7 +192,6 @@ func TestReadFile(t *testing.T) {
 	if out.Text != "hello" || !out.Truncated {
 		t.Errorf("a file's start: %+v", out)
 	}
-	// é is two bytes, and the read stops after its first.
 	out = must[readFileOut](t, cs, "read_file", map[string]any{"path": filepath.Join(root, "accent.txt"), "max_bytes": 2})
 	if out.Text != "h" || !out.Truncated {
 		t.Errorf("a character cut in two: %+v", out)
@@ -231,8 +212,6 @@ func TestReadFile(t *testing.T) {
 	}
 }
 
-// A folder is made, a file is renamed at once, and a folder by the agent's transfer. Neither
-// overwrites what is there.
 func TestMakeFolderAndRename(t *testing.T) {
 	cs := connect(t)
 	root := fileTree(t, map[string]string{"a.txt": "a", "taken.txt": "t", "full/in.txt": "x"})
@@ -268,13 +247,11 @@ func TestMakeFolderAndRename(t *testing.T) {
 	}
 }
 
-// fileExists reports whether path is on disk.
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
-// awaitRename waits for the transfer that renames a folder to end, and returns it.
 func awaitRename(t *testing.T, id string) transfers.Detail {
 	t.Helper()
 	ctx := context.Background()
@@ -292,8 +269,6 @@ func awaitRename(t *testing.T, id string) transfers.Detail {
 	return transfers.Detail{}
 }
 
-// An operation's options come in its window's groups, with the app's defaults, and a search
-// narrows them.
 func TestListOptions(t *testing.T) {
 	cs := connect(t)
 	optionIn := func(out optionsListed, group, name string) *optionInfo {
@@ -361,7 +336,6 @@ func TestListOptions(t *testing.T) {
 	}
 }
 
-// The help of an option is cut to its first sentence, but not at an abbreviation.
 func TestFirstSentence(t *testing.T) {
 	for help, want := range map[string]string{
 		"Number of file transfers to run in parallel": "Number of file transfers to run in parallel",

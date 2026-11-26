@@ -11,7 +11,6 @@ describe('placeToRemember', () => {
         expect(placeToRemember([file('/Users/me/docs/a.txt')], '/Users/me/docs', POSIX)).toBe(
             '/Users/me/docs'
         )
-        // Not the picked folder itself, so the next picker opens beside it.
         expect(placeToRemember([folder('/Users/me/docs/photos')], '/Users/me/docs', POSIX)).toBe(
             '/Users/me/docs'
         )
@@ -40,7 +39,6 @@ describe('placeToRemember', () => {
         expect(placeToRemember([folder('sftp:/etc')], null, POSIX)).toBe('sftp:/')
         expect(placeToRemember([folder('gdrive:')], null, POSIX)).toBe('gdrive:')
         expect(placeToRemember([folder('/Volumes/Backup')], null, POSIX)).toBe('/Volumes')
-        // A root is its own parent.
         expect(placeToRemember([folder('/')], null, POSIX)).toBe('/')
         expect(placeToRemember([folder('D:\\')], null, WINDOWS)).toBe('D:\\')
         expect(placeToRemember([file('C:\\Users\\me\\a.txt')], null, WINDOWS)).toBe('C:\\Users\\me')

@@ -32,9 +32,7 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// The active config is rclone's own config file (fs/config/configfile), stored at the path that
-// the Config service chose, and read and written by rclone. Store wraps it as rclone's
-// config.Storage to handle two things that rclone doesn't handle in a long-lived process:
+// Store handles two things that rclone doesn't handle in a long-lived process:
 //
 //   - A load never fails. rclone's LoadedData calls Fatalf when Load returns an error
 //     (fs/config/config.go:361-382), so a wrong password or a broken file would end the app.
@@ -44,11 +42,7 @@ import (
 //     (config.go:386-398). State keeps the error until a save succeeds. While the file isn't
 //     loaded, a save is refused rather than attempted, because it would replace the file with
 //     an empty one.
-//
-// Watch reports which sections changed when something outside this process edits the file, such
-// as the rclone CLI, an editor, or a mount child refreshing a token.
 
-// Status is the result of loading the active config file.
 type Status string
 
 const (
@@ -60,47 +54,33 @@ const (
 type State struct {
 	Path      string
 	Status    Status
-	Encrypted bool // the file has rclone's encryption header
-	// Keyed reports whether rclone holds a key for the file, which means saves are encrypted.
-	// If the password was removed outside the app, the file is read as plain text and the key
-	// is dropped (see load).
-	Keyed bool
-	// Message explains why the file isn't loaded. It holds the error, or for NeedsPassword, what
-	// was wrong with the password that was tried ("" when none was tried). It is in the form
-	// that i18n.Save writes, so that i18n.Saved reads it back to be translated.
-	Message string
-	// SaveError explains why the last save failed or was refused, in the same form as Message.
-	// It is "" once a save succeeds.
+	Encrypted bool
+	Keyed     bool
+	Message   string
 	SaveError string
 }
 
-// Change describes what an edit made outside this process changed in the active config file.
 type Change struct {
-	// Sections are the remotes that were added, removed, or changed in anything other than their
-	// tokens.
 	Sections []string
 }
 
 const watchEvery = 2 * time.Second
 
-// Store is the active config file, used as rclone's config.Storage. Open installs it.
 type Store struct {
-	mu        sync.Mutex                         // guards Open, loads, saves, reloads and the fields below
-	inner     atomic.Pointer[configfile.Storage] // nil while no file is loaded
+	mu        sync.Mutex
+	inner     atomic.Pointer[configfile.Storage]
 	path      string
-	password  bool // Open was given a password and accepted it
-	fresh     bool // Open just loaded the file, so the next Load from rclone can reuse it
-	installed bool // this Store is rclone's config.Storage
+	password  bool
+	fresh     bool
+	installed bool
 	state     State
 	stamp     stamp
 	snap      map[string]map[string]string
-	// vanished is set when Poll found the loaded file missing or empty. Poll waits for the next
-	// check to confirm it before acting.
-	vanished bool
+	vanished  bool
 
 	// pathMu guards rclone's config path. That path is a plain global (config.SetConfigPath)
 	// which configfile.Storage reads on every access, and Open changes it while a health check or
-	// a listing may still be reading the old file. When both locks are needed, take mu first.
+	// a listing may still be reading the old file.
 	pathMu sync.RWMutex
 
 	hooks sync.Mutex
@@ -108,8 +88,6 @@ type Store struct {
 	onSt  func(State)
 }
 
-// stamp is used to tell whether a file changed. It uses rclone's own test (configfile.go:34-49),
-// plus whether the file exists at all.
 type stamp struct {
 	exists bool
 	size   int64
@@ -128,27 +106,20 @@ func (a stamp) equal(b stamp) bool {
 	return a.exists == b.exists && a.size == b.size && a.mtime.Equal(b.mtime)
 }
 
-// NewStore returns a Store with no file. Open gives it one.
 func NewStore() *Store { return &Store{} }
 
-// OnChange sets the function that is called when something outside this process edits the
-// file. fn runs on Watch's goroutine, or on the goroutine of a save that found the edit, and it
-// may call the Store.
 func (s *Store) OnChange(fn func(Change)) {
 	s.hooks.Lock()
 	defer s.hooks.Unlock()
 	s.onCh = fn
 }
 
-// OnState sets the function that is called when State changes, for example when a password is
-// needed or a save failed. fn may call the Store.
 func (s *Store) OnState(fn func(State)) {
 	s.hooks.Lock()
 	defer s.hooks.Unlock()
 	s.onSt = fn
 }
 
-// Path returns the path of the active config file ("" before Open).
 func (s *Store) Path() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -161,16 +132,6 @@ func (s *Store) State() State {
 	return s.state
 }
 
-// Open makes path the active config file. It sets rclone's config path and password, installs
-// this Store as rclone's storage, and loads the file. The password is used only when the file
-// is encrypted, and only if it is correct. Open checks it first with CheckPassword, so rclone
-// never retries a wrong one.
-//
-// Opening another file (which only tests do) clears rclone's Fs cache, so no Fs made from the old
-// file outlives it.
-//
-// The file doesn't need to exist, because rclone creates it on the first save. Open returns an
-// error only for a path that rclone refuses. State reports how the file loaded.
 func (s *Store) Open(path, password string) error {
 	if path == "" {
 		return errors.New("rclone: no config file path")
@@ -247,11 +208,7 @@ func (s *Store) Open(path, password string) error {
 	return nil
 }
 
-// load reads the active file into a new configfile.Storage. The caller holds s.mu. When the file
-// can't be read and keep is true, the previous contents stay loaded, which matches how rclone
-// reloads after an outside edit (configfile.go:40-46). When keep is false, nothing stays loaded
-// and the Store itself returns an empty config to rclone. It doesn't keep the failed
-// configfile.Storage, because that would try again, and log, on every access
+// The failed configfile.Storage isn't kept, because it would try again, and log, on every access
 // (configfile.go:34-49).
 func (s *Store) load(keep bool) {
 	in := &configfile.Storage{}
@@ -291,10 +248,6 @@ func (s *Store) load(keep bool) {
 	s.state = st
 }
 
-// Watch checks the active file every 2 s until ctx ends. When the file changed and this process
-// didn't write it, Watch reloads it and tells OnChange which remotes changed in more than their
-// tokens. Tokens are ignored because a mount child that refreshes a token rewrites the file.
-// Start it with the core's Go.
 func (s *Store) Watch(ctx context.Context) {
 	t := time.NewTicker(watchEvery)
 	defer t.Stop()
@@ -308,9 +261,6 @@ func (s *Store) Watch(ctx context.Context) {
 	}
 }
 
-// Poll runs one check for Watch. A reload swaps in a new storage, so a value set in the few
-// microseconds before it is saved can be lost. rclone itself can lose an outside edit in the
-// same way.
 func (s *Store) Poll() {
 	s.mu.Lock()
 	now := stampOf(s.path)
@@ -345,9 +295,6 @@ func (s *Store) Poll() {
 	}
 }
 
-// change returns what differs between two snapshots of the file, or nil when only tokens
-// changed. The caller holds s.mu. Finding the remotes that wrap the changed sections is left to
-// the remotes package (WrappersOf), using the config it holds.
 func (s *Store) change(before, after map[string]map[string]string) *Change {
 	sections := changedSections(before, after)
 	if len(sections) == 0 {
@@ -396,8 +343,6 @@ func snapshot(in *configfile.Storage) map[string]map[string]string {
 	return out
 }
 
-// changedSections returns the sorted sections that were added, removed, or changed in a key that
-// isn't a token.
 func changedSections(before, after map[string]map[string]string) []string {
 	var out []string
 	for name := range before {
@@ -437,9 +382,6 @@ var sessionKeys = []string{"client_uid", "client_salted_key_pass", "cookies"}
 // a rule for each backend type.
 var userTokenKeys = []string{"access_token", "app_token", "bearer_token", "bearer_token_command", "permanent_token", "session_token", "token_url"}
 
-// isTokenKey reports whether a key holds sign-in session data rather than something the user
-// set. That is token (oauthutil), a key with "token" in its name (token_expiry, trust_token,
-// web_token, …), or one of sessionKeys, but never one of userTokenKeys.
 func isTokenKey(k string) bool {
 	if slices.Contains(userTokenKeys, k) {
 		return false
@@ -447,10 +389,6 @@ func isTokenKey(k string) bool {
 	return slices.Contains(strings.Split(k, "_"), "token") || slices.Contains(sessionKeys, k)
 }
 
-// WrappersOf returns names plus every remote whose options refer to one of them (alias, crypt,
-// union, combine, …). It repeats this for the remotes it finds until no more are found. The
-// result is sorted, with no duplicates. It is used because a change to a remote affects every
-// remote built on top of it.
 func WrappersOf(conf map[string]map[string]string, names []string) []string {
 	set := map[string]bool{}
 	for _, n := range names {
@@ -476,11 +414,6 @@ func WrappersOf(conf map[string]map[string]string, names []string) []string {
 	return slices.Sorted(maps.Keys(set))
 }
 
-// Mentions reports whether a mount's or serve's source uses one of the remotes in names. That is
-// the remote it names, with or without options ("drive:x", "drive,opt=v:x"), or a remote named
-// inside it, as in a connection string (":union,upstreams='drive: other:':"). Names should
-// include the remotes that wrap a changed one (WrappersOf), so a source that opens a remote
-// through another counts too.
 func Mentions(source string, names []string) bool {
 	set := map[string]bool{}
 	for _, n := range names {
@@ -497,9 +430,6 @@ func Mentions(source string, names []string) bool {
 	return namesAny(source, set)
 }
 
-// namesAny reports whether an option value refers to one of the remotes ("name:path"), either
-// at the start or after a separator. Examples are union's space-separated upstreams and
-// combine's "dir=name:path".
 func namesAny(value string, set map[string]bool) bool {
 	for name := range set {
 		ref := name + ":"
@@ -518,7 +448,6 @@ func namesAny(value string, set map[string]bool) bool {
 	return false
 }
 
-// ConfigMap returns the active config, by remote and key, as it was last loaded or saved.
 func (s *Store) ConfigMap() map[string]map[string]string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -529,13 +458,8 @@ func (s *Store) ConfigMap() map[string]map[string]string {
 	return out
 }
 
-// The config.Storage methods below call rclone's storage for the loaded file, or act as an
-// empty config while no file is loaded.
-
 func (s *Store) cur() *configfile.Storage { return s.inner.Load() }
 
-// reading keeps the config path from changing during one of rclone's accesses to the loaded
-// file.
 func (s *Store) reading() func() {
 	s.pathMu.RLock()
 	return s.pathMu.RUnlock
@@ -578,8 +502,6 @@ func (s *Store) GetValue(section, key string) (string, bool) {
 	return "", false
 }
 
-// SetValue implements config.Storage. While no file is loaded, the value is discarded, because
-// it couldn't be saved.
 func (s *Store) SetValue(section, key, value string) {
 	defer s.reading()()
 	if in := s.cur(); in != nil {
@@ -602,7 +524,7 @@ func (s *Store) Serialize() (string, error) {
 }
 
 // Load implements config.Storage. It never fails, because an error would make LoadedData end the
-// process. When LoadedData calls Load right after Open, it reuses the load that Open did.
+// process.
 func (s *Store) Load() error {
 	s.mu.Lock()
 	if s.fresh {
@@ -620,11 +542,6 @@ func (s *Store) Load() error {
 	return nil
 }
 
-// Save implements config.Storage. While the file isn't loaded, the save is refused, because it
-// would write an empty config over the file. In that case Save returns nil, since SaveConfig
-// would only retry, and State explains why. When the write fails, Save returns the error so
-// that SaveConfig retries, and keeps it in State. If the file changed outside the app since it
-// was read, Save reads it again first and reports the change to OnChange, as Watch would have.
 func (s *Store) Save() error {
 	s.mu.Lock()
 	old, before := s.state, s.snap
@@ -636,9 +553,7 @@ func (s *Store) Save() error {
 		// (crypt.go:175-177). Its save would then write that old copy over the change, in
 		// plain text, for example after a password was changed or set in a terminal. And a
 		// plain file read while the key is still held would be encrypted again with the old
-		// password. So the file is read here, as Poll would have read it, and saved only if
-		// the read succeeds. The copy that gets saved is rclone's, because it has both the
-		// change that rclone read and the edit that this save is for.
+		// password.
 		held := s.cur()
 		s.load(true)
 		if s.state.Status == StatusOK {
@@ -690,19 +605,12 @@ func (s *Store) Save() error {
 
 var _ config.Storage = (*Store)(nil)
 
-// encryptHeader is the line an encrypted config file starts with (fs/config/crypt.go:75, 225).
 const encryptHeader = "RCLONE_ENCRYPT_V0:"
 
-// ErrWrongPassword is returned by CheckPassword for a password that doesn't open the file. It
-// rejects the password field of the form that asked for it.
 var ErrWrongPassword = errs.Field("password", "That password doesn't open the config.")
 
-// ErrNotEncrypted is returned by CheckPassword for a file without an encryption header.
 var ErrNotEncrypted = errs.Precondition("the config file is not encrypted")
 
-// IsEncrypted reports whether the file at path is an encrypted rclone config. That is the case
-// when its first line that isn't blank or a comment is the encryption header, which is how
-// rclone's Decrypt reads it (crypt.go:57-86). It returns false for a missing or unreadable file.
 func IsEncrypted(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
@@ -713,8 +621,6 @@ func IsEncrypted(path string) bool {
 	return err == nil
 }
 
-// afterHeader reads r up to the encryption header and returns what follows it. It returns
-// ErrNotEncrypted when the first meaningful line is something else.
 func afterHeader(r *bufio.Reader) (*bufio.Reader, error) {
 	for {
 		line, _, err := r.ReadLine()
@@ -738,11 +644,8 @@ func afterHeader(r *bufio.Reader) (*bufio.Reader, error) {
 	}
 }
 
-// CheckPassword reports whether password opens the encrypted config file at path. It returns
-// nil, ErrWrongPassword, or ErrNotEncrypted for a file without a password. It decrypts a copy
-// of the file (see decrypt) without touching rclone's global key. config.Decrypt only tries the
-// key that is already set, and clears it if it is wrong (crypt.go:175-177), which would change
-// how the active file is saved.
+// config.Decrypt isn't used: it only tries the key that is already set, and clears it if it is
+// wrong (crypt.go:175-177), which would change how the active file is saved.
 func CheckPassword(path, password string) error {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -752,8 +655,7 @@ func CheckPassword(path, password string) error {
 	return err
 }
 
-// configKey is the key rclone derives from a config password (crypt.go:273-290). It refuses the
-// passwords that rclone refuses, in rclone's words, on the password field like ErrWrongPassword.
+// configKey is the key rclone derives from a config password (crypt.go:273-290).
 func configKey(password string) (key [32]byte, err error) {
 	if !utf8.ValidString(password) {
 		return key, errs.Field("password", "password contains invalid utf8 characters")
@@ -764,18 +666,13 @@ func configKey(password string) (key [32]byte, err error) {
 	return sha256.Sum256([]byte("[" + norm.NFKC.String(password) + "][rclone-config]")), nil
 }
 
-// defaultPath is the app's config file. It is read once, before the app points rclone at the
-// config that the app uses.
 var defaultPath struct {
-	once sync.Once
-	path string
-	// rclones is true when path is rclone's own default, which any rclone finds without --config.
+	once    sync.Once
+	path    string
 	rclones bool
 	err     error
 }
 
-// PortableConfig returns a portable copy's config file: rclone.conf in the copy's folder
-// (datadir.Portable), whether or not the file exists yet. ok is false outside a portable copy.
 // rclone itself only prefers an rclone.conf next to its executable when the file exists, and it
 // decides at init, so a new portable copy would otherwise write its first remote to %APPDATA%.
 func PortableConfig() (path string, ok bool) {
@@ -786,11 +683,6 @@ func PortableConfig() (path string, ok bool) {
 	return filepath.Join(root, "rclone.conf"), true
 }
 
-// EnsurePortableConfig creates a portable copy's rclone.conf, empty, when it doesn't exist yet. It
-// does nothing outside a portable copy. rclone's init looks for an rclone.conf next to its
-// executable first, but only uses one that exists. Without it, init creates the folder for a new
-// config in %APPDATA%, before any of the app's code runs. Once the file exists, no later start of
-// this copy touches %APPDATA%.
 func EnsurePortableConfig() error {
 	path, ok := PortableConfig()
 	if !ok {
@@ -810,14 +702,6 @@ func createEmpty(path string) error {
 	return f.Close()
 }
 
-// DefaultConfigPath returns the app's config file. In a portable copy, that is PortableConfig.
-// Otherwise it is the file rclone chose at init (fs/config's makeConfigPath). rclone looks next
-// to the executable, in %APPDATA%, $XDG_CONFIG_HOME, ~/.config/rclone or the legacy
-// ~/.rclone.conf, and otherwise picks the place where it would create one. RCLONE_CONFIG is
-// ignored, because the app parses none of rclone's flags, so rclone never reads the variable
-// here. The app therefore opens the same file however it is started. Init calls this before it
-// sets the app's own config path, so the result is still rclone's choice when it is asked for
-// later.
 func DefaultConfigPath() (string, error) {
 	defaultPath.once.Do(func() {
 		defaultPath.path, defaultPath.rclones, defaultPath.err = defaultConfig(PortableConfig, config.GetConfigPath)
@@ -825,8 +709,6 @@ func DefaultConfigPath() (string, error) {
 	return defaultPath.path, defaultPath.err
 }
 
-// defaultConfig is DefaultConfigPath's rule. portable is PortableConfig, and chosen returns the
-// file that rclone chose at init. rclones is true when path is rclone's own choice.
 func defaultConfig(portable func() (string, bool), chosen func() string) (path string, rclones bool, err error) {
 	if p, ok := portable(); ok {
 		return p, false, nil
@@ -841,9 +723,6 @@ func defaultConfig(portable func() (string, bool), chosen func() string) (path s
 	return p, true, nil
 }
 
-// ScriptConfig returns the config file that a command in a script must name with --config: the
-// active one, or "" when it is rclone's own default config file, which rclone finds by itself. A
-// portable copy's file is always named, because only that copy's rclone looks for it.
 func ScriptConfig() string {
 	path := config.GetConfigPath()
 	def, err := DefaultConfigPath()

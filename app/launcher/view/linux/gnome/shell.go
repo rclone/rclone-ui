@@ -5,21 +5,13 @@ import (
 	"strings"
 )
 
-// Acks reads and records the acknowledgements that the app keeps in the pages'
-// "acknowledgements" pref. Ensure records one once the extension has been enabled, so that it
-// enables the extension only once. If the user turns it off afterwards, that choice is respected.
 type Acks struct {
-	// Has reports whether key was recorded. It returns true when the list can't be read.
 	Has func(ctx context.Context, key string) bool
 	Add func(ctx context.Context, key string)
 }
 
 const enabledAck = "gnomeLauncherExtension"
 
-// These helpers parse GNOME's replies for Ensure (see ensure_linux.go). They live in their own
-// file so that their tests run on any OS.
-
-// GNOME Shell's extension states (its ExtensionState), as GetExtensionInfo reports them.
 const (
 	extensionActive   = 1
 	extensionInactive = 2
@@ -57,7 +49,6 @@ func parseStrv(s string) []string {
 	return out
 }
 
-// formatStrv writes a string list for gsettings set. Extension UUIDs have no quotes in them.
 func formatStrv(list []string) string {
 	quoted := make([]string, len(list))
 	for i, s := range list {

@@ -1,9 +1,3 @@
-// Package operations turns the paths and option groups sent by the operation pages into work
-// for rclone. For a transfer, that is a Plan, which rclone's own packages run in this process
-// (Plan.Run). For a mount or serve, it is the command line of a child process. Paths are parsed
-// by rclone's fspath, through core/location. Option names and values are rclone's own, and they
-// are checked against rclone's option registry. Each operation is registered once, in
-// operationSpecs.
 package operations
 
 import (
@@ -39,7 +33,6 @@ type Groups struct {
 	Remotes map[string]catalog.Group `json:"remotes,omitempty"`
 }
 
-// The names of the groups, as the pages and errors name them.
 const (
 	GroupCopy     = "copy"
 	GroupMove     = "move"
@@ -55,14 +48,11 @@ const (
 	GroupOuter    = "outer"
 )
 
-// optionGroups are the groups that hold rclone's options, which named and set reach by name.
 var optionGroups = []string{
 	GroupCopy, GroupMove, GroupSync, GroupBisync, GroupFilter, GroupConfig, GroupMetadata,
 	GroupMount, GroupVFS, GroupServe,
 }
 
-// field returns the field of the option group name, or nil for a name that isn't in
-// optionGroups.
 func (g *Groups) field(name string) *catalog.Group {
 	switch name {
 	case GroupCopy:
@@ -89,7 +79,6 @@ func (g *Groups) field(name string) *catalog.Group {
 	return nil
 }
 
-// named returns the option group name, or nil when it is empty or not a group of options.
 func (g Groups) named(name string) catalog.Group {
 	if f := g.field(name); f != nil {
 		return *f
@@ -103,8 +92,6 @@ func (g *Groups) set(name string, group catalog.Group) {
 	}
 }
 
-// Named yields each option group that is set, with its name. The outer and remotes groups are
-// not option groups.
 func (g Groups) Named() iter.Seq2[string, catalog.Group] {
 	return func(yield func(string, catalog.Group) bool) {
 		for _, name := range optionGroups {
@@ -115,9 +102,6 @@ func (g Groups) Named() iter.Seq2[string, catalog.Group] {
 	}
 }
 
-// renameRemote rewrites the groups after the remote from is renamed to to: the option values
-// that name a path on it (catalog.Group.RenameRemote), the key of its remotes group, and the
-// outer backup folders of a bisync. It reports whether anything changed.
 func (g *Groups) renameRemote(from, to string) bool {
 	changed := false
 	for _, group := range g.Named() {
@@ -141,7 +125,6 @@ func (g *Groups) renameRemote(from, to string) bool {
 	return changed
 }
 
-// clone returns a copy of g that shares no group with it.
 func (g Groups) clone() Groups {
 	out := g
 	for _, name := range optionGroups {
@@ -280,12 +263,8 @@ func sliceFields(paths []string) []*string {
 	return out
 }
 
-// options holds one group's options, keyed by rclone's option name. The values are kept as the
-// page wrote them. Numbers are json.Number, so a size or a duration keeps every digit.
 type options map[string]any
 
-// decodeJSON decodes one JSON value and keeps its numbers as written. An empty value or null
-// leaves v unchanged.
 func decodeJSON(raw json.RawMessage, v any) error {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
@@ -296,14 +275,10 @@ func decodeJSON(raw json.RawMessage, v any) error {
 	return dec.Decode(v)
 }
 
-// decodeGroup decodes the values of one option group and converts its keys to rclone's option
-// names. It refuses two spellings of the same option, such as `dry-run` and `dry_run`, because we
-// can't know which one the page meant. name is the group's name, for the error.
 func decodeGroup(name string, group catalog.Group) (options, error) {
 	return decodeGroupOn("options."+name, name, group)
 }
 
-// decodeGroupOn works like decodeGroup, with its refusals on field.
 func decodeGroupOn(field, name string, group catalog.Group) (options, error) {
 	out := options{}
 	spelled := map[string]string{}
@@ -323,9 +298,6 @@ func decodeGroupOn(field, name string, group catalog.Group) (options, error) {
 	return out, nil
 }
 
-// transferGroup decodes one group of a transfer, whose options rclone reads from blocks. Each key
-// must be an option's name as rclone writes it, and one that a transfer can set (checkKey). A
-// cleared field has no value, so its key isn't checked.
 func (g Groups) transferGroup(name string, blocks ...string) (options, error) {
 	group := g.named(name)
 	out := options{}
@@ -337,7 +309,6 @@ func (g Groups) transferGroup(name string, blocks ...string) (options, error) {
 		if isBlank(v) {
 			continue
 		}
-		// On the group's field, so that the page shows it under that group's editor.
 		if err := checkKey("options."+name, key, blocks); err != nil {
 			return nil, err
 		}
@@ -346,8 +317,6 @@ func (g Groups) transferGroup(name string, blocks ...string) (options, error) {
 	return out, nil
 }
 
-// remoteOverrides is the decoded remotes group. It maps each remote to its backend options, as
-// the page wrote them.
 type remoteOverrides map[string]map[string]any
 
 func (g Groups) remotes() (remoteOverrides, error) {
@@ -367,8 +336,6 @@ func (g Groups) remotes() (remoteOverrides, error) {
 	return out, nil
 }
 
-// isBlank reports whether the user cleared a field. A cleared option is left out entirely,
-// because rclone would refuse a blank value.
 func isBlank(v any) bool {
 	if v == nil {
 		return true

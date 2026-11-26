@@ -9,8 +9,6 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// coreAPIs lists folders for completion and provides the services that actions call. The core's
-// state doesn't come through it: the launcher reads that from the store.
 type coreAPIs struct{ apis *core.APIs }
 
 func (r coreAPIs) List(ctx context.Context, dir string, page func([]engine.Entry)) error {
@@ -28,8 +26,6 @@ func (r coreAPIs) Services() engine.Services {
 		Transfers: launcherTransfers{r.apis.Transfers, r.apis}, Everything: r.apis}
 }
 
-// launcherTransfers holds the transfer actions of the launcher: the pages' API, and the core's
-// cleanup, which the pages can't start.
 type launcherTransfers struct {
 	*transfers.API
 	apis *core.APIs

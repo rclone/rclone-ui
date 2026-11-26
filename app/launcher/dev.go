@@ -9,10 +9,6 @@ import (
 	"github.com/rclone/rclone-ui/app/launcher/view"
 )
 
-// Development scripting (RCUI_DEV_LAUNCHER): these functions drive the launcher the way its view
-// would, without a keyboard. Like the rest of the launcher, they run on the main thread.
-
-// DevType replaces the text, as typing would.
 func (l *Launcher) DevType(text string) {
 	if l.view != nil {
 		l.view.SetQuery(text, false)
@@ -28,7 +24,6 @@ func (l *Launcher) DevClick(row int) { l.onClick(row) }
 
 func (l *Launcher) DevDrop(paths []string) { l.onDrop(paths) }
 
-// DevState describes what the launcher shows: its text, the rows drawn and the selection.
 func (l *Launcher) DevState() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "visible=%v text=%q busy=%v", l.Visible(), l.text, l.busy)

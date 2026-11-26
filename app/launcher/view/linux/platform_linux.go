@@ -2,12 +2,6 @@
 
 package linux
 
-// This file places the launcher's window and gives it the keyboard. It calls GTK 4, GDK's X11
-// and Wayland backends, Xlib and gtk4-layer-shell through purego. These are libraries that the
-// app has already loaded, so dlopen returns them rather than loading second copies. In GTK 4,
-// GDK is part of libgtk-4. Each function is declared with its C signature beside it. A gboolean
-// result is read as an int32, because it is a C int.
-
 import (
 	"errors"
 	"fmt"
@@ -20,92 +14,78 @@ import (
 	"github.com/rclone/rclone-ui/app/launcher/view"
 )
 
-// Enum values from gtk4-layer-shell.
 const (
-	layerOverlay      = 3 // GtkLayerShellLayer, above full-screen windows
-	edgeLeft          = 0 // GtkLayerShellEdge
+	layerOverlay      = 3
+	edgeLeft          = 0
 	edgeTop           = 2
-	keyboardExclusive = 1 // GtkLayerShellKeyboardMode
-	keyboardOnDemand  = 2 // layer-shell protocol 4 and later
+	keyboardExclusive = 1
+	keyboardOnDemand  = 2
 )
 
-// Values from Xlib.
 const (
-	xaAtom          = 4 // XA_ATOM
+	xaAtom          = 4
 	propModeReplace = 0
-	xButtonsMask    = 1<<8 | 1<<9 | 1<<10 // Button1Mask to Button3Mask
-	allDesktops     = 0xFFFFFFFF          // the _NET_WM_DESKTOP of a window on every workspace
+	xButtonsMask    = 1<<8 | 1<<9 | 1<<10
+	allDesktops     = 0xFFFFFFFF
 )
 
-// namespace is the layer surface's namespace, which compositors use in their rules.
 const namespace = "rclone-ui-launcher"
 
-// rect is a GdkRectangle, such as a monitor's work area.
 type rect struct{ X, Y, W, H int32 }
 
 func (r rect) contains(x, y float64) bool {
 	return x >= float64(r.X) && x < float64(r.X+r.W) && y >= float64(r.Y) && y < float64(r.Y+r.H)
 }
 
-// GTK 4 and GLib
 var (
-	gdkDisplayGetDefault       func() uintptr                       // GdkDisplay *gdk_display_get_default (void)
-	gTypeNameFromInstance      func(instance uintptr) string        // const gchar *g_type_name_from_instance (GTypeInstance*)
-	gObjectRef                 func(obj uintptr) uintptr            // gpointer g_object_ref (gpointer)
-	gObjectUnref               func(obj uintptr)                    // void g_object_unref (gpointer)
-	gtkWidgetRealize           func(w uintptr)                      // void gtk_widget_realize (GtkWidget*)
-	gtkWidgetGetRealized       func(w uintptr) int32                // gboolean gtk_widget_get_realized (GtkWidget*)
-	gtkWidgetGetMapped         func(w uintptr) int32                // gboolean gtk_widget_get_mapped (GtkWidget*)
-	gtkWidgetQueueDraw         func(w uintptr)                      // void gtk_widget_queue_draw (GtkWidget*); a commit applies layer changes
-	gtkNativeGetSurface        func(native uintptr) uintptr         // GdkSurface *gtk_native_get_surface (GtkNative*)
-	gtkWindowPresent           func(w uintptr)                      // void gtk_window_present (GtkWindow*)
-	gtkWindowPresentWithTime   func(w uintptr, t uint32)            // void gtk_window_present_with_time (GtkWindow*, guint32)
-	gtkWindowSetStartupID      func(w uintptr, id string)           // void gtk_window_set_startup_id (GtkWindow*, const char*)
-	gtkWindowSetTitle          func(w uintptr, title string)        // void gtk_window_set_title (GtkWindow*, const char*)
-	gdkDisplayGetMonitors      func(d uintptr) uintptr              // GListModel *gdk_display_get_monitors (GdkDisplay*)
-	gListModelGetNItems        func(list uintptr) uint32            // guint g_list_model_get_n_items (GListModel*)
+	gdkDisplayGetDefault       func() uintptr
+	gTypeNameFromInstance      func(instance uintptr) string
+	gObjectRef                 func(obj uintptr) uintptr
+	gObjectUnref               func(obj uintptr)
+	gtkWidgetRealize           func(w uintptr)
+	gtkWidgetGetRealized       func(w uintptr) int32
+	gtkWidgetGetMapped         func(w uintptr) int32
+	gtkWidgetQueueDraw         func(w uintptr) // void gtk_widget_queue_draw (GtkWidget*); a commit applies layer changes
+	gtkNativeGetSurface        func(native uintptr) uintptr
+	gtkWindowPresent           func(w uintptr)
+	gtkWindowPresentWithTime   func(w uintptr, t uint32)
+	gtkWindowSetStartupID      func(w uintptr, id string)
+	gtkWindowSetTitle          func(w uintptr, title string)
+	gdkDisplayGetMonitors      func(d uintptr) uintptr
+	gListModelGetNItems        func(list uintptr) uint32
 	gListModelGetItem          func(list uintptr, i uint32) uintptr // gpointer g_list_model_get_item (GListModel*, guint), a new reference
-	gdkMonitorGetGeometry      func(m uintptr, r *rect)             // void gdk_monitor_get_geometry (GdkMonitor*, GdkRectangle*)
-	gdkMonitorIsValid          func(m uintptr) int32                // gboolean gdk_monitor_is_valid (GdkMonitor*)
-	gdkDisplayMonitorAtSurface func(d, s uintptr) uintptr           // GdkMonitor *gdk_display_get_monitor_at_surface (GdkDisplay*, GdkSurface*)
+	gdkMonitorGetGeometry      func(m uintptr, r *rect)
+	gdkMonitorIsValid          func(m uintptr) int32
+	gdkDisplayMonitorAtSurface func(d, s uintptr) uintptr
 )
 
-// GDK's X11 backend and Xlib
 var (
-	gdkX11MonitorGetWorkarea func(m uintptr, r *rect)  // void gdk_x11_monitor_get_workarea (GdkMonitor*, GdkRectangle*)
-	gdkX11DisplayGetXDisplay func(d uintptr) uintptr   // Display *gdk_x11_display_get_xdisplay (GdkDisplay*)
-	gdkX11SurfaceGetXID      func(s uintptr) uintptr   // Window gdk_x11_surface_get_xid (GdkSurface*)
-	gdkX11GetServerTime      func(s uintptr) uint32    // guint32 gdk_x11_get_server_time (GdkSurface*)
-	gdkX11SetSkipTaskbar     func(s uintptr, on bool)  // void gdk_x11_surface_set_skip_taskbar_hint (GdkSurface*, gboolean)
-	gdkX11SetSkipPager       func(s uintptr, on bool)  // void gdk_x11_surface_set_skip_pager_hint (GdkSurface*, gboolean)
-	gdkX11MoveToDesktop      func(s uintptr, d uint32) // void gdk_x11_surface_move_to_desktop (GdkSurface*, guint32)
-	xDefaultRootWindow       func(dpy uintptr) uintptr // Window XDefaultRootWindow (Display*)
-	// Bool XQueryPointer (Display*, Window, Window *root, Window *child, int *root_x, int *root_y,
-	// int *win_x, int *win_y, unsigned int *mask)
-	xQueryPointer func(dpy, w uintptr, root, child *uintptr, rootX, rootY, winX, winY *int32, mask *uint32) int32
-	xInternAtom   func(dpy uintptr, name string, onlyIfExists bool) uintptr // Atom XInternAtom (Display*, const char*, Bool)
-	// int XChangeProperty (Display*, Window, Atom property, Atom type, int format, int mode,
-	// const unsigned char *data, int nelements)
-	xChangeProperty func(dpy, w, property, kind uintptr, format, mode int32, data unsafe.Pointer, n int32) int32
-	xFlush          func(dpy uintptr) int32 // int XFlush (Display*)
+	gdkX11MonitorGetWorkarea func(m uintptr, r *rect)
+	gdkX11DisplayGetXDisplay func(d uintptr) uintptr
+	gdkX11SurfaceGetXID      func(s uintptr) uintptr
+	gdkX11GetServerTime      func(s uintptr) uint32
+	gdkX11SetSkipTaskbar     func(s uintptr, on bool)
+	gdkX11SetSkipPager       func(s uintptr, on bool)
+	gdkX11MoveToDesktop      func(s uintptr, d uint32)
+	xDefaultRootWindow       func(dpy uintptr) uintptr
+	xQueryPointer            func(dpy, w uintptr, root, child *uintptr, rootX, rootY, winX, winY *int32, mask *uint32) int32
+	xInternAtom              func(dpy uintptr, name string, onlyIfExists bool) uintptr
+	xChangeProperty          func(dpy, w, property, kind uintptr, format, mode int32, data unsafe.Pointer, n int32) int32
+	xFlush                   func(dpy uintptr) int32
 )
 
-// gtk4-layer-shell
 var (
-	layerIsSupported     func() int32                         // gboolean gtk_layer_is_supported (void)
-	layerProtocolVersion func() uint32                        // guint gtk_layer_get_protocol_version (void)
-	layerInitForWindow   func(w uintptr)                      // void gtk_layer_init_for_window (GtkWindow*)
-	layerSetNamespace    func(w uintptr, ns string)           // void gtk_layer_set_namespace (GtkWindow*, const char*)
-	layerSetLayer        func(w uintptr, layer int32)         // void gtk_layer_set_layer (GtkWindow*, GtkLayerShellLayer)
-	layerSetMonitor      func(w, monitor uintptr)             // void gtk_layer_set_monitor (GtkWindow*, GdkMonitor*)
-	layerSetAnchor       func(w uintptr, edge int32, on bool) // void gtk_layer_set_anchor (GtkWindow*, GtkLayerShellEdge, gboolean)
-	layerSetMargin       func(w uintptr, edge, size int32)    // void gtk_layer_set_margin (GtkWindow*, GtkLayerShellEdge, int)
-	layerSetKeyboardMode func(w uintptr, mode int32)          // void gtk_layer_set_keyboard_mode (GtkWindow*, GtkLayerShellKeyboardMode)
+	layerIsSupported     func() int32
+	layerProtocolVersion func() uint32
+	layerInitForWindow   func(w uintptr)
+	layerSetNamespace    func(w uintptr, ns string)
+	layerSetLayer        func(w uintptr, layer int32)
+	layerSetMonitor      func(w, monitor uintptr)
+	layerSetAnchor       func(w uintptr, edge int32, on bool)
+	layerSetMargin       func(w uintptr, edge, size int32)
+	layerSetKeyboardMode func(w uintptr, mode int32)
 )
 
-// The libraries, bound once. layerBound reports whether gtk4-layer-shell was found. The app links
-// it (link_linux.go), so only a build without cgo, which is for development, can lack it. x11Bound
-// reports whether Xlib was found.
 var (
 	bindOnce   sync.Once
 	bindErr    error
@@ -163,8 +143,6 @@ func bindAll() (err error) {
 	bind(&gdkMonitorGetGeometry, gtk, "gdk_monitor_get_geometry")
 	bind(&gdkMonitorIsValid, gtk, "gdk_monitor_is_valid")
 	bind(&gdkDisplayMonitorAtSurface, gtk, "gdk_display_get_monitor_at_surface")
-	// GTK is built with its X11 backend almost everywhere. Without it, or without Xlib, the
-	// launcher works on Wayland only.
 	if x11, err := purego.Dlopen("libX11.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL); err == nil {
 		x11Bound = bindX11(gtk, x11)
 	}
@@ -206,27 +184,17 @@ func bindX11(gtk, x11 uintptr) (ok bool) {
 
 type platform struct {
 	win     *application.WebviewWindow
-	window  uintptr // the GtkWindow
-	display uintptr // the GdkDisplay
+	window  uintptr
+	display uintptr
 	mode    Mode
 
-	// left and top are the window's top-left corner: where the view put an X11 window, or a
-	// layer surface's margins.
 	left, top int
 
-	// A layer surface is centred on the monitor that the compositor chooses, until the user drags
-	// it. From then on it stays on the monitor it was dragged on (placed, which holds a
-	// reference), at its margins. monitorH is the height of the monitor that it was last centred
-	// on, and dragFrom is where the pointer pressed for a drag.
 	placed               uintptr
 	monitorH             int32
 	dragFromX, dragFromY float64
 }
 
-// NewPlatform returns the platform of win, the launcher's window, which must be hidden and never
-// shown yet. It decides how the window is shown. On a Wayland compositor that supports
-// layer-shell, it makes the window a layer surface. That must happen before GTK realizes the
-// window, because the surface is created then. It must run on the main thread.
 func NewPlatform(win *application.WebviewWindow) (Platform, error) {
 	if err := bind(); err != nil {
 		return nil, err
@@ -241,12 +209,8 @@ func NewPlatform(win *application.WebviewWindow) (Platform, error) {
 	switch kind := gTypeNameFromInstance(p.display); kind {
 	case "GdkWaylandDisplay":
 		p.mode = ModeWayland
-		// gtk_layer_is_supported asks the compositor, so the display must be open, which it is.
 		if layerBound && layerIsSupported() != 0 && gtkWidgetGetRealized(p.window) == 0 {
 			p.mode = ModeLayer
-			// The surface goes above full-screen windows, with its top edge anchored. It is
-			// centred horizontally, or placed from the left once dragged, and it takes the
-			// keyboard when shown.
 			layerInitForWindow(p.window)
 			layerSetNamespace(p.window, namespace)
 			layerSetLayer(p.window, layerOverlay)
@@ -347,16 +311,12 @@ func (p *platform) Moved() (view.Placement, bool) {
 	}
 	x, y := p.win.Position()
 	if x == p.left && y == p.top {
-		return view.Placement{}, false // the view moved it
+		return view.Placement{}, false
 	}
 	p.left, p.top = x, y
 	return view.Placement{Left: float64(x), Top: float64(y)}, true
 }
 
-// DragStart starts moving a layer surface. From now on the surface is placed by its left and top
-// margins on its current monitor. While it is shown, only its anchor and margins change. The
-// monitor is set the next time it is shown (see setMonitor), and it stays on that monitor from
-// then on.
 func (p *platform) DragStart(x, y float64) {
 	p.dragFromX, p.dragFromY = x, y
 	if p.placed != 0 {
@@ -370,7 +330,7 @@ func (p *platform) DragStart(x, y float64) {
 	gdkMonitorGetGeometry(m, &g)
 	p.placed = gObjectRef(m)
 	dx, _ := view.Centred(float64(g.W), float64(g.H), 1)
-	p.left = int(dx) // where centring placed it
+	p.left = int(dx)
 	layerSetAnchor(p.window, edgeLeft, true)
 	layerSetMargin(p.window, edgeLeft, int32(p.left))
 }
@@ -399,11 +359,6 @@ func (p *platform) DragEnd() (view.Placement, bool) {
 	return view.Placement{Left: float64(p.left), Top: float64(p.top)}, true
 }
 
-// placeLayer sets where the layer surface appears. If the user dragged it and the monitor they
-// dragged it to is still connected, it goes back there. Otherwise it is centred horizontally on
-// the monitor that the compositor chooses, which is the one in use, with its top where a window
-// with every row would be centred. That monitor isn't known until the surface maps, so the height
-// of the last monitor is used until then, and fitLayer corrects it.
 func (p *platform) placeLayer(at *view.Placement) {
 	if at != nil && p.placed != 0 && gdkMonitorIsValid(p.placed) != 0 {
 		p.left, p.top = int(at.Left), int(at.Top)
@@ -426,7 +381,6 @@ func (p *platform) placeLayer(at *view.Placement) {
 	layerSetKeyboardMode(p.window, keyboardExclusive)
 }
 
-// unplace centres the layer surface again, on the monitor that the compositor chooses.
 func (p *platform) unplace() {
 	if p.placed != 0 {
 		gObjectUnref(p.placed)
@@ -448,7 +402,6 @@ func (p *platform) setMonitor(m uintptr) {
 	}
 }
 
-// fitLayer corrects the top margin of a centred layer surface for the monitor it appeared on.
 func (p *platform) fitLayer() {
 	if p.placed != 0 {
 		return
@@ -468,7 +421,6 @@ func (p *platform) fitLayer() {
 	gtkWidgetQueueDraw(p.window)
 }
 
-// monitorOfWindow returns the monitor that the shown window is on, or 0.
 func (p *platform) monitorOfWindow() uintptr {
 	s := gtkNativeGetSurface(p.window)
 	if s == 0 {
@@ -487,7 +439,6 @@ func (p *platform) firstMonitor() uintptr {
 	return gListModelGetItem(list, 0)
 }
 
-// eachMonitor calls fn with each monitor until it returns true.
 func (p *platform) eachMonitor(fn func(m uintptr) bool) {
 	list := gdkDisplayGetMonitors(p.display)
 	if list == 0 {
@@ -506,8 +457,6 @@ func (p *platform) eachMonitor(fn func(m uintptr) bool) {
 	}
 }
 
-// workArea returns the work area of the monitor at (x, y), or else of the first monitor. On X11,
-// GDK reads it from the window manager.
 func (p *platform) workArea(x, y int32) rect {
 	var wa, first rect
 	found, haveFirst := false, false
@@ -531,8 +480,6 @@ func (p *platform) workArea(x, y int32) rect {
 	return wa
 }
 
-// onScreen reports whether (x, y) is inside the work area of any monitor. A position where the
-// user left the window is only reused while its screen is still connected.
 func (p *platform) onScreen(x, y float64) bool {
 	on := false
 	p.eachMonitor(func(m uintptr) bool {
@@ -544,13 +491,11 @@ func (p *platform) onScreen(x, y float64) bool {
 	return on
 }
 
-// pointer returns the pointer's position in root coordinates.
 func (p *platform) pointer() (x, y int32) {
 	x, y, _, _ = p.queryPointer()
 	return x, y
 }
 
-// queryPointer asks the X server where the pointer is, and which of its buttons are down.
 func (p *platform) queryPointer() (x, y int32, mask uint32, ok bool) {
 	dpy := gdkX11DisplayGetXDisplay(p.display)
 	if dpy == 0 {

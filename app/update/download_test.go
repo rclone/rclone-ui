@@ -45,7 +45,6 @@ func TestDownload(t *testing.T) {
 		t.Errorf("progress: %d calls, last %d/%d", calls, lastDone, lastTotal)
 	}
 
-	// SaveAs into a folder keeps the file name, and the staging folder ends up empty.
 	out := t.TempDir()
 	dst, err := art.SaveAs(out)
 	if err != nil {
@@ -59,7 +58,6 @@ func TestDownload(t *testing.T) {
 	}
 }
 
-// A download that isn't the kind of file the feed says fails, and leaves nothing behind.
 func TestDownloadRejects(t *testing.T) {
 	it, kind := nativeType()
 	for _, c := range []struct {
@@ -81,7 +79,6 @@ func TestDownloadRejects(t *testing.T) {
 			if _, err := e.Download(context.Background(), rel, nil); err == nil {
 				t.Fatal("Download succeeded")
 			}
-			// Nothing is left behind.
 			entries, _ := os.ReadDir(opts.StagingDir)
 			if len(entries) != 0 {
 				t.Errorf("staging holds %d entries", len(entries))
@@ -90,8 +87,6 @@ func TestDownloadRejects(t *testing.T) {
 	}
 }
 
-// A download gets its own private folder, whatever the staging folder already holds. A folder
-// that another user left there (here, one this user can't write to) changes nothing.
 func TestStagingDirIsFresh(t *testing.T) {
 	it, kind := nativeType()
 	f := newFeed(t)
@@ -122,8 +117,6 @@ func TestStagingDirIsFresh(t *testing.T) {
 	}
 }
 
-// Progress is reported at most every 100 ms, and once more when the last byte is in. Otherwise a
-// 4 MB download arriving over 160 ms would make over a hundred calls (one per 32 KB).
 func TestProgressThrottled(t *testing.T) {
 	it, kind := nativeType()
 	content := append(artifactBytes(kind), bytes.Repeat([]byte("x"), 4<<20)...)
@@ -151,22 +144,15 @@ func TestProgressThrottled(t *testing.T) {
 	}
 	took := time.Since(start)
 	n := int64(len(content))
-	// The first and the last report come at the start and at the end. Between them, at most one
-	// comes in each progressEvery, however long a busy machine makes the download take.
 	most := 2 + int(took/progressEvery)
 	if calls < 2 || calls > most || lastDone != n || lastTotal != n {
 		t.Errorf("progress: %d calls in %v, the last %d/%d; want 2 to %d, the last %d/%d", calls, took, lastDone, lastTotal, most, n, n)
 	}
 }
 
-// A server that stops sending partway through the body fails the download once nothing has
-// arrived for stallTimeout, instead of keeping it at "downloading" forever. A slow server that
-// keeps sending doesn't fail it.
 func TestDownloadStalls(t *testing.T) {
 	saved := stallTimeout
 	t.Cleanup(func() { stallTimeout = saved })
-	// The slow download's stallTimeout is far longer than its pauses, so that a busy machine can't
-	// stretch a pause into a stall.
 	const slowStall = 2 * time.Second
 
 	it, kind := nativeType()
@@ -174,7 +160,6 @@ func TestDownloadStalls(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", fmt.Sprint(len(content)))
 		if r.URL.Path == "/slow" {
-			// The whole body takes longer than slowStall, but never pauses for long.
 			began, rest := time.Now(), content
 			for time.Since(began) <= slowStall && len(rest) > 1 {
 				_, _ = w.Write(rest[:1])

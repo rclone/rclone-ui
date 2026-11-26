@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// On Windows, a mount point is a local path: a drive, or a folder on a drive.
 func TestMountCommandOnWindows(t *testing.T) {
 	checkMounts(t, []mountCase{
 		{"windows drive", MountEnv{OS: "windows"}, "X:", []string{"cmount", mountSource, "X:"}, ""},
@@ -14,9 +13,6 @@ func TestMountCommandOnWindows(t *testing.T) {
 	})
 }
 
-// On Windows, a drive path is a local path with the drive as its root, and a download into it
-// is written with the drive's separator. A script names a file on a drive or a share by its
-// plain path.
 func TestDrivePathsOnWindows(t *testing.T) {
 	p, err := buildCopy(CopyArgs{Sources: []string{`C:\Users\me\a.txt`, `\\srv\share\b.txt`}, Destination: `D:\in\`}, settings{}, nil)
 	if err != nil {

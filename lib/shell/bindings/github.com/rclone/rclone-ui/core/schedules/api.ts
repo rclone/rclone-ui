@@ -82,9 +82,6 @@ export function MergeAgain(id: string): $CancellablePromise<void> {
     return $Call.ByID(2308308455, id);
 }
 
-/**
- * Pause stops a schedule's future runs.
- */
 export function Pause(id: string): $CancellablePromise<void> {
     return $Call.ByID(2560873031, id);
 }

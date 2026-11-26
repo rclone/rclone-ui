@@ -1,6 +1,3 @@
-// Builds the text that History shows for a transfer: the paths and the status of each row, such
-// as "Photos → gdrive:Photos" and "1.2 GB of 4 GB · 3 min left", and the summary of the details.
-
 import { plural, t } from '@lingui/core/macro'
 import type { Bus, Transfers } from '../../../lib/core/types'
 import { buildReadablePath, formatBytes, formatDate, formatNumber } from '../../../lib/format'
@@ -10,10 +7,6 @@ import { WINDOWS } from '../../routes'
 type Transfer = Transfers.Transfer
 type TransferProgress = Bus.TransferProgress
 
-/**
- * Operation names, as the window title and the launcher show them. The Commander's small
- * operations have no window, so they have names of their own.
- */
 const OPERATIONS: Record<string, string> = {
     copy: WINDOWS.copy.title,
     move: WINDOWS.move.title,
@@ -55,10 +48,6 @@ export function transferName(transfer: Pick<Transfer, 'operation' | 'seq'>): str
     })
 }
 
-/**
- * The paths of a row: the first source in full, with "+ N more" for the others, and the
- * destination. A bisync goes both ways (↔). `full` holds the raw paths, shown on hover.
- */
 export function pathsOf(transfer: Pick<Transfer, 'operation' | 'sources' | 'destination'>) {
     const [head, ...rest] = transfer.sources
     const first = head ? buildReadablePath(head) : ''
@@ -84,10 +73,6 @@ export function pathsOf(transfer: Pick<Transfer, 'operation' | 'sources' | 'dest
     }
 }
 
-/**
- * Formats a duration in at most two units, with their short names: "45 s", "6 min",
- * "1 h 12 min", "2 d 3 h".
- */
 export function formatDuration(ms: number): string {
     const seconds = Math.max(0, Math.round(ms / 1000))
     if (seconds < 60) {
@@ -122,21 +107,13 @@ export function formatDuration(ms: number): string {
 
 const startOfDay = (ms: number) => new Date(ms).setHours(0, 0, 0, 0)
 
-/** The time of day of `ms`, such as "21:14", in the app's language. */
 export function clockOf(ms: number): string {
     return formatDate(ms, { hour: '2-digit', minute: '2-digit' })
 }
 
-/**
- * Formats a time with only as much detail as needed: "Today 21:14", "Yesterday 21:14",
- * "Mon 21:14" within the past week, "12 Mar 21:14" within this year, and "12 Mar 2024" for
- * anything older. The app's language orders the parts.
- */
 export function formatWhen(ms: number, now = Date.now()): string {
     const at = new Date(ms)
     const time = clockOf(ms)
-    // Count calendar days rather than 24-hour spans, so a transfer that ended at 23:50 is shown
-    // as "Yesterday" ten minutes later.
     const days = Math.round((startOfDay(now) - startOfDay(ms)) / DAY)
     if (days === 0) {
         return t({ message: `Today ${time}`, comment: 'A time today: "Today 21:14".' })
@@ -158,10 +135,6 @@ export function formatWhen(ms: number, now = Date.now()): string {
     return formatDate(ms, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-/**
- * How long an ended transfer ran. Uses the duration reported by rclone when there is one, and
- * otherwise the start and end times stored with the transfer.
- */
 export function durationOf(transfer: Transfer): number {
     if (transfer.stats?.durationMs) return transfer.stats.durationMs
     if (transfer.endedAt === null) return 0
@@ -177,7 +150,6 @@ export function bytesOf(bytes: number, totalBytes: number): string {
     })
 }
 
-/** How much an ended transfer moved: its bytes and files, or else the files it checked. */
 function amountOf(transfer: Transfer): string[] {
     const stats = transfer.stats
     if (!stats) return []
@@ -196,13 +168,6 @@ function amountOf(transfer: Transfer): string[] {
     return parts
 }
 
-/**
- * The line that a row shows after its transfer's number. While the transfer runs, the line comes
- * from `live`, the latest progress: "Preparing · 1,200 listed" or "1.2 GB of 4 GB · 3 min left".
- * A completed transfer says what it moved and in how long ("4.2 GB · 12 files · in 6 min"), and
- * a failed one gives the first line of its error. The parts are joined with " · ", which
- * separates them in every language.
- */
 export function statusOf(transfer: Transfer, live: TransferProgress | null | undefined): string {
     switch (transfer.state) {
         case 'queued':
@@ -252,14 +217,12 @@ export function statusOf(transfer: Transfer, live: TransferProgress | null | und
             return [...amount, took].join(' · ')
         }
         case 'failed':
-            // The error comes from the core in the app's language.
             return transfer.error.split('\n')[0].trim() || t`Open the transfer to see why.`
         default:
             return ''
     }
 }
 
-/** The chip of an ended row: "Finished", "Failed", "Stopped at 42%" or "Interrupted". */
 export function standingOf(transfer: Transfer) {
     const ended = ENDED[transfer.state]
     if (!ended) return null
@@ -277,13 +240,8 @@ export function standingOf(transfer: Transfer) {
     }
 }
 
-/** The places worth a word on a transfer's row: every origin but an operation page. */
 export type NamedOrigin = Exclude<`${Transfers.OriginKind}`, '' | 'page'>
 
-/**
- * Where a transfer was started from, or null when the row doesn't name it. Most transfers start
- * on an operation's page, which isn't named.
- */
 export function originOf(origin: Pick<Transfers.Origin, 'kind'>): NamedOrigin | null {
     switch (origin.kind) {
         case 'schedule':
@@ -297,11 +255,6 @@ export function originOf(origin: Pick<Transfers.Origin, 'kind'>): NamedOrigin | 
     }
 }
 
-/**
- * The timing shown last in the summary. For an ended transfer, this is how long it took. For a
- * running one, it is the time left, or how long it has run while rclone has no estimate yet.
- * A queued transfer has no timing.
- */
 export function timingOf(
     transfer: Transfer,
     live: TransferProgress | null | undefined,
@@ -329,10 +282,6 @@ export function timingOf(
     }
 }
 
-/**
- * The day that the list puts an ended transfer under: "Today", "Yesterday", the weekday within
- * the past week ("Monday"), then the date ("12 March", or "12 March 2024" before this year).
- */
 export function dayOf(ms: number, now = Date.now()): string {
     const at = new Date(ms)
     const days = Math.round((startOfDay(now) - startOfDay(ms)) / DAY)
@@ -352,10 +301,6 @@ export function dayOf(ms: number, now = Date.now()): string {
     return formatDate(ms, { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-/**
- * Splits ended transfers, newest first, into runs of the same day, keeping their order. A
- * transfer counts on the day it ended.
- */
 export function byDay<T extends Pick<Transfer, 'endedAt' | 'createdAt'>>(
     transfers: readonly T[],
     now = Date.now()

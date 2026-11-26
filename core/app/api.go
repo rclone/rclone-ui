@@ -1,4 +1,3 @@
-// Package app describes the running app: its versions and the machine it runs on.
 package app
 
 import (
@@ -21,11 +20,8 @@ type Info struct {
 	PID       int    `json:"pid"`
 }
 
-// started is when the process started, near enough: package variables are set before main runs.
 var started = time.Now()
 
-// API returns information about the running app. Nothing in it waits for the core, so it answers
-// at once, even when the core can't start.
 type API struct{ info Info }
 
 func NewAPI(dataDir string) *API {

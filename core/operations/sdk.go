@@ -18,24 +18,13 @@ import (
 	"github.com/rclone/rclone-ui/core/metadatamap"
 )
 
-// This file writes an operation as a TypeScript program for rclone-sdk
-// (https://github.com/rclone-ui/rclone-sdk), the typed client for rclone's API, which "Copy
-// command" shows beside the command lines. The program asks rclone rcd to run what the app runs.
-// Each step of a transfer is the API call that does what Run does for it. Those calls run in the
-// background (ASYNC), and the program waits for each one in turn, because fetch stops waiting
-// for a long call. A mount and a serve are one call each, which returns once they have started.
-
-// jsField is one key of an object in the program, with its value: a string, a bool, a number, a
-// list, or another object.
 type jsField struct {
 	key   string
 	value any
 }
 
-// jsObject is an object in the program. Its keys keep the order they were added in.
 type jsObject []jsField
 
-// set sets the value at path, and adds the objects on the way that are missing.
 func (o *jsObject) set(path []string, v any) {
 	for i := range *o {
 		if (*o)[i].key != path[0] {
@@ -59,17 +48,12 @@ func (o *jsObject) set(path []string, v any) {
 	*o = append(*o, jsField{path[0], child})
 }
 
-// sdkCall is one call of rclone's API: its route and its body. A job runs in the background,
-// and the program waits for it.
 type sdkCall struct {
 	route string
 	job   bool
 	body  jsObject
 }
 
-// sdkCalls returns the plan's steps as API calls, one for each step, in order. Each one has the
-// plan's options in _config, and a step that reads a folder has the filters in _filter, as Run
-// gives them.
 func (p Plan) sdkCalls(exe string) ([]sdkCall, error) {
 	config, err := apiObject(blockMain, options(p.Config), exe)
 	if err != nil {
@@ -96,7 +80,6 @@ func (p Plan) sdkCalls(exe string) ([]sdkCall, error) {
 	return calls, nil
 }
 
-// apiCall returns the route of the API call that does what the step does, and its parameters.
 func (s Step) apiCall(bisync map[string]any) (string, jsObject, error) {
 	src, dst := scriptPath(s.Src), scriptPath(s.Dst)
 	switch s.Op {
@@ -128,11 +111,9 @@ func (s Step) apiCall(bisync map[string]any) (string, jsObject, error) {
 	return "", nil, fmt.Errorf("a %q step has no API call", s.Op)
 }
 
-// sdkMount returns a mount as its API call. Its mount and vfs options are parameters of their
-// own, named as rclone names them (vfs_cache_mode), which mount/mount reads beside its others.
 func sdkMount(a MountArgs, env MountEnv) (sdkCall, error) {
 	if env.NFSPort <= 0 {
-		env.NFSPort = 1 // required by MountCommand, and not part of the call
+		env.NFSPort = 1
 	}
 	m, err := MountCommand(a, env)
 	if err != nil {
@@ -142,8 +123,6 @@ func sdkMount(a MountArgs, env MountEnv) (sdkCall, error) {
 	return withGroups("/mount/mount", body, m.own, m.groups, env.Exe)
 }
 
-// sdkServe returns a serve as its API call. Its serve and vfs options are parameters of their
-// own, as for a mount. The credentials are among them, because the call has no environment.
 func sdkServe(a ServeArgs, env ServeEnv) (sdkCall, error) {
 	s, err := ServeCommand(a, env)
 	if err != nil {
@@ -170,8 +149,6 @@ func sdkServe(a ServeArgs, env ServeEnv) (sdkCall, error) {
 	return call, nil
 }
 
-// withGroups adds a mount's or a serve's groups to its call: its own groups as parameters, then
-// rclone's main options in _config and the filters in _filter, as the command line has them.
 func withGroups(route string, body jsObject, own []blockGroup, g Groups, exe string) (sdkCall, error) {
 	for _, group := range own {
 		params, err := apiParams(group, exe)
@@ -199,8 +176,6 @@ func withGroups(route string, body jsObject, own []blockGroup, g Groups, exe str
 	return sdkCall{route: route, body: body}, nil
 }
 
-// apiParams writes a group's options as parameters of their own, sorted by name and named as
-// rclone names them.
 func apiParams(g blockGroup, exe string) (jsObject, error) {
 	var out jsObject
 	for _, name := range slices.Sorted(maps.Keys(g.options)) {
@@ -256,7 +231,6 @@ func apiObject(block string, o options, exe string) (jsObject, error) {
 	return out, nil
 }
 
-// firstOption returns the option called name in the first of blocks that has one.
 func firstOption(blocks []string, name string) *fs.Option {
 	for _, b := range blocks {
 		if option, ok := blockOption(b, name); ok {
@@ -266,9 +240,6 @@ func firstOption(blocks []string, name string) *fs.Option {
 	return nil
 }
 
-// fieldPaths returns, for each option of one of rclone's blocks, the path of the field that
-// holds it in the JSON of the block's struct. An embedded struct's fields are its parent's own
-// in JSON, so it adds nothing to the path (the filter's rules are at the top of _filter).
 func fieldPaths(block string) (map[string][]string, error) {
 	info, ok := fs.OptionsRegistry[block]
 	if !ok {
@@ -298,14 +269,8 @@ func fieldPaths(block string) (map[string][]string, error) {
 	return paths, nil
 }
 
-// textUnmarshaler is a type of rclone's own that reads its text from JSON (fs.SizeSuffix,
-// fs.Duration, an enum, …).
 var textUnmarshaler = reflect.TypeFor[json.Unmarshaler]()
 
-// apiValue converts one option's value to the JSON that rclone's API reads for it, or nil for a
-// tristate that isn't set. A type of rclone's own that reads its text from JSON is written as
-// the text the page gave ("32M", "5m"). A switch, a number and a list keep their JSON types. exe
-// is put in front of the app's own metadata mapper.
 func apiValue(option *fs.Option, v any, exe string) (any, error) {
 	value, err := valueOf(option.Default, v)
 	if err != nil {
@@ -349,9 +314,6 @@ func apiValue(option *fs.Option, v any, exe string) (any, error) {
 	return elementText(v)
 }
 
-// sdkProgram writes calls as a TypeScript program for rclone-sdk, which talks to rclone rcd on
-// this computer. config, when it isn't "", is the config file that rclone rcd must be started
-// with, quoted for the shell of goos in the comment that says how to start it.
 func sdkProgram(calls []sdkCall, goos, config string) string {
 	start := "rclone rcd --rc-no-auth"
 	if config != "" {
@@ -398,11 +360,8 @@ async function run(started: Promise<{ data?: { jobid: number }; error?: unknown 
 }
 `
 
-// A key that TypeScript reads without quotes.
 var jsIdentifier = regexp.MustCompile(`^[A-Za-z_$][\w$]*$`)
 
-// writeJS writes v as a TypeScript literal. An object has one key on each line, indented by
-// four spaces for each level, and every line ends with a comma.
 func writeJS(b *strings.Builder, v any, level int) {
 	switch v := v.(type) {
 	case jsObject:
@@ -442,7 +401,6 @@ func writeJS(b *strings.Builder, v any, level int) {
 	}
 }
 
-// jsString writes s as a TypeScript string in single quotes.
 func jsString(s string) string {
 	return "'" + strings.NewReplacer(`\`, `\\`, `'`, `\'`, "\n", `\n`, "\r", `\r`, "\t", `\t`).Replace(s) + "'"
 }

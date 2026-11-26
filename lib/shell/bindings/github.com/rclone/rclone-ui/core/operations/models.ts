@@ -224,8 +224,7 @@ export class FolderArgs {
 
 /**
  * Form is an operation and its arguments. Only the field of the operation is set, or none for
- * an operation's empty form. The fields are separate, rather than one field of an interface type,
- * so that the pages get a type for each operation's arguments.
+ * an operation's empty form.
  */
 export class Form {
     "operation": Operation;
@@ -680,7 +679,7 @@ export class SaveArgs {
 
 /**
  * Script is an operation as rclone commands for this computer's shell, and as a TypeScript
- * program that runs it through rclone's API with rclone-sdk (sdk.go).
+ * program that runs it through rclone's API with rclone-sdk.
  */
 export class Script {
     "lines": string[];

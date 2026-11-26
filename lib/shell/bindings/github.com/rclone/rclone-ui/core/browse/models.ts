@@ -5,10 +5,6 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
-/**
- * Class is the group that a name falls into in a comparison. The classes match the groups in
- * CompareDrawer.tsx, in the same order.
- */
 export enum Class {
     /**
      * The Go zero value for the underlying type of the enum.
@@ -30,9 +26,6 @@ export enum Class {
     SameByHash = "sameByHash",
 };
 
-/**
- * CompareResult is the comparison of two folders side by side.
- */
 export class CompareResult {
     "pairs": Pair[];
     "capped": boolean;
@@ -140,9 +133,6 @@ export class Pair {
     }
 }
 
-/**
- * Row is one entry of a listing or a search.
- */
 export class Row {
     /**
      * Path is the entry's full path, with the root written the same way as in the requested folder.
@@ -245,9 +235,6 @@ export class Rows {
     }
 }
 
-/**
- * Side describes a name on one side of a comparison.
- */
 export class Side {
     "isDir": boolean;
 
@@ -278,9 +265,6 @@ export class Side {
     }
 }
 
-/**
- * UsageCount is what a scan found so far.
- */
 export class UsageCount {
     "bytes": number;
     "files": number;
@@ -332,9 +316,6 @@ export class UsageCount {
     }
 }
 
-/**
- * UsageLevel is one folder of a scan with its rows.
- */
 export class UsageLevel {
     /**
      * Rel is the folder's path below the scan's root, "" for the root.
@@ -567,9 +548,6 @@ export class UsageRow {
     }
 }
 
-/**
- * UsageSort is the order of a folder's rows.
- */
 export enum UsageSort {
     /**
      * The Go zero value for the underlying type of the enum.
@@ -592,18 +570,12 @@ export enum UsageSort {
     ByFiles = "files",
 };
 
-/**
- * UsageState is where a Disk Usage scan is.
- */
 export enum UsageState {
     /**
      * The Go zero value for the underlying type of the enum.
      */
     $zero = "",
 
-    /**
-     * The states of a scan.
-     */
     UsageScanning = "scanning",
     UsageDone = "done",
 

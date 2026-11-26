@@ -56,7 +56,6 @@ import {
     templateGroups,
 } from './templateOptions'
 
-/** The values that an add-template link (rclone://add-template?cmd=…) fills into the drawer. */
 export interface AddTemplatePayload {
     cmd?: string
     name?: string
@@ -97,7 +96,6 @@ function leftOut(names: readonly string[]): string {
     })
 }
 
-/** What the drawer holds, to tell whether it changed. */
 function snapshotOf(
     name: string,
     tags: Tag[],
@@ -115,7 +113,6 @@ function snapshotOf(
     })
 }
 
-// The groups start as empty objects, with no defaults under them.
 const EMPTY_SNAPSHOT = snapshotOf(
     '',
     [],
@@ -125,11 +122,6 @@ const EMPTY_SNAPSHOT = snapshotOf(
     ''
 )
 
-/**
- * Adds a template, or edits `template` when one is given. A new template can start from a
- * command line, which the user types or pastes, or which an add-template link passes in
- * `initialValues`.
- */
 export default function TemplateDrawer({
     isOpen,
     onClose,
@@ -140,10 +132,7 @@ export default function TemplateDrawer({
     isOpen: boolean
     onClose: () => void
     template?: Template
-    /** Opens the copy that DUPLICATE saved. */
     onDuplicated?: (copy: Template) => void
-    // Values from a deep link (rclone://add-template?cmd=…). Each link passes a new object, so
-    // the same link opened twice still fills the drawer again.
     initialValues?: AddTemplatePayload | null
 }) {
     const editing = !!template
@@ -157,14 +146,10 @@ export default function TemplateDrawer({
     const [sources, setSources] = useState<string[]>(template?.paths?.sources ?? [])
     const [destination, setDestination] = useState(template?.paths?.destination ?? '')
 
-    // A template holds only the user's own options, so the groups start without defaults, and
-    // what they send is what their texts hold.
     const optionState = useOptionGroups({ groups: TEMPLATE_GROUPS })
     const { groups, jsonError, replace, getMergedOptions, resetJson } = optionState
     const texts = TEMPLATE_GROUPS.map((key) => groups[key].jsonString)
     const optionItems = useOptionItems(optionState)
-    // Options that the template sets but no group's editor shows, such as an option the drawer
-    // doesn't offer, or an app default that it leaves out (a null). A save keeps them (keptOf).
     const [rest, setRest] = useState<TemplateOptions>({})
     const restNames = Object.keys(rest)
     const keptNames = restNames.filter((name) => rest[name] !== null)
@@ -176,14 +161,8 @@ export default function TemplateDrawer({
         setName(initialValues.name ?? '')
     }, [editing, isOpen, initialValues])
 
-    // When editing, the texts are filled once, when the core has sorted the template's options
-    // into the catalog's groups. A later change to the template (a refetch, or a save from
-    // another window) must not wipe what is being edited. Until the texts are filled they are
-    // empty, and a save would write the template with no options, so saving waits until then.
     const sorted = useSortedOptions(editing ? template?.options : undefined)
     const [seeded, setSeeded] = useState(!editing)
-    // The editors need rclone's options from the catalog, and an edited template needs its
-    // options sorted. A failure of either shows the alert, with its retry.
     const catalog = useCatalog()
     const failed = catalog.isError ? catalog : sorted.isError ? sorted : undefined
     useEffect(() => {
@@ -197,9 +176,6 @@ export default function TemplateDrawer({
         })
     }, [seeded, template, sorted.data, replace])
 
-    // The drawer holds changes when it differs from what it started with: the template once its
-    // texts are filled, or an empty form when adding. Closing the drawer or the window asks
-    // first.
     const snapshot = snapshotOf(name, tags, texts, importString, sources, destination)
     const [baseline, setBaseline] = useState<string | null>(editing ? null : EMPTY_SNAPSHOT)
     useEffect(() => {
@@ -211,8 +187,6 @@ export default function TemplateDrawer({
         if (await unsaved.confirm()) onClose()
     }
 
-    // When adding, the core parses the command with rclone's own flags and sorts the options
-    // into the groups whose texts the editors show.
     const parsed = useParsedCommand(editing ? '' : debouncedImportString)
     const skipped = parsed.data?.skipped ?? []
 
@@ -234,8 +208,6 @@ export default function TemplateDrawer({
 
     const saveMutation = useMutation({
         mutationFn: async () => {
-            // Throw rather than return, because onSuccess would close the drawer and lose what
-            // was typed.
             if (!name) {
                 throw new Error(t`Please enter a name for the template`)
             }
@@ -243,8 +215,6 @@ export default function TemplateDrawer({
                 throw new Error(t`The template's options haven't loaded yet`)
             }
             if (jsonError) {
-                // The drawer has no Remotes section, so the invalid text is in one of its groups.
-                // The message is the one that an operation page shows for that group.
                 throw new Error(invalidJsonText(jsonError))
             }
 
@@ -256,7 +226,6 @@ export default function TemplateDrawer({
                 name,
                 tags: tags.map(operationOf),
                 options: { ...keptOf(rest, merged), ...merged },
-                // Saved only when one of the fields is filled.
                 paths: hasTemplatePaths(paths) ? paths : null,
             })
         },
@@ -267,9 +236,6 @@ export default function TemplateDrawer({
                 setBaseline(snapshot)
                 return
             }
-            // The command must be cleared too. Otherwise, importing the same command again would
-            // return the cached ParseCommand result (the same `data` object), and the effect that
-            // fills the texts would not run again on the reset texts.
             setImportString('')
             setImportedCount(null)
             setName('')
@@ -290,8 +256,6 @@ export default function TemplateDrawer({
         },
     })
 
-    // Saves the template as it is saved now under a new id, then opens the copy. Edits that
-    // aren't saved yet would not be in the copy, so they must be saved first.
     const duplicateMutation = useMutation({
         mutationFn: async () => {
             if (!template) throw new Error(t`Only a saved template can be duplicated.`)
@@ -326,7 +290,6 @@ export default function TemplateDrawer({
         duplicateMutation.mutate()
     }
 
-    // The drawer has the look of the template's first operation, as its card does.
     const first = tags[0]
     const look = first ? WINDOWS[first] : WINDOWS.templates
 
@@ -361,8 +324,6 @@ export default function TemplateDrawer({
                         <DrawerBody id="template-drawer-body" className="px-6 py-0">
                             <ScrollShadow id="scroll-shadow" size={30}>
                                 <div className="flex flex-col w-full max-w-3xl gap-6 pt-2 pb-6 mx-auto">
-                                    {/* When editing, the texts stay empty until the options
-                                        load, so saving waits for them. */}
                                     {failed && (!editing || !seeded) && (
                                         <Alert
                                             color="danger"
@@ -446,7 +407,6 @@ export default function TemplateDrawer({
                                                                 }
                                                                 onPress={() => {
                                                                     setTimeout(() => {
-                                                                        // Rejects when the paste prompt is dismissed.
                                                                         navigator.clipboard
                                                                             .readText()
                                                                             .then((text) => {
@@ -549,7 +509,6 @@ export default function TemplateDrawer({
                                                 selectedKeys={tags}
                                                 selectionMode="multiple"
                                                 onSelectionChange={(value) => {
-                                                    // In the order they were picked: the first one gives the look.
                                                     setTags(
                                                         Array.from(value).flatMap((item) =>
                                                             TAGS.filter(
@@ -659,8 +618,6 @@ export default function TemplateDrawer({
                                     color="primary"
                                     className={toneButton(WINDOWS.templates.tone)}
                                     isLoading={saveMutation.isPending}
-                                    // When adding, wait until a pasted command has been parsed into
-                                    // the texts. When editing, wait until its options are sorted.
                                     isDisabled={
                                         !seeded ||
                                         importString !== debouncedImportString ||

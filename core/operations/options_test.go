@@ -13,8 +13,6 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// A plan stores each value as text, as the page gave it, and a list option as the elements that
-// rclone parsed. rclone gets the same value that the same flag on its command line would give.
 func TestStoredTexts(t *testing.T) {
 	o, err := decodeOptions(json.RawMessage(`{"max_size": "1234567B", "min_size": 1000, "max_age": "1h",
 		"min_age": 90, "exclude": "*.{jpg,png}", "files_from0": "/lists/a,b.txt", "include": ["a", "b,c"],
@@ -33,7 +31,6 @@ func TestStoredTexts(t *testing.T) {
 	if !reflect.DeepEqual(stored, want) {
 		t.Errorf("stored\n got %v\nwant %v", stored, want)
 	}
-	// Stored as JSON and read back, as the ledger does.
 	raw, _ := json.Marshal(stored)
 	var back Options
 	if err := decodeJSON(raw, &back); err != nil {
@@ -51,7 +48,6 @@ func TestStoredTexts(t *testing.T) {
 		t.Errorf("filter options %+v", fo)
 	}
 
-	// rclone splits the text of a comma list or an argv, and the elements are stored.
 	o, _ = decodeOptions(json.RawMessage(`{"metadata_mapper": "\"/opt/my mapper\" --flag 'a b'", "order_by": "size,desc", "checkers": 8}`))
 	stored, err = storedOptions(blockMain, o)
 	if err != nil {
@@ -70,7 +66,6 @@ func TestStoredTexts(t *testing.T) {
 	}
 }
 
-// Values that rclone refuses are reported with rclone's error and the option's name.
 func TestStoredRefusals(t *testing.T) {
 	for _, c := range []struct{ json, want string }{
 		{`{"max_age": "soon"}`, "max_age: parsing \"soon\" as fs.Duration failed"},
@@ -89,13 +84,10 @@ func TestStoredRefusals(t *testing.T) {
 	}
 }
 
-// Values that rclone's Reload would refuse or raise to a minimum are refused, with the option's
-// name where there is one, because a plan's options never go through Reload. interactive is
-// refused because it would wait forever for a terminal.
 func TestReloadRules(t *testing.T) {
 	for _, tc := range []struct {
 		json    string
-		field   string // the refused field, or "" for the whole form
+		field   string
 		refused bool
 	}{
 		{`{"transfers": 0}`, "transfers", true},

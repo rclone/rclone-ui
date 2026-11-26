@@ -17,7 +17,6 @@ describe('routeToFollow', () => {
 
     it('follows a route with a query', () => {
         expect(routeToFollow('/settings?tab=about', at('/settings'))).toBe('/settings?tab=about')
-        // The same drawer requested again: the page remounts and shows it.
         expect(routeToFollow('/history?id=1', at('/history?id=1'))).toBe('/history?id=1')
     })
 
@@ -90,7 +89,6 @@ describe('startOf', () => {
         expect(start.preset).toEqual(preset)
         expect(start.sources).toEqual(['gdrive:Photos'])
         expect(start.destination).toBe('/Users/me')
-        // The query fills in what the preset leaves out.
         expect(start.url).toBe('u')
     })
 

@@ -8,7 +8,6 @@ import { openUrl } from '../../../lib/shell'
 import { toneButton } from '../../components/look/buttons'
 import { IconTile } from '../../components/look/IconTile'
 
-/** A new, blank issue. The repository has no issue templates, so GitHub opens the form at once. */
 const NEW_ISSUE = 'https://github.com/rclone/rclone-ui/issues/new'
 
 const CODE = 'px-1 py-0.5 rounded-md bg-default-100 font-mono text-[0.9em] text-foreground'
@@ -85,12 +84,6 @@ const LIMITS: { title: string; body: ReactNode[] }[] = [
     },
 ]
 
-/**
- * What Rclone UI leaves out on purpose, shown before the user goes to GitHub to ask for a
- * feature. "Continue to GitHub" opens a new issue, and the dialog closes either way.
- *
- * It is always in English, like the issue that it leads to, so none of it is translated.
- */
 export function FeatureRequestNotice({
     isOpen,
     onOpenChange,
@@ -134,7 +127,6 @@ export function FeatureRequestNotice({
                                                 {limit.title}
                                             </h3>
                                             {limit.body.map((paragraph, at) => (
-                                                // The paragraphs never move.
                                                 <p key={at} className={PARAGRAPH}>
                                                     {paragraph}
                                                 </p>

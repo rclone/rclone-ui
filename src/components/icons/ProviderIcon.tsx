@@ -25,7 +25,6 @@ export default function ProviderIcon({
     return <LinkSimpleIcon className={className} />
 }
 
-/** The same sizes as IconTile's. */
 const SIZES = {
     sm: 'size-6 rounded-md [&>svg]:size-3.5',
     md: 'size-7 rounded-lg [&>svg]:size-4',
@@ -36,10 +35,6 @@ const SIZES = {
 
 export type ProviderTileSize = keyof typeof SIZES
 
-/**
- * Each provider's tile in its brand colors. A plain webhook is graphite and email is orange, as
- * their tiles are elsewhere.
- */
 const BRAND: Record<NotificationProvider, string> = {
     [NotificationProvider.NotificationProviderDiscord]: `bg-linear-to-b from-[#8891f8] to-[#4f5bd5] text-white ${GLOSS}`,
     [NotificationProvider.NotificationProviderTelegram]: `bg-linear-to-b from-[#41c0f7] to-[#1a8ad0] text-white ${GLOSS}`,
@@ -73,9 +68,6 @@ export function ProviderTile({
         </span>
     )
 }
-
-// The single-color brand icons (Discord, Telegram) use currentColor, so they follow the caller's
-// text color and the theme. Slack keeps its official four-color logo.
 
 function DiscordIcon({ className }: { className?: string }) {
     return (

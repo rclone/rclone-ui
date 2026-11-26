@@ -1,5 +1,3 @@
-// The core's types, grouped by domain. The bindings generate them from the Go structs.
-
 export type * as AppInfo from '../shell/bindings/github.com/rclone/rclone-ui/core/app/models'
 export type * as Browse from '../shell/bindings/github.com/rclone/rclone-ui/core/browse/models'
 export type * as Bus from '../shell/bindings/github.com/rclone/rclone-ui/core/bus/models'

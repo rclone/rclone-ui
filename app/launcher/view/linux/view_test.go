@@ -55,12 +55,10 @@ func (p *fakePlatform) Moved() (view.Placement, bool) {
 	return *p.moved, true
 }
 
-// timers holds the functions that the view runs after a delay, for the test to run when it likes.
 type timers struct{ due []func() }
 
 func (t *timers) after(_ time.Duration, fn func()) { t.due = append(t.due, fn) }
 
-// run runs the functions that are due, and those that they schedule, n rounds at most.
 func (t *timers) run(n int) {
 	for range n {
 		due := t.due
@@ -76,8 +74,6 @@ func newTestView(ev view.Events) (*View, *fakeWindow, *fakePlatform, *timers) {
 	return New(w, p, ev, func(fn func()) { fn() }, t.after), w, p, t
 }
 
-// Render sends the page the snapshot with its layout, and sizes the window to fit it. The footer
-// animates only while the window is shown, and only for the changes that view.Swaps names.
 func TestRender(t *testing.T) {
 	v, w, _, _ := newTestView(view.Events{})
 	s := view.Snapshot{Rows: []view.Row{{Title: "Copy"}, {Group: "App", Title: "Settings"}}, Selected: 0}
@@ -106,7 +102,6 @@ func TestRender(t *testing.T) {
 	}
 }
 
-// A text that the launcher sets carries the number of the page's last edit that it had seen.
 func TestQueryNumbers(t *testing.T) {
 	var got string
 	v, w, _, _ := newTestView(view.Events{Query: func(text string) { got = text }})
@@ -124,7 +119,6 @@ func TestQueryNumbers(t *testing.T) {
 	}
 }
 
-// The page's keys reach the launcher only while it is shown. A row key needs its one character.
 func TestKeys(t *testing.T) {
 	var keys []view.KeyEvent
 	v, _, _, _ := newTestView(view.Events{Key: func(k view.KeyEvent) bool { keys = append(keys, k); return true }})
@@ -135,8 +129,8 @@ func TestKeys(t *testing.T) {
 	v.Show(nil)
 	v.Key("down", "")
 	v.Key("row", "b")
-	v.Key("row", "")      // no character
-	v.Key("unknown", "x") // not a key the page sends
+	v.Key("row", "")
+	v.Key("unknown", "x")
 	v.Closed()
 	want := []view.KeyEvent{{Key: view.KeyDown}, {Key: view.KeyRow, Char: 'b'}, {Key: view.KeyClose}}
 	if len(keys) != len(want) {
@@ -149,8 +143,6 @@ func TestKeys(t *testing.T) {
 	}
 }
 
-// Blur waits while files are dragged over the window or a button is down, then for the grace
-// period, and a regained focus cancels it.
 func TestBlurWait(t *testing.T) {
 	blurred := 0
 	v, _, p, timers := newTestView(view.Events{Blur: func() { blurred++ }})
@@ -169,7 +161,7 @@ func TestBlurWait(t *testing.T) {
 		t.Fatal("blurred while a button was down")
 	}
 	p.held = false
-	v.blurFrom = time.Now().Add(-blurGrace) // the grace period is over
+	v.blurFrom = time.Now().Add(-blurGrace)
 	timers.run(1)
 	if blurred != 1 {
 		t.Fatalf("blurred %d times, want 1", blurred)
@@ -184,7 +176,6 @@ func TestBlurWait(t *testing.T) {
 	}
 }
 
-// Dropped files take the keyboard back and go to the launcher, but not while it is hidden.
 func TestDropped(t *testing.T) {
 	var dropped []string
 	v, _, p, _ := newTestView(view.Events{Drop: func(paths []string) { dropped = paths }})
@@ -200,7 +191,6 @@ func TestDropped(t *testing.T) {
 	}
 }
 
-// A move that the platform reports goes to the launcher. One that the view made itself doesn't.
 func TestMoved(t *testing.T) {
 	var at *view.Placement
 	v, _, p, _ := newTestView(view.Events{Moved: func(pl view.Placement) { at = &pl }})
@@ -216,7 +206,6 @@ func TestMoved(t *testing.T) {
 	}
 }
 
-// A panic in a callback from the page goes to Panicked rather than up through the service call.
 func TestPanicked(t *testing.T) {
 	var where string
 	v, _, _, _ := newTestView(view.Events{
@@ -229,7 +218,6 @@ func TestPanicked(t *testing.T) {
 	}
 }
 
-// A layer surface's margins follow the pointer, but never past the monitor's top or left edge.
 func TestDragMargins(t *testing.T) {
 	if l, tp := dragMargins(100, 50, 12.4, -8.6); l != 112 || tp != 41 {
 		t.Errorf("got %d, %d", l, tp)

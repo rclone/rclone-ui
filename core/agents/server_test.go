@@ -39,8 +39,6 @@ func TestAboutAndRemotes(t *testing.T) {
 	}
 }
 
-// Every tool says what it is and whether it only reads, so that an agent's client can ask its
-// user before the ones that change something.
 func TestToolsAreDescribed(t *testing.T) {
 	cs := connect(t)
 	res, err := cs.ListTools(context.Background(), nil)
@@ -65,8 +63,6 @@ func TestToolsAreDescribed(t *testing.T) {
 	}
 }
 
-// The server runs only while the settings turn it on. It answers a client that has the token,
-// and refuses one without it and any request from a web page.
 func TestServerLifecycleAndGuard(t *testing.T) {
 	s := server(t)
 	var seen []Status
@@ -110,13 +106,11 @@ func TestServerLifecycleAndGuard(t *testing.T) {
 		t.Errorf("with a wrong token: %d", got)
 	}
 
-	// With the token, an agent connects over HTTP and uses a tool.
 	client := &http.Client{Transport: withToken{cfg.Token}}
 	cs := session(t, &mcp.StreamableClientTransport{Endpoint: st.URL, HTTPClient: client})
 	if list := must[remoteList](t, cs, "list_remotes", nil); len(list.Remotes) != 1 {
 		t.Errorf("over HTTP: %+v", list)
 	}
-	// A web page's request carries an Origin, and is refused even with the token.
 	req, _ := http.NewRequest(http.MethodPost, st.URL, strings.NewReader(`{}`))
 	req.Header.Set("Origin", "https://example.com")
 	res, err := client.Do(req)
@@ -128,14 +122,12 @@ func TestServerLifecycleAndGuard(t *testing.T) {
 		t.Errorf("from a web page: %d", res.StatusCode)
 	}
 
-	// A second server can't take the port, and says so.
 	other := server(t)
 	other.Apply(cfg)
 	if st := other.Status(); st.Running || !strings.Contains(st.Error, "in use") {
 		t.Errorf("a taken port: %+v", st)
 	}
 
-	// A new token starts the server again, and the old token stops working.
 	cfg.Token = "another-token"
 	s.Apply(cfg)
 	if got := post("Authorization", "Bearer s3cret-token"); got != http.StatusUnauthorized {
@@ -152,8 +144,6 @@ func TestServerLifecycleAndGuard(t *testing.T) {
 	}
 }
 
-// `rcui mcp` passes an agent's messages to the server and back: the agent uses a tool through
-// it, and the server sees the agent's own name.
 func TestBridgeRelays(t *testing.T) {
 	s := server(t)
 	cfg := settings.Agents{Enabled: true, Port: freePort(t), Token: "bridge-token"}
@@ -163,7 +153,6 @@ func TestBridgeRelays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The agent's side of the bridge's stdin and stdout.
 	toBridge, agentOut := io.Pipe()
 	agentIn, fromBridge := io.Pipe()
 	done := make(chan error, 1)

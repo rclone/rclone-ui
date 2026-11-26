@@ -62,8 +62,6 @@ func TestStopEndsTheWholeGroup(t *testing.T) {
 	waitNoProcess(t, pid)
 }
 
-// TestExitEndsTheWholeGroup checks that a child that exits on its own doesn't leave the
-// processes it started behind either.
 func TestExitEndsTheWholeGroup(t *testing.T) {
 	got := newEntries()
 	s := newSupervisor(t, Options{Emit: got.emit})
@@ -76,14 +74,13 @@ func TestExitEndsTheWholeGroup(t *testing.T) {
 	}
 	line := got.wait(t, 10*time.Second, "the grandchild's pid", func(e logs.Record) bool { return strings.HasPrefix(e.Message, "grandchild ") })
 	pid, _ := strconv.Atoi(strings.TrimPrefix(line.Message, "grandchild "))
-	if err := syscall.Kill(u.Process().PID(), syscall.SIGKILL); err != nil { // like a crash
+	if err := syscall.Kill(u.Process().PID(), syscall.SIGKILL); err != nil {
 		t.Fatal(err)
 	}
 	waitClosed(t, u.Done(), 10*time.Second, "the down")
 	waitNoProcess(t, pid)
 }
 
-// waitNoProcess waits for pid to be gone. A negative pid means a process group.
 func waitNoProcess(t *testing.T, pid int) {
 	t.Helper()
 	testutil.Eventually(t, 5*time.Second, fmt.Sprintf("process %d to end", pid), func() bool {
@@ -91,8 +88,6 @@ func waitNoProcess(t *testing.T, pid int) {
 	})
 }
 
-// startLeftover starts a stand-in for a child from a previous run: a helper in its own group,
-// as the supervisor starts one.
 func startLeftover(t *testing.T) (*exec.Cmd, int64) {
 	t.Helper()
 	cmd := exec.Command(os.Args[0], "helper", "sleep")
@@ -127,11 +122,11 @@ func startLeftover(t *testing.T) (*exec.Cmd, int64) {
 func TestClearLeftovers(t *testing.T) {
 	dir := runDir(t)
 	ours, oursStart := startLeftover(t)
-	other, otherStart := startLeftover(t) // recorded with a wrong start time, like a reused pid
+	other, otherStart := startLeftover(t)
 	recs := []Record{
 		{ID: "11111111", Kind: KindServe, Name: "http:127.0.0.1:8080", PID: ours.Process.Pid, StartTime: oursStart, Args: []string{"serve", "http", "a:"}, Addr: "127.0.0.1:8080"},
 		{ID: "22222222", Kind: KindMount, Name: "/mnt/x", PID: other.Process.Pid, StartTime: otherStart + 1, Args: []string{"mount", "b:", "/mnt/x"}, MountPoint: "/nonexistent/rcc-test/x", NFSPort: 1},
-		{ID: "44444444", Kind: KindServe, Name: "stopped serve"}, // neither running nor to restore
+		{ID: "44444444", Kind: KindServe, Name: "stopped serve"},
 	}
 	if err := writeRecords(dir, recs); err != nil {
 		t.Fatal(err)
@@ -146,7 +141,7 @@ func TestClearLeftovers(t *testing.T) {
 	if len(lo.Killed) != 1 || lo.Killed[0].ID != "11111111" {
 		t.Fatalf("killed %+v, want only the child whose start time matched", lo.Killed)
 	}
-	waitNoProcess(t, -ours.Process.Pid) // the whole group
+	waitNoProcess(t, -ours.Process.Pid)
 	if err := syscall.Kill(other.Process.Pid, 0); err != nil {
 		t.Fatalf("killed a process whose start time did not match: %v", err)
 	}
@@ -163,7 +158,6 @@ func TestClearLeftovers(t *testing.T) {
 	if strings.Join(ids, ",") != "11111111,22222222" {
 		t.Fatalf("restore %v, want the mount and serve that were running", ids)
 	}
-	// The new run's supervisor keeps them in children.json.
 	begun(t, Options{RunDir: dir}, lo.Restore...)
 	onDisk, err := readRecords(dir)
 	if err != nil || len(onDisk) != 2 {
@@ -179,13 +173,10 @@ func TestClearLeftovers(t *testing.T) {
 	}
 }
 
-// TestAQuitThatRunsOutOfTimeBringsNothingBack checks a serve that is still stopping when a quit
-// runs out of time. It keeps its running record in children.json, marked as being stopped. The
-// next start kills it and doesn't start it again, as it would after a crash.
 func TestAQuitThatRunsOutOfTimeBringsNothingBack(t *testing.T) {
 	got := newEntries()
 	s := begun(t, Options{RunDir: runDir(t), Exe: os.Args[0], Emit: got.emit})
-	s.grace = time.Minute // longer than the quit waits
+	s.grace = time.Minute
 	spec := helperSpec("stubborn", "ignore-term")
 	spec.Kind = KindServe
 	u, err := s.Start(spec)
@@ -214,9 +205,6 @@ func TestAQuitThatRunsOutOfTimeBringsNothingBack(t *testing.T) {
 	waitClosed(t, u.Done(), 10*time.Second, "the unit")
 }
 
-// TestClearLeftoversRestoresNothingStillRunning checks that a mount or serve whose previous
-// process couldn't be killed is not started again next to it. This holds both for a record left
-// by a crash and for one kept by a restart.
 func TestClearLeftoversRestoresNothingStillRunning(t *testing.T) {
 	dir := runDir(t)
 	alive, start := startLeftover(t)

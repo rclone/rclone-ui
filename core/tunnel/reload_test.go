@@ -12,10 +12,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// TestTunnelReloadsEncryptedConfig checks that with an encrypted config, the tunnel reads the
-// file again after the app added a remote, and that a phone's config/create keeps that remote.
-// The tunnel reads its key file itself (loadConfig), so it must unset rclone's variable there,
-// as Ready does for the other children.
 func TestTunnelReloadsEncryptedConfig(t *testing.T) {
 	f := newFixture(t)
 	const password = "s3cret"

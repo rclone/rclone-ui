@@ -14,9 +14,7 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// detectInstall tells apart the Flatpak sandbox, the AppImage and the packages. For an
-// AppImage, the runtime sets $APPIMAGE and $APPDIR, and the executable runs from $APPDIR. For a
-// package, dpkg or rpm owns the executable.
+// For an AppImage, the runtime sets $APPIMAGE and $APPDIR, and the executable runs from $APPDIR.
 func detectInstall() (InstallType, string, i18n.Text) {
 	if platform.IsFlatpak() {
 		return TypeFlatpak, "", i18n.Text{}
@@ -40,8 +38,6 @@ func detectInstall() (InstallType, string, i18n.Text) {
 	return TypeUnmanaged, exe, i18n.Text{}
 }
 
-// owns runs a package manager's "which package owns this file" query, and reports whether a
-// package owns it.
 func owns(tool string, args ...string) bool {
 	if _, err := exec.LookPath(tool); err != nil {
 		return false

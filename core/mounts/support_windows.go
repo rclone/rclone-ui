@@ -36,16 +36,12 @@ func winFspInstalled() bool {
 	return err == nil
 }
 
-// The exit codes of msiexec that installMSI tells apart.
 const (
-	msiRestartNeeded = 3010 // installed, and Windows wants a restart
-	msiUserExit      = 1602 // the user cancelled
-	msiCancelled     = 1223 // the user said no to the administrator prompt
+	msiRestartNeeded = 3010
+	msiUserExit      = 1602
+	msiCancelled     = 1223
 )
 
-// installMSI runs the installer at path with a progress window (msiexec /passive), and waits for
-// it. WinFsp installs for the whole machine, so msiexec asks Windows for administrator rights
-// before it changes anything.
 func installMSI(path string) error {
 	system, err := windows.GetSystemDirectory()
 	if err != nil {

@@ -17,7 +17,6 @@ func TestOptionValues(t *testing.T) {
 	ctx := context.Background()
 	values := OptionValues(ctx)
 	main := values["main"]
-	// Keyed by rclone's option name, with each value written as rclone writes it.
 	for name, want := range map[string]string{"ask_password": "false", "max_stats_groups": "100000", "log_level": "INFO"} {
 		if main[name] != want {
 			t.Errorf("main.%s = %q, want %q (all %v)", name, main[name], want, main)
@@ -44,8 +43,6 @@ func TestOptionValues(t *testing.T) {
 	}
 }
 
-// The value contract: a value is what a person types after the flag, a JSON number or switch is
-// its literal text, and a list holds a list option's elements.
 func TestParseOption(t *testing.T) {
 	for _, c := range []struct {
 		name     string
@@ -100,9 +97,6 @@ func TestParseOption(t *testing.T) {
 	}
 }
 
-// The default of every main and filter option, typed as its flag, parses the way that flag
-// parses it. The option itself is the flag's value (flags.AddFlagsFromOptions), so ParseOption
-// and the flag agree on every type rclone has.
 func TestParseOptionIsTheFlags(t *testing.T) {
 	for _, block := range []string{"main", "filter", "vfs", "mount"} {
 		for i := range fs.OptionsRegistry[block].Options {
@@ -131,8 +125,6 @@ func defaultTextOf(o *fs.Option) string {
 	return c.String()
 }
 
-// Only the named fields are set, with their values unchanged. A value of the wrong type is
-// refused instead of causing a panic.
 func TestSetFields(t *testing.T) {
 	var fo filter.Options
 	fo.MaxAge = fs.Duration(time.Hour)
@@ -164,8 +156,6 @@ func TestSecretOptions(t *testing.T) {
 	}
 }
 
-// Every name is still an option in rclone's main block, listed once. An upgrade that renames
-// one fails here.
 func TestNotPerOperationNamesExist(t *testing.T) {
 	main := fs.OptionsRegistry["main"].Options
 	for i, name := range NotPerOperation {
@@ -184,8 +174,6 @@ func TestNotPerOperationNamesExist(t *testing.T) {
 	}
 }
 
-// The serve types come from rclone's own list for this build. Each has its option block, and
-// nfs is there only on Unix.
 func TestServeTypes(t *testing.T) {
 	types := ServeTypes()
 	want := []string{"dlna", "ftp", "http", "restic", "s3", "sftp", "webdav"}

@@ -26,12 +26,6 @@ import {
 
 const REMOVE = 'remove'
 
-/**
- * One group of options: its JSON on the left, and a chip for each option it offers on the right.
- * The JSON is the source of truth. A chip adds its option with the app-wide value (or rclone's
- * default), and removes it when tapped again. A chip whose option has choices (booleans have
- * true and false) opens a menu of them instead, with "Remove" once the option is set.
- */
 export default function OptionGroupEditor({
     label,
     optionsJson,
@@ -45,30 +39,13 @@ export default function OptionGroupEditor({
     label?: string
     optionsJson: string
     setOptionsJson: (value: string) => void
-    /**
-     * The current values of options that differ from rclone's defaults, by option name. They come
-     * from wherever this group's options are set (the app-wide settings, or the remote's
-     * config). Each value is rclone's text, or a list of elements for a list option.
-     */
     globalOptions: Record<string, OptionValue>
     availableOptions: AvailableOption[]
-    /** The operation's paths, so the metadata mapper can suggest each backend's fields. */
     mapperPaths?: { source?: string; destination?: string }
-    /** Backend overrides for this operation, by remote. They affect what the destination writes. */
     mapperRemoteOverrides?: Record<string, Record<string, FlagValue>>
-    /**
-     * The core's refusal of the group's options, such as an option that a transfer can't set
-     * (`bwlimit`) or a metadata mapper without `metadata`. The page asks the core as the user
-     * types (useFormRefusal), and the editor shows the refusal under the text.
-     */
     refusal?: string
 }) {
-    // The last options that parsed, so the chips keep their state while the JSON is being edited.
     const lastGood = useRef<Record<string, FlagValue>>({})
-    // The JSON is parsed in the render that changes it, not in an effect, which would run a render
-    // later. What the mapping panel writes has to come back to it in the same render. Otherwise a
-    // quick second edit in the panel would look like a change made somewhere else. This is
-    // undefined while the JSON text isn't a valid object.
     const current = useMemo(() => {
         const parsed = parseOptions(optionsJson)
         if (parsed) lastGood.current = parsed
@@ -76,8 +53,6 @@ export default function OptionGroupEditor({
     }, [optionsJson])
     const isJsonValid = current !== undefined
     const options = current ?? lastGood.current
-    // `metadata_mapper` is a whole command line, which is awkward to type into a JSON string.
-    // While the flag is set, it is edited in the panel at the top of the editor instead.
     const mapper = current?.metadata_mapper
     const optionsProblem = current ? refusal : undefined
 
@@ -89,7 +64,6 @@ export default function OptionGroupEditor({
         [availableOptions]
     )
 
-    // Every change rewrites the whole object, so the formatting stays the same.
     const write = (next: Record<string, unknown>) =>
         startTransition(() => setOptionsJson(JSON.stringify(next, null, 2)))
 
@@ -99,9 +73,6 @@ export default function OptionGroupEditor({
             return
         }
         const value = toOptionValue(globalOptions[option.name] ?? defaultValue(option), option.kind)
-        // rclone never runs the mapper without `metadata`, so both are added together. If
-        // `metadata` is removed later, the core refuses the start. The flag starts with an empty
-        // value, which is filled in from the panel that appears with it.
         write({
             ...options,
             [option.name]: value,
@@ -117,8 +88,6 @@ export default function OptionGroupEditor({
                     paths={mapperPaths}
                     remoteOverrides={mapperRemoteOverrides}
                     onChange={(nextValue) =>
-                        // Not in a transition like `write`, so a quick second edit in the panel
-                        // sees this one.
                         setOptionsJson(
                             JSON.stringify({ ...current, metadata_mapper: nextValue }, null, 2)
                         )
@@ -139,7 +108,6 @@ export default function OptionGroupEditor({
                         description={t`Type here, or tap an option on the right to add it.`}
                         value={optionsJson}
                         onValueChange={(value) => {
-                            // macOS can type curly quotes. Replace them with straight ones.
                             setOptionsJson(replaceSmartQuotes(value))
                         }}
                         onKeyDown={(e) => {
@@ -165,7 +133,6 @@ export default function OptionGroupEditor({
                                     }
                                 }
 
-                                // From a key, Tab moves into its value.
                                 if (quoteIndices.length >= 3) {
                                     const [startKey, endKey, startValue] = quoteIndices
                                     if (relCursor > startKey && relCursor <= endKey) {

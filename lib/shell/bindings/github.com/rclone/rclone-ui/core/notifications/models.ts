@@ -5,9 +5,6 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
-/**
- * NotificationCatalog lists the categories and events that the target form offers, in order.
- */
 export class NotificationCatalog {
     "categories": NotificationCategoryMeta[];
     "events": NotificationEventMeta[];
@@ -41,9 +38,6 @@ export class NotificationCatalog {
     }
 }
 
-/**
- * NotificationCategory groups the events in the target form.
- */
 export enum NotificationCategory {
     /**
      * The Go zero value for the underlying type of the enum.
@@ -95,22 +89,8 @@ export enum NotificationEvent {
     NotificationEventJobFailed = "job.failed",
     NotificationEventMountFailed = "mount.failed",
     NotificationEventServeFailed = "serve.failed",
-
-    /**
-     * NotificationEventWatcherFailed is sent when a watcher's sync fails, once per streak of
-     * failures.
-     */
     NotificationEventWatcherFailed = "watcher.failed",
-
-    /**
-     * NotificationEventAppCrashed is sent at startup when the app's previous run didn't stop
-     * cleanly.
-     */
     NotificationEventAppCrashed = "app.crashed",
-
-    /**
-     * NotificationEventUpdateAvailable is sent when the ui's updater finds a new release.
-     */
     NotificationEventUpdateAvailable = "app.update-available",
 };
 
@@ -169,9 +149,6 @@ export enum NotificationProvider {
     NotificationProviderEmail = "email",
 };
 
-/**
- * NotificationSeverity sets the colour of a Discord embed, and is sent to generic webhooks.
- */
 export enum NotificationSeverity {
     /**
      * The Go zero value for the underlying type of the enum.
@@ -183,9 +160,6 @@ export enum NotificationSeverity {
     NotificationSeverityError = "error",
 };
 
-/**
- * NotificationTarget is a saved target, as shown in the Notifications window.
- */
 export class NotificationTarget {
     "id": string;
     "provider": NotificationProvider;
@@ -194,11 +168,6 @@ export class NotificationTarget {
     "isEnabled": boolean;
     "events": NotificationEvent[];
     "createdAt": number;
-
-    /**
-     * LastSentAt and LastError describe the last delivery, including a test of a saved target.
-     * LastError is English inside the core, and the API gives it in the app's language.
-     */
     "lastSentAt"?: number | null;
     "lastError"?: string;
 
@@ -242,9 +211,6 @@ export class NotificationTarget {
     }
 }
 
-/**
- * Outcome is the result of a test send.
- */
 export class Outcome {
     "ok": boolean;
     "message"?: string;
@@ -267,15 +233,8 @@ export class Outcome {
     }
 }
 
-/**
- * Problems holds a form's field errors, as a map from field to message.
- */
 export type Problems = { [_ in string]?: string };
 
-/**
- * SMTPEncryption is how the connection to the mail server is encrypted: STARTTLS, TLS from the
- * first byte, or none.
- */
 export enum SMTPEncryption {
     /**
      * The Go zero value for the underlying type of the enum.
@@ -386,10 +345,6 @@ export class SMTPView {
     }
 }
 
-/**
- * TargetInput is the target form. An update keeps the saved provider and refuses a different
- * one. The form includes the provider either way, because Problems needs it.
- */
 export class TargetInput {
     "provider": NotificationProvider;
     "name": string;
@@ -457,9 +412,6 @@ export class TestInput {
     }
 }
 
-/**
- * UpdateAvailable is the payload of app.update-available.
- */
 export class UpdateAvailable {
     "version": string;
     "current": string;

@@ -18,7 +18,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// settingsOf returns the settings that an operation's plan runs with.
 func settingsOf(operation Operation, g Groups) (settings, error) {
 	spec, ok := operationSpecs[operation]
 	if !ok || spec.settings == nil {
@@ -36,9 +35,6 @@ func mustSettings(t *testing.T, operation Operation, g Groups) settings {
 	return s
 }
 
-// A page's option groups become rclone's main and filter options, with rclone's names and in
-// rclone's text format. The config group overrides the operation's own group, the metadata group
-// is split by rclone's blocks, and cleared fields are left out.
 func TestTransferOptions(t *testing.T) {
 	g := groups(
 		"copy", `{"ignore_existing": true, "transfers": 2}`,
@@ -67,7 +63,6 @@ func TestTransferOptions(t *testing.T) {
 		t.Errorf("filter\n got %v\nwant %v", s.filter, wantFilter)
 	}
 
-	// Check the values that rclone gets.
 	var ci fs.ConfigInfo
 	if err := setOptions(blockMain, s.config, &ci); err != nil {
 		t.Fatal(err)
@@ -89,9 +84,6 @@ func TestTransferOptions(t *testing.T) {
 	}
 }
 
-// Values written by a page are read the same way as that text after the flag on rclone's
-// command line. A bare number means seconds for a duration and KiB for a size. An argv can be a
-// list, or a line that rclone splits while keeping quoted parts together.
 func TestOptionValues(t *testing.T) {
 	for _, tc := range []struct {
 		name, json string
@@ -128,8 +120,6 @@ func TestOptionValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// rclone's own split (fs.SpaceSepList) keeps a double-quoted field together and treats
-	// single quotes as text.
 	if got := anyTexts(stored["metadata_mapper"]); !reflect.DeepEqual(got, []string{"/opt/my mapper", "--flag", "'a", "b'"}) {
 		t.Errorf("a typed mapper line: %q", got)
 	}
@@ -138,8 +128,6 @@ func TestOptionValues(t *testing.T) {
 	}
 }
 
-// Values that rclone would refuse are refused by name before anything runs. A cleared field
-// counts as no value.
 func TestOptionRefusals(t *testing.T) {
 	for _, tc := range []struct {
 		name, group, json, want string
@@ -170,9 +158,6 @@ func TestOptionRefusals(t *testing.T) {
 	}
 }
 
-// No transfer can set an option that rclone sets once for the whole app, or when it first opens a
-// remote, because it would do nothing. A mount or a serve runs as its own process, where it
-// takes effect.
 func TestNotPerOperation(t *testing.T) {
 	for _, name := range rclone.NotPerOperation {
 		want := name + " can't be set for one transfer"
@@ -195,7 +180,6 @@ func TestNotPerOperation(t *testing.T) {
 	}
 }
 
-// A template's options are checked for each transfer it is for.
 func TestCheckOption(t *testing.T) {
 	for _, tc := range []struct {
 		tag       Operation
@@ -235,8 +219,6 @@ func TestCheckOption(t *testing.T) {
 	}
 }
 
-// A remote's overrides go in its connection string through rclone's own writer, merged over
-// the parameters that the path already had. Nothing in a key or a value can set another option.
 func TestConnectionStrings(t *testing.T) {
 	remotes := remoteOverrides{
 		"gdrive": {"chunk_size": "64M", "shared_with_me": true, "list_chunk": json.Number("500"), "blank": " "},
@@ -266,8 +248,6 @@ func TestConnectionStrings(t *testing.T) {
 	}
 }
 
-// A remote's overrides are checked against its backend before the Fs is opened. rclone would
-// ignore a key that it doesn't know, and it would only parse a value when the Fs opens.
 func TestOverridesChecked(t *testing.T) {
 	copyTo := func(destination, remotes string) error {
 		s, err := settingsOf("copy", groups("remotes", remotes))
@@ -281,9 +261,7 @@ func TestOverridesChecked(t *testing.T) {
 		{"gdrive:in", `{"gdrive": {"chunk_size": "64M", "shared_with_me": true, "list_chunk": 500}}`, ""},
 		{"/tmp/in", `{":local": {"copy_links": true, "override.timeout": "30s"}}`, ""},
 		{"sftp:/in", `{"sftp": {"host": "h", "port": "2222"}}`, ""},
-		// A cleared field is not an override, whatever its key.
 		{"gdrive:in", `{"gdrive": {"chunk_sise": " "}}`, ""},
-		// Overrides for another remote are not checked here.
 		{"gdrive:in", `{"gone": {"x": "1"}}`, ""},
 		{"gdrive:in", `{"gdrive": {"chunk_sise": "64M"}}`, "‘chunk_sise’ is not an option of gdrive (a drive remote)"},
 		{"gdrive:in", `{"gdrive": {"type": "s3"}}`, "‘type’ is not an option of gdrive (a drive remote)"},
@@ -304,9 +282,6 @@ func TestOverridesChecked(t *testing.T) {
 	}
 }
 
-// A moved folder leaves nothing behind in its source: the folders that it empties, and the folder
-// itself. A remote's root stays, because its contents are what moves. A copy leaves its source as
-// it is. Both bring the source's empty folders along.
 func TestFolderEmptyDirs(t *testing.T) {
 	folders := Kinds{"gdrive:photos": KindFolder, "gdrive:": KindFolder}
 	step := func(build func(CopyArgs) (Plan, error), source string) Step {
@@ -330,8 +305,6 @@ func TestFolderEmptyDirs(t *testing.T) {
 	}
 }
 
-// A file that is inside a folder source is copied only once, with the folder, however either
-// path is written. A name that only starts with the folder's name is not inside it.
 func TestFilesInsideFolderSources(t *testing.T) {
 	copyOf := func(sources []string, k Kinds) []Step {
 		t.Helper()
@@ -365,10 +338,6 @@ func TestFilesInsideFolderSources(t *testing.T) {
 	}
 }
 
-// A delete or a purge removes a folder and its contents in one step, however the paths are
-// written. A second step for a subfolder, or for another spelling of the folder, would run
-// alongside the first and fail on what the first removed. A folder whose name only starts with
-// another folder's name gets its own step.
 func TestNestedDeleteAndPurgeSources(t *testing.T) {
 	folders := Kinds{}
 	for _, f := range []string{"gdrive:a", "gdrive:a/", "gdrive:a/b", "gdrive:ab", "/tmp/x", ":local:/tmp/x/y", "sftp:a", "sftp:/a/b"} {
@@ -377,8 +346,8 @@ func TestNestedDeleteAndPurgeSources(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		sources []string
-		deletes []string // each step's Src
-		purges  []string // each step's SrcRemote
+		deletes []string
+		purges  []string
 	}{
 		{"a folder and its subfolder", []string{"gdrive:a", "gdrive:a/b"}, []string{"gdrive:a"}, []string{"a"}},
 		{"the subfolder first", []string{"gdrive:a/b", "gdrive:a"}, []string{"gdrive:a"}, []string{"a"}},
@@ -404,7 +373,6 @@ func TestNestedDeleteAndPurgeSources(t *testing.T) {
 			t.Errorf("purge, %s: %v %v, want %v", tc.name, got, err, tc.purges)
 		}
 	}
-	// A file inside a purged folder is still refused: only folders are purged.
 	_, err := buildPurge(PurgeArgs{Sources: []string{"gdrive:a", "gdrive:a/f.txt"}}, settings{},
 		Kinds{"gdrive:a": KindFolder, "gdrive:a/f.txt": KindFile})
 	if want := "gdrive:a/f.txt is a file; only folders can be purged"; err == nil || err.Error() != want {
@@ -412,19 +380,14 @@ func TestNestedDeleteAndPurgeSources(t *testing.T) {
 	}
 }
 
-// chunks returns the settings of a copy with an override for gdrive.
 func chunks(t *testing.T) settings {
 	return mustSettings(t, "copy", groups("remotes", `{"gdrive": {"chunk_size": "64M"}}`))
 }
 
-// Two sources that would write the same entry in the destination are refused, even when their
-// names differ in case or in Unicode form. A root combined with other sources is refused too,
-// because its entries go straight into the destination. A source inside a folder source, and a
-// second spelling of the same source, are transferred with it.
 func TestSameNameSources(t *testing.T) {
 	const (
-		composed   = "/a/été.txt"   // é as one code point (NFC)
-		decomposed = "/b/été.txt" // e and a combining accent (NFD)
+		composed   = "/a/été.txt"
+		decomposed = "/b/été.txt"
 	)
 	folders := Kinds{
 		"/2023/photos": KindFolder, "/2024/photos": KindFolder, "/2023": KindFolder, "sftp:": KindFolder,
@@ -433,7 +396,7 @@ func TestSameNameSources(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		sources []string
-		steps   int // 0 means refused
+		steps   int
 	}{
 		{"two files of one name", []string{"/a/r.txt", "/b/r.txt"}, 0},
 		{"names that differ in case", []string{"/a/r.txt", "/c/R.TXT"}, 0},
@@ -469,7 +432,6 @@ func TestSameNameSources(t *testing.T) {
 		". Copy them separately."; err == nil || err.Error() != want {
 		t.Errorf("the refusal says %v, want %q", err, want)
 	}
-	// One name in two Unicode forms is the same name, not one that differs in case.
 	_, err = buildCopy(CopyArgs{Sources: []string{composed, decomposed}, Destination: "/x"}, settings{}, nil)
 	if err == nil || strings.Contains(err.Error(), "differ only in case") {
 		t.Errorf("the refusal says %v", err)
@@ -492,8 +454,6 @@ func buildOf(t *testing.T, build func() (Plan, error)) Plan {
 	return p
 }
 
-// A step's source is its file's full path, or its folder. A Windows share keeps both of its
-// slashes after the backend's name, where a single slash would name a folder on the current drive.
 func TestStepSource(t *testing.T) {
 	for _, tc := range []struct {
 		step Step
@@ -512,7 +472,6 @@ func TestStepSource(t *testing.T) {
 	}
 }
 
-// The steps that each page's form is built into.
 func TestBuilders(t *testing.T) {
 	none := settings{}
 	folders := Kinds{"gdrive:folder": KindFolder, "gdrive:folder/inner.txt": KindFile, "/tmp/photos": KindFolder}
@@ -573,25 +532,19 @@ func TestBuilders(t *testing.T) {
 			}
 		})
 	}
-	// A rename runs one step at a time, because the batch rename's collision checks assume it.
-	// None of its steps replaces an entry that appeared after the checks.
 	if p := buildOf(t, func() (Plan, error) { return buildRename([]RenameItem{{Path: "gdrive:a", NewName: "b"}}) }); p.Concurrency != 1 ||
 		!reflect.DeepEqual(p.Config, Options{"ignore_existing": "true"}) {
 		t.Errorf("rename concurrency %d, config %v", p.Concurrency, p.Config)
 	}
-	// A bisync's switches that are on are the parameters of sync/bisync.
 	p := buildOf(t, func() (Plan, error) {
 		s := mustSettings(t, "bisync", groups("bisync", `{"max_delete": 10}`, "filter", `{"exclude": ["*.tmp"]}`))
 		return buildBisync(BisyncArgs{Source: "/tmp/photos", Destination: "gdrive:b",
 			Options: groups("outer", `{"resync": true, "force": false, "compare": "size,modtime"}`)}, s, folders)
 	})
-	// Without its own maxDelete, a bisync gets bisync's default of 50%, which sync/bisync over rc
-	// doesn't apply itself.
 	if !reflect.DeepEqual(p.Bisync, map[string]any{"resync": true, "compare": "size,modtime", "maxDelete": 50}) ||
 		p.Config["max_delete"] != "10" || p.Filter == nil || p.Steps[0].Op != OpBisync || !p.Whole() {
 		t.Errorf("bisync %+v", p)
 	}
-	// A maxDelete of the page's own is kept.
 	p = buildOf(t, func() (Plan, error) {
 		return buildBisync(BisyncArgs{Source: "/tmp/photos", Destination: "gdrive:b",
 			Options: groups("outer", `{"maxDelete": 80}`)}, settings{}, folders)
@@ -601,8 +554,6 @@ func TestBuilders(t *testing.T) {
 	}
 }
 
-// checkThenBuild runs an operation's check hook and then its builder, as BuildPlan does after it
-// asks rclone about the sources.
 func checkThenBuild[A any, P argsOf[A]](op Operation, a A, s settings, k Kinds) (Plan, error) {
 	spec := operationSpecs[op]
 	if err := spec.check(P(&a), s); err != nil {
@@ -698,8 +649,6 @@ func TestBuilderRefusals(t *testing.T) {
 	}
 }
 
-// The path of a downloaded file, as its record shows it, is in the destination folder, and its
-// root is written the same way as the folder's.
 func TestDownloadTarget(t *testing.T) {
 	targets := map[string]string{
 		"gdrive:dl": "gdrive:dl/f.zip", "gdrive:dl/": "gdrive:dl/f.zip", "gdrive:": "gdrive:f.zip",
@@ -715,14 +664,11 @@ func TestDownloadTarget(t *testing.T) {
 	}
 }
 
-// A plan is stored as JSON and read back unchanged. A plan from a newer build is not read, and
-// Check refuses a plan that rclone could not run.
 func TestPlanStored(t *testing.T) {
 	p := buildOf(t, func() (Plan, error) {
 		s := mustSettings(t, "copy", groups("config", `{"transfers": 4}`, "filter", `{"include": "*.jpg", "max_age": "1d"}`))
 		return buildCopy(CopyArgs{Sources: []string{"/tmp/photos"}, Destination: "gdrive:in"}, s, Kinds{"/tmp/photos": KindFolder})
 	})
-	// Landings are for the page, and aren't stored (TestLandings).
 	p.Landings = nil
 	raw, err := json.Marshal(p)
 	if err != nil {
@@ -751,8 +697,6 @@ func TestPlanStored(t *testing.T) {
 	}
 }
 
-// A dry run sets dry_run in the config, and bisync's own switch for a bisync. Either one makes
-// the plan a dry run.
 func TestDryRunPlan(t *testing.T) {
 	p := Plan{V: 1, Steps: []Step{{Op: OpCopy, Src: "/a", Dst: "/b"}}, Config: Options{"transfers": "2"}}
 	if p.DryRun() {
@@ -778,8 +722,6 @@ func TestDryRunPlan(t *testing.T) {
 	}
 }
 
-// A value is stored as the page gave it, so it reads back exactly. rclone's own rendering would
-// round an odd size (1234567 bytes becomes 1.177Mi).
 func TestStoredValuesExact(t *testing.T) {
 	for _, tc := range []struct {
 		block, name, json string
@@ -812,9 +754,6 @@ func TestStoredValuesExact(t *testing.T) {
 	}
 }
 
-// TestLandings: a copy or a move says where each source ends up, the way its steps put it there.
-// A folder and a file keep their names inside the destination, a root's entries go straight in,
-// and a source inside a selected folder goes with that folder. Landings aren't stored.
 func TestLandings(t *testing.T) {
 	sources := []string{"gdrive:Photos", "gdrive:notes.txt", "gdrive:Photos/2024", "/tmp/Docs/"}
 	k := Kinds{"gdrive:Photos": KindFolder, "gdrive:notes.txt": KindFile, "gdrive:Photos/2024": KindFolder, "/tmp/Docs/": KindFolder}
@@ -836,7 +775,6 @@ func TestLandings(t *testing.T) {
 		}
 	}
 
-	// A root's entries go straight into the destination, here a local folder in its own form.
 	p, err := buildCopy(CopyArgs{Sources: []string{"gdrive:"}, Destination: "/tmp/in"}, settings{}, Kinds{"gdrive:": KindFolder})
 	if err != nil {
 		t.Fatal(err)

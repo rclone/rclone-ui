@@ -1,19 +1,3 @@
-// Package location parses path strings the same way rclone does (fs/fspath), for the OS the app
-// is built for. rclone runs in this process, so these paths belong to this OS. fspath defines the
-// syntax, and this package only adds what fspath leaves to its callers:
-//   - Problem describes what is wrong with a path, in a sentence the pages can show next to the
-//     field. It quotes rclone's own words, and also catches paths that rclone accepts but reads
-//     differently than the user meant: a drive path on an OS without drives, and a local path
-//     that isn't absolute, which rclone reads from the app's working directory. Refusal and
-//     FieldRefusal give the same sentence as an error.
-//   - Split divides a path into the Fs that rclone opens and the rest below it, and gives a local
-//     path an explicit root. Fs.Entry then writes an entry below that root in the same form the
-//     original path used for its root. fspath.SplitFs differs: it keeps the leading slash with
-//     the rest (`sftp:` + `/var`), and leaves a local path's root empty, which rclone reads
-//     relative to the working directory.
-//
-// The frontend has its own parser (lib/paths.ts) for what it shows without asking the core.
-// testdata/paths_cases.json checks that parser against fspath.
 package location
 
 import (
@@ -30,7 +14,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// The sentences that Problem, Refusal and FieldRefusal give.
 const (
 	unreadable   = "Rclone cannot read this path: %s."
 	notWindows   = "This host is not Windows, so %[1]s: would be read as a remote called %[1]s. Use a path that starts with /."
@@ -38,23 +21,11 @@ const (
 	notFullDrive = `This is not a full path. Use one that starts with a drive, as in C:\.`
 )
 
-// problem is why a path can't be used: one of the sentences above, and its value.
 type problem struct {
 	format string
 	arg    any
 }
 
-// problemOf finds why a typed path can't be used as it is, and returns the zero problem when it
-// can. It reports rclone's reason when rclone refuses the path. It also reports paths that rclone
-// accepts but reads differently than the user meant:
-//   - A Windows drive path on an OS without drives, which rclone reads as a remote named after
-//     the letter.
-//   - A local path that isn't absolute (`tmp`, `./x`, `~/x`, `:local:x`), which rclone reads from
-//     the app's working directory, wherever that is.
-//   - A drive with no separator after it (`C:` or `C:x`), which Windows reads from the folder
-//     last used on that drive. The same applies to a drive in a path on a remote of type local.
-//
-// An empty path has no problem, because the pages ask for a missing path themselves.
 func problemOf(p string) problem {
 	if p == "" {
 		return problem{}
@@ -95,8 +66,6 @@ func Problem(p string) i18n.Text {
 	return i18n.Text{}
 }
 
-// Refusal returns Problem's sentence as a refusal of the request, or nil when the path can be
-// used.
 func Refusal(p string) error {
 	if problem := Problem(p); !problem.IsZero() {
 		return errs.Sentence(problem)
@@ -104,8 +73,6 @@ func Refusal(p string) error {
 	return nil
 }
 
-// FieldRefusal returns Problem's sentence as a refusal of field's value, or nil when the path can
-// be used.
 func FieldRefusal(field, p string) error {
 	if problem := Problem(p); !problem.IsZero() {
 		return errs.FieldText(field, problem)
@@ -125,15 +92,12 @@ func full(p string) bool {
 
 // driveRelative reports whether a local path starts with a drive with no separator after it
 // (`C:`, `C:x`). Windows reads such a path from the folder last used on that drive, not from the
-// drive's root. It is only ever true on Windows, because no other OS has drives.
+// drive's root.
 func driveRelative(p string) bool {
 	vol := filepath.VolumeName(p)
 	return len(vol) == 2 && vol[1] == ':' && (len(p) == 2 || p[2] != '/' && p[2] != '\\')
 }
 
-// localBackend reports whether a remote uses the local backend. That is `:local`, or a remote in
-// the config whose type is local (`mylocal:C:\x`). Paths on such remotes have drives and shares,
-// like the machine's own paths.
 func localBackend(name string, params configmap.Simple) bool {
 	if name == ":local" {
 		return true
@@ -141,8 +105,6 @@ func localBackend(name string, params configmap.Simple) bool {
 	if name == "" || strings.HasPrefix(name, ":") {
 		return false
 	}
-	// Look up the type the way rclone finds the backend (fs.ParseRemote): first the path's
-	// parameters, then the config.
 	typ, _ := fs.ConfigMap("", nil, name, params).Get("type")
 	return typ == "local"
 }
@@ -190,9 +152,7 @@ func Split(p string) (Fs, error) {
 	if at.Name == "" {
 		at.Name, at.Config, at.Local = ":local", ":local", true
 	}
-	// A drive or a share is the root of a path on the local backend, including a named remote
-	// of type local. This only happens on Windows. On any other remote, `//` is just two
-	// slashes. The volume is cut from rest, because filepath.VolumeName writes a share with `\`
+	// The volume is cut from rest, because filepath.VolumeName writes a share with `\`
 	// (`\\server\share`) and the anchor keeps rclone's `/`.
 	if vol := len(filepath.VolumeName(rest)); vol > 0 && localBackend(at.Name, at.Params) {
 		at.Anchor, rest = rest[:vol], rest[vol:]

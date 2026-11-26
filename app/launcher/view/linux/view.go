@@ -1,17 +1,3 @@
-// Package linux is the launcher window on Linux. It is a window of the app like the others, whose
-// page (src/pages/Launcher) draws the launcher's Snapshot. The launcher is native on macOS and
-// Windows. On Linux a page lets the app use GTK 4, which is what Wails uses there.
-//
-// The view sends the page what to draw as events to that window alone (Render, SetQuery, Show and
-// Hide). The page reports what the user does through PageService (service.go), and the view
-// passes it on to the launcher on the main thread.
-//
-// Wayland doesn't let an ordinary window choose where it goes, whether it stays above other
-// windows, or when it takes focus. When the compositor supports layer-shell (KDE Plasma, COSMIC,
-// Hyprland, Sway and the other wlroots compositors), the window is a layer surface, like other
-// launchers there. GNOME doesn't support layer-shell, so there the window is an ordinary one, and
-// the launcher's GNOME Shell extension (in gnome/) places and focuses it. On X11 the view places
-// the window itself and keeps it above the others (see platform_linux.go).
 package linux
 
 import (
@@ -23,48 +9,37 @@ import (
 	"github.com/rclone/rclone-ui/app/launcher/view"
 )
 
-// Title is the window's title. The GNOME extension (gnome/extension.js) uses it to recognise the
-// launcher window.
 const Title = "Rclone UI Launcher"
 
 const (
-	EventRender = "launcher:render" // a Frame
-	EventQuery  = "launcher:query"  // a Query
-	EventShown  = "launcher:shown"  // the window was shown: focus the query box
-	EventHidden = "launcher:hidden" // the window was hidden: finish any animation
+	EventRender = "launcher:render"
+	EventQuery  = "launcher:query"
+	EventShown  = "launcher:shown"
+	EventHidden = "launcher:hidden"
 )
 
 type Mode string
 
 const (
-	ModeX11     Mode = "x11"         // an X11 window, which the view places
-	ModeLayer   Mode = "layer-shell" // a Wayland layer surface
-	ModeWayland Mode = "wayland"     // an ordinary Wayland window, which the desktop shell places
+	ModeX11     Mode = "x11"
+	ModeLayer   Mode = "layer-shell"
+	ModeWayland Mode = "wayland"
 )
 
 type Window interface {
 	Show()
 	Hide()
 	SetSize(width, height int)
-	// Send sends an event to this window's page alone.
 	Send(name string, data any)
 }
 
-// Platform places the window and gives it the keyboard. Every method runs on the main thread.
 type Platform interface {
 	Mode() Mode
-	// BeforeShow places the hidden window at at, if that spot is still on a screen, or else
-	// centres it on the screen in use. token is the Wayland activation token, "" for none.
 	BeforeShow(at *view.Placement, token string)
-	// AfterShow runs once the window is shown, and asks for the keyboard.
 	AfterShow()
-	// Resized runs after the window's height changes. A shown X11 window keeps its top edge.
 	Resized(visible bool)
 	Focused()
-	// Held reports whether a pointer button is down anywhere on the screen. Only X11 can tell.
 	Held() bool
-	// Moved reports where the user moved the window, after the window reported a move. It is
-	// false when the view moved it itself, or when the desktop doesn't say where windows are.
 	Moved() (view.Placement, bool)
 	// DragStart, DragTo and DragEnd move a layer surface, because compositors don't move those.
 	// The points are the pointer's, measured from the window's top-left corner. DragEnd reports
@@ -74,9 +49,6 @@ type Platform interface {
 	DragEnd() (view.Placement, bool)
 }
 
-// Layout is where the page puts things for one Snapshot, measured from the window's top-left
-// corner. The view works it out from the launcher's geometry (view/geometry.go), so the page
-// draws exactly what the window's size allows.
 type Layout struct {
 	Height    float64   `json:"height"`
 	RowsTop   float64   `json:"rowsTop"`
@@ -86,8 +58,6 @@ type Layout struct {
 	StopTop   float64   `json:"stopTop"`
 }
 
-// Frame is what the page draws. Swap reports that the footer line animates in from the one before
-// (view.Swaps).
 type Frame struct {
 	Snapshot view.Snapshot `json:"snapshot"`
 	Layout   Layout        `json:"layout"`
@@ -104,7 +74,6 @@ type Query struct {
 	Seq       int    `json:"seq"`
 }
 
-// Geometry holds the launcher's sizes, in pixels, for the page.
 type Geometry struct {
 	Width      float64 `json:"width"`
 	QueryH     float64 `json:"queryH"`
@@ -125,8 +94,6 @@ type Geometry struct {
 	SwapMs     int     `json:"swapMs"`
 }
 
-// Init is what the page needs when it loads. It includes what the view last sent, so a page that
-// loads after the launcher rendered still draws the same.
 type Init struct {
 	Geometry Geometry `json:"geometry"`
 	// Icons holds each glyph's SVG document by name, drawn in currentColor so the page can tint it.
@@ -173,14 +140,11 @@ func layoutOf(s view.Snapshot) Layout {
 	}
 }
 
-// Timing for the Blur wait (see FocusLost).
 const (
-	blurPoll  = 50 * time.Millisecond  // how often it checks
-	blurGrace = 250 * time.Millisecond // how long it waits after a button is released or a drag leaves
+	blurPoll  = 50 * time.Millisecond
+	blurGrace = 250 * time.Millisecond
 )
 
-// View is the launcher window. Its view.View methods run on the main thread. The page's methods
-// (Ready, Query, Key and the rest) may be called from any goroutine.
 type View struct {
 	win   Window
 	plat  Platform
@@ -188,24 +152,21 @@ type View struct {
 	main  func(func())
 	after func(time.Duration, func())
 
-	mu    sync.Mutex // guards state, which Ready reads from a service call
+	mu    sync.Mutex
 	state Init
 
 	visible bool
 	token   string
-	line    view.Line // the footer line that the page shows
-	seq     int       // the number of the page's last edit (see Query)
+	line    view.Line
+	seq     int
 
-	// The Blur wait. blurGen counts the waits, so a stopped wait's pending check does nothing.
 	blurGen  int
 	blurFrom time.Time
-	dragOver bool // files are dragged over the window, as the page reports
-	pressed  bool // a pointer button is down in the window, as the page reports
-	dragging bool // a layer surface is being dragged
+	dragOver bool
+	pressed  bool
+	dragging bool
 }
 
-// New returns the view of win, which plat places. main runs a function on the main thread, and
-// after runs one there after a delay.
 func New(win Window, plat Platform, ev view.Events, main func(func()), after func(time.Duration, func())) *View {
 	return &View{
 		win: win, plat: plat, ev: ev, main: main, after: after,
@@ -218,13 +179,8 @@ func New(win Window, plat Platform, ev view.Events, main func(func()), after fun
 
 func (v *View) Mode() string { return string(v.plat.Mode()) }
 
-// PlacedByShell reports whether the window is an ordinary Wayland window, which only the desktop
-// shell can place, keep above other windows and focus. On GNOME, the launcher's extension (in
-// gnome/) does this.
 func (v *View) PlacedByShell() bool { return v.plat.Mode() == ModeWayland }
 
-// SetActivationToken sets the compositor's token for the shortcut press (the portal's
-// activation_token). On Wayland, the next Show uses it to take the keyboard.
 func (v *View) SetActivationToken(token string) { v.token = token }
 
 func (v *View) Show(at *view.Placement) {
@@ -282,7 +238,6 @@ func (v *View) Ready() Init {
 	return in
 }
 
-// The page's keys, as the page names them (src/pages/Launcher/keys.ts).
 var pageKeys = map[string]view.Key{
 	"up":      view.KeyUp,
 	"down":    view.KeyDown,
@@ -293,9 +248,6 @@ var pageKeys = map[string]view.Key{
 	"row":     view.KeyRow,
 }
 
-// Query receives the query box's text after an edit. The page numbers its edits, and seq is this
-// one's number. SetQuery sends the number back with the text that the launcher sets, so the page
-// can tell when it has been typed in since (see the Query type).
 func (v *View) Query(text string, seq int) {
 	v.call("query", func() {
 		v.seq = seq
@@ -305,8 +257,6 @@ func (v *View) Query(text string, seq int) {
 	})
 }
 
-// Key receives a key that the page leaves to the launcher. char is the character of a "row" key:
-// a digit, a letter or a full stop pressed with Ctrl.
 func (v *View) Key(key, char string) {
 	k, ok := pageKeys[key]
 	if !ok {
@@ -359,8 +309,6 @@ func (v *View) StopAll() {
 	})
 }
 
-// Pressed receives whether a pointer button is down in the window. The Blur wait waits while it
-// is, because a drag may be starting.
 func (v *View) Pressed(down bool) {
 	v.call("pressed", func() {
 		v.pressed = down
@@ -370,8 +318,6 @@ func (v *View) Pressed(down bool) {
 	})
 }
 
-// DragOver receives whether files are being dragged over the window. The Blur wait waits while
-// they are, so they can still be dropped.
 func (v *View) DragOver(over bool) {
 	v.call("drag over", func() {
 		v.dragOver = over
@@ -453,7 +399,7 @@ func (v *View) blurCheck(gen int) {
 		v.waitBlur(gen)
 		return
 	}
-	v.blurGen++ // the wait is over; Blur may call Hide
+	v.blurGen++
 	if v.ev.Blur != nil {
 		v.ev.Blur()
 	}
@@ -472,7 +418,6 @@ func (v *View) Moved() {
 	})
 }
 
-// Dropped takes the keyboard back before it passes the files on.
 func (v *View) Dropped(paths []string) {
 	v.call("dropped", func() {
 		v.dragOver = false
@@ -485,8 +430,6 @@ func (v *View) Dropped(paths []string) {
 	})
 }
 
-// Closed handles a request to close the window, such as Alt+F4. The window is only ever hidden,
-// so the launcher dismisses itself instead.
 func (v *View) Closed() {
 	v.call("close", func() {
 		if v.ev.Key != nil {

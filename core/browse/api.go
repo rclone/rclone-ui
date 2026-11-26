@@ -22,19 +22,14 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// The events that a listing, a search, a folder count and a Disk Usage scan send to the window
-// that asked for them.
 const (
 	EventRows  = "browse:rows"
 	EventSize  = "browse:size"
 	EventUsage = "browse:usage"
 )
 
-// perFrame is the most rows that one event carries. A cached listing of 50 000 rows is sent in
-// pieces, and the page shows each piece as it arrives.
 const perFrame = 2000
 
-// Row is one entry of a listing or a search.
 type Row struct {
 	// Path is the entry's full path, with the root written the same way as in the requested folder.
 	Path     string `json:"path"`
@@ -74,14 +69,11 @@ type FolderSize struct {
 	Done    bool `json:"done,omitempty"`
 }
 
-// CompareResult is the comparison of two folders side by side.
 type CompareResult struct {
 	Pairs  []Pair `json:"pairs"`
 	Capped bool   `json:"capped"`
 }
 
-// API lists, searches and counts folders for the pages, and answers their other questions about
-// entries.
 type API struct {
 	l      *late.Value[*Lister]
 	emit   func(ctx context.Context, name string, data any)
@@ -89,8 +81,6 @@ type API struct {
 	usage  usageScans
 }
 
-// NewAPI returns the API over the listings cache, which l provides once the core has started.
-// emit sends an event to the window that made the call in ctx.
 func NewAPI(l *late.Value[*Lister], emit func(ctx context.Context, name string, data any)) *API {
 	return &API{l: l, emit: emit, mounts: children.MountPoints}
 }
@@ -107,25 +97,17 @@ func inJob(ctx context.Context, kind string, fn func(ctx context.Context) error)
 	return err
 }
 
-// folderOf splits a requested folder into the root that rclone opens and the folder below it,
-// using location.Split. It refuses an empty path with the message missing, and paths that rclone
-// would refuse or misread with the message from location.Problem. Both the listing's cache entry
-// and the paths of its rows come from this split.
 func folderOf(p, field string, missing i18n.Text) (location.Fs, error) {
 	if p == "" {
 		return location.Fs{}, errs.Invalid(missing, errs.Violation(field, "missing"))
 	}
 	if err := location.FieldRefusal(field, p); err != nil {
-		// The page receives it as Invalid, with the field and the same sentence as its message.
 		return location.Fs{}, err
 	}
-	// FieldRefusal has already refused every path that Split can't read.
 	at, _ := location.Split(p)
 	return at, nil
 }
 
-// rowOf turns an entry below at's root into the Row a page reads. The row carries the full path,
-// with the root written as in the requested folder, so that pages never build paths themselves.
 func rowOf(at location.Fs, e Entry) Row {
 	return Row{
 		Path: at.Entry(e.Path), Name: e.Name, Size: e.Size, ModTime: e.ModTime,
@@ -133,7 +115,6 @@ func rowOf(at location.Fs, e Entry) Row {
 	}
 }
 
-// pieces converts rows with row and passes them to send in pieces of at most perFrame.
 func pieces(rows []Entry, row func(Entry) Row, send func([]Row)) {
 	for len(rows) > 0 {
 		n := min(len(rows), perFrame)
@@ -146,9 +127,6 @@ func pieces(rows []Entry, row func(Entry) Row, send func([]Row)) {
 	}
 }
 
-// ListFolder lists a folder from the cache while the cached copy is fresh, and from rclone
-// otherwise. It calls page with the rows as each batch arrives. It returns when rclone listed
-// the folder (in ms since the epoch) and whether the rows stopped at ListMax.
 func ListFolder(ctx context.Context, l *Lister, path string, fresh, fileDates bool, page func([]Row)) (fetchedAt int64, capped bool, err error) {
 	at, err := folderOf(path, "path", i18n.M("Specify the folder to list."))
 	if err != nil {
@@ -184,13 +162,8 @@ func (a *API) List(ctx context.Context, request, path string, fresh, fileDates b
 	})
 }
 
-// errCapped stops a search at its most matches.
 var errCapped = errors.New("enough results")
 
-// SearchFolder finds the entries under the folder at path whose names contain q (Search, which
-// reads at most SearchWalkMax entries), and calls page with their rows as they are found. It
-// stops after max matches, and reports whether it did. When the walk ended at SearchWalkMax, it
-// returns ErrWalkMax, after the rows it found. fileDates is as for List, and hidden as for Search.
 func SearchFolder(ctx context.Context, path, q string, max int, fileDates, hidden bool, page func([]Row)) (capped bool, err error) {
 	if q == "" {
 		return false, errs.Invalid(i18n.M("Nothing to search for."), errs.Violation("q", "missing"))
@@ -199,7 +172,6 @@ func SearchFolder(ctx context.Context, path, q string, max int, fileDates, hidde
 	if err != nil {
 		return false, err
 	}
-	// A match is shown by its path below the folder searched.
 	row := func(e Entry) Row {
 		r := rowOf(at, e)
 		r.Below = strings.TrimPrefix(e.Path, at.Dir())
@@ -228,12 +200,12 @@ func SearchFolder(ctx context.Context, path, q string, max int, fileDates, hidde
 }
 
 // Search finds the entries under a folder whose names contain q, sending them as EventRows
-// for request. It stops at SearchMax matches. fileDates is as for List, and hidden as for Search.
+// for request. It stops at SearchMax matches. fileDates is as for List. hidden includes the
+// entries whose name starts with a dot.
 func (a *API) Search(ctx context.Context, request, path, q string, fileDates, hidden bool) error {
 	capped, err := SearchFolder(ctx, path, q, SearchMax, fileDates, hidden, func(rows []Row) {
 		a.emit(ctx, EventRows, Rows{Request: request, Entries: rows})
 	})
-	// The page isn't told that a walk ended at SearchWalkMax.
 	if err != nil && !errors.Is(err, ErrWalkMax) {
 		return err
 	}
@@ -241,9 +213,6 @@ func (a *API) Search(ctx context.Context, request, path, q string, fileDates, hi
 	return nil
 }
 
-// CountFolder counts the files and their bytes below the folder at path, as Sizes counts each of
-// its folders, but it returns the reason when the folder can't be counted. When ctx ends partway,
-// it returns the counts so far, marked Partial, with ctx's error.
 func CountFolder(ctx context.Context, path string) (Size, error) {
 	if _, err := folderOf(path, "path", i18n.M("Specify the folder to count.")); err != nil {
 		return Size{}, err
@@ -274,13 +243,12 @@ func (a *API) Sizes(ctx context.Context, request string, paths []string) error {
 	return nil
 }
 
-// Compare puts two folders side by side, one level down. fileDates is as for List, and hidden as
-// for Compare.
+// Compare puts two folders side by side, one level down. fileDates is as for List. hidden
+// includes the entries whose name starts with a dot.
 func (a *API) Compare(ctx context.Context, left, right string, fileDates, hidden bool) (CompareResult, error) {
 	if left == "" || right == "" {
 		return CompareResult{}, errs.Invalid(i18n.M("Two folders are needed."), errs.Violation("right", "missing"))
 	}
-	// Check both paths the same way a listing does, since rclone would refuse or misread them.
 	for _, side := range [][2]string{{"left", left}, {"right", right}} {
 		if _, err := folderOf(side[1], side[0], i18n.M("Two folders are needed.")); err != nil {
 			return CompareResult{}, err
@@ -322,10 +290,8 @@ func (a *API) PublicLink(ctx context.Context, path string) (string, error) {
 	return link, nil
 }
 
-// UsageState is where a Disk Usage scan is.
 type UsageState string
 
-// The states of a scan.
 const (
 	UsageScanning UsageState = "scanning"
 	UsageDone     UsageState = "done"
@@ -354,39 +320,29 @@ type UsageProgress struct {
 }
 
 const (
-	// usageBeat is how often a running scan sends its progress.
-	usageBeat = 250 * time.Millisecond
-	// usageIdle is how long an ended scan is kept while no page reads it.
-	usageIdle = 30 * time.Minute
-	// usageScansMax is the most scans kept at once. A page that reloads can't end the scan it
-	// started, so the oldest one is let go when another starts.
+	usageBeat     = 250 * time.Millisecond
+	usageIdle     = 30 * time.Minute
 	usageScansMax = 2
-	// usageRowsMax is the most rows that one read of a folder returns.
-	usageRowsMax = 5000
+	usageRowsMax  = 5000
 )
 
-// errUsageStopped is the cause of a scan that the user stopped.
 var errUsageStopped = errors.New("the scan was stopped")
 
-// usageScan is a scan that a page holds.
 type usageScan struct {
 	root UsageRoot
 	tree *UsageTree
-	stop context.CancelCauseFunc // ends the walk and keeps the tree
-	end  context.CancelFunc      // lets go of the scan
-	read chan struct{}           // a page read the scan
+	stop context.CancelCauseFunc
+	end  context.CancelFunc
+	read chan struct{}
 
-	mu sync.Mutex
-	// resend sends the scan's progress again, with its totals as they are now. It is set once
-	// the scan has ended. Until then, the scan sends its progress on its own beat.
+	mu     sync.Mutex
 	resend func()
 }
 
-// usageScans are the scans that pages hold, by request.
 type usageScans struct {
 	mu    sync.Mutex
 	m     map[string]*usageScan
-	order []string // oldest first
+	order []string
 }
 
 func (u *usageScans) add(request string, s *usageScan) {
@@ -414,7 +370,6 @@ func (u *usageScans) remove(request string, s *usageScan) {
 	}
 }
 
-// get returns the scan of request, and counts the call as a read.
 func (u *usageScans) get(request string) (*usageScan, error) {
 	u.mu.Lock()
 	s := u.m[request]
@@ -480,7 +435,7 @@ running:
 	}
 	beat.Stop()
 	if ctx.Err() != nil {
-		return nil // the page let go of the scan, or another one replaced it
+		return nil
 	}
 	count := s.tree.Count()
 	state := UsageDone
@@ -566,7 +521,7 @@ func (a *API) UsageForget(ctx context.Context, request, rel string, isDir bool) 
 	resend := s.resend
 	s.mu.Unlock()
 	if resend != nil {
-		resend() // the totals at the top changed
+		resend()
 	}
 	return nil
 }

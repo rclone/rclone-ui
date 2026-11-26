@@ -43,11 +43,6 @@ export interface RowActions {
     onDelete: () => void
 }
 
-/**
- * One schedule, as a row of the list. Run now and Edit show while the pointer or the focus is on
- * the row. The switch pauses the schedule. A failed run's error, and a skipped time, show under
- * the row.
- */
 export default function ScheduleRow({
     schedule: s,
     now,
@@ -104,7 +99,6 @@ export default function ScheduleRow({
                     >
                         <span className={cn('self-start max-w-full', ROW_LINE_2)}>
                             {s.paused ? t`Paused` : nextRunText(s.nextRun, now)}
-                            {/* The tooltip shows on hover only, so a screen reader reads it here. */}
                             <span className="sr-only">, {words ?? s.when}</span>
                         </span>
                     </Tooltip>

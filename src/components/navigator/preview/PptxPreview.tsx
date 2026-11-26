@@ -1,6 +1,4 @@
 import { ReactPptxViewer, setWasmSource } from '@extend-ai/react-pptx'
-// Bundle the pptx wasm locally (with Vite's ?url) so it loads from the same origin,
-// even offline.
 import pptxWasmUrl from '@extend-ai/react-pptx/pptx_wasm_bg.wasm?url'
 import '@extend-ai/react-pptx/styles.css'
 import { PreviewError, PreviewLoading, type PreviewViewerProps } from './previewStates'
@@ -22,7 +20,6 @@ export default function PptxPreview({ url, onDownload }: PreviewViewerProps) {
             source={buffer}
             showToolbar={false}
             showThumbnails={true}
-            // The preview is always light, whatever the app theme is.
             className="w-full h-full bg-neutral-100"
             viewportClassName="bg-neutral-100"
             renderLoading={() => <PreviewLoading />}

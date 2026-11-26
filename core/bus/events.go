@@ -1,8 +1,5 @@
 package bus
 
-// The event names. Each event carries its payload struct, or no data (nil) when it only tells the
-// pages what to refetch. The pages get the payload unchanged, as a Wails event with the same
-// name. The shell registers each name with its type in app/events.go, so add new events there.
 const (
 	// Resync tells a subscriber that it fell behind and missed events, so it should read again
 	// what it shows. Core.Subscribe sends it. It is never published.
@@ -26,8 +23,7 @@ const (
 	TunnelChanged = "tunnel.changed"
 	// WatchersChanged means that a watcher was added, changed or removed, or that one of its
 	// runs started or ended.
-	WatchersChanged = "watchers.changed"
-	// AutomountsChanged means that an automount was added, changed or removed.
+	WatchersChanged   = "watchers.changed"
 	AutomountsChanged = "automounts.changed"
 	// SchedulesChanged means that a schedule was added, changed or removed, or that one of its
 	// runs started or ended.
@@ -35,10 +31,7 @@ const (
 	// FilesChanged names entries that were changed in place (FilesChangedData). The panels that
 	// show their folders list them again.
 	FilesChanged = "files.changed"
-	// NotifyOS asks the UI to show an OS notification (NotifyOSData). The core's notification
-	// service decides what to notify (notifications.Service.Desktop), and the UI handles the OS
-	// side.
-	NotifyOS = "notify.os"
+	NotifyOS     = "notify.os"
 )
 
 type PrefsChangedData struct {
@@ -52,7 +45,6 @@ type FilesChangedData struct {
 	Dirs  []string `json:"dirs,omitempty"`
 }
 
-// TransfersChangedData reports that a transfer was created, ended or stopped.
 type TransfersChangedData struct {
 	ID          string   `json:"id"`
 	State       string   `json:"state"`
@@ -83,8 +75,7 @@ type TransferProgress struct {
 	Transferring []TransferringFile `json:"transferring"`
 	Checking     []CheckingFile     `json:"checking"`
 	Transferred  []TransferredFile  `json:"transferred"` // the last 50
-	// Watcher is set for a watcher's run, which the tray's count leaves out.
-	Watcher bool `json:"watcher,omitempty"`
+	Watcher      bool               `json:"watcher,omitempty"`
 }
 
 type TransferringFile struct {
@@ -99,7 +90,6 @@ type CheckingFile struct {
 	Name string `json:"name"`
 }
 
-// TransferredFile is a file that was transferred, or that failed.
 type TransferredFile struct {
 	Name  string `json:"name"`
 	Size  int64  `json:"size"`

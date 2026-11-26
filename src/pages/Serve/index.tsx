@@ -44,7 +44,6 @@ const TYPE_HELP: Record<string, string> = {
     restic: t`Back up to it with restic`,
 }
 
-/** The bar's sentence: what the button will serve, and over what. Without a type, "a protocol". */
 function lineOf(source: string | undefined, type: string | undefined): BarLine {
     if (type) return serveLine(source, protocolName(type))
     const what = sourcesWords([source])
@@ -60,7 +59,6 @@ function servedLine(addr: string, type: string): BarLine {
     }
 }
 
-// The serve's cyan (look/tones.ts), for the ring of the picked protocol.
 const PICKED =
     'data-[selected=true]:shadow-[0_0_0_2px_rgb(6_182_212),0_6px_16px_-6px_rgb(6_182_212/0.45)]'
 
@@ -68,7 +66,6 @@ export default function Serve() {
     const query = usePageQuery()
     const start = usePageStart('serve')
     const presetArgs = start.preset?.serve ?? undefined
-    // The serve types available on this computer, from the catalog (nfs is Unix only).
     const { serveTypes, serveFlags } = useFlags()
 
     const [source, setSource] = useState<string | undefined>(start.sources?.[0])
@@ -100,7 +97,6 @@ export default function Serve() {
             return undefined
         },
         jsonError,
-        // buildArgs runs only after `problem` passes, so the source and the type are set.
         buildArgs: () => ({
             type: type ?? '',
             source: source ?? '',
@@ -135,10 +131,8 @@ export default function Serve() {
 
     useReportEdited(!served && (optionsEdited || source !== opened.source || type !== opened.type))
 
-    // The serve group offers the options of the picked type, and shows only once one is picked.
     const optionItems = useOptionItems(optionState, {
         refusals: submission.refusals,
-        // The served source is where the mapper's fields come from and go to.
         mapperPaths: { destination: source },
         serveType: type,
     })
@@ -147,8 +141,6 @@ export default function Serve() {
     const { tone } = pageLook()
     const protocolId = useId()
     const pickType = (next: string | undefined) => {
-        // Keep the options that the new type also has, with their values. Options that only the
-        // old type has would be rejected.
         if (next !== type) {
             const kept = next ? carryOptions(groups.serve.options, serveFlags[next] ?? []) : {}
             groups.serve.setJsonString(
@@ -169,12 +161,10 @@ export default function Serve() {
                     docs={rcloneDocsUrl(type ? `serve_${type}` : 'serve')}
                     templates={{
                         isDisabled: submission.templatesDisabled,
-                        // The core puts the options of this serve type in the serve group.
                         serveType: type,
                         onSelect: applyTemplate,
                         getOptions: getMergedOptions,
                         paths: {
-                            // A serve has no destination.
                             get: () => pathsFromArgs({ source }),
                             set: (paths) => setSource(paths.sources?.[0] || undefined),
                         },

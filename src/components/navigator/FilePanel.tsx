@@ -56,14 +56,12 @@ import { dragStateRef, panelFolder } from './utils'
 
 export type { FilePanelHandle } from './types'
 
-/** How a panel was left at its initial place: its sort, selection and scroll position. */
 export interface PanelRestore {
     sort: Sort
     selection: SelectItem[]
     scrollTop: number
 }
 
-/** The keyboard shortcuts that the page gives a panel's controls, shown in their tooltips. */
 export interface PanelKeys {
     back?: string
     refresh?: string
@@ -76,15 +74,8 @@ const clampNameWidth = (width: number) => Math.min(MAX_NAME_WIDTH, Math.max(MIN_
 const measuredWidth = (cell: HTMLDivElement | null) =>
     cell?.getBoundingClientRect().width ?? MIN_NAME_WIDTH
 
-// The widths of the columns around Name: checkbox 2.25rem, Size 6rem, Modified 8.5rem, and a
-// margin of 0.75rem. Name takes the 1fr. A row's actions show over its Size and Modified.
 const FIXED_REM = 2.25 + 6 + 8.5 + 0.75
 
-// A Finder-style resizable Name column. Dragging the right edge of its header widens it. The
-// other columns keep their size and move right, and the list scrolls horizontally, so a long
-// name can be read without hiding Size and Modified. Double-clicking the edge restores the
-// automatic width that fills the panel, and the arrow keys adjust it while the edge has focus.
-// The width belongs to the panel and isn't saved.
 function useNameColumnResize() {
     const [nameWidth, setNameWidth] = useState<number | null>(null)
     const nameCellRef = useRef<HTMLDivElement>(null)
@@ -94,8 +85,6 @@ function useNameColumnResize() {
         event.preventDefault()
         const startX = event.clientX
         const startWidth = measuredWidth(nameCellRef.current)
-        // The pointer leaves the handle (and maybe the window) during a drag. Capture it and
-        // listen on the window, so that its moves keep arriving.
         event.currentTarget.setPointerCapture?.(event.pointerId)
         const move = (e: PointerEvent) =>
             setNameWidth(clampNameWidth(startWidth + e.clientX - startX))
@@ -118,24 +107,18 @@ function useNameColumnResize() {
 
     const reset = useCallback(() => setNameWidth(null), [])
 
-    // Fill the panel, but never get too narrow to read a name. A narrow panel scrolls sideways
-    // instead.
     const name = nameWidth === null ? `minmax(${MIN_NAME_WIDTH}px, 1fr)` : `${nameWidth}px`
     return {
         nameCellRef,
-        // A narrow panel leaves Modified out (`compactTemplate`), so names keep room to be read.
         columnTemplate: `2.25rem ${name} 6rem 8.5rem 0.75rem`,
         compactTemplate: `2.25rem ${name} 5.5rem 0.75rem`,
-        // The rows and header grow wider than the panel once Name is wider than the fill width.
         rowMinWidth: `calc(${nameWidth ?? MIN_NAME_WIDTH}px + ${FIXED_REM}rem)`,
         compactMinWidth: `calc(${nameWidth ?? MIN_NAME_WIDTH}px + ${2.25 + 5.5 + 0.75}rem)`,
-        // The width Name was given, or null while it fills the panel.
         nameWidth,
         handleProps: { onPointerDown, onDoubleClick: reset, onKeyDown },
     }
 }
 
-/** Whether rows dragged over the panel would be accepted, refused, or nothing is dragged. */
 type DropState = 'none' | 'accept' | 'refuse'
 
 const COLUMNS = [
@@ -152,10 +135,6 @@ const COLUMNS = [
     { column: 'modTime', label: t`Last Modified`, className: '@max-lg:hidden' },
 ] as const
 
-/**
- * What a screen reader says for a column's header button: the column, how the list is sorted by
- * it (`sorted` is null when it isn't), and what pressing the button does.
- */
 function sortLabel(column: string, sorted: Sort['direction'] | null): string {
     switch (sorted) {
         case 'ascending':
@@ -182,43 +161,26 @@ const FilePanel = forwardRef<
         sidebarPosition?: 'left' | 'right'
         initialRemote?: string | 'UI_LOCAL_FS'
         initialPath?: string
-        /** Without an initial place, start at the first remote's root (or at home without one). */
         startAtFirstRemote?: boolean
-        /** How the panel was left at its initial place. It is read once. */
         restore?: PanelRestore
         onSortChange?: (sort: Sort) => void
         onScrollTopChange?: (scrollTop: number) => void
-        /** `both` also lets rows be dragged onto a panel. */
         selectionMode?: 'checkbox' | 'both'
         allowFiles?: boolean
         allowMultiple?: boolean
         onSelectionChange?: (selected: SelectItem[]) => void
         onNavigate?: (remote: string, path: string) => void
-        /**
-         * Called with the rows dropped on the panel and the folder it shows. Only a folder accepts
-         * a drop, and never one that would put a row onto itself (`landsOnItself`).
-         */
         onDrop?: (items: SelectItem[], destination: string) => void
         onDownload?: (item: Entry) => void
         onShare?: (item: Entry) => void
         onRename?: (item: Entry) => void
         onDelete?: (item: Entry) => void
-        /** Opens the Mount window for the panel's folder. Without it, the status bar has no Mount. */
         onMount?: () => void
-        /** Opens Disk Usage for the panel's remote or disk. Without it, the status bar has none. */
         onDiskUsage?: () => void
         allowedKeys?: AllowedKey[]
-        /**
-         * Arranges the panel's buttons, with the page's own, in a toolbar that floats over the
-         * bottom of the list (the path picker's). Without it, the buttons are in the panel's header.
-         */
         renderToolbar?: (buttons: ToolbarButtons) => ReactNode[][]
         toolbarVisible?: boolean
         isActive?: boolean
-        /**
-         * Whether this is the page's active panel, of two. It is outlined, and its selection is in
-         * the accent while the other panel's turns grey. Leave it out for a page's only panel.
-         */
         isFocused?: boolean
         keys?: PanelKeys
         className?: string
@@ -257,7 +219,6 @@ const FilePanel = forwardRef<
     const [previewItem, setPreviewItem] = useState<Entry | null>(null)
     const columns = useNameColumnResize()
 
-    // Read once, because a restore is for the panel's first place.
     const [restored] = useState(restore)
     const nav = useFileNavigation({
         initialRemote,
@@ -271,19 +232,13 @@ const FilePanel = forwardRef<
         isActive,
     })
 
-    // The remote's cached fsinfo from the shared remotes list, looked up by config name. Sharing
-    // stays hidden until fsinfo confirms that the remote supports public links.
     const fsInfo = useFsInfo(nav.isRemote ? configNameOf(nav.selectedRemote as string) : null)
     const canShare = hasFeature(fsInfo.data, 'PublicLink')
 
-    // Favorites are bookmarks, not a folder being listed. A row points to a path rather than
-    // being one, so rename, download and delete would act on the real file or folder. The only
-    // action a favorite row offers is removing the bookmark.
     const isFavorites = nav.selectedRemote === 'UI_FAVORITES'
 
     const { canCreateFolder, createFolder } = useCreateFolder(nav.selectedRemote, nav.cwd)
 
-    // The controls sit in the panel's header, unless the page floats them in a toolbar of its own.
     const inHeader = !renderToolbar
     const showControls = toolbarVisible && !isFavorites
 
@@ -359,8 +314,6 @@ const FilePanel = forwardRef<
         }
     }, [isActive])
 
-    // getSelection is memoized on the selection, so its identity changes only when the
-    // selection does. No other dependency is needed.
     useEffect(() => {
         if (onSelectionChange) {
             onSelectionChange(nav.getSelection())
@@ -401,8 +354,6 @@ const FilePanel = forwardRef<
     const toggleFavorite = useToggleFavorite()
     const handleToggleFavorite = useCallback(
         (entry: Entry, isFavorited: boolean) => {
-            // A favorite is the full path, written exactly as the panel has it, without adding
-            // or removing a slash.
             toggleFavorite(entry.fullPath, !isFavorited).catch((error: unknown) =>
                 reportError(error, {
                     title: t`Favorites`,
@@ -413,13 +364,8 @@ const FilePanel = forwardRef<
         [toggleFavorite]
     )
 
-    // A drop goes into the folder shown, in the form the core expects. Favorites, a panel with no
-    // remote yet, and the list of disks aren't folders, so they don't accept drops, and the
-    // cursor shows that.
     const destination = panelFolder(nav.selectedRemote, nav.cwd)
 
-    // While rows from this app are dragged over the panel, it shows where they would land, or
-    // that they can't land here.
     const [dropState, setDropState] = useState<DropState>('none')
     useEffect(() => {
         if (dropState === 'none') return
@@ -449,17 +395,13 @@ const FilePanel = forwardRef<
                             ? { path: p, type: p.endsWith('/') ? 'folder' : 'file' }
                             : p
                     )
-                } catch {
-                    // Invalid JSON data
-                }
+                } catch {}
             }
 
             if (!items && dragStateRef.current) {
                 items = dragStateRef.current
             }
 
-            // Rows dropped onto themselves start nothing. Rows dragged from another window can
-            // only be checked here, because the cursor couldn't refuse them during the drag.
             if (!items || items.length === 0 || landsOnItself(items, destination)) return
 
             onDrop(items, destination)
@@ -468,9 +410,6 @@ const FilePanel = forwardRef<
         [onDrop, destination]
     )
 
-    // Rows dragged onto themselves (their own folder, one of the rows, or a folder inside one)
-    // are refused, and the cursor shows it. dragover fires many times a second, so the result is
-    // cached for the dragged rows and this folder.
     const refusal = useRef({ items: null as SelectItem[] | null, destination: '', refused: false })
     const handleDragOver = useCallback(
         (event: ReactDragEvent) => {
@@ -483,8 +422,6 @@ const FilePanel = forwardRef<
                 refusal.current = { items, destination, refused }
             }
             event.dataTransfer.dropEffect = refusal.current.refused ? 'none' : 'copy'
-            // Only rows of this app carry their items. Files dragged in from elsewhere aren't
-            // taken, so the panel doesn't offer to.
             if (items || event.dataTransfer.types.includes('application/json')) {
                 setDropState(refusal.current.refused ? 'refuse' : 'accept')
             }
@@ -576,7 +513,6 @@ const FilePanel = forwardRef<
             <section
                 aria-label={sidebarPosition === 'left' ? t`Left panel` : t`Right panel`}
                 data-focused={isFocused !== false}
-                // The header and the rows read their columns from here (FileList's ROW_GRID).
                 style={
                     {
                         '--file-columns': columns.columnTemplate,
@@ -636,10 +572,7 @@ const FilePanel = forwardRef<
                 </header>
 
                 <div className="relative flex flex-col flex-1 w-full min-h-0 overflow-hidden">
-                    {/* The header and list share the column template. A widened Name
-                        column pushes both past the edge of the panel, and they scroll together. */}
                     <div className="flex flex-col flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
-                        {/* The rows are inset by 6 px on each side, and the header with them. */}
                         <div
                             className={cn(
                                 'sticky top-0 z-10 grid items-stretch h-8 px-1.5 border-b shrink-0 border-divider box-content',
@@ -705,14 +638,11 @@ const FilePanel = forwardRef<
                                                 ))}
                                         </button>
                                         {column === 'name' && (
-                                            // The right edge of the column. Drag it to widen
-                                            // Name, or double-click it to fill the panel again.
                                             // biome-ignore lint/a11y/useSemanticElements: a splitter that takes focus and pointer drags, which an <hr> isn't for.
                                             <div
                                                 role="separator"
                                                 aria-orientation="vertical"
                                                 aria-label={t`Resize Name column`}
-                                                // A splitter that the arrow keys move reports Name's width.
                                                 aria-valuemin={MIN_NAME_WIDTH}
                                                 aria-valuemax={MAX_NAME_WIDTH}
                                                 aria-valuenow={columns.nameWidth ?? MIN_NAME_WIDTH}
@@ -760,8 +690,6 @@ const FilePanel = forwardRef<
                                 onShare={canShare ? onShare : undefined}
                                 onRename={isFavorites ? undefined : onRename}
                                 onDelete={isFavorites ? undefined : onDelete}
-                                // A favorite row is a bookmark, so dragging it would copy or move
-                                // the real folder.
                                 draggable={selectionMode === 'both' && !isFavorites}
                                 showFullPath={isFavorites}
                                 onToggleFavorite={handleToggleFavorite}
@@ -814,12 +742,6 @@ const FilePanel = forwardRef<
 
 export default FilePanel
 
-/**
- * The line under the list: how many items the folder holds, or how many are selected and their
- * size, and the listing's progress while rows arrive. On the right are Mount, Disk Usage and the
- * space left on the remote. When the remote reports how full it is, its meter is the Disk Usage
- * button.
- */
 function PanelStatusBar({
     items,
     selectedPaths,
@@ -835,7 +757,6 @@ function PanelStatusBar({
     status: PanelStatus | null
     isFavorites: boolean
     isSearch: boolean
-    /** The remote's config name, for its quota. Null on this computer and in the favorites. */
     remote: string | null
     onMount?: () => void
     onDiskUsage?: () => void
@@ -877,8 +798,6 @@ function PanelStatusBar({
     return (
         <footer className="flex items-center h-8 gap-3 px-3 text-xs border-t shrink-0 border-divider text-default-500 tabular-nums">
             {selected > 0 ? (
-                // One sentence in parts: "3 selected · 1.5 MB of 2 folders, 10 files". The size is
-                // left out when nothing selected has one.
                 <span className="flex items-center min-w-0 gap-1.5 truncate">
                     {selectedSize ? (
                         <Trans comment='What is selected in a file list: "3 selected · 1.5 MB of 2 folders, 10 files".'>
@@ -903,7 +822,6 @@ function PanelStatusBar({
                 </output>
             )}
             {(onMount || onDiskUsage || freeText !== null) && (
-                // The buttons' own padding lines their text up with the footer's edge.
                 <span className="flex items-center gap-1 ml-auto -mr-1.5 shrink-0">
                     {onMount && (
                         <StatusButton
@@ -954,7 +872,6 @@ function PanelStatusBar({
 const STATUS_BUTTON =
     'h-6 min-w-0 gap-1.5 px-1.5 text-xs font-normal text-default-500 tabular-nums data-[hover=true]:text-foreground'
 
-/** A small button in the status bar. On a narrow panel, only its icon shows. */
 function StatusButton({
     label,
     tip,
@@ -983,7 +900,6 @@ function StatusButton({
     )
 }
 
-/** What a folder holds: "3 folders, 12 files", one of the two, or "No items". */
 function contentsWords(folders: number, files: number): string {
     const folderWords = plural(folders, { one: '# folder', other: '# folders' })
     const fileWords = plural(files, { one: '# file', other: '# files' })
@@ -1003,10 +919,6 @@ function freeWords(bytes: number): string {
     return t({ message: `${size} free`, comment: 'The space left on a remote: "12.5 GB free".' })
 }
 
-/**
- * Shown over the panel while rows are dragged on it. It says what a drop would do: land in the
- * folder shown, or nothing, because the rows would land on themselves.
- */
 function DropHint({ state, folder }: { state: 'accept' | 'refuse'; folder: string }) {
     const accept = state === 'accept'
     return (

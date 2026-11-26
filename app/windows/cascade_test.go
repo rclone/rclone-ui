@@ -28,7 +28,6 @@ func TestCascadeStaysOnScreen(t *testing.T) {
 			t.Fatalf("open=%d: %d,%d leaves the area", open, x, y)
 		}
 	}
-	// A window larger than the area is pinned to its top-left corner.
 	if x, y := Cascade(Area{Width: 600, Height: 400}, 840, 725, 3); x != 0 || y != 0 {
 		t.Errorf("oversized window at %d,%d", x, y)
 	}

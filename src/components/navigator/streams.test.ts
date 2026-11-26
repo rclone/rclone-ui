@@ -3,8 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { coreFailure } from '../../../lib/errors.testing'
 import { follow, runList, runSizes } from './streams'
 
-// Fakes of the Wails events and the bound calls. A call stays open until the test ends it, and
-// the test sends its events.
 const fake = vi.hoisted(() => ({
     listeners: new Map<string, Set<(ev: { name: string; data: unknown }) => void>>(),
     calls: [] as {
@@ -28,7 +26,6 @@ vi.mock('@wailsio/runtime', async (actual) => ({
     },
 }))
 
-/** A bound call that stays open. The test resolves or rejects it, or checks that it was cancelled. */
 function held(request: string, ...args: unknown[]) {
     const call = {
         request,
@@ -56,7 +53,6 @@ vi.mock('../../../lib/core/api', () => ({
     },
 }))
 
-/** Sends an event the way the core does. */
 function emit(name: string, data: unknown) {
     for (const callback of [...(fake.listeners.get(name) ?? [])]) callback({ name, data })
 }
@@ -74,7 +70,6 @@ const row = (path: string) => ({
     isBucket: false,
 })
 
-/** A sink that records everything it receives. */
 function recorder<T>() {
     const got = { items: [] as T[], progress: [] as number[], ends: [] as unknown[] }
     return {

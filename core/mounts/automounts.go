@@ -22,8 +22,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// probeWait limits how long one check of a source can take, either the form's check or one
-// attempt at start.
 const probeWait = 10 * time.Second
 
 // ErrNoAutomount is returned for an id that no automount is saved under.
@@ -163,8 +161,7 @@ func (s *Service) MountAutomount(ctx context.Context, id string) (Mount, error) 
 	return s.start(ctx, all[i].args(), startOpts{automount: true})
 }
 
-// RenameRemote rewrites the automounts of the remote from, after it is renamed to to. It makes
-// the service one of the remotes' followers (remotes.Follower).
+// RenameRemote rewrites the automounts of the remote from, after it is renamed to to.
 func (s *Service) RenameRemote(ctx context.Context, from, to string) error {
 	var n int64
 	err := s.o.DB.Write(ctx, func(tx *sql.Tx) error {
@@ -183,8 +180,6 @@ func (s *Service) RenameRemote(ctx context.Context, from, to string) error {
 
 func (s *Service) automountsChanged() { s.o.Bus.Publish(bus.AutomountsChanged, nil) }
 
-// probeForm checks the form's source. It refuses only a source that doesn't exist or is a file,
-// because a remote that doesn't respond now may respond at start.
 func (s *Service) probeForm(ctx context.Context, remote, remotePath string) error {
 	problem, err := s.probeSource(ctx, remote, remotePath)
 	if err != nil {
@@ -194,7 +189,6 @@ func (s *Service) probeForm(ctx context.Context, remote, remotePath string) erro
 	return problem
 }
 
-// listSource lists the mount's folder, up to the end of the first page.
 func (s *Service) listSource(ctx context.Context, remote, remotePath string) error {
 	root, filePath := sourceRoot(remote, remotePath)
 	ctx, cancel := context.WithTimeout(ctx, probeWait)
@@ -202,11 +196,8 @@ func (s *Service) listSource(ctx context.Context, remote, remotePath string) err
 	return s.o.list(ctx, root, filePath)
 }
 
-// probeSource checks a mount's source. It lists a root, and stats a path under it. problem is a
-// field error on remotePath that says the source is wrong (missing, or a file), which no retry
-// can fix. err means the source didn't respond. A stat doesn't follow a symlink, so what it calls
-// a file is also listed as a root, as the mount opens it: a link to a folder (such as /tmp on
-// macOS) is a folder.
+// A stat doesn't follow a symlink, so what it calls a file is also listed as a root, as the mount
+// opens it: a link to a folder (such as /tmp on macOS) is a folder.
 func (s *Service) probeSource(ctx context.Context, remote, remotePath string) (problem, err error) {
 	root, filePath := sourceRoot(remote, remotePath)
 	ctx, cancel := context.WithTimeout(ctx, probeWait)
@@ -227,7 +218,6 @@ func (s *Service) probeSource(ctx context.Context, remote, remotePath string) (p
 	return nil, nil
 }
 
-// sourceRoot returns the Fs in which a mount's remote path is checked, and the path within it.
 // A leading slash belongs to the root (`remote:/` is the machine's root on sftp).
 func sourceRoot(remote, remotePath string) (root, filePath string) {
 	root, filePath = remote+":", strings.Trim(remotePath, "/")
@@ -237,8 +227,6 @@ func sourceRoot(remote, remotePath string) (root, filePath string) {
 	return root, filePath
 }
 
-// listFirstPage lists dir in the Fs root through rclone, up to the end of the first page
-// (rclone.FirstPage). A source that returns that much exists.
 func listFirstPage(ctx context.Context, root, dir string) error {
 	_, err := rclone.Run(ctx, rclone.CallOpts{}, func(ctx context.Context) error {
 		f, err := cache.Get(ctx, root)
@@ -250,8 +238,6 @@ func listFirstPage(ctx context.Context, root, dir string) error {
 	return err
 }
 
-// statEntry stats remote in the Fs root through rclone, without reading its modtime or type. It
-// uses operations.StatJSON, as the browser's Stat does.
 func statEntry(ctx context.Context, root, remote string) (found, isDir bool, err error) {
 	_, err = rclone.Run(ctx, rclone.CallOpts{}, func(ctx context.Context) error {
 		f, err := cache.Get(ctx, root)
@@ -268,7 +254,6 @@ func statEntry(ctx context.Context, root, remote string) (found, isDir bool, err
 	return found, isDir, err
 }
 
-// readStored reads the automounts, by remote, then folder, then mount point.
 func readStored(ctx context.Context, d *db.DB) ([]Automount, error) {
 	var out []Automount
 	err := d.Read(ctx, func(tx *sql.Tx) error {
@@ -293,7 +278,6 @@ func readStored(ctx context.Context, d *db.DB) ([]Automount, error) {
 	return out, err
 }
 
-// enabled returns the automounts that would run: switched on and with a mount point.
 func enabled(all []Automount) []Automount {
 	var out []Automount
 	for _, a := range all {
@@ -304,8 +288,7 @@ func enabled(all []Automount) []Automount {
 	return out
 }
 
-// AutomountPoints returns the mount points of the enabled automounts. The cleanup of leftovers
-// uses them (children.LeftoverOptions.Automounts), and they are read before the services start.
+// AutomountPoints returns the mount points of the enabled automounts.
 func AutomountPoints(ctx context.Context, d *db.DB, goos string) ([]string, error) {
 	all, err := readStored(ctx, d)
 	if err != nil {
@@ -322,8 +305,6 @@ func AutomountPoints(ctx context.Context, d *db.DB, goos string) ([]string, erro
 	return slices.Compact(out), nil
 }
 
-// automountFolders returns the cache folders of the enabled automounts, which are kept. ok is
-// false when the automounts can't be read, so that nothing is deleted when in doubt.
 func (s *Service) automountFolders(ctx context.Context) (folders map[string]bool, ok bool) {
 	all, err := readStored(ctx, s.o.DB)
 	if err != nil {
@@ -339,8 +320,6 @@ func (s *Service) automountFolders(ctx context.Context) (folders map[string]bool
 	return folders, true
 }
 
-// automountFolder reports whether folder belongs to an enabled automount, or whether that
-// can't be determined.
 func (s *Service) automountFolder(ctx context.Context, folder string) bool {
 	folders, ok := s.automountFolders(ctx)
 	return !ok || folders[filepath.Clean(folder)]

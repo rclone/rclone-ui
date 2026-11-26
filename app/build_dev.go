@@ -15,24 +15,16 @@ import (
 	"github.com/rclone/rclone-ui/app/windows"
 )
 
-// production is true in a release build, which embeds the pages, has no devtools and registers
-// deep links.
 const production = false
 
 func (u *ui) devServices() []application.Service {
 	return []application.Service{service(u, &DevService{})}
 }
 
-// testFeed returns the update feed that a development build checks in place of the real one
-// (RCUI_UPDATE_FEED), or "" for none.
 func testFeed() string { return os.Getenv("RCUI_UPDATE_FEED") }
 
-// DevService answers the pages' own dialogs in a development run that a script drives (see
-// devEval). A release build doesn't have it.
 type DevService struct{}
 
-// scriptedAnswer, when set, answers the pages' own dialogs. It returns the next line of the
-// answers file, and false when there is none.
 var scriptedAnswer func(title, message string, prompt bool) (string, bool)
 
 // Scripted returns the answer that the script gives to a page's dialog: ok, cancel, extra or
@@ -47,10 +39,6 @@ func (s *DevService) Scripted(title, message string, prompt bool) *string {
 	return nil
 }
 
-// devEval runs scripts dropped in RCUI_DEV_EVAL in a window's page, so that a development run can
-// be driven without the mouse. A file named <window>.<anything>.js runs once in that window and is
-// then removed. When the name has no dot before .js, it runs in the window of the --open route.
-// What a script logs reaches the UI's log through the pages' console forwarding.
 func (u *ui) devEval() {
 	if d := os.Getenv("RCUI_DEV_LAUNCHER"); d != "" {
 		u.launcher.DevScript(d)
@@ -63,9 +51,6 @@ func (u *ui) devEval() {
 		u.log.Error("dev eval", "error", err)
 		return
 	}
-	// Dialogs are answered from <dir>/answers, one line per dialog, in order. Each line is ok,
-	// cancel, extra, or text:<value> for a prompt. When no lines are left, a native dialog gets
-	// cancel. A page's own dialog stays open instead, so that a script can press its buttons.
 	var mu sync.Mutex
 	next := func(title, message string, prompt bool) string {
 		mu.Lock()

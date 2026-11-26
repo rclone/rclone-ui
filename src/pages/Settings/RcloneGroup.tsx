@@ -25,13 +25,8 @@ export function NetworkGroup() {
     )
 }
 
-/**
- * "Add rclone to PATH" adds a command named rclone that runs the app's rclone. It never replaces
- * an rclone that the user installed.
- */
 function PathLinkRow() {
     const queryClient = useQueryClient()
-    // pathlink:changed sets it when any window changes it, this one too (followShellEvents).
     const statusQuery = useQuery({ queryKey: shellKeys.pathLink, queryFn: () => pathLink.status() })
 
     const toggleMutation = useMutation({
@@ -49,7 +44,6 @@ function PathLinkRow() {
             title={t`Add rclone to PATH`}
             description={
                 <>
-                    {/* The core's reason and warning come in the app's language. */}
                     {status && !status.supported
                         ? status.reason
                         : t`Run the rclone command from any terminal.`}

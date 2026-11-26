@@ -90,7 +90,6 @@ func TestFlatpakEntry(t *testing.T) {
 	if on, err := e.enabled(); err != nil || !on {
 		t.Errorf("written: %v, %v", on, err)
 	}
-	// An entry that Wails wrote in the sandbox doesn't count as the host's entry.
 	sandbox, _ := appImageEntry("/app/bin/rcui")
 	if on, _ := sandbox.enabled(); on {
 		t.Error("the sandbox has an entry")

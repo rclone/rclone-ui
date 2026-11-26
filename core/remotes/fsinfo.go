@@ -13,35 +13,27 @@ import (
 )
 
 const (
-	// fsinfoMaxAge is how long a remote's cached fsinfo stays valid.
-	fsinfoMaxAge = 24 * time.Hour
-	// fsinfoRetry is how long to wait before trying again for a remote whose fsinfo couldn't be
-	// read, instead of trying on every page render.
-	fsinfoRetry = time.Minute
-	// fsinfoTimeout limits one refresh, as for a health check.
-	fsinfoTimeout = 30 * time.Second
-	// fsinfoPublishEvery combines remotes.changed events while a batch of refreshes runs.
+	fsinfoMaxAge       = 24 * time.Hour
+	fsinfoRetry        = time.Minute
+	fsinfoTimeout      = 30 * time.Second
 	fsinfoPublishEvery = 2 * time.Second
 )
 
-// fsinfoCache refreshes remote_fsinfo.fsinfo in the background, one remote at a time, and
-// publishes remotes.changed when refreshed entries are stored.
 type fsinfoCache struct {
 	s *Service
 
 	mu      sync.Mutex
 	pending []string
 	queued  map[string]bool
-	failed  map[string]time.Time // the time of the last failed refresh
+	failed  map[string]time.Time
 	running bool
-	gen     map[string]int // incremented by forget, so a refresh started earlier isn't stored
+	gen     map[string]int
 }
 
 func newFSInfoCache(s *Service) *fsinfoCache {
 	return &fsinfoCache{s: s, queued: map[string]bool{}, failed: map[string]time.Time{}, gen: map[string]int{}}
 }
 
-// queue requests a refresh for names, skipping those already queued or that failed recently.
 func (c *fsinfoCache) queue(names []string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -64,8 +56,6 @@ func (c *fsinfoCache) queue(names []string) {
 	}
 }
 
-// forget drops what is known about the fsinfo of names. The change handling clears the rows. A
-// refresh that is running won't be stored, and an earlier failure won't delay the next one.
 func (c *fsinfoCache) forget(names []string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -75,8 +65,6 @@ func (c *fsinfoCache) forget(names []string) {
 	}
 }
 
-// work processes the queue until it is empty. If it is restarted after a panic, it carries on
-// where it stopped.
 func (c *fsinfoCache) work(ctx context.Context) {
 	var unpublished bool
 	var last time.Time
@@ -94,9 +82,6 @@ func (c *fsinfoCache) work(ctx context.Context) {
 
 		stored, stale := c.refresh(ctx, name, gen)
 		if stale {
-			// The result was for the old config. Any refresh requested since then (the pages list
-			// the remotes again after the change) was skipped because this one was queued, so
-			// queue it again.
 			c.queue([]string{name})
 		}
 		if stored {
@@ -112,8 +97,6 @@ func (c *fsinfoCache) work(ctx context.Context) {
 	}
 }
 
-// refresh reads the remote's fsinfo and stores it, unless the remote's config changed in the
-// meantime. In that case it reports stale, and a failure says nothing about the new config.
 func (c *fsinfoCache) refresh(ctx context.Context, name string, gen int) (stored, stale bool) {
 	defer func() {
 		c.mu.Lock()
@@ -154,7 +137,6 @@ func (c *fsinfoCache) store(ctx context.Context, name string, fi FSInfo) error {
 		return err
 	}
 	now := c.s.now().UnixMilli()
-	// Only update an existing row, because a remote deleted in the meantime has none.
 	return c.s.db.Write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `UPDATE remote_fsinfo SET fsinfo = ?, fsinfo_ms = ?, updated_ms = ?
 			WHERE remote = ?`, string(enc), now, now, name)

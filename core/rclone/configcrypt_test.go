@@ -26,7 +26,6 @@ func TestEncryptDecryptConfig(t *testing.T) {
 	if err := os.WriteFile(path, enc, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	// Check what rclone's own reader checks: the header and the password.
 	if !IsEncrypted(path) || CheckPassword(path, "s3cret") != nil {
 		t.Fatal("not an rclone encrypted config")
 	}
@@ -69,9 +68,6 @@ func TestChildKeyFile(t *testing.T) {
 	}
 }
 
-// rclone's own reader (config.Decrypt) opens what EncryptConfig writes with the same password,
-// and DecryptConfig opens what rclone writes (config.Encrypt). rclone's key is left unset, as
-// the tests' plain config needs.
 func TestConfigCryptIsRclones(t *testing.T) {
 	if config.IsEncrypted() {
 		t.Fatal("rclone has a key before the test, which it could not restore")

@@ -26,7 +26,6 @@ func TestLockExcludesASecondHolderUntilReleased(t *testing.T) {
 		t.Fatalf("gave up after %v, before its wait", waited)
 	}
 
-	// When the lock is released while the second caller is still trying, the second caller gets it.
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		release()
@@ -57,8 +56,6 @@ func TestLockGivesUpWithItsContext(t *testing.T) {
 	}
 }
 
-// TestRunDir checks that the run folder is run/ inside the data dir, however long its path,
-// because what it keeps must survive a reboot.
 func TestRunDir(t *testing.T) {
 	for _, data := range []string{t.TempDir(), filepath.Join(t.TempDir(), strings.Repeat("a", 60), strings.Repeat("b", 40))} {
 		a, err := RunDir(data, "")
@@ -85,9 +82,6 @@ func TestRunDir(t *testing.T) {
 	}
 }
 
-// TestSocketDir checks that each data dir gets one short socket folder, however long the data
-// dir's path. The folder is in $XDG_RUNTIME_DIR when it is set, or else in the temp folder. An
-// override is used as given.
 func TestSocketDir(t *testing.T) {
 	long := filepath.Join(t.TempDir(), strings.Repeat("a", 60), strings.Repeat("b", 40))
 	other := filepath.Join(t.TempDir(), strings.Repeat("c", 60), strings.Repeat("d", 40))

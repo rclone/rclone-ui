@@ -1,7 +1,3 @@
-// Package launcher stores the launcher's usage history. For each result that the user picked in
-// the launcher (identified by its Key), it records how often and when it was last picked, and for
-// which queries. The launcher ranks higher the results that were picked often or recently, and
-// those that were picked for the query being typed.
 package launcher
 
 import (
@@ -18,14 +14,8 @@ import (
 )
 
 const (
-	// keepFor is how long a key that nobody picks is kept. After that, its history no longer
-	// says anything about the user's current habits.
-	keepFor = 90 * 24 * time.Hour
-	// maxKeys limits the size of the table. Usage reads the whole table each time the launcher
-	// refreshes, so a long-lived install with many folders mustn't make it grow forever.
-	maxKeys = 2000
-	// maxQueries is how many distinct queries are kept for each key. That is enough to recognize
-	// the few ways that someone types to reach it.
+	keepFor    = 90 * 24 * time.Hour
+	maxKeys    = 2000
 	maxQueries = 5
 )
 
@@ -33,14 +23,11 @@ var ErrNoKey = errs.Field("key", "a launcher result needs a key")
 
 type Service struct {
 	db  *db.DB
-	now func() time.Time // replaced by a test's clock
+	now func() time.Time
 }
 
 func New(d *db.DB) *Service { return &Service{db: d, now: time.Now} }
 
-// Prune deletes the keys last used more than 90 days ago, and then the oldest keys beyond the
-// newest 2000. The core runs it once at start, because the history only grows by a little while
-// the app runs.
 func (s *Service) Prune(ctx context.Context) error {
 	cutoff := s.now().Add(-keepFor).UnixMilli()
 	return s.db.Write(ctx, func(tx *sql.Tx) error {
@@ -53,8 +40,6 @@ func (s *Service) Prune(ctx context.Context) error {
 	})
 }
 
-// Record records that key was picked for query. It adds one use at the current time, and puts the
-// trimmed query first among the key's last distinct queries. An empty query adds no query.
 func (s *Service) Record(ctx context.Context, key, query string) error {
 	if strings.TrimSpace(key) == "" {
 		return ErrNoKey
@@ -78,7 +63,6 @@ func (s *Service) Record(ctx context.Context, key, query string) error {
 	})
 }
 
-// Usage returns every key's history, the most recently used first.
 func (s *Service) Usage(ctx context.Context) ([]*Usage, error) {
 	var out []*Usage
 	err := s.db.Read(ctx, func(tx *sql.Tx) error {
@@ -99,7 +83,6 @@ func (s *Service) Usage(ctx context.Context) ([]*Usage, error) {
 	return out, err
 }
 
-// Forget deletes key's history. An empty key deletes the history of every key.
 func (s *Service) Forget(ctx context.Context, key string) error {
 	return s.db.Write(ctx, func(tx *sql.Tx) error {
 		if key == "" {
@@ -111,8 +94,6 @@ func (s *Service) Forget(ctx context.Context, key string) error {
 	})
 }
 
-// remember moves query to the front of queries, removing any earlier copy of it and anything
-// beyond maxQueries. An empty query leaves queries unchanged.
 func remember(queries []string, query string) []string {
 	if query == "" {
 		return queries
@@ -121,9 +102,6 @@ func remember(queries []string, query string) []string {
 	return out[:min(len(out), maxQueries)]
 }
 
-// decodeQueries reads a row's queries column. A value that isn't a JSON array of strings (as in
-// a row edited by hand) is read as no queries. The count and the time are still worth keeping,
-// and the next Record rewrites the whole column.
 func decodeQueries(raw string) []string {
 	var qs []string
 	if err := json.Unmarshal([]byte(raw), &qs); err != nil {

@@ -14,9 +14,6 @@ import (
 	"github.com/rclone/rclone-ui/core"
 )
 
-// TestMainSyncRecovers checks that a panic on the main thread is returned as an error naming the
-// panic. The replacement for InvokeSync behaves like Wails' version: it recovers a panic and ends
-// the wait, but doesn't pass the panic to the caller.
 func TestMainSyncRecovers(t *testing.T) {
 	was := invokeSync
 	t.Cleanup(func() { invokeSync = was })
@@ -47,7 +44,6 @@ func TestMainSyncRecovers(t *testing.T) {
 	}
 }
 
-// tokenView is a launcher window that accepts the compositor's activation tokens, as on Wayland.
 type tokenView struct {
 	*viewtest.Fake
 	tokens []string
@@ -55,9 +51,6 @@ type tokenView struct {
 
 func (v *tokenView) SetActivationToken(token string) { v.tokens = append(v.tokens, token) }
 
-// TestPressKeepsATokenOnlyToShow checks that the shortcut's token goes to the window only when the
-// press shows the launcher, because a token from a press that hides it would be stale at the next
-// Show. While a quit or an update keeps the launcher suspended, a press does nothing.
 func TestPressKeepsATokenOnlyToShow(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	apis := core.NewAPIs(core.APIOptions{})
@@ -67,9 +60,9 @@ func TestPressKeepsATokenOnlyToShow(t *testing.T) {
 	l.Attach(v)
 	h := &Host{l: l, view: v, log: log}
 
-	h.toggle("one") // shows
-	h.toggle("two") // hides
-	h.toggle("")    // shows, with no token
+	h.toggle("one")
+	h.toggle("two")
+	h.toggle("")
 	if !v.Shown || !slices.Equal(v.tokens, []string{"one"}) {
 		t.Fatalf("shown %v, tokens %q", v.Shown, v.tokens)
 	}

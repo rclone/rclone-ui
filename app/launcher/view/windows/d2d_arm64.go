@@ -19,13 +19,11 @@ func newByValueCalls() byValueCalls {
 }
 
 func (g *gfx) drawTextLayout(x, y float32, layout uintptr) {
-	// ID2D1RenderTarget::DrawTextLayout, vtable 28: (origin, layout, brush, D2D1_DRAW_TEXT_OPTIONS_NONE)
 	bound(g.calls.byValue.drawTextLayout, method(g.rt, 28))(g.rt, x, y, layout, g.brush, 0)
 }
 
 func (g *gfx) createSvgDocument(stream uintptr, w, h float32) uintptr {
 	var doc uintptr
-	// ID2D1DeviceContext5::CreateSvgDocument, vtable 115: (stream, viewportSize, out)
 	if hr := bound(g.calls.byValue.createSvg, method(g.dc5, 115))(g.dc5, stream, w, h, &doc); hr < 0 {
 		return 0
 	}

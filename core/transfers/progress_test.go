@@ -15,8 +15,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// TestProgressOf checks that a running transfer's numbers come from rclone. The keys themselves
-// are checked by TestStatsAreRclones in core/rclone.
 func TestProgressOf(t *testing.T) {
 	ctx := context.Background()
 	stats := accounting.NewStats(ctx)
@@ -36,7 +34,6 @@ func TestProgressOf(t *testing.T) {
 	}
 }
 
-// TestProgressRoundsDown checks that the percentage is 100 only when every byte moved.
 func TestProgressRoundsDown(t *testing.T) {
 	ctx := context.Background()
 	for _, c := range []struct{ done, want int64 }{{995, 99}, {29, 2}, {1000, 100}} {
@@ -54,9 +51,6 @@ func TestProgressRoundsDown(t *testing.T) {
 	}
 }
 
-// TestNoProgressAfterTheEnd checks a tick that read a transfer's numbers before its end was
-// written. The tick must not publish the transfer as live, because its end may already have been
-// reported. It must not record the transfer's files after the end recorded its own.
 func TestNoProgressAfterTheEnd(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
@@ -71,7 +65,6 @@ func TestNoProgressAfterTheEnd(t *testing.T) {
 	f.s.running[id] = rn
 	f.s.mu.Unlock()
 	f.s.snapshotted = func() {
-		// The end handler runs between the tick's read and its writes.
 		f.exec(`UPDATE transfers SET ended_ms = 3010, state = 'completed' WHERE id = ?`, id)
 		f.s.mu.Lock()
 		delete(f.s.running, id)
@@ -88,8 +81,6 @@ func TestNoProgressAfterTheEnd(t *testing.T) {
 	}
 }
 
-// TestStoppedKeepsLiveTotal checks that the total from the last tick is kept when the stats group
-// lost the files a stop cut short, and that a larger final total wins.
 func TestStoppedKeepsLiveTotal(t *testing.T) {
 	stopped := withLiveTotal(Summary{Bytes: 3 << 20, TotalBytes: 3 << 20}, &bus.TransferProgress{TotalBytes: 600 << 20})
 	if stopped.TotalBytes != 600<<20 || stopped.Bytes != 3<<20 {

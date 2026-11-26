@@ -15,16 +15,12 @@ const DEFAULT_LAUNCHER_SHORTCUT = launcher.defaultShortcut()
 
 const MACOS = platform() === 'macos'
 
-// A launcher shortcut needs at least one modifier. The two texts below name the modifiers as they
-// are on this OS's keyboards, so each is a whole message per OS. The key names stay as they are.
-
 function shortcutHelp(): string {
     return MACOS
         ? t`Press it in any app to open the launcher. To change it, select Record shortcut, then press the new keys with Command, Control or Option. Escape cancels.`
         : t`Press it in any app to open the launcher. To change it, select Record shortcut, then press the new keys with Ctrl or Alt. Escape cancels.`
 }
 
-/** What the recorder says when a key was pressed without a modifier. */
 function holdModifier(shortcut: string): string {
     return MACOS
         ? t`Hold Command, Control or Option with ${shortcut}.`
@@ -47,15 +43,11 @@ export default function LauncherGroup() {
 
     const updateLauncherShortcutMutation = useMutation({
         mutationFn: async (value: string) => {
-            // Register the shortcut first, so one that the OS refuses (because another app holds
-            // it) is never saved.
             await launcher.setShortcut(value)
-            // "" means the default. The app registers whatever shortcut the settings name.
             const normalizedShortcut = value === DEFAULT_LAUNCHER_SHORTCUT ? '' : value
             try {
                 await updateSettings({ launcherShortcut: normalizedShortcut })
             } catch (error) {
-                // The save failed, so register the shortcut the settings still name again.
                 await launcher.setShortcut(resolvedShortcut).catch((restoreError: unknown) => {
                     console.error('[Launcher] Failed to restore the shortcut', restoreError)
                 })
@@ -75,8 +67,6 @@ export default function LauncherGroup() {
             })
         },
     })
-    // Only one shortcut change runs at a time. Recording and Reset wait until the last one is
-    // registered and saved.
     const isSaving = updateLauncherShortcutMutation.isPending
 
     useEffect(() => {

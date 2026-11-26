@@ -34,20 +34,14 @@ export interface RowActions {
     onDelete: () => void
 }
 
-/** A row stands for a mount, so it has the Mount window's tile. */
 const LOOK = WINDOWS.mount
 
-/**
- * One automount, as a row of the list. "Mount now" shows under the status while the automount is
- * on and not mounted. Edit shows while the pointer or the focus is on the row.
- */
 export default function AutomountRow({
     automount: a,
     mounting,
     actions,
 }: {
     automount: Mounts.AutomountRow
-    /** Whether "Mount now" is waiting for the mount to start. */
     mounting: boolean
     actions: RowActions
 }) {
@@ -122,7 +116,6 @@ export default function AutomountRow({
                     </span>
                     <span className="truncate">{a.mountPoint}</span>
                 </span>
-                {/* In a narrow window, the status goes under the mount point. */}
                 <div className="mt-1 @2xl:hidden">{statusCell}</div>
             </div>
             <div className="hidden w-52 shrink-0 @2xl:block">{statusCell}</div>

@@ -10,10 +10,7 @@ import (
 	"time"
 )
 
-// The relaunch waits for the process to exit, then runs its script with its arguments.
 func TestRelaunchAfterExit(t *testing.T) {
-	// The clock starts before the process does, so a busy machine can't make it exit less than
-	// 500 ms after start.
 	start := time.Now()
 	sleep := exec.Command("sleep", "0.5")
 	if err := sleep.Start(); err != nil {
@@ -34,7 +31,6 @@ func TestRelaunchAfterExit(t *testing.T) {
 	}
 }
 
-// waitForFile returns file's contents once it has some.
 func waitForFile(t *testing.T, file string, limit time.Duration) []byte {
 	t.Helper()
 	deadline := time.Now().Add(limit)

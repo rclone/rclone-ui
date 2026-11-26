@@ -12,10 +12,6 @@ export function formatNumber(value: number, options?: Intl.NumberFormatOptions):
     return new Intl.NumberFormat(locale(), options).format(value)
 }
 
-/**
- * A date, a time or both as the app's language writes it, with `Intl.DateTimeFormat`'s options.
- * Without options it is the date and the time in the language's usual short form.
- */
 export function formatDate(
     at: number | string | Date,
     options: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short' }
@@ -33,7 +29,6 @@ export function compareText(a: string, b: string): number {
 
 let sorting: { locale: string; collator: Intl.Collator } | undefined
 
-/** The collator of the window's language, made once. */
 function sorter(): Intl.Collator {
     const lang = locale()
     if (sorting?.locale !== lang) {
@@ -52,7 +47,6 @@ export function foldCase(text: string): string {
     return text.toLocaleLowerCase(locale())
 }
 
-/** A size in bytes, in the largest unit that fits: "512 B", "1.5 KB", "20 MB", "3.25 GB". */
 export function formatBytes(bytes: number) {
     if (!Number.isFinite(bytes)) return '0 B'
     const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const
@@ -62,7 +56,6 @@ export function formatBytes(bytes: number) {
         value /= 1024
         unit++
     }
-    // Bytes are whole. The other units show two decimals at most, and no trailing zeros.
     const digits = unit === 0 ? 0 : 2
     const number = formatNumber(value, { maximumFractionDigits: digits, useGrouping: false })
     return `${number} ${units[unit]}`
@@ -77,7 +70,6 @@ const UNITS: [unit: Unit, ms: number][] = [
     ['second', 1000],
 ]
 
-/** A length of time in one unit: "1 minute", "5 hours". */
 function counted(count: number, unit: Unit): string {
     switch (unit) {
         case 'day':
@@ -111,7 +103,6 @@ export function timeAgo(at: number | string | Date, now = Date.now(), precise = 
         : t({ message: `in ${length}`, comment: 'How long until: "in 5 minutes".' })
 }
 
-/** The largest unit, rounded, from minutes up (59.7 minutes is 1 hour). Null under 30 s. */
 function oneUnit(ms: number): string | null {
     const minutes = Math.round(ms / 60_000)
     if (minutes < 1) return null
@@ -121,7 +112,6 @@ function oneUnit(ms: number): string | null {
     return counted(Math.round(ms / 86_400_000), 'day')
 }
 
-/** The two largest units, cut. Null under a second. */
 function twoUnits(ms: number): string | null {
     let left = ms
     const parts: string[] = []
@@ -193,7 +183,6 @@ export function buildReadablePath(path: string, type: 'short' | 'long' = 'long')
         return ''
     }
 
-    // The last name, as rclone reads the path on this host. A root is shown as itself.
     if (type === 'short') {
         return baseName(path) || path
     }

@@ -48,7 +48,6 @@ export default function Delete() {
     const configGroup = optionGroups.config
     const metadataGroup = optionGroups.metadata
 
-    // The tip names one remote, so it is only shown for one path.
     const sourceRemoteName = useMemo(
         () => (sources?.length === 1 ? getRemoteName(sources[0]) : null),
         [sources]
@@ -56,8 +55,6 @@ export default function Delete() {
 
     const sourceFsInfoQuery = useFsInfo(sourceRemoteName)
 
-    // False while the remote's features load, so the plain delete is offered until purge is
-    // known to be supported.
     const supportsPurge = useMemo(
         () => !!sourceRemoteName && hasFeature(sourceFsInfoQuery.data, 'Purge'),
         [sourceRemoteName, sourceFsInfoQuery.data]
@@ -74,12 +71,10 @@ export default function Delete() {
 
     const submission = useOperationSubmission({
         operation: 'delete',
-        // The core refuses the root of a remote, and the page shows its refusal (useFormRefusal).
         problem: () => (sources && sources.length > 0 ? undefined : t`Please select a source path`),
         jsonError,
         buildArgs: buildArgs,
         dryRun: true,
-        // With filters, only the matching files are deleted, and the question says so.
         confirm: async (args) =>
             (await confirmDelete(
                 args.sources ?? [],

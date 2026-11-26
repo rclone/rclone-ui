@@ -1,7 +1,3 @@
-// Previews are fetched from the core's signed media URLs (media.ts). The signature in the URL is
-// the only credential, so the page holds none of its own. The media server allows the app's
-// pages through CORS.
-
 import { t } from '@lingui/core/macro'
 import { useEffect, useState } from 'react'
 import { formatBytes } from '../../../../lib/format'
@@ -10,17 +6,10 @@ export interface PreviewBytes {
     buffer: ArrayBuffer | null
     isLoading: boolean
     error: string | null
-    // Download progress from 0 to 1, or null when the total size is unknown (no Content-Length).
     progress: number | null
-    /** The file is longer than `maxBytes`, so the buffer holds only its start. */
     truncated: boolean
 }
 
-/**
- * Reads up to `max` bytes of a stream into one buffer, and calls `onProgress` with the number of
- * bytes read after each chunk. `done` is true when the stream ended within `max`. When it isn't,
- * the caller stops the download.
- */
 export async function readAtMost(
     reader: ReadableStreamDefaultReader<Uint8Array>,
     max: number,
@@ -32,7 +21,6 @@ export async function readAtMost(
     while (!result.done) {
         const room = max - received
         if (result.value.byteLength > room) {
-            // This chunk goes past `max`, so keep its start and stop reading.
             chunks.push(result.value.subarray(0, room))
             received = max
             break
@@ -61,11 +49,6 @@ const LOADING: PreviewBytes = {
 
 export type ReadOf = PreviewBytes & { url: string | null }
 
-/**
- * Returns the read for `url`, or the loading state while the stored read belongs to another URL.
- * The effect that starts a new read runs after the render that requested it, and that render
- * must not pass the previous file's bytes to a viewer as if they were the new file's.
- */
 export function readFor(read: ReadOf, url: string | null): PreviewBytes {
     return url !== null && read.url === url ? read : LOADING
 }
@@ -75,16 +58,6 @@ function tooLargeMessage(maxBytes: number): string {
     return t`The file is larger than the limit for previews (${max}).`
 }
 
-/**
- * Downloads the bytes of the file to preview and returns them as an ArrayBuffer, so any viewer
- * that accepts a buffer can render local and remote files alike. `maxBytes` keeps only the start
- * of the file, such as the first part of a large log for the text viewer. The download stops
- * there and `truncated` is set. With `whole` (for documents, which no viewer can open when cut
- * short), a file larger than `maxBytes` is an error instead. While there is no URL yet (because
- * it is still being signed), the state is loading.
- *
- * The body is read as a stream so that `progress` can follow the bytes received.
- */
 export default function usePreviewBytes(
     url: string | null,
     {
@@ -121,7 +94,6 @@ export default function usePreviewBytes(
                 }
                 const total = Math.min(length, maxBytes)
 
-                // No streamable body: fall back to reading the buffer directly.
                 if (!res.body) {
                     const all = await res.arrayBuffer()
                     const truncated = all.byteLength > maxBytes
@@ -146,7 +118,6 @@ export default function usePreviewBytes(
                     res.body.getReader(),
                     maxBytes,
                     (received) => {
-                        // Throttle to whole-percent changes so we don't re-render per chunk.
                         if (total <= 0 || cancelled) return
                         const percent = Math.floor(Math.min(received / total, 1) * 100)
                         if (percent !== lastPercent) {
@@ -160,7 +131,6 @@ export default function usePreviewBytes(
                     tooLarge()
                     return
                 }
-                // Only the start is kept, so stop downloading the rest of the file.
                 if (!done) abortController.abort()
                 setRead({
                     buffer: bytes.buffer as ArrayBuffer,

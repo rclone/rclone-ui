@@ -1,7 +1,3 @@
-# The Flathub manifest of Rclone UI. It builds rcui from the release's tag offline: Go's modules
-# (vendor/) and the built pages (app/assets/dist) come from the release's Rclone-UI-*-vendor.tar.gz,
-# which the release workflow makes from the same commit. The release attaches this file with
-# @VERSION@, @COMMIT@ and @SHA256@ filled in, for the Flathub repository.
 app-id: org.rclone.ui
 runtime: org.gnome.Platform
 # GNOME 51 has GTK 4 and WebKitGTK 6.0, which is Wails' default stack. Its Go extension (from the
@@ -17,7 +13,6 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
-  # The tray, OS notifications, and the keychain (config passwords, the mail server's).
   - --talk-name=org.kde.StatusNotifierWatcher
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.secrets
@@ -53,8 +48,6 @@ modules:
   - name: rclone-ui
     buildsystem: simple
     build-commands:
-      # Built like every release, with build.sh's tags and versions. The pages come from the
-      # vendor archive, and go list -m reads rclone's version from vendor/.
       - APP_VERSION=@VERSION@ bash build/build.sh --skip-frontend
       - install -Dm755 build/bin/linux-*/rcui /app/bin/rcui
       - sed -e 's|^Exec=.*|Exec=rcui %u|' build/linux/org.rclone.ui.desktop > org.rclone.ui.desktop

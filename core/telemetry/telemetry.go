@@ -33,10 +33,7 @@ import (
 const Host = "https://us.i.posthog.com"
 
 const (
-	// closeWait is how long a quit waits for the last events to be sent.
-	closeWait = 2 * time.Second
-	// exceptionsMax is the most crash reports sent in one run, so an error that repeats can't
-	// flood.
+	closeWait     = 2 * time.Second
 	exceptionsMax = 25
 )
 
@@ -65,15 +62,13 @@ type Service struct {
 	o       Options
 	session string
 
-	mu      sync.Mutex
-	client  posthog.Client // nil until data may be sent
-	id      string
-	started bool
-	closed  bool
-	// reported holds the crash reports sent in this run, by fingerprint, so each is sent once.
+	mu       sync.Mutex
+	client   posthog.Client
+	id       string
+	started  bool
+	closed   bool
 	reported map[string]bool
 
-	// active is whether data may be sent now. The client's requests read it (gate).
 	active atomic.Bool
 }
 
@@ -169,7 +164,6 @@ func (s *Service) Flush() {
 	}
 }
 
-// current returns the client and the id to send under, or nil when nothing may be sent.
 func (s *Service) current() (posthog.Client, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -281,7 +275,6 @@ func (s *Service) Report(c Crash) {
 	})
 }
 
-// fingerprint names a crash for this run: its kind, its message and where it happened.
 func fingerprint(c Crash) string {
 	at := ""
 	if n := len(c.Frames); n > 0 {
@@ -317,8 +310,6 @@ func (g gate) RoundTrip(r *http.Request) (*http.Response, error) {
 
 var errOff = errors.New("telemetry is turned off")
 
-// quiet sends the client's own messages to the app's log at the debug level. Failing to reach
-// PostHog is not something the user needs to see.
 type quiet struct{ log *slog.Logger }
 
 func (q quiet) Debugf(format string, args ...any) {}

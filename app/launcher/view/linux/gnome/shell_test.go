@@ -24,8 +24,6 @@ func TestStrv(t *testing.T) {
 	}
 }
 
-// TestExtensionState checks that the state GNOME sends as a double is read, and that an extension
-// the shell hasn't loaded has no state.
 func TestExtensionState(t *testing.T) {
 	if extensionState(float64(1)) != extensionActive || extensionState(uint32(2)) != extensionInactive || extensionState(nil) != 0 {
 		t.Fatal("states")

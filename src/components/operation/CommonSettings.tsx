@@ -5,10 +5,6 @@ import { Panel } from '../look/Panel'
 import { SectionTitle } from '../look/SectionTitle'
 import { type BoundGroup, itemsOf, useBoundOption } from './optionBinding'
 
-/**
- * The common settings above an operation's option groups. Each control is bound to one option in
- * the JSON below (see optionBinding), so the two always agree. The page passes translated text.
- */
 export default function CommonSettings({
     title = t`Common settings`,
     children,
@@ -24,10 +20,6 @@ export default function CommonSettings({
     )
 }
 
-/**
- * A text option, or a list option typed as text with its items separated by commas. While the
- * user types, the field keeps the text exactly as typed, because "a, " would read back as "a".
- */
 export function SettingText({
     group,
     name,

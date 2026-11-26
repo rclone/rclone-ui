@@ -27,18 +27,14 @@ const IGNORED_OPTIONS = [
 
 const configsOf = (results: UseQueryResult<Record<string, string>>[]) => results.map((r) => r.data)
 
-/** Each remote's backend options: undefined while loading, empty when rclone lacks the backend. */
 const backendOptionsOf = (results: UseQueryResult<Catalog.BackendOptions | null>[]) =>
     results.map((r) => (r.isPending ? undefined : (r.data?.backend?.options ?? [])))
 
-// Displays the remotes' option texts, which useOptionGroups owns. Each tab shows one remote's
-// text and writes changes straight back. Parsing the texts is left to the hook.
 export default function RemoteOptionsEditor({
     remoteNames,
     remoteOptionsJson,
     setRemoteOptionsJson,
 }: {
-    /** The remotes named by the operation's paths (from remoteNamesOf), one tab for each. */
     remoteNames: readonly string[]
     remoteOptionsJson: Record<string, string>
     setRemoteOptionsJson: Dispatch<SetStateAction<Record<string, string>>>
@@ -57,15 +53,12 @@ export default function RemoteOptionsEditor({
         () =>
             remoteNames
                 .map((name, i) => {
-                    // A tab appears once its config and its options have loaded.
                     const config = remoteConfigs[i]
                     const options = backendOptions[i]
                     if (!config || !options) return null
                     return {
                         id: name,
                         label: name.toUpperCase(),
-                        // Secrets (passwords, tokens) belong to the remote. A run doesn't
-                        // override them, and their saved values are never shown on a page.
                         options: options.filter(
                             (o) =>
                                 !IGNORED_OPTIONS.includes(o.name) &&

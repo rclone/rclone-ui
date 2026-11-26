@@ -1,5 +1,3 @@
-// Package sentry stands in for github.com/getsentry/sentry-go (see go.mod). It has only what the
-// built-in cloudflared calls, and nothing is ever sent.
 package sentry
 
 import "time"

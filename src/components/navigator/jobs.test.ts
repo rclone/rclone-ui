@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest'
 import { coreFailure } from '../../../lib/errors.testing'
 import { type JobArgs, JobRunner } from './jobs'
 
-// A run that streams until it is closed. Each run records the signal it got and adds one item.
 function streaming() {
     const signals: AbortSignal[] = []
     const run = (
@@ -38,7 +37,6 @@ test('nothing asked is nothing to run again', () => {
 
 type Run = ConstructorParameters<typeof JobRunner<string>>[0]
 
-// A run that the test feeds by hand through its sink. It runs until it is closed.
 function fed() {
     const sinks: Parameters<Run>[3][] = []
     const run: Run = (_args, _fresh, signal, sink) => {
@@ -91,7 +89,6 @@ describe('a streamed listing', () => {
         expect(changes).toHaveBeenCalledTimes(1)
         expect(job.snapshot()).toMatchObject({ items: ['a', 'b'], phase: 'done', fetchedAt: 42 })
 
-        // When the batch timer would have fired, there is nothing left to show.
         vi.advanceTimersByTime(100)
         expect(changes).toHaveBeenCalledTimes(1)
     })
@@ -113,7 +110,6 @@ describe('a streamed listing', () => {
         job.subscribe(changes)
 
         fail(new Error('gone'))
-        // The promise chain settles over a few microtasks, and the batch timer doesn't run.
         for (let i = 0; i < 10; i++) await Promise.resolve()
         expect(changes).toHaveBeenCalledTimes(1)
         expect(job.snapshot()).toMatchObject({

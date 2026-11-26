@@ -1,9 +1,3 @@
-// Package launcher is the command palette that opens with the global shortcut. It lists commands,
-// remotes, paths and what is running. The engine (engine, providers) finds results for a query,
-// state keeps a copy of the core's state, and a view (view/<os>) draws the window with the OS's
-// own toolkit. Launcher sits between them and makes every decision: the selection, the keys, the
-// ⌘K panel, completion, and when to hide. Its state lives on the main thread, because the view's
-// events arrive there and the engine's results are sent there.
 package launcher
 
 import (
@@ -29,8 +23,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// Platform is what the app gives the launcher: ways to open windows, the OS's services, and access
-// to the main thread.
 type Platform struct {
 	OpenWindow func(name, url string)
 	OpenFull   func(name, url string)
@@ -52,36 +44,29 @@ type Platform struct {
 	// fn on the main thread, but waits for it. On the main thread it runs fn inline as well.
 	Main     func(fn func())
 	MainSync func(fn func())
-	// Mod is the modifier shown in the row shortcuts: "⌘" or "Ctrl+".
-	Mod string
+	Mod      string
 	// ClipboardPeek returns what can be learned about the clipboard without asking the user: its
 	// text, or only that it holds a link (macOS asks the user before an app reads it). It also
 	// returns an id that tells one copy from the next. Called off the main thread. Nil means no
 	// clipboard suggestion.
 	ClipboardPeek func() (clip engine.Clip, id string)
-	// ClipboardText reads the clipboard's text after the user asked for it. Called off the main
-	// thread.
 	ClipboardText func() string
 }
 
-// Source is the state that the launcher reads and acts on. The app passes a state.State.
 type Source interface {
 	Data() *engine.Data
 	Services() engine.Services
 	RefreshIfOlder(ctx context.Context, age time.Duration)
-	// FollowProgress turns on or off the tracking of running transfers' progress. It is on while
-	// the launcher is shown. Each change counts as a state change, at most once a second.
 	FollowProgress(on bool)
-	// OnChange registers fn to be called, on any goroutine, when the state changes.
 	OnChange(fn func())
 }
 
 const (
-	blurGrace    = 300 * time.Millisecond // a blur this soon after Show comes from the show itself
+	blurGrace    = 300 * time.Millisecond
 	spinnerAfter = 500 * time.Millisecond
-	staleAfter   = 30 * time.Second // state older than this is reloaded when the launcher shows
-	doneFor      = 4 * time.Second  // how long the status corner shows that an action succeeded
-	failedFor    = 12 * time.Second // how long it shows that an action failed
+	staleAfter   = 30 * time.Second
+	doneFor      = 4 * time.Second
+	failedFor    = 12 * time.Second
 	// clipboardWait is how long Show waits for the clipboard before running the query without it.
 	// Reading the clipboard may wait on the app that owns it (X11, Wayland).
 	clipboardWait = 50 * time.Millisecond
@@ -92,67 +77,52 @@ type Launcher struct {
 	log      *slog.Logger
 	state    Source
 	usage    *usageStore
-	engine   *engine.Engine // runs typed queries
-	drops    *engine.Engine // runs while files are dropped, and only offers where they can go
+	engine   *engine.Engine
+	drops    *engine.Engine
 	complete *providers.Completion
 	view     view.View
-	home     string // this machine's home folder, which ~ stands for; "" if there is none
+	home     string
 
-	// staysOpen keeps the launcher open when it loses the keyboard (see SetStaysOpen).
 	staysOpen atomic.Bool
 
-	// on the main thread only
 	text    string
-	query   engine.Query // the query that results belong to
+	query   engine.Query
 	results []engine.Result
-	cursor       // the selection in results, and the first row drawn
-	fresh   bool // results belong to the current text (false between an edit and its first results)
-	// enter is set when Enter was pressed before the text's first results arrived. The first row
-	// of those results runs when they arrive.
-	enter   bool
-	busy    bool
-	started time.Time
-	panel   *panel
-	shownAt time.Time
-	at      *view.Placement
-	// status is shown in the status corner. statusSeq tells one status from the next, so a timer
-	// clears only its own. acting is the one action the corner listens to: the last one run, until
-	// the launcher closes. running is true when something is running, which enables the
-	// stop-everything button.
-	status    view.Status
-	statusSeq uint64
-	acting    *env
-	running   bool
-	cancel    context.CancelFunc
-	seq       uint64
-	// dropped holds the files dropped on the launcher, until Esc or Hide
-	dropped []engine.Path
-	// clip is what was known about the clipboard at the last Show, and clipID tells it apart from
-	// the next copy. clipUsed is the copy whose suggestion was run, so it isn't offered again.
+	cursor
+	fresh            bool
+	enter            bool
+	busy             bool
+	started          time.Time
+	panel            *panel
+	shownAt          time.Time
+	at               *view.Placement
+	status           view.Status
+	statusSeq        uint64
+	acting           *env
+	running          bool
+	cancel           context.CancelFunc
+	seq              uint64
+	dropped          []engine.Path
 	clip             engine.Clip
 	clipID, clipUsed string
 }
 
-// cursor is the selection in a list and the first row drawn.
 type cursor struct{ sel, off int }
 
-// panel is either the ⌘K panel, which lists a result's actions filtered by what is typed in it, or
-// a question asked before an action runs, whose rows are the action and Cancel.
 type panel struct {
 	result  engine.Result
-	all     []engine.Action // the actions before filtering
+	all     []engine.Action
 	actions []engine.Action
 	cursor
-	saved    string // the query, restored when the panel closes
-	question string // the question the panel asks; "" for the ⌘K panel
+	saved    string
+	question string
 }
 
-// cancelID is the ID of the Cancel row of a question (see ask).
 const cancelID = "cancel"
 
 func New(p Platform, log *slog.Logger, h Source, history History) *Launcher {
 	c := providers.NewCompletion()
-	home, _ := os.UserHomeDir() // with no home folder, ~ isn't a path
+	home, _ := os.UserHomeDir()
 	l := &Launcher{p: p, log: log, state: h, usage: newUsageStore(history, log),
 		engine: engine.New(providers.All(c)...), drops: engine.New(providers.Drops(c)...), complete: c, home: home}
 	l.engine.Panicked, l.drops.Panicked = l.panicked, l.panicked
@@ -160,15 +130,10 @@ func New(p Platform, log *slog.Logger, h Source, history History) *Launcher {
 	return l
 }
 
-// panicked logs a panic that the launcher recovered from, with its stack. It runs in the
-// deferred recover, while the panic's frames are still on the stack.
 func (l *Launcher) panicked(where string, v any) {
 	l.log.Error("the launcher recovered from a panic", "where", where, "panic", fmt.Sprint(v), "stack", string(debug.Stack()))
 }
 
-// goSafe runs fn on its own goroutine. An unrecovered panic there would end the whole app,
-// including the core that runs inside it. goSafe logs the panic instead, and only fn's work
-// is lost.
 func (l *Launcher) goSafe(where string, fn func()) {
 	go func() {
 		defer func() {
@@ -197,10 +162,8 @@ func (l *Launcher) Events() view.Events {
 	}
 }
 
-// Visible reports whether the launcher is shown. Main thread.
 func (l *Launcher) Visible() bool { return l.view != nil && l.view.Visible() }
 
-// Show shows the launcher with its text selected, and runs the query again. Main thread.
 func (l *Launcher) Show() {
 	if l.view == nil {
 		return
@@ -208,7 +171,6 @@ func (l *Launcher) Show() {
 	l.state.RefreshIfOlder(context.Background(), staleAfter)
 	l.usage.load()
 	if l.panel != nil {
-		// Shown again while a panel was open: restore the query, as when the panel closes.
 		l.text = l.panel.saved
 		l.panel = nil
 	}
@@ -219,16 +181,11 @@ func (l *Launcher) Show() {
 	l.peekClipboardAndRun()
 }
 
-// peekClipboardAndRun runs the query once the clipboard is known, so its suggestion can be
-// included. If the clipboard takes longer than clipboardWait, the query runs without it, and
-// runs again once the clipboard is known.
 func (l *Launcher) peekClipboardAndRun() {
 	if l.p.ClipboardPeek == nil {
 		l.run()
 		return
 	}
-	// Until the results arrive, the rows drawn are from the last Show. They are no longer current,
-	// and results from an older query that are still on their way are ignored.
 	l.seq++
 	l.fresh, l.busy = false, true
 	type peek struct {
@@ -238,7 +195,6 @@ func (l *Launcher) peekClipboardAndRun() {
 	got := make(chan peek, 1)
 	l.goSafe("clipboard peek", func() {
 		var p peek
-		// if the peek panics, the clipboard counts as unknown
 		defer func() { got <- p }()
 		p.clip, p.id = l.p.ClipboardPeek()
 	})
@@ -266,7 +222,6 @@ func (l *Launcher) peekClipboardAndRun() {
 	}()
 }
 
-// Hide hides the launcher and keeps its text. Main thread.
 func (l *Launcher) Hide() {
 	if !l.Visible() {
 		return
@@ -281,11 +236,8 @@ func (l *Launcher) Hide() {
 		l.panel = nil
 	}
 	if l.dropped != nil {
-		// The dropped files belong to this Show only. The next Show starts with an empty text.
 		l.dropped, l.text = nil, ""
 	}
-	// Once closed, the status corner stops listening to actions. An action that is still running
-	// finishes without updating it.
 	l.acting = nil
 	l.statusSeq++
 	l.status = view.Status{}
@@ -293,7 +245,6 @@ func (l *Launcher) Hide() {
 	l.view.Hide()
 }
 
-// Toggle shows the launcher, or hides it. Main thread.
 func (l *Launcher) Toggle() {
 	if l.Visible() {
 		l.Hide()
@@ -311,20 +262,10 @@ func (l *Launcher) onQuery(text string) {
 	l.run()
 }
 
-// run runs the query for the current text. The old rows stay until the first results arrive,
-// usually within a frame or two. The spinner shows only if the results take longer than
-// spinnerAfter.
 func (l *Launcher) run() { l.answer(false) }
 
-// rerun runs the same text again because something around it changed, such as a clipboard that
-// became known late. Meanwhile the rows drawn still belong to the text, so Enter runs the row the
-// user sees. The new results keep the selection on the same result. Only a selection that is
-// still on the first row moves to whatever comes first now. If the rows drawn belong to an older
-// text, rerun is the same as run.
 func (l *Launcher) rerun() { l.answer(l.fresh) }
 
-// stateChanged runs the query again after the core's state changed (a mount started, a transfer
-// ended), keeping the selection on the same result.
 func (l *Launcher) stateChanged() {
 	if !l.Visible() {
 		return
@@ -337,15 +278,11 @@ func (l *Launcher) stateChanged() {
 	l.rerun()
 }
 
-// LanguageChanged draws the launcher again in the app's language. The providers translate the
-// rows when they make them, and render translates the launcher's own text, so the query runs
-// again. A hidden launcher runs it when it shows. Main thread.
 func (l *Launcher) LanguageChanged() {
 	if !l.Visible() {
 		return
 	}
 	if l.panel != nil {
-		// A question or a row's actions were made in the old language, so they close.
 		l.closePanel()
 	}
 	l.rerun()
@@ -359,7 +296,7 @@ func (l *Launcher) answer(keep bool) {
 	l.cancel = cancel
 	l.seq++
 	id := l.seq
-	d := l.state.Data() // the launcher's own copy, so it can set Home on it
+	d := l.state.Data()
 	d.Home = l.home
 	q := engine.Parse(l.text, d.Remotes, d.Home)
 	q.Dropped = l.dropped
@@ -385,14 +322,12 @@ func (l *Launcher) answer(keep bool) {
 	})
 }
 
-// answered returns the engine's emit function for query run id (of q, over d). It sends each
-// snapshot to the main thread, where only the newest run's results are used.
 func (l *Launcher) answered(id uint64, q engine.Query, d *engine.Data, keep bool) func([]engine.Result, bool) {
 	answered := false
 	return func(rs []engine.Result, final bool) {
 		l.p.Main(func() {
 			if id != l.seq {
-				return // a newer query has started
+				return
 			}
 			first := !answered
 			answered = true
@@ -413,10 +348,6 @@ func (l *Launcher) answered(id uint64, q engine.Query, d *engine.Data, keep bool
 				l.render()
 			}
 			if first && l.enter {
-				// An Enter typed ahead runs here, in a block that the main thread runs after the
-				// key press was handled. On macOS the window that the row opens may then come up
-				// without the focus, because macOS 14 and later may refuse Activate outside the
-				// user's event. This is a known limit: the key press can't wait for the results.
 				l.enter = false
 				l.activate()
 			}
@@ -424,8 +355,6 @@ func (l *Launcher) answered(id uint64, q engine.Query, d *engine.Data, keep bool
 	}
 }
 
-// cur returns the list that the keys and the mouse work on, and its length. That is the panel's
-// actions while the panel is open, and the results otherwise.
 func (l *Launcher) cur() (*cursor, int) {
 	if l.panel != nil {
 		return &l.panel.cursor, len(l.panel.actions)
@@ -433,8 +362,6 @@ func (l *Launcher) cur() (*cursor, int) {
 	return &l.cursor, len(l.results)
 }
 
-// spans returns the heights of cur's rows. A result that starts a group is taller, because the
-// group's label is drawn above it.
 func (l *Launcher) spans() []float64 {
 	_, n := l.cur()
 	out := make([]float64, n)
@@ -447,7 +374,6 @@ func (l *Launcher) spans() []float64 {
 	return out
 }
 
-// startsGroup reports whether rs[i] is the first result of its group, which gets the group's label.
 func startsGroup(rs []engine.Result, i int) bool {
 	return rs[i].Group != "" && (i == 0 || rs[i-1].Group != rs[i].Group)
 }
@@ -465,7 +391,6 @@ func (l *Launcher) onKey(k view.KeyEvent) bool {
 		l.move(k.Key == view.KeyDown)
 	case view.KeyEnter:
 		if l.panel == nil && !l.fresh {
-			// Typed and entered quickly: the rows drawn still belong to an older text.
 			l.enter = true
 			break
 		}
@@ -476,7 +401,6 @@ func (l *Launcher) onKey(k view.KeyEvent) bool {
 		case l.panel != nil:
 			l.closePanel()
 		case l.dropped != nil:
-			// The first Esc clears the dropped files. The next one hides the launcher.
 			l.dropped, l.text = nil, ""
 			l.view.SetQuery("", false)
 			l.run()
@@ -484,7 +408,6 @@ func (l *Launcher) onKey(k view.KeyEvent) bool {
 			l.Hide()
 		}
 	case view.KeyClose:
-		// Hide also closes the panel and clears the dropped files.
 		l.enter = false
 		l.Hide()
 	case view.KeyTab:
@@ -496,12 +419,10 @@ func (l *Launcher) onKey(k view.KeyEvent) bool {
 			l.openPanel()
 		}
 	case view.KeyRow:
-		if k.Char == '.' { // ⌘., the stop-everything button
+		if k.Char == '.' {
 			l.onStopAll()
 			break
 		}
-		// If there is no such row, the key goes to the text box and the menus. Keys such as ⌘Z
-		// and ⌘Q never select rows (see view.RowLetters).
 		c, n := l.cur()
 		i := rowIndex(k.Char)
 		if i < 0 || i >= n {
@@ -528,8 +449,6 @@ func (l *Launcher) move(down bool) {
 	l.render()
 }
 
-// onHover selects the row under the pointer, except a partly drawn last row. Selecting that row
-// would scroll the list under a pointer that hasn't moved.
 func (l *Launcher) onHover(row int) {
 	c, _ := l.cur()
 	if i := row + c.off; i < wholeEnd(l.spans(), c.off) && i != c.sel {
@@ -546,8 +465,6 @@ func (l *Launcher) onClick(row int) {
 	}
 }
 
-// onScroll scrolls the list by n rows and keeps the selection among the rows that are fully
-// drawn. A pointer that hasn't moved doesn't select the row that scrolls under it.
 func (l *Launcher) onScroll(n int) {
 	c, _ := l.cur()
 	spans := l.spans()
@@ -560,7 +477,6 @@ func (l *Launcher) onScroll(n int) {
 	l.render()
 }
 
-// onStopAll handles the stop-everything button and ⌘. by asking for confirmation in the launcher.
 func (l *Launcher) onStopAll() {
 	r, ok := providers.StopEverything(l.state.Data())
 	if !ok {
@@ -575,8 +491,6 @@ func (l *Launcher) onStopAll() {
 	l.ask(r, a, query)
 }
 
-// onDrop handles files dropped on the launcher. The launcher then offers places where they can
-// go, and the text chooses among them.
 func (l *Launcher) onDrop(paths []string) {
 	if len(paths) == 0 {
 		return
@@ -598,12 +512,8 @@ func (l *Launcher) onBlur() {
 	l.Hide()
 }
 
-// SetStaysOpen sets whether the launcher stays open when the user clicks outside it. Any
-// goroutine may call it.
 func (l *Launcher) SetStaysOpen(stays bool) { l.staysOpen.Store(stays) }
 
-// rowIndex returns the row that ⌘ with c runs: 1–9 first, then the letters. It returns -1 for
-// none.
 func rowIndex(c rune) int {
 	c = unicode.ToLower(c)
 	if c >= '1' && c <= '9' {
@@ -615,7 +525,6 @@ func rowIndex(c rune) int {
 	return -1
 }
 
-// rowHint returns the shortcut text shown on row i.
 func (l *Launcher) rowHint(i int) string {
 	switch {
 	case i < 9:
@@ -633,16 +542,6 @@ func (l *Launcher) selected() (engine.Result, bool) {
 	return l.results[l.sel], true
 }
 
-// completeSelected replaces the path (or word) being typed with the selected result's
-// completion, such as a folder entry or a remote's root. The replacement starts where the query
-// says the word starts. It does nothing until the text's own results arrive, because until then
-// the selection and that start position belong to an older text.
-//
-// A path with spaces is only one word when quoted. So a completion that contains a space is
-// quoted, and so is one that replaces a word starting with a quote. The quote character is one
-// that the path doesn't contain, since that would end the path early (quotes have no escapes).
-// After a folder the quote stays open, so the user can keep typing (or press Tab) inside it.
-// After a file the quote is closed and followed by a space for the next word.
 func (l *Launcher) completeSelected() {
 	r, ok := l.selected()
 	if l.panel != nil || !l.fresh || !ok || r.Complete == "" {
@@ -678,8 +577,6 @@ func (l *Launcher) completeSelected() {
 	l.run()
 }
 
-// folder reports whether a completion is a folder (or a remote's root) that the path continues
-// into.
 func folder(p string) bool {
 	return strings.HasSuffix(p, "/") || strings.HasSuffix(p, "\\") || strings.HasSuffix(p, ":")
 }
@@ -696,8 +593,6 @@ func (l *Launcher) openPanel() {
 	l.render()
 }
 
-// ask shows a's question in the launcher, as a panel with a and Cancel. query is restored when
-// the panel closes.
 func (l *Launcher) ask(r engine.Result, a engine.Action, query string) {
 	l.enter = false
 	choices := []engine.Action{a, {ID: cancelID, Name: i18n.T("Cancel"), Icon: icons.Back}}
@@ -729,8 +624,6 @@ func (l *Launcher) filterPanel() {
 	l.render()
 }
 
-// activate runs the selected result's default action, or the panel's selected action. In a
-// question, the action's row runs it without asking again, and Cancel closes the question.
 func (l *Launcher) activate() {
 	if p := l.panel; p != nil {
 		if p.sel >= len(p.actions) {
@@ -755,7 +648,6 @@ func (l *Launcher) activate() {
 	}
 }
 
-// act runs a for r, asking for confirmation first if a has a question.
 func (l *Launcher) act(r engine.Result, a engine.Action, query string) {
 	if a.Confirm != "" {
 		l.ask(r, a, query)
@@ -764,10 +656,6 @@ func (l *Launcher) act(r engine.Result, a engine.Action, query string) {
 	l.perform(r, a, query)
 }
 
-// perform runs a for r. The launcher hides first, so that a window the action opens gets the
-// focus. A drill-in action (KeepOpen) leaves the launcher up. So does an action that runs in
-// place (Stay), which goes back to the results. The status corner then shows only this action's
-// progress, result or failure, until another action runs or the launcher closes.
 func (l *Launcher) perform(r engine.Result, a engine.Action, query string) {
 	e := &env{l: l, action: a}
 	switch {
@@ -796,14 +684,12 @@ func (l *Launcher) perform(r engine.Result, a engine.Action, query string) {
 		}
 	})
 	if strings.HasPrefix(r.Key, "clip:") {
-		l.clipUsed = l.clipID // this copy's suggestion has been used
+		l.clipUsed = l.clipID
 	}
 }
 
-// errBroke is the error returned for an action that panicked. The panic itself is reported.
 var errBroke = errs.New("something went wrong")
 
-// runAction runs a. If a panics, the panic is reported and runAction returns errBroke.
 func (l *Launcher) runAction(a engine.Action, e *env) (err error) {
 	defer func() {
 		if v := recover(); v != nil {
@@ -814,9 +700,6 @@ func (l *Launcher) runAction(a engine.Action, e *env) (err error) {
 	return a.Run(context.Background(), e)
 }
 
-// setStatus shows s in the status corner and returns a sequence number that tells it apart from
-// the next status. A success or failure is cleared after a while. A progress message stays until
-// the action reports something new.
 func (l *Launcher) setStatus(s view.Status) uint64 {
 	l.statusSeq++
 	seq := l.statusSeq
@@ -847,7 +730,6 @@ func (l *Launcher) clearStatus() {
 	l.render()
 }
 
-// render draws the results (or the panel) with the selection in view.
 func (l *Launcher) render() {
 	if l.view == nil {
 		return
@@ -867,8 +749,6 @@ func (l *Launcher) render() {
 		// i18n: Hints at the launcher's foot, after their keys: Enter runs the action, Esc goes back.
 		s.Footer = []view.Hint{{Keys: "⏎", Label: i18n.T("Run")}, {Keys: "esc", Label: i18n.T("Back")}}
 		if p.question != "" {
-			// The question replaces the placeholder in the query box, in its large type, since
-			// typing there answers it.
 			s.Placeholder, s.Header = p.question, ""
 			// i18n: Hints at the launcher's foot, after their keys, while it asks a question: Enter chooses the answer, Esc cancels.
 			s.Footer = []view.Hint{{Keys: "⏎", Label: i18n.T("Choose")}, {Keys: "esc", Label: i18n.T("Cancel")}}
@@ -921,9 +801,6 @@ func (l *Launcher) render() {
 	l.view.Render(s)
 }
 
-// inView returns the first row to draw, starting from off, for rows with the heights in spans. It
-// moves off as little as possible so that sel is fully drawn and no empty space is left below
-// the last row.
 func inView(sel, off int, spans []float64) int {
 	off = min(off, lastPage(spans), sel)
 	for off < sel && wholeEnd(spans, off) <= sel {
@@ -932,8 +809,6 @@ func inView(sel, off int, spans []float64) int {
 	return max(off, 0)
 }
 
-// drawnEnd returns the end of the rows drawn from off. These are the rows that start within the
-// list's height. The last one may be cut off at the bottom.
 func drawnEnd(spans []float64, off int) int {
 	end, h := off, 0.0
 	for end < len(spans) && h < view.MaxListH {
@@ -943,7 +818,6 @@ func drawnEnd(spans []float64, off int) int {
 	return end
 }
 
-// wholeEnd returns the end of the rows that are fully drawn from off.
 func wholeEnd(spans []float64, off int) int {
 	end, h := off, 0.0
 	for end < len(spans) && h+spans[end] <= view.MaxListH {
@@ -953,8 +827,6 @@ func wholeEnd(spans []float64, off int) int {
 	return end
 }
 
-// lastPage returns the first row drawn when the list is scrolled to the end. It is the earliest
-// row from which all the remaining rows fit.
 func lastPage(spans []float64) int {
 	i, h := len(spans), 0.0
 	for i > 0 && h+spans[i-1] <= view.MaxListH {
@@ -964,7 +836,6 @@ func lastPage(spans []float64) int {
 	return i
 }
 
-// droppedHeader returns the line shown above the rows while files are dropped. It names the files.
 func droppedHeader(ps []engine.Path) string {
 	var names []string
 	for i, p := range ps {

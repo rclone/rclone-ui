@@ -13,8 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// testCLI returns the command set up against a fake feed, with no app running unless appRunning
-// says so.
 func testCLI(t *testing.T, f *feed, current string) (*cli, *bytes.Buffer, *bytes.Buffer) {
 	var out, errOut bytes.Buffer
 	return &cli{
@@ -27,7 +25,6 @@ func testCLI(t *testing.T, f *feed, current string) (*cli, *bytes.Buffer, *bytes
 	}, &out, &errOut
 }
 
-// run parses args the way the update command would, and runs it.
 func (c *cli) run(t *testing.T, args ...string) int {
 	t.Helper()
 	cmd := c.updateCommand()
@@ -65,7 +62,6 @@ func TestUpdateFlags(t *testing.T) {
 			t.Errorf("--package deb: %d %q", code, errOut)
 		}
 	}
-	// The flags have the same names as rclone's selfupdate flags.
 	cmd := c.updateCommand()
 	for _, name := range []string{"check", "output", "stable", "beta", "version", "package"} {
 		if cmd.Flags().Lookup(name) == nil {
@@ -181,7 +177,6 @@ func TestUpdateCheck(t *testing.T) {
 		t.Error("--check downloaded")
 	}
 
-	// With an action flag, --check reports what it would install.
 	out.Reset()
 	f.releases["4.0.0"] = f.release("4.0.0", "v1.75.1", kind, artifactBytes(kind))
 	if code := c.run(t, "--check", "--version", "4.0.0"); code != 0 {
@@ -234,7 +229,6 @@ func TestUpdateHandsOffToTheApp(t *testing.T) {
 		gotVersion, gotChannel = version, ch
 		return nil
 	}
-	// The app is passed the release that the command announced, and the command's channel.
 	for _, h := range []struct {
 		flags   []string
 		version string
@@ -259,8 +253,6 @@ func TestUpdateHandsOffToTheApp(t *testing.T) {
 		t.Error("the command downloaded although the app updates")
 	}
 
-	// A failed hand-off doesn't stop the command, which continues by itself. Here it refuses to
-	// replace the test binary, because no installer placed it.
 	c.handOff = func(context.Context, string, Channel) error { return errors.New("the app didn't answer") }
 	out.Reset()
 	var errOut bytes.Buffer
@@ -315,7 +307,6 @@ func TestUpdatePortable(t *testing.T) {
 		t.Errorf("handed off %v, %d downloads", handed, f.downloads.Load())
 	}
 
-	// --output still downloads the release.
 	dst := filepath.Join(t.TempDir(), "rcui-update")
 	if code := c.run(t, "--output", dst); code != 0 || f.downloads.Load() != 1 {
 		t.Errorf("--output = %d, %d downloads: %s", code, f.downloads.Load(), errOut)
@@ -340,10 +331,8 @@ func TestInstallCommands(t *testing.T) {
 	f.stable = f.release("4.0.2", "v1.76.2", kind, artifactBytes(kind))
 	c, out, _ := testCLI(t, f, "4.0.1")
 	c.install(root)
-	c.install(root) // installing twice has the same effect as once
+	c.install(root)
 
-	// There is one update command (this app's), and one selfupdate command (the note that replaces
-	// rclone's).
 	named := map[string][]*cobra.Command{}
 	for _, cmd := range root.Commands() {
 		named[cmd.Name()] = append(named[cmd.Name()], cmd)

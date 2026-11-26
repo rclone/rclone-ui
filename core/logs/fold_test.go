@@ -12,8 +12,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/testutil"
 )
 
-// symlink is a line from the kind of flood that folding is for. rclone logs this notice for
-// every symlink a walk finds, and only the object differs.
 func symlink(object string, at time.Time, set ...func(*Record)) Record {
 	r := Record{Time: at, Level: LevelNotice, Component: CompRclone, Subcomponent: "local",
 		Message: "Can't follow symlink without -L/--copy-links", Source: "local/local.go:1354",
@@ -24,7 +22,6 @@ func symlink(object string, at time.Time, set ...func(*Record)) Record {
 	return r
 }
 
-// feed runs records through f at now, as the writer does, and returns what it writes.
 func feed(f *folder, now time.Time, records ...Record) []Record {
 	var out []Record
 	for _, r := range records {
@@ -37,7 +34,6 @@ func feed(f *folder, now time.Time, records ...Record) []Record {
 	return out
 }
 
-// shape is how the folding tests compare written records: a line's object, or a mark's count.
 func shape(records []Record) []string {
 	out := []string{}
 	for _, r := range records {
@@ -69,7 +65,6 @@ func TestFoldingInAndOutOfAWindow(t *testing.T) {
 	for i := range 10 {
 		lines = append(lines, symlink(fmt.Sprintf("a%d", i), clock.Add(time.Duration(i)*time.Millisecond)))
 	}
-	// The first three are written, and the rest are counted.
 	got := shape(feed(f, clock, lines...))
 	if want := objects("a", 0, 3); !reflect.DeepEqual(got, want) {
 		t.Fatalf("written %q, want %q", got, want)
@@ -77,19 +72,16 @@ func TestFoldingInAndOutOfAWindow(t *testing.T) {
 	if f.pending != 1 {
 		t.Errorf("%d kinds pending, want 1", f.pending)
 	}
-	// Still in the window and not quiet, so nothing is due yet.
 	if due := f.sweep(clock.Add(time.Second)); len(due) != 0 {
 		t.Errorf("due before the quiet time: %q", shape(due))
 	}
 
-	// The window ended. The count comes first, where the window closed, and the kind starts over.
 	later := clock.Add(time.Minute)
 	got = shape(feed(f, later, symlink("b0", later), symlink("b1", later), symlink("b2", later), symlink("b3", later)))
 	if want := []string{"[7 more, last a9]", "b0", "b1", "b2"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("after the window %q, want %q", got, want)
 	}
 
-	// After the quiet time, the count is written, and the allowance stays used up.
 	got = shape(f.sweep(later.Add(2 * time.Second)))
 	if want := []string{"b3"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("a count of one is its line: %q, want %q", got, want)
@@ -103,12 +95,10 @@ func TestFoldingInAndOutOfAWindow(t *testing.T) {
 	if want := []string{"[2 more, last c1]"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("the second quiet count %q, want %q", got, want)
 	}
-	// A window that ends with nothing counted writes nothing, and the kind is forgotten.
 	if due := f.sweep(later.Add(time.Minute)); len(due) != 0 || len(f.kinds) != 0 || f.pending != 0 {
 		t.Errorf("the end of a quiet window: due %q, %d kinds, %d pending", shape(due), len(f.kinds), f.pending)
 	}
 
-	// Errors and critical lines have the larger allowance.
 	loud := func(i int) Record {
 		return symlink(fmt.Sprint("e", i), clock, func(r *Record) { r.Level = slog.LevelError })
 	}
@@ -137,8 +127,6 @@ func TestTheRepeatedMark(t *testing.T) {
 		r.Size = &size
 		r.Extra = map[string]any{"k": "v"}
 	}
-	// The folded lines' own times can be out of order, as a child's can. first and last are the
-	// earliest and latest times, and the object comes from the newest line.
 	records := []Record{
 		symlink("kept", t0, attributed),
 		symlink("x1", t0.Add(2*time.Second), attributed),
@@ -200,7 +188,7 @@ func TestTheKindCapEvictsTheLeastRecentlySeen(t *testing.T) {
 		return symlink(object, now, func(r *Record) { r.Message = kind })
 	}
 	feed(f, now, of("A", "a0"), of("A", "a1"), of("A", "a2"), of("B", "b0"), of("B", "b1"), of("C", "c0"))
-	feed(f, now, of("A", "a3")) // A is seen again, so B is now the least recently seen
+	feed(f, now, of("A", "a3"))
 	got := shape(feed(f, now, of("D", "d0")))
 	if want := []string{"b1", "d0"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("a fourth kind: %q, want B's count first (a count of one, its line) and then D", got)
@@ -215,7 +203,6 @@ func TestTheKindCapEvictsTheLeastRecentlySeen(t *testing.T) {
 	if got := shape(f.all()); !reflect.DeepEqual(got, []string{"[3 more, last a3]"}) {
 		t.Errorf("at the end %q", got)
 	}
-	// B starts over when it comes back.
 	if got := shape(feed(f, now, of("B", "b2"))); !reflect.DeepEqual(got, []string{"b2"}) {
 		t.Errorf("B again: %q", got)
 	}
@@ -233,8 +220,6 @@ func TestZeroRulesFoldNothing(t *testing.T) {
 	}
 }
 
-// accounted returns how many appended lines the records account for: the lines written, plus the
-// counts in `repeated` and `dropped` marks.
 func accounted(records []Record) (written, folded, dropped int64) {
 	for _, r := range records {
 		switch r.Mark {
@@ -279,7 +264,6 @@ func TestTheStopMarkComesAfterTheCounts(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("records\n%q\nwant\n%q", got, want)
 	}
-	// stderr is not folded, because it is what the terminal shows.
 	if n := len(splitLines(stderr.String())); n != 51 {
 		t.Errorf("stderr has %d lines, want 51", n)
 	}
@@ -303,8 +287,6 @@ func splitLines(s string) []string {
 
 func TestAQuietKindIsCountedWhileTheCoreRuns(t *testing.T) {
 	tu := tuningFor(t)
-	// The quiet period is the app's own. A short one could end between two of the lines below
-	// on a busy machine, and split the count.
 	tu.fold = foldRules{window: time.Minute, quiet: foldQuiet, burst: 2, burstLoud: 2, kinds: 10}
 	l, _ := openTest(t, "info", tu)
 	log := slog.New(l.Handler())
@@ -330,7 +312,7 @@ func TestAFloodIsAFewLines(t *testing.T) {
 	l, _ := openTest(t, "error", tuningFor(t))
 	began := time.Now()
 	for i := range flood {
-		for len(l.queue) > queueSize/2 { // keep pace with the writer, so none drop
+		for len(l.queue) > queueSize/2 {
 			time.Sleep(50 * time.Microsecond)
 		}
 		l.Append(symlink(fmt.Sprintf("Library/%d", i), time.Now()))
@@ -338,8 +320,6 @@ func TestAFloodIsAFewLines(t *testing.T) {
 	took := time.Since(began)
 	closeTest(t, l)
 	records := fileRecords(t, l.Path())
-	// Expect the start and stop marks, the allowance, and a count for each window and quiet
-	// period during the flood.
 	most := 2 + foldBurst + 2 + int(took/foldWindow)*(foldBurst+1) + int(took/foldQuiet)
 	if len(records) > most {
 		t.Errorf("%d records for %d lines in %s, want at most %d", len(records), flood, took, most)
@@ -350,9 +330,6 @@ func TestAFloodIsAFewLines(t *testing.T) {
 	t.Logf("%d lines in %s: %d records", flood, took.Round(time.Millisecond), len(records))
 }
 
-// TestFoldingUnderAFullQueue checks that the handler never waits, whatever the writer is doing.
-// Lines refused by the full queue are counted in a dropped mark, and lines the writer folds are
-// counted in a repeated mark.
 func TestFoldingUnderAFullQueue(t *testing.T) {
 	const size, perGoroutine, goroutines = 1024, 100_000, 4
 	tu := tuningFor(t)

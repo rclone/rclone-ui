@@ -10,20 +10,13 @@ import (
 	"unicode"
 )
 
-// This file writes an operation as rclone commands, which "Copy command" on the operation pages
-// gives the user for a terminal or a script. The commands run what the app runs: the steps of
-// the transfer's plan, or the command of a mount's or a serve's child. They leave out what only
-// the app needs: the flags that every child gets, and a mount's NFS port and cache folder.
-
 // Script is an operation as rclone commands for this computer's shell, and as a TypeScript
-// program that runs it through rclone's API with rclone-sdk (sdk.go).
+// program that runs it through rclone's API with rclone-sdk.
 type Script struct {
 	Lines []string `json:"lines"`
 	SDK   string   `json:"sdk"`
 }
 
-// Script returns the plan for a script. config is the config file that the commands must name,
-// or "" for rclone's default one (rclone.ScriptConfig). goos decides the shell.
 func (p Plan) Script(exe, goos, config string) (Script, error) {
 	commands, err := p.Commands(exe)
 	if err != nil {
@@ -36,8 +29,6 @@ func (p Plan) Script(exe, goos, config string) (Script, error) {
 	return Script{Lines: ScriptLines(commands, goos, config), SDK: sdkProgram(calls, goos, config)}, nil
 }
 
-// MountScript returns a mount for a script, as Plan.Script does for a transfer. env.OS decides
-// the mount command and the shell.
 func MountScript(a MountArgs, env MountEnv, config string) (Script, error) {
 	command, err := mountCommand(a, env)
 	if err != nil {
@@ -53,7 +44,6 @@ func MountScript(a MountArgs, env MountEnv, config string) (Script, error) {
 	}, nil
 }
 
-// ServeScript returns a serve for a script, as Plan.Script does for a transfer.
 func ServeScript(a ServeArgs, env ServeEnv, goos, config string) (Script, error) {
 	command, err := serveCommand(a, env)
 	if err != nil {
@@ -70,16 +60,10 @@ func ServeScript(a ServeArgs, env ServeEnv, goos, config string) (Script, error)
 }
 
 type ScriptCommand struct {
-	// Args come after `rclone`.
 	Args []string
-	// Env holds the variables that the command needs, as NAME=value: a serve's credentials,
-	// which the app never puts on a command line either.
-	Env []string
+	Env  []string
 }
 
-// Commands returns the plan's steps as rclone commands, one for each step, in order. Each one
-// has the plan's options as flags, and a step that reads a folder has the filters too, as Run
-// gives them. exe is put in front of the app's own metadata mapper.
 func (p Plan) Commands(exe string) ([]ScriptCommand, error) {
 	config, err := flagsOf(GroupConfig, options(p.Config), []string{blockMain}, exe)
 	if err != nil {
@@ -113,8 +97,6 @@ func (p Plan) Commands(exe string) ([]ScriptCommand, error) {
 	return out, nil
 }
 
-// commandArgs returns the rclone command that does what the step does, with its paths. A file
-// step names its file in its folder, with copyto or moveto, which take the file's new name.
 func (s Step) commandArgs() ([]string, error) {
 	from, to := scriptPath(s.Src), scriptPath(s.Dst)
 	src := scriptPath(joinFs(s.Src, s.SrcRemote))
@@ -136,9 +118,6 @@ func (s Step) commandArgs() ([]string, error) {
 	return nil, fmt.Errorf("a %q step has no command", s.Op)
 }
 
-// scriptPath returns a path on this computer as a user would type it. The app writes a local
-// path as a remote of the local backend (`:local:/tmp/x/`), and rclone reads the absolute path
-// that follows as the same folder. Any other Fs string is returned as it is.
 func scriptPath(fsString string) string {
 	rest, ok := strings.CutPrefix(fsString, ":local:")
 	if !ok || !filepath.IsAbs(rest) {
@@ -147,9 +126,6 @@ func scriptPath(fsString string) string {
 	return filepath.FromSlash(rest)
 }
 
-// bisyncFlags writes a bisync's parameters (bisyncParams) as the flags of `rclone bisync`, sorted
-// by name. A switch that is off is left out, because every switch is off by default. maxDelete is
-// left out when it has the command line's own default (defaultMaxDelete).
 func bisyncFlags(params map[string]any) []string {
 	var flags []string
 	for _, name := range slices.Sorted(maps.Keys(params)) {
@@ -171,8 +147,6 @@ func bisyncFlags(params map[string]any) []string {
 	return flags
 }
 
-// bisyncFlag returns the flag of a sync/bisync parameter: its words in lower case, joined with
-// hyphens (maxDelete is --max-delete).
 func bisyncFlag(name string) string {
 	var b strings.Builder
 	for _, r := range name {
@@ -185,11 +159,9 @@ func bisyncFlag(name string) string {
 	return b.String()
 }
 
-// mountCommand returns a mount as a command for a script: the mount command, the Fs and the mount
-// point, then the flags from the page's groups. On macOS, rclone picks the NFS port itself.
 func mountCommand(a MountArgs, env MountEnv) (ScriptCommand, error) {
 	if env.NFSPort <= 0 {
-		env.NFSPort = 1 // required by MountCommand, and not part of the script
+		env.NFSPort = 1
 	}
 	m, err := MountCommand(a, env)
 	if err != nil {
@@ -198,29 +170,22 @@ func mountCommand(a MountArgs, env MountEnv) (ScriptCommand, error) {
 	return ScriptCommand{Args: append([]string{m.Args[0], scriptPath(m.Source), m.MountPoint}, m.Flags...)}, nil
 }
 
-// serveCommand returns a serve as a command for a script, with its credentials as variables.
 func serveCommand(a ServeArgs, env ServeEnv) (ScriptCommand, error) {
 	s, err := ServeCommand(a, env)
 	if err != nil {
 		return ScriptCommand{}, err
 	}
-	args := slices.Clone(s.Args) // serve, the type, then the Fs
+	args := slices.Clone(s.Args)
 	args[2] = scriptPath(args[2])
 	return ScriptCommand{Args: args, Env: s.Env}, nil
 }
 
-// The words that each shell reads as they are. Anything else is quoted. PowerShell also treats a
-// comma as a list and an @ as a splat, so neither is plain there.
+// PowerShell treats a comma as a list and an @ as a splat.
 var (
 	plainPOSIX      = regexp.MustCompile(`^[\w@%+=:,./-]+$`)
 	plainPowerShell = regexp.MustCompile(`^[\w%+=:./\\-]+$`)
 )
 
-// ScriptLines writes commands as lines for the shell of goos: PowerShell on Windows, and a POSIX
-// shell anywhere else. Each command starts with rclone. config, when it isn't "", is the config
-// file that the app uses instead of rclone's default, and is added as each command's --config.
-// A command's variables come first: in front of the command in a POSIX shell, and on lines of
-// their own in PowerShell.
 func ScriptLines(commands []ScriptCommand, goos, config string) []string {
 	powerShell := goos == "windows"
 	var lines []string
@@ -247,8 +212,6 @@ func ScriptLines(commands []ScriptCommand, goos, config string) []string {
 	return lines
 }
 
-// shellArg quotes one argument. A flag keeps its name plain and has only its value quoted, as
-// in --exclude='*.tmp'. Both shells pass that on as --exclude=*.tmp.
 func shellArg(arg string, powerShell bool) string {
 	if name, value, ok := strings.Cut(arg, "="); ok && strings.HasPrefix(name, "--") {
 		return name + "=" + shellWord(value, powerShell)
@@ -256,9 +219,6 @@ func shellArg(arg string, powerShell bool) string {
 	return shellWord(arg, powerShell)
 }
 
-// shellWord quotes a word so that the shell reads it back unchanged. A plain word is left as it
-// is. Anything else goes in single quotes. A single quote inside them is closed, escaped and
-// opened again in a POSIX shell, and doubled in PowerShell.
 func shellWord(word string, powerShell bool) string {
 	if powerShell {
 		if plainPowerShell.MatchString(word) {

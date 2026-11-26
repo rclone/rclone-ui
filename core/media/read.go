@@ -14,7 +14,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// Start is the beginning of a file, as Read returns it.
 type Start struct {
 	Data []byte
 	// Size is the whole file's size, or -1 when the remote doesn't know it.
@@ -25,9 +24,7 @@ type Start struct {
 }
 
 // Read returns the first limit bytes of the file at path, a full path as the panels write it. It
-// asks the remote for that part only, so a large file isn't downloaded. Like a stream (serve), it
-// runs as an rclone job in its own stats group, so a fatal rclone error while opening the remote
-// becomes the read's error.
+// asks the remote for that part only, so a large file isn't downloaded.
 func Read(ctx context.Context, path string, limit int64) (Start, error) {
 	if path == "" {
 		return Start{}, errs.Invalid(i18n.M("Name the file."), errs.Violation("path", "missing"))
@@ -46,7 +43,6 @@ func Read(ctx context.Context, path string, limit int64) (Start, error) {
 		}
 		out = Start{Size: o.Size(), ModTime: o.ModTime(ctx)}
 		if out.Size == 0 || limit == 0 {
-			// Nothing is read. Some servers refuse a range of an empty file.
 			out.Data, out.Whole = []byte{}, out.Size == 0
 			return nil
 		}
@@ -59,8 +55,6 @@ func Read(ctx context.Context, path string, limit int64) (Start, error) {
 			return err
 		}
 		defer func() { _ = in.Close() }()
-		// One byte more than limit tells whether a file of unknown size goes on. A backend that
-		// ignores the range is cut off here too.
 		data, err := io.ReadAll(io.LimitReader(in, limit+1))
 		if err != nil {
 			return err

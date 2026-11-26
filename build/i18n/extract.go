@@ -13,17 +13,13 @@ import (
 	"strings"
 )
 
-// The packages whose calls carry text for the user.
 const (
 	i18nPath = "github.com/rclone/rclone-ui/core/i18n"
 	errsPath = "github.com/rclone/rclone-ui/core/errs"
 )
 
-// call gives the positions of a function's arguments: the English format, the plural form, and
-// the context (-1 when the function has none).
 type call struct{ format, plural, ctx int }
 
-// calls lists the functions that take a message, by package path and name.
 var calls = map[string]map[string]call{
 	i18nPath: {
 		"T": {0, -1, -1}, "M": {0, -1, -1},
@@ -47,13 +43,8 @@ type extraction struct {
 	problems []string
 }
 
-// roots are the folders of the Go code that shows text, relative to the repository.
 var roots = []string{"app", "core", "main.go"}
 
-// extract collects the messages of the calls in `calls` from every Go file under dir's roots. It
-// only parses the files, so it also reads the files that are built for other systems. A message
-// must be a string constant, because a message that is put together at run time has no
-// translation to look up.
 func extract(dir string) (*extraction, error) {
 	x := &extraction{messages: map[string]*message{}}
 	var files []string
@@ -74,9 +65,8 @@ func extract(dir string) (*extraction, error) {
 	}
 	sort.Strings(files)
 	fset := token.NewFileSet()
-	// A message may be a constant of its package, declared in any of its files.
 	parsed := map[string]*ast.File{}
-	consts := map[string]map[string]string{} // folder -> constant -> value
+	consts := map[string]map[string]string{}
 	for _, p := range files {
 		f, err := parser.ParseFile(fset, p, nil, parser.ParseComments|parser.SkipObjectResolution)
 		if err != nil {
@@ -92,9 +82,6 @@ func extract(dir string) (*extraction, error) {
 	for _, p := range files {
 		rel, _ := filepath.Rel(dir, p)
 		rel = filepath.ToSlash(rel)
-		// core/errs is skipped, because its own calls only pass a caller's message on. core/i18n
-		// is read, because it also has messages of its own (a list's "and"), which it calls
-		// without the package's name.
 		if strings.HasPrefix(rel, "core/errs/") {
 			continue
 		}
@@ -123,8 +110,6 @@ func collectConsts(f *ast.File, out map[string]string) {
 	}
 }
 
-// constant returns the value of a string constant: a literal, a constant of the package, or
-// several of them joined with +.
 func constant(e ast.Expr, consts map[string]string) (string, bool) {
 	switch v := e.(type) {
 	case *ast.BasicLit:
@@ -149,19 +134,13 @@ func constant(e ast.Expr, consts map[string]string) (string, bool) {
 	return "", false
 }
 
-// file collects the messages of one file.
-// own is true for core/i18n's own files, where the calls have no package name and a call whose
-// message is a parameter only passes it on.
 func (x *extraction) file(fset *token.FileSet, f *ast.File, rel string, consts map[string]string, own bool) {
-	// The names that this file gives the two packages.
 	names := map[string]string{}
 	for _, imp := range f.Imports {
 		path, _ := strconv.Unquote(imp.Path.Value)
 		if _, ok := calls[path]; !ok {
 			continue
 		}
-		// The errors of the agents' tools are read by a model, in English (core/agents). Only
-		// what that package says to the user, with core/i18n, is translated.
 		if path == errsPath && strings.HasPrefix(rel, "core/agents/") {
 			continue
 		}
@@ -174,9 +153,6 @@ func (x *extraction) file(fset *token.FileSet, f *ast.File, rel string, consts m
 	if len(names) == 0 && !own {
 		return
 	}
-	// A comment that starts with "i18n:" on the line above a call is a note for the translator.
-	// It belongs to the first message on that line, so a line with two messages needs the
-	// second one on a line of its own to have a note.
 	notes := map[int]string{}
 	noted := map[int]bool{}
 	for _, group := range f.Comments {
@@ -275,7 +251,6 @@ func contains(list []string, s string) bool {
 	return false
 }
 
-// readFile returns a file's text, or "" when it doesn't exist.
 func readFile(path string) (string, error) {
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {

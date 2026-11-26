@@ -24,10 +24,6 @@ func (e *Engine) install(_ context.Context, a *Artifact) (func() error, error) {
 	return installBundle(a.Path, e.location, filepath.Dir(a.Path))
 }
 
-// installBundle replaces the .app at bundle with the one in archive. It unpacks the archive next
-// to the bundle, so the swap is a single rename on one volume. When that folder isn't writable,
-// it unpacks into staging (the download's private folder) and asks for an administrator password
-// to move the new app into place.
 func installBundle(archive, bundle, staging string) (func() error, error) {
 	work, err := os.MkdirTemp(filepath.Dir(bundle), ".rcui-update-")
 	admin := false
@@ -66,16 +62,12 @@ func installBundle(archive, bundle, staging string) (func() error, error) {
 	return relaunchAfterExit(openScript, bundle, filepath.Join(bundle, "Contents", "MacOS", exe)), nil
 }
 
-// openScript starts the bundle $1 through Launch Services, so that the new app is launched as a
-// proper app, with its own TCC responsible process rather than the old app's. If that fails, it
-// runs the executable $2 directly. It passes -n because Launch Services may still list the exiting
-// instance, and would only activate that one.
+// Launch Services gives the new app its own TCC responsible process rather than the old app's.
+// -n is needed because Launch Services may still list the exiting instance, and would only
+// activate that one.
 const openScript = `/usr/bin/open -n -a "$1" || exec "$2"`
 
-// swapBundle exchanges fresh and bundle in one step, so there is never a moment without an app at
-// bundle's path. The old app ends up at fresh's path, which the caller deletes. On a volume that
-// doesn't support the swap (not APFS), it uses two renames, and undoes the first if the second
-// fails.
+// RENAME_SWAP works only on APFS.
 func swapBundle(fresh, bundle string) error {
 	err := unix.RenamexNp(fresh, bundle, unix.RENAME_SWAP)
 	if err == nil {
@@ -103,10 +95,6 @@ func swapBundleAsAdmin(fresh, bundle string) error {
 	return runAsAdmin(adminSwapScript(fresh, bundle), i18n.T("Rclone UI wants to install an update."))
 }
 
-// adminSwapScript returns a script that moves bundle aside, moves fresh into its place, and then
-// deletes the old bundle. If the second move fails (for example because fresh is on another
-// volume and the target runs out of space), the old bundle is moved back, replacing whatever part
-// of fresh was copied, and the script fails.
 func adminSwapScript(fresh, bundle string) string {
 	old := bundle + ".rcui-old"
 	return fmt.Sprintf("rm -rf %[3]s && mv -f %[2]s %[3]s && "+
@@ -114,7 +102,6 @@ func adminSwapScript(fresh, bundle string) string {
 		shQuote(fresh), shQuote(bundle), shQuote(old))
 }
 
-// runAsAdmin runs a shell command through macOS's administrator prompt.
 func runAsAdmin(shellCmd, prompt string) error {
 	esc := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 	script := fmt.Sprintf(`do shell script "%s" with administrator privileges with prompt "%s"`,
@@ -129,5 +116,4 @@ func runAsAdmin(shellCmd, prompt string) error {
 	return nil
 }
 
-// shQuote quotes s for a POSIX shell with single quotes.
 func shQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

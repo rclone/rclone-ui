@@ -71,7 +71,7 @@ func TestUpdateAvailability(t *testing.T) {
 
 func TestQuitWaitsForInstall(t *testing.T) {
 	f := &updateFlow{}
-	f.installing.Lock() // an install, between the core's stop and the exit
+	f.installing.Lock()
 	held := make(chan func())
 	go func() { held <- f.holdInstalls() }()
 	for deadline := time.Now().Add(5 * time.Second); !f.quitWaiting.Load(); time.Sleep(time.Millisecond) {
@@ -84,7 +84,7 @@ func TestQuitWaitsForInstall(t *testing.T) {
 		t.Fatal("the quit went on during the install")
 	case <-time.After(50 * time.Millisecond):
 	}
-	f.installing.Unlock() // the install failed, so the app keeps running and the quit goes on
+	f.installing.Unlock()
 	release := <-held
 	if f.quitWaiting.Load() {
 		t.Error("the quit still says it waits")
@@ -97,13 +97,10 @@ func TestQuitWaitsForInstall(t *testing.T) {
 		t.Fatal("the quit kept installs off after it")
 	}
 
-	// In the UI's tests there is no update flow, so holdInstalls must work on nil.
 	var none *updateFlow
 	none.holdInstalls()()
 }
 
-// The update flow translates the engine's errors and reasons. The engine's own text stays in
-// English, because `rcui update` prints it.
 func TestUpdateTextIsTranslated(t *testing.T) {
 	i18n.SetLanguage(i18n.Pseudo)
 	t.Cleanup(func() { i18n.SetLanguage(i18n.English) })

@@ -3,11 +3,6 @@ import { useMutation } from '@tanstack/react-query'
 import { onErrorDialog } from '../../../lib/errors'
 import { ask, openWindow } from '../../../lib/shell'
 
-/**
- * The dry run shared by the operation pages that offer one (Copy, Move, Sync and Delete). The
- * page supplies the whole start function, including its path checks, and that function passes
- * `dryRun` to `startTransfer`. This way no page can silently drop the flag.
- */
 export function useOperationDryRun(mutationFn: () => Promise<unknown>) {
     return useMutation({
         mutationFn,

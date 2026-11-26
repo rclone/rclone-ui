@@ -19,13 +19,11 @@ func TestSizes(t *testing.T) {
 	})
 	var running, most atomic.Int32
 	fx := &Fixture{Inner: root, Hook: func(ctx context.Context, dir string) error {
-		if dir == "" { // the top of each counted folder: track how many are counted at once
+		if dir == "" {
 			n := running.Add(1)
 			defer running.Add(-1)
 			for m := most.Load(); n > m && !most.CompareAndSwap(m, n); m = most.Load() {
 			}
-			// Wait until a second folder is counted alongside, however late its worker starts.
-			// Then stay a moment, so that a third folder counted at once would be seen too.
 			for deadline := time.Now().Add(10 * time.Second); most.Load() < 2 && time.Now().Before(deadline); {
 				if err := Sleep(ctx, time.Millisecond); err != nil {
 					return err
@@ -79,7 +77,6 @@ func TestSizesStopWithPartialCounts(t *testing.T) {
 		t.Fatalf("got %+v: want what was counted before the stop, marked partial", got)
 	}
 
-	// Folders not yet started are not reported.
 	got = nil
 	ctx, cancel = context.WithCancel(context.Background())
 	cancel()

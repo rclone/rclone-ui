@@ -9,9 +9,6 @@ import { Create as $Create } from "@wailsio/runtime";
 // @ts-ignore: Unused imports
 import * as operations$0 from "../operations/models.js";
 
-/**
- * ServeRow is a running serve as the pages see it.
- */
 export class ServeRow {
     "id": string;
     "type": string;

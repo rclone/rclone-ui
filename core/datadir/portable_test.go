@@ -8,9 +8,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/testutil"
 )
 
-// TestPortable checks the portable rule: a copy is portable on Windows when a folder named data
-// is next to its executable. A file named data doesn't count, and no other OS has portable
-// copies.
 func TestPortable(t *testing.T) {
 	root := t.TempDir()
 	exe := filepath.Join(root, "rcui.exe")

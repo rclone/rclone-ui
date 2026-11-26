@@ -19,7 +19,6 @@ describe('matchAny', () => {
     it('finds the search in any field, ignoring case', () => {
         expect(matchAny(THINGS, 'PHOTOS', fields).map((t) => t.id)).toEqual(['1'])
         expect(matchAny(THINGS, 'documents', fields).map((t) => t.id)).toEqual(['2'])
-        // "Pictures" is the path of one, and "Music" the name of the other.
         expect(matchAny(THINGS, 'ic', fields).map((t) => t.id)).toEqual(['1', '3'])
     })
 

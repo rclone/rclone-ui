@@ -13,7 +13,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// Types returns rclone's list unchanged. This test binary links the http and webdav serves.
 func TestTypes(t *testing.T) {
 	got := NewAPI(nil).Types()
 	if !slices.Equal(got, rclone.ServeTypes()) || !slices.Contains(got, "http") || !slices.Contains(got, "webdav") ||
@@ -22,8 +21,6 @@ func TestTypes(t *testing.T) {
 	}
 }
 
-// StartReady returns once the serve answers on its address, and with the child's own words when
-// its first start fails.
 func TestStartReady(t *testing.T) {
 	f := newFixture(t)
 	api := NewAPI(late.Of(f.s))

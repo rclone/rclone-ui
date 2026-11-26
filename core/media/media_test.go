@@ -77,13 +77,11 @@ func TestSignedURLs(t *testing.T) {
 		t.Errorf("range: %d %q %q", res.StatusCode, body, res.Header.Get("Content-Range"))
 	}
 
-	// A range past the end is answered by http.ServeContent with 416, without the file's name.
 	res = get(t, srv, u, map[string]string{"Range": "bytes=50-60"})
 	if res.StatusCode != http.StatusRequestedRangeNotSatisfiable || res.Header.Get("Content-Disposition") != "" {
 		t.Errorf("unsatisfiable range: %d %q", res.StatusCode, res.Header.Get("Content-Disposition"))
 	}
 
-	// A different path with the same signature is refused, and so is an expired URL.
 	tampered := strings.Replace(u, "hello", "other", 1)
 	if res := get(t, srv, tampered, nil); res.StatusCode != http.StatusForbidden {
 		t.Errorf("tampered: %d", res.StatusCode)
@@ -122,9 +120,6 @@ func TestFatalOpeningARemote(t *testing.T) {
 	}
 }
 
-// unknownSize serves files over rclone's http backend with no_head, so their size is unknown.
-// /whole.bin is sent whole, /broken.bin fails after its first bytes, and /refused.bin fails
-// before anything is sent.
 func unknownSize(t *testing.T) (*httptest.Server, *Signer, func(name string) string) {
 	t.Helper()
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +127,6 @@ func unknownSize(t *testing.T) (*httptest.Server, *Signer, func(name string) str
 		case "/whole.bin":
 			_, _ = io.WriteString(w, "0123456789")
 		case "/broken.bin":
-			// More than the media server buffers, so its response has started.
 			w.Header().Set("Content-Length", "200000")
 			_, _ = w.Write(make([]byte, 100000))
 			w.(http.Flusher).Flush()
@@ -153,7 +147,6 @@ func unknownSize(t *testing.T) (*httptest.Server, *Signer, func(name string) str
 	}
 }
 
-// A range asked for a file of unknown size gets the whole file, so a player can play it.
 func TestUnknownSizeRange(t *testing.T) {
 	srv, _, sign := unknownSize(t)
 	res := get(t, srv, sign("whole.bin"), map[string]string{"Range": "bytes=0-"})
@@ -163,7 +156,6 @@ func TestUnknownSizeRange(t *testing.T) {
 	}
 }
 
-// A read that fails partway cuts the connection, so the part doesn't look whole.
 func TestUnknownSizeFailsPartway(t *testing.T) {
 	srv, _, sign := unknownSize(t)
 	res := get(t, srv, sign("broken.bin"), nil)
@@ -173,8 +165,6 @@ func TestUnknownSizeFailsPartway(t *testing.T) {
 	}
 }
 
-// A read that fails before anything is sent answers with the error, and the error is never
-// saved under the file's name.
 func TestUnknownSizeFailsAtOnce(t *testing.T) {
 	srv, _, sign := unknownSize(t)
 	res := get(t, srv, sign("refused.bin"), nil)

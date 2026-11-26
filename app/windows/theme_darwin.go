@@ -22,10 +22,9 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-// setTheme sets the NSWindow's appearance. It must run on the main thread.
+// Must run on the main thread.
 func setTheme(native unsafe.Pointer, theme string) {
 	C.rcuiSetAppearance(native, C.int(themeMode(theme)))
 }
 
-// windowsTheme returns SystemDefault, because the creation theme is an option only on Windows.
 func windowsTheme(string) application.Theme { return application.SystemDefault }

@@ -1,14 +1,3 @@
-// Follows a remote config session, and reconnects remotes whose sign-in expired. The session runs
-// in the core. The pages answer rclone's questions in a dialog with the option's field (askOption),
-// and open its sign-in link.
-//
-// When a core call fails because a remote's sign-in expired, it rejects with the `reconnect` code
-// and the remote's name. The query client passes the name to offerReconnect, which:
-//   1. claims the remote's dialog in the core (remotes Claim), so only one window in the app asks.
-//   2. asks the user whether to reconnect.
-//   3. starts a `reconnect` session and follows it.
-//   4. releases the claim, whether or not the reconnect worked.
-
 import { t } from '@lingui/core/macro'
 import { useEffect } from 'react'
 import { remotes as api } from './core/api'
@@ -42,7 +31,6 @@ export async function presentSignIn(
 ): Promise<void> {
     const url = step.authUrl
     if (!url) return
-    // The dialog answers with the label of the button that was pressed.
     const done = t({
         message: 'Done',
         comment: 'Button of the sign-in dialog: the user has finished signing in in the browser.',
@@ -60,7 +48,6 @@ export async function presentSignIn(
             buttons: { ok: done, extra: copyLink, cancel },
             signal,
         })
-        // A closed dialog answers with its Cancel label, which mustn't cancel the session.
         if (signal?.aborted) return
         if (pressed === copyLink) {
             await clipboard.setText(url)
@@ -71,7 +58,6 @@ export async function presentSignIn(
     }
 }
 
-/** What the sign-in dialog says, before and after its link was copied. `what` names the remote. */
 function signInText(copied: boolean, what?: string): string {
     if (!what) {
         return copied
@@ -83,10 +69,6 @@ function signInText(copied: boolean, what?: string): string {
         : t`Finish signing in to "${what}" in your browser. Rclone is waiting for it.`
 }
 
-/**
- * Asks rclone's question and sends the answer. Returns false, after ending the session, when the
- * question isn't answered.
- */
 async function answerQuestion(step: ConfigStep): Promise<boolean> {
     if (!step.question) {
         cancelSession(step.id)
@@ -127,8 +109,6 @@ export function sessionFailure(step: ConfigStep, fallback: string): string {
 export async function followSession(first: ConfigStep, what: string): Promise<ConfigStep | null> {
     let step: ConfigStep | null = first
     let signInOffered = ''
-    // The sign-in dialog on screen. It closes once the session leaves the sign-in, so it never
-    // waits for a Done that no longer means anything.
     let signIn: AbortController | undefined
     const closeSignIn = () => {
         signIn?.abort()
@@ -139,8 +119,6 @@ export async function followSession(first: ConfigStep, what: string): Promise<Co
         while (step && !finished(step)) {
             if (step.state !== 'authorize' || step.authUrl !== signInOffered) closeSignIn()
             if (step.state === 'authorize' && step.authUrl && signInOffered !== step.authUrl) {
-                // This isn't awaited, because the login can finish however the user signs in,
-                // and the result may arrive while the dialog is still open.
                 signInOffered = step.authUrl
                 signIn = new AbortController()
                 presentSignIn(step, what, signIn.signal).catch((error: unknown) =>
@@ -158,7 +136,6 @@ export async function followSession(first: ConfigStep, what: string): Promise<Co
     }
 }
 
-/** How a reconnect ended, when it didn't fail. */
 export type ReconnectOutcome = 'done' | 'cancelled'
 
 async function runReconnect(name: string): Promise<ReconnectOutcome> {
@@ -168,7 +145,6 @@ async function runReconnect(name: string): Promise<ReconnectOutcome> {
     return 'cancelled'
 }
 
-/** This window's name for claims. The core gives a remote's dialog to one holder at a time. */
 let holder: string | undefined
 function holderName() {
     holder ??= `${windowName()}-${Math.random().toString(36).slice(2, 8)}`
@@ -177,8 +153,6 @@ function holderName() {
 
 async function withClaim<T>(name: string, run: () => Promise<T>): Promise<T | null> {
     const claim = await api.Claim(name, holderName())
-    // Another window is already asking. It reconnects for everyone, and remotes.changed reports it
-    // here.
     if (!claim.granted) return null
     try {
         return await run()
@@ -220,7 +194,6 @@ async function reconnectDialog(name: string): Promise<boolean> {
     return true
 }
 
-/** The reconnect that this window is running for each remote. There is one at a time per remote. */
 const offers = new Map<string, Promise<boolean>>()
 
 /**

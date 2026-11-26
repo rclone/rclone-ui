@@ -1,9 +1,3 @@
-// Package config manages the app's rclone config file. It is rclone's default file, or the
-// rclone.conf in a portable copy's folder (rclone.DefaultConfigPath), and the app's rclone command
-// on the PATH uses it too. rclone reads and writes it itself. The app adds its password
-// (remembered in the keychain or given by a password command), an editor for its text, and an
-// export. rclone's config is shared by the whole process. Mounts, serves and the tunnel's rcd run
-// as child processes, each given the file with --config.
 package config
 
 import (
@@ -30,24 +24,18 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// The errors about the config's password. A wrong password rejects the password field. A
-// missing one is a precondition, which a page fixes by asking for the password: the mounts and
-// serves return it too, when their rclone can't open the config.
 var (
-	ErrWrongPassword = rclone.ErrWrongPassword
-	ErrNeedsPassword = errs.Precondition("the config is encrypted: enter its password")
-	// errPasswordChanged is WriteText's refusal of a password that no longer opens the file.
+	ErrWrongPassword   = rclone.ErrWrongPassword
+	ErrNeedsPassword   = errs.Precondition("the config is encrypted: enter its password")
 	errPasswordChanged = errs.Precondition("The config file's password was changed outside the app, so your changes were not saved. Unlock the config with its new password, then save again.")
 )
 
-// Secrets stores passwords. It is implemented by core/keychain.
 type Secrets interface {
 	Get(account string) (string, error)
 	Set(account, secret string) error
 	Delete(account string) error
 }
 
-// defaultPath returns the file the service manages. Tests point it at a file of their own.
 var defaultPath = rclone.DefaultConfigPath
 
 type Service struct {
@@ -55,31 +43,18 @@ type Service struct {
 	bus     *bus.Bus
 	secrets Secrets
 
-	// op is held for the whole of an Unlock, a password change, a text write and an export. This
-	// keeps one of them from running between another's read of the file and its write. Without
-	// it, a text write that read the file before it was encrypted could write plain text over the
-	// file that a password change had just encrypted.
 	op sync.Mutex
 
-	mu sync.Mutex
-	// path is the file, set by Prepare.
-	path  string
-	store *rclone.Store
-	// inUse is Options.InUse.
-	inUse func() []i18n.Text
-	// unlocked is called when the locked file is unlocked. Anything known about the remotes
-	// before that is no longer valid.
+	mu       sync.Mutex
+	path     string
+	store    *rclone.Store
+	inUse    func() []i18n.Text
 	unlocked []func()
-	// password is the password learned during this run, or "". Children are given it.
 	password string
-	// unsaved is why a password that the user asked to remember couldn't be saved to the
-	// keychain, as i18n.SaveText writes it. Get shows it (SaveError) until the password is saved,
-	// forgotten, or no longer meant to be remembered.
-	unsaved string
+	unsaved  string
 }
 
 type Options struct {
-	// DB keeps the password command.
 	DB      *db.DB
 	Bus     *bus.Bus
 	Secrets Secrets
@@ -89,7 +64,6 @@ type Options struct {
 	InUse func() []i18n.Text
 }
 
-// New returns the Service. It reads nothing until Prepare.
 func New(o Options) *Service {
 	return &Service{db: o.DB, bus: o.Bus, secrets: o.Secrets, inUse: o.InUse}
 }
@@ -135,7 +109,6 @@ func (s *Service) Path() string {
 	return s.path
 }
 
-// passwordCommand returns the file's password command, or "".
 func (s *Service) passwordCommand(ctx context.Context) (string, error) {
 	var command string
 	err := s.db.Read(ctx, func(tx *sql.Tx) error {
@@ -148,9 +121,6 @@ func (s *Service) passwordCommand(ctx context.Context) (string, error) {
 	return command, err
 }
 
-// knownPassword returns the file's password if the app can find it without asking the user. It
-// looks in the password from this run, then the keychain, then the password command. It
-// remembers what it finds for the rest of the run.
 func (s *Service) knownPassword(ctx context.Context) string {
 	s.mu.Lock()
 	path, pw := s.path, s.password
@@ -173,8 +143,6 @@ func (s *Service) knownPassword(ctx context.Context) string {
 	return pw
 }
 
-// runPasswordCommand runs a password command as rclone's --password-command does. The command
-// line is split on spaces, with quotes grouping words, and its output is the password.
 func runPasswordCommand(ctx context.Context, command string) (string, error) {
 	var args fs.SpaceSepList
 	if err := args.Set(command); err != nil || len(args) == 0 {
@@ -217,7 +185,6 @@ func (s *Service) Get(ctx context.Context) (*ConfigFile, error) {
 	return c, nil
 }
 
-// describeFile fills in the file's state from rclone's store, including its save error.
 func describeFile(c *ConfigFile, store *rclone.Store) {
 	if store == nil || !SameFile(store.Path(), c.Path) {
 		if _, err := os.Stat(c.Path); errors.Is(err, os.ErrNotExist) {
@@ -267,9 +234,6 @@ func SameFile(a, b string) bool {
 	return errA == nil && errB == nil && os.SameFile(ia, ib)
 }
 
-// writeAtomic replaces a file's contents with a single rename, and keeps the file's mode because
-// the file belongs to the user. A link is followed, so the rename replaces its target and the
-// link stays in place, as it does when rclone saves the file itself.
 func writeAtomic(path string, data []byte) error {
 	if target, err := filepath.EvalSymlinks(path); err == nil {
 		path = target
@@ -304,10 +268,6 @@ func (s *Service) SetPasswordCommand(ctx context.Context, command string) (*Conf
 	return s.Get(ctx)
 }
 
-// rememberPassword keeps the password for this run, and also saves it in the keychain when keep
-// is set. If the keychain refuses it, the action that was done still stands, because the file is
-// already open. The failure is logged and shown by Get (SaveError), in the words that unsaved
-// gives for the keychain's error.
 func (s *Service) rememberPassword(path, password string, keep bool, unsaved func(err error) i18n.Text) {
 	var why string
 	if keep {
@@ -325,7 +285,6 @@ func (s *Service) rememberPassword(path, password string, keep bool, unsaved fun
 // ForgetPassword takes the file's password out of the keychain. The password is still kept for
 // this run, because the open file and its children still need it.
 func (s *Service) ForgetPassword(ctx context.Context) (*ConfigFile, error) {
-	// A missing password is not an error, because the keychain ends up as requested either way.
 	_ = s.secrets.Delete(keychain.ConfigAccount(s.Path()))
 	s.mu.Lock()
 	s.unsaved = ""
@@ -350,7 +309,6 @@ func (s *Service) Unlock(ctx context.Context, password string, remember bool) (*
 		return i18n.M("Unlocked, but the password couldn't be saved to the keychain: %s", err)
 	})
 	if store.State().Status == rclone.StatusOK && SameFile(store.Path(), path) {
-		// The file is already open.
 		s.changed()
 		return s.Get(ctx)
 	}
@@ -385,7 +343,6 @@ func (s *Service) SetPassword(ctx context.Context, password string, remember boo
 	if err != nil {
 		return nil, err
 	}
-	// A password that rclone refuses is refused on the password field.
 	data, err := rclone.EncryptConfig([]byte(plain), password)
 	if err != nil {
 		return nil, err
@@ -394,11 +351,9 @@ func (s *Service) SetPassword(ctx context.Context, password string, remember boo
 		// i18n: The value is the error of the file's write, often the system's, in English.
 		return nil, errs.Said(errs.CodeFailed, i18n.M("the config wasn't saved, and its password is unchanged: %s", err))
 	}
-	// The OnUnlocked functions aren't called, because the remotes haven't changed.
 	if err := store.Open(path, password); err != nil {
 		return nil, err
 	}
-	// Open loads an encrypted file only with the password it was given.
 	if st := store.State(); st.Status != rclone.StatusOK || !st.Encrypted {
 		return nil, rekeyRaced(store, path, old)
 	}
@@ -466,18 +421,10 @@ func (s *Service) StateChanged(st rclone.State) {
 	}
 }
 
-// rekeyWrite writes the file with the new password (writeAtomic). It is a variable so that a test
-// can follow it with a save by rclone, as a token refresh during a transfer could.
 var rekeyWrite = writeAtomic
 
-// errRekeyRaced means a password change didn't take effect. rclone saved the file after the new
-// file was written but before rclone opened it with the new key, so the file was saved under
-// the old key, or without one.
 var errRekeyRaced = errs.Said(errs.CodeFailed, i18n.M("the config was saved with an old password while the password changed (a sign-in refreshing), so its password is unchanged: try again"))
 
-// rekeyRaced opens the file again with the password it still has, and returns errRekeyRaced.
-// old is this run's password, or "" when there is none or it comes from RCLONE_CONFIG_PASS. The
-// saved and known passwords are unchanged.
 func rekeyRaced(store *rclone.Store, path, old string) error {
 	if err := store.Open(path, old); err != nil {
 		return fmt.Errorf("%w (reopening it: %w)", errRekeyRaced, err)
@@ -491,9 +438,6 @@ func (s *Service) runPassword() string {
 	return s.password
 }
 
-// rekeyable returns the file's path and rclone's store, so that its password can be changed. The
-// caller holds s.op. It refuses a file that rclone hasn't loaded, because its text would be lost,
-// and a file that a child runs on.
 func (s *Service) rekeyable(ctx context.Context) (string, *rclone.Store, error) {
 	c, err := s.Get(ctx)
 	if err != nil {
@@ -616,7 +560,6 @@ func (s *Service) ChildPassword(ctx context.Context) (string, error) {
 	return "", ErrNeedsPassword
 }
 
-// list joins items into one text, in the order given, with the separator of the app's language.
 func list(items []i18n.Text) i18n.Text {
 	if len(items) == 0 {
 		return i18n.Text{}

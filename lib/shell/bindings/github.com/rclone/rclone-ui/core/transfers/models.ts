@@ -14,8 +14,8 @@ import * as operations$0 from "../operations/models.js";
 
 /**
  * Detail is the transfer as its own page shows it. Besides the row, it holds the transfer it
- * retries, the retries made of it, its preset (used by Duplicate), the errors that are not tied
- * to a file, and how many of its failures can be retried.
+ * retries, the retries made of it, its preset, the errors that are not tied to a file, and how
+ * many of its failures can be retried.
  */
 export class Detail {
     "transfer": Transfer;
@@ -25,7 +25,7 @@ export class Detail {
     "general": GeneralError[];
 
     /**
-     * Retryable is how many items the retry page offers. When it is 0, there is no Retry button.
+     * Retryable is how many items the retry page offers.
      */
     "retryable": number;
 
@@ -129,7 +129,7 @@ export class EndedQuery {
     "state": State;
 
     /**
-     * Search keeps the transfers that it is found in (see Matches).
+     * Search keeps the transfers that it is found in.
      */
     "search": string;
 
@@ -164,7 +164,7 @@ export class EndedQuery {
 }
 
 /**
- * File is a file that a transfer has finished with, stored in transfer_files.
+ * File is a file that a transfer has finished with.
  */
 export class File {
     /**
@@ -312,8 +312,8 @@ export class GeneralError {
 }
 
 /**
- * Origin records where a transfer was started from. History names it on each row, and a search
- * finds its name. A retry has the origin of the transfer it retries.
+ * Origin records where a transfer was started from. A retry has the origin of the transfer it
+ * retries.
  */
 export class Origin {
     "kind": OriginKind;
@@ -548,13 +548,12 @@ export class StartOptions {
     "dryRun": boolean;
 
     /**
-     * Origin is where the transfer was started from: OriginPage or OriginCommander. A template's
-     * run starts with StartTemplate, and only watchers and schedules start their own runs.
+     * Origin is where the transfer was started from: OriginPage or OriginCommander.
      */
     "origin": OriginKind;
 
     /**
-     * Preset is the page's form as the page saved it. Duplicate uses it.
+     * Preset is the page's form as the page saved it.
      */
     "preset"?: operations$0.Form | null;
 
@@ -583,9 +582,6 @@ export class StartOptions {
     }
 }
 
-/**
- * Started identifies the transfer that a Start recorded.
- */
 export class Started {
     "id": string;
     "seq": number;
@@ -637,8 +633,7 @@ export enum State {
 };
 
 /**
- * Summary holds a transfer's totals when it ended, stored as final_stats. The transfer's page
- * shows them, and Retry compares the error count with the number of failed files recorded.
+ * Summary holds a transfer's totals when it ended.
  */
 export class Summary {
     "bytes": number;
@@ -696,9 +691,7 @@ export class Summary {
 
 /**
  * TrackedTransfer is the current state of one transfer that a page started (a drop, a folder
- * rename or delete, or a batch rename). A running transfer has no Files yet, because the page
- * shows its numbers from transfers.progress. Retryable returns what can be retried in an ended
- * one, step by step.
+ * rename or delete, or a batch rename). A running transfer has no Files yet.
  */
 export class TrackedTransfer {
     "transfer": Transfer;
@@ -739,8 +732,7 @@ export class TrackedTransfer {
 }
 
 /**
- * Transfer is one row of the ledger, as the Transfers list, the Commander and the callbacks that
- * run when a transfer ends see it.
+ * Transfer is one row of the ledger.
  */
 export class Transfer {
     "id": string;
@@ -757,7 +749,7 @@ export class Transfer {
 
     /**
      * Error is why the transfer failed. It is English inside the core, and the API gives it in
-     * the app's language. ErrorText gives it as a translatable text.
+     * the app's language.
      */
     "error": string;
 
@@ -768,8 +760,7 @@ export class Transfer {
     "stats": Summary | null;
 
     /**
-     * Live is the latest progress of a running transfer (the payload of transfers.progress). It
-     * lets a page show numbers before the next event arrives.
+     * Live is the latest progress of a running transfer (the payload of transfers.progress).
      */
     "live": bus$0.TransferProgress | null;
 

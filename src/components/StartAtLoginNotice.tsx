@@ -15,19 +15,11 @@ const TEXT = {
     Automounts: t`Automounts mount when Rclone UI starts. Start it when you log in, so that they mount after you restart your computer.`,
 }
 
-/**
- * The card above the Watchers, Schedules and Automounts lists while "Start at login" is off. They
- * run only while the app runs, so it offers to start the app at login. Settings › Startup has the
- * same switch, under the same query, and the same green tile.
- */
 export default function StartAtLoginNotice({ what }: { what: keyof typeof TEXT }) {
     const queryClient = useQueryClient()
-    // autostart:changed sets it when any window changes it, this one too (followShellEvents).
     const enabled = useQuery({ queryKey: shellKeys.autostart, queryFn: () => autostart.get() })
     const enable = useMutation({
         mutationFn: () => autostart.set(true),
-        // A change that succeeded sends autostart:changed, which sets the query. One that failed
-        // sends nothing, so the query reads the OS again.
         onError: async (error) => {
             const reason = formatErrorMessage(error)
             await message(t`Rclone UI couldn't change whether it starts at login. ${reason}`, {

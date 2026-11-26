@@ -12,14 +12,9 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// Search walks dir under fs (in the form Clean returns) and everything below it. It emits the
-// entries whose name contains term, ignoring case, as they are found. It uses the backend's ListR
-// when there is one, and otherwise walks --checkers folders at a time. Entries whose name starts
-// with a dot, and anything inside such a folder below dir, are left out as the page hides them,
-// unless hidden is set. This isn't done with an rclone filter, because an include rule without a slash lets every
-// folder through and turns off the backend's ListR (fs/filter/filter.go:347-358,685-695). A
-// folder that can't be read does not stop the walk. Its error is returned at the end. The walk
-// ends after max entries, whether they match or not, and then Search returns ErrWalkMax.
+// Dot entries are left out here, not with an rclone filter, because an include rule without a
+// slash lets every folder through and turns off the backend's ListR
+// (fs/filter/filter.go:347-358,685-695).
 func Search(ctx context.Context, fsName, dir, term string, max int, fileDates, hidden bool, emit func([]Entry)) error {
 	fsName, dir = Clean(fsName, dir)
 	f, err := getFs(ctx, fsName)
@@ -68,8 +63,6 @@ func Search(ctx context.Context, fsName, dir, term string, max int, fileDates, h
 	return err
 }
 
-// ErrWalkMax ends a search that read its most entries (Search's max) before it reached the end
-// of the folder. The matches it found up to there were emitted, but there may be more.
 var ErrWalkMax = errors.New("the search read its most entries and stopped")
 
 // folded returns a name in the form that a search compares: composed (NFC) and lower case.
@@ -77,7 +70,6 @@ var ErrWalkMax = errors.New("the search read its most entries and stopped")
 // stored with the accent as a separate character.
 func folded(s string) string { return strings.ToLower(norm.NFC.String(s)) }
 
-// dotted reports whether a segment of the slash-separated rel starts with a dot.
 func dotted(rel string) bool {
 	for seg := range strings.SplitSeq(rel, "/") {
 		if strings.HasPrefix(seg, ".") {

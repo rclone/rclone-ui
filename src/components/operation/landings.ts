@@ -6,17 +6,6 @@ import { coreKey } from '../../../lib/core/query'
 import type { Operations } from '../../../lib/core/types'
 import type { OperationSubset } from '../../../lib/operations'
 
-// The "Lands in" line under a copy's or a move's destination. rclone's own copy puts a folder's
-// contents into the destination. These pages put each selected folder and file inside the
-// destination under its own name (core/operations, buildTransfer), so the line shows where they
-// will be. The core works it out the way Start would.
-
-/**
- * The line for the landings of a copy or a move into `destination`, or undefined when there is
- * nothing to say. A folder's name ends with a slash. Several landings are listed by name, three
- * at most before "and N more". Each length of the list is a message of its own, so that a
- * language can join the names its own way.
- */
 export function landingLine(
     landings: readonly Operations.Landing[] | undefined,
     destination: string
@@ -41,11 +30,6 @@ export function landingLine(
     })
 }
 
-/**
- * The landings of a copy or a move, asked of the core 400 ms after the paths stop changing. The
- * last answer stays while a new one is on its way. It is undefined while the paths are missing,
- * and when the core would refuse the form (the page shows why when Start is pressed).
- */
 export function useLandings(
     operation: OperationSubset<'copy' | 'move'>,
     sources: readonly string[] | undefined,
@@ -57,8 +41,6 @@ export function useLandings(
     const key = ready ? JSON.stringify({ sources: paths, destination, remotes }) : ''
     const [asked] = useDebounce(key, 400)
     const query = useQuery({
-        // files.changed and remotes.changed mark it stale (lib/live.ts), because what is in the
-        // destination decides where each source lands.
         queryKey: coreKey('transfers', 'Landings', { operation, asked }),
         queryFn: () => {
             const { sources, destination, remotes } = JSON.parse(asked) as {

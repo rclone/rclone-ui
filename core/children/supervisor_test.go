@@ -16,8 +16,6 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// newSupervisor creates a supervisor that has begun with pending, and stops it when the test
-// ends.
 func newSupervisor(t *testing.T, o Options, pending ...Record) *Supervisor {
 	t.Helper()
 	if o.RunDir == "" {
@@ -49,15 +47,11 @@ func begun(t *testing.T, o Options, pending ...Record) *Supervisor {
 	return s
 }
 
-// helperSpec returns a unit that runs the helper child. It is started like every rclone child,
-// but the helper only reads its own arguments, not the flags after them or its config file. Its
-// lines are read as plain lines (stdout at info level, stderr at error level).
 func helperSpec(name string, args ...string) Spec {
 	return Spec{Name: name, Kind: KindTunnel, Rclone: append([]string{"helper"}, args...), ConfigPath: "helper.conf",
 		Parse: logs.PlainLines(logs.CompChildren, name)}
 }
 
-// downs records a unit's Downs. It ends the unit after n of them.
 type downs struct {
 	mu   sync.Mutex
 	list []Down
@@ -123,10 +117,6 @@ func TestBackoffDoublesToItsMax(t *testing.T) {
 	}
 }
 
-// TestFailedStartsLeaveNoWaiters checks that repeated failed starts leave no goroutine blocked.
-// Each failed start's exit is queued for the loop that watches a running child, which a run that
-// never came up doesn't reach. The next run drains the queue, so no process's waiter stays
-// blocked on a full queue while the unit keeps failing.
 func TestFailedStartsLeaveNoWaiters(t *testing.T) {
 	s := newSupervisor(t, Options{})
 	const downs = 12
@@ -137,7 +127,7 @@ func TestFailedStartsLeaveNoWaiters(t *testing.T) {
 	spec.Backoff = Backoff{Min: time.Millisecond, Max: 5 * time.Millisecond, Reset: time.Hour}
 	spec.OnDown = func(u *Unit, x Down) bool {
 		if len(d.get()) == downs-1 {
-			time.Sleep(50 * time.Millisecond) // give the last waiter time to send
+			time.Sleep(50 * time.Millisecond)
 			parked = parkedWaiters()
 		}
 		return d.onDown(u, x)
@@ -150,13 +140,11 @@ func TestFailedStartsLeaveNoWaiters(t *testing.T) {
 	if got := d.get(); len(got) != downs || got[0].WasUp || !strings.Contains(got[0].Err.Error(), "exited before it was ready") {
 		t.Fatalf("downs %+v", got)
 	}
-	// The queue buffers two exits without a reader, so no waiter should be blocked.
 	if parked > 0 {
 		t.Fatalf("%d waiters blocked on the exit queue after %d failed starts", parked, downs)
 	}
 }
 
-// parkedWaiters counts the process waiters that are blocked on their unit's exit queue.
 func parkedWaiters() int {
 	buf := make([]byte, 1<<22)
 	buf = buf[:runtime.Stack(buf, true)]
@@ -174,8 +162,6 @@ func parkedWaiters() int {
 func TestBackoffResetsAfterStayingUp(t *testing.T) {
 	s := newSupervisor(t, Options{})
 	d := newDowns(3)
-	// The child runs for 1 s, ten times Reset. Its time up counts only from when the supervisor
-	// has recorded it, and a busy machine can delay that.
 	spec := helperSpec("flaky", "up-then-exit", "1000")
 	spec.Backoff = Backoff{Min: 10 * time.Millisecond, Max: time.Second, Reset: 100 * time.Millisecond}
 	spec.OnDown = d.onDown
@@ -249,8 +235,6 @@ func TestStopIsNotADown(t *testing.T) {
 	}
 }
 
-// TestStartFailureRestarts checks that a child whose program can't be started also counts as a
-// down, and is tried again after its backoff.
 func TestStartFailureRestarts(t *testing.T) {
 	s := newSupervisor(t, Options{Exe: filepath.Join(t.TempDir(), "no-such-program")})
 	d := newDowns(2)
@@ -291,7 +275,7 @@ func TestLines(t *testing.T) {
 		t.Errorf("attributed to %s/%s", out.Component, out.Subcomponent)
 	}
 	if isWindows() {
-		return // a stop is a kill on Windows, so nothing is printed while stopping
+		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -365,8 +349,6 @@ func TestStopAllRecordsWhatComesBack(t *testing.T) {
 	if _, err := s.Start(helperSpec("late", "sleep")); !errors.Is(err, ErrClosed) {
 		t.Fatalf("Start after StopAll: %v, want ErrClosed", err)
 	}
-	// A Boot that is still running (it couldn't start the pending mount, because of ErrClosed)
-	// doesn't drop anything that StopAll kept.
 	s.DropPending(pending.ID)
 	recs, err := readRecords(s.o.RunDir)
 	if err != nil {
@@ -384,7 +366,6 @@ func TestStopAllRecordsWhatComesBack(t *testing.T) {
 		t.Fatalf("children.json keeps %v, want %v (never the tunnel)", names, want)
 	}
 
-	// The next process finds the records to start again.
 	lo := ClearLeftovers(ctx, LeftoverOptions{RunDir: s.o.RunDir, unmount: noUnmount(t)})
 	if len(lo.Restore) != 2 || len(lo.Killed) != 0 {
 		t.Fatalf("leftovers %+v", lo)
@@ -405,9 +386,6 @@ func TestStopAllRecordsWhatComesBack(t *testing.T) {
 	}
 }
 
-// TestStopAllSkipsWhatAUserStops checks that a unit whose stop on purpose has begun (Leave,
-// called before the starter's slow part of the stop) is not kept to come back by a restart that
-// begins in the meantime.
 func TestStopAllSkipsWhatAUserStops(t *testing.T) {
 	s := begun(t, Options{RunDir: runDir(t), Exe: os.Args[0]})
 	up := make(chan struct{}, 2)
@@ -457,9 +435,6 @@ func TestSpecChecks(t *testing.T) {
 	}
 }
 
-// TestSocketsInTheirOwnFolder checks that the sockets go in their own short folder, and that
-// children.json stays in the run dir however long its path is. A sockets folder that is too long
-// for a socket path is refused, with an error that explains how to set another one.
 func TestSocketsInTheirOwnFolder(t *testing.T) {
 	if _, err := New(Options{RunDir: "/" + strings.Repeat("x", 120)}); err == nil {
 		t.Fatal("a run dir too long for socket paths was accepted for the sockets")
@@ -496,9 +471,6 @@ func noUnmount(t *testing.T) func(context.Context, string) error {
 
 func isWindows() bool { return filepath.Separator == '\\' }
 
-// Until Begin, the supervisor writes nothing and starts no child, so children.json keeps the
-// previous run's records. A stop then leaves them for the next start. Begin writes the records
-// to start again, and children start from then on.
 func TestNothingBeforeBegin(t *testing.T) {
 	dir := runDir(t)
 	previous := []byte(`[{"id":"0badcafe","kind":"mount","pid":1}]`)

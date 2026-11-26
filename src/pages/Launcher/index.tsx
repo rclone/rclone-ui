@@ -18,16 +18,9 @@ import {
 } from '../../../lib/shell'
 import { keyAction, rowAt, wheelRows } from './keys'
 
-// The launcher on Linux. The app's launcher (app/launcher) decides everything: the rows, the
-// selection, what a key does, when to hide and where the window goes. This page draws what it
-// sends (a Frame) at the sizes it gives, and reports what the user does. macOS and Windows draw the
-// same launcher natively.
-
-/** Wails moves the window when a press starts on an element whose --wails-draggable is drag. */
 const DRAG = { '--wails-draggable': 'drag' } as CSSProperties
 const NO_DRAG = { '--wails-draggable': 'no-drag' } as CSSProperties
 
-/** A cubic ease-out, as the native views animate the footer. */
 const EASE_OUT = [0.33, 1, 0.68, 1] as const
 
 function Glyph({ svg, className, size }: { svg?: string; className?: string; size?: number }) {
@@ -37,28 +30,24 @@ function Glyph({ svg, className, size }: { svg?: string; className?: string; siz
         <span
             className={cn('[&>svg]:size-full', className)}
             style={style}
-            // The glyphs are the app's own SVG documents (app/launcher/icons), in currentColor.
             // biome-ignore lint/security/noDangerouslySetInnerHtml: the markup comes from the app, not the user
             dangerouslySetInnerHTML={{ __html: svg }}
         />
     )
 }
 
-/** Puts text in the box, either all selected or with the caret at the end. */
 function select(box: HTMLInputElement, text: string, all: boolean) {
     box.value = text
     if (all) box.select()
     else box.setSelectionRange(text.length, text.length)
 }
 
-/** A row's title, with the characters that matched the query in bold. */
 function Title({ text, bold }: { text: string; bold: number[] | null }) {
     if (!bold?.length) return <>{text}</>
     const on = new Set(bold)
     return (
         <>
             {Array.from(text).map((ch, i) => (
-                // The characters never move within a title.
                 <span key={i} className={on.has(i) ? 'font-semibold' : undefined}>
                     {ch}
                 </span>
@@ -77,16 +66,11 @@ export default function Launcher() {
     const [frame, setFrame] = useState<LauncherFrame | null>(null)
     const [text, setText] = useState('')
     const input = useRef<HTMLInputElement>(null)
-    // The query that the page found when it loaded, to select once the box is drawn.
     const [first, setFirst] = useState<{ selectAll: boolean } | null>(null)
-    // Where the pointer last was. The first move after the window shows only records it, so rows
-    // appearing under a still pointer don't change the selection.
     const lastPointer = useRef<{ x: number; y: number } | null>(null)
-    const carried = useRef(0) // the part of a row scrolled so far
-    // The number of the box's last edit, which goes with it to the launcher. A text that the
-    // launcher sets carries the number of the last edit it had seen.
+    const carried = useRef(0)
     const edits = useRef(0)
-    const dragging = useRef(false) // a layer surface is being moved
+    const dragging = useRef(false)
     const filesOver = useRef(false)
 
     useEffect(() => {
@@ -106,11 +90,7 @@ export default function Launcher() {
         const offs = [
             launcherPage.onRender((f) => setFrame(f)),
             launcherPage.onQuery((q) => {
-                // The box was typed in after the launcher set this text, so what was typed wins.
-                // The launcher has the newer edits by now, or is about to.
                 if (q.seq !== edits.current) return
-                // The text goes into the box at once, not in the next render, so a key typed
-                // right after replaces what it selected.
                 const box = input.current
                 if (box) select(box, q.text, q.selectAll)
                 setText(q.text)
@@ -120,14 +100,10 @@ export default function Launcher() {
                 carried.current = 0
                 input.current?.focus()
             }),
-            // The window gets the keyboard back, such as after files were dropped from elsewhere.
             onWindowFocus(() => input.current?.focus()),
             launcherPage.onHidden(() => {
                 dragging.current = false
                 filesOver.current = false
-                // The launcher selects its text each time it shows. The box selects it already,
-                // so a key typed as the window appears replaces it, even before the launcher's
-                // text arrives.
                 input.current?.select()
             }),
         ]
@@ -167,9 +143,8 @@ export default function Launcher() {
         (e: PointerEvent) => {
             if (e.button !== 0) return
             launcherPage.pressed(true)
-            // A press outside the rows, the box and the button moves the window. Wails moves any
-            // other window (DRAG), and a layer surface is moved here, because compositors don't
-            // move those.
+            // Wails moves any other window (DRAG), and a layer surface is moved here, because
+            // compositors don't move those.
             const target = e.target as HTMLElement
             if (init?.mode === 'layer-shell' && !target.closest('[data-launcher-control]')) {
                 dragging.current = true
@@ -207,8 +182,6 @@ export default function Launcher() {
             }}
             onPointerMove={onPointerMove}
             onPointerDown={onPointerDown}
-            // The box keeps the keyboard wherever the window is pressed, because nothing else on
-            // the page takes keys. Cancelling the press keeps it from moving the focus.
             onMouseDown={(e) => {
                 if (e.target !== input.current) e.preventDefault()
             }}
@@ -228,7 +201,6 @@ export default function Launcher() {
                 }
             }}
             onDragLeave={(e) => {
-                // Only leaving the window counts, not moving between its parts.
                 if (e.relatedTarget || !filesOver.current) return
                 filesOver.current = false
                 launcherPage.dragOver(false)
@@ -289,7 +261,6 @@ export default function Launcher() {
                 </div>
             )}
 
-            {/* The list clips the last row at its bottom, as the native views do. */}
             <div
                 className="absolute inset-x-0 overflow-hidden"
                 style={{ top: layout.rowsTop, height: layout.listH }}
@@ -303,7 +274,6 @@ export default function Launcher() {
                             : 'text-primary-foreground/80'
                         : 'text-default-500'
                     return (
-                        // A row is drawn at its index, which is how the launcher names it.
                         <div key={i}>
                             {row.group && (
                                 <div
@@ -380,8 +350,6 @@ export default function Launcher() {
                 })}
             </div>
 
-            {/* The footer line: the key hints, or a status in their place. A new status rises into
-                place while the old line rises out (view.Swaps), and new hints just replace the old. */}
             <div
                 className="absolute overflow-hidden"
                 style={{

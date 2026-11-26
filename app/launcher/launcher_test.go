@@ -18,14 +18,11 @@ import (
 	"github.com/rclone/rclone-ui/core/mounts"
 )
 
-// The search box's placeholders, as the launcher shows them in English.
 const (
 	placeholder     = "Search commands, remotes, or paste a URL"
 	dropPlaceholder = "Where to? Type a remote or a folder"
 )
 
-// source is a fake core with two remotes, plus a mount when mounted is set. list lists folders.
-// everything, when set, is its Stop Everything.
 type source struct {
 	mounted    bool
 	list       func(ctx context.Context, dir string, page func([]engine.Entry)) error
@@ -55,7 +52,6 @@ func (source) RefreshIfOlder(context.Context, time.Duration) {}
 func (source) FollowProgress(bool)                           {}
 func (source) OnChange(func())                               {}
 
-// stopAll is a fake Stop Everything, which counts its calls and stops a mount.
 type stopAll struct{ calls atomic.Int32 }
 
 func (s *stopAll) StopAll(context.Context) (core.StopSummary, error) {
@@ -63,19 +59,15 @@ func (s *stopAll) StopAll(context.Context) (core.StopSummary, error) {
 	return core.StopSummary{Running: core.Running{Mounts: 1}}, nil
 }
 
-// waitLimit is how long a test waits for something that comes at once on a machine that isn't
-// busy.
 const waitLimit = 10 * time.Second
 
-// harness runs a launcher on its own fake main thread, with a fake view.
 type harness struct {
-	t     *testing.T
-	l     *Launcher
-	v     *viewtest.Fake
-	calls chan string
-	main  chan func()
-	done  chan struct{}
-	// activated counts the calls to Platform.Activate
+	t         *testing.T
+	l         *Launcher
+	v         *viewtest.Fake
+	calls     chan string
+	main      chan func()
+	done      chan struct{}
 	activated atomic.Int32
 }
 
@@ -124,14 +116,12 @@ func newHarness(t *testing.T) *harness {
 	return h
 }
 
-// do runs fn on the launcher's main thread.
 func (h *harness) do(fn func()) {
 	done := make(chan struct{})
 	h.main <- func() { fn(); close(done) }
 	<-done
 }
 
-// settle waits until the rows drawn are for the current text, and returns their titles.
 func (h *harness) settle() []string {
 	h.t.Helper()
 	deadline := time.Now().Add(waitLimit)
@@ -149,9 +139,6 @@ func (h *harness) settle() []string {
 	}
 }
 
-// settleOn waits until the rows drawn are for the current text and begin with the row titled
-// first, and returns their titles. A clipboard that takes longer than clipboardWait adds its row
-// only in a later answer.
 func (h *harness) settleOn(first string) []string {
 	h.t.Helper()
 	deadline := time.Now().Add(waitLimit)
@@ -207,7 +194,6 @@ func TestShowTypeAndRun(t *testing.T) {
 	if h.v.Last.Selected != 1 {
 		t.Errorf("down: selected %d", h.v.Last.Selected)
 	}
-	// a new query starts at the top
 	h.typeText("mou")
 	if h.v.Last.Selected != 0 {
 		t.Errorf("new query: selected %d", h.v.Last.Selected)
@@ -236,7 +222,6 @@ func TestRowShortcuts(t *testing.T) {
 	if rowIndex('k') != -1 || rowIndex('a') != -1 || rowIndex('b') != 9 {
 		t.Error("row letters")
 	}
-	// the clipboard, actions, app and text box keys never run a row
 	for _, c := range "acvxkqwhmyz" {
 		if rowIndex(c) != -1 {
 			t.Errorf("⌘%c runs a row", c)
@@ -274,8 +259,6 @@ func TestActionPanel(t *testing.T) {
 	}
 }
 
-// TestScroll: the wheel scrolls the rows and keeps the selection among the rows drawn. Long lists
-// in the panel scroll too.
 func TestScroll(t *testing.T) {
 	h := newHarness(t)
 	h.do(h.l.Show)
@@ -301,7 +284,7 @@ func TestScroll(t *testing.T) {
 	if first, sel := drawn(); first != all[3] || sel != 0 {
 		t.Errorf("down 3: first %q, selected row %d", first, sel)
 	}
-	scroll(-1) // the selection, still on all[3], stays where it is
+	scroll(-1)
 	if first, sel := drawn(); first != all[2] || sel != 1 {
 		t.Errorf("up 1: first %q, selected row %d", first, sel)
 	}
@@ -318,7 +301,6 @@ func TestScroll(t *testing.T) {
 		t.Errorf("hover after a scroll: selected row %d, %q", sel, picked)
 	}
 
-	// the panel: a remote has more actions than fit
 	h.do(h.l.Show)
 	h.typeText("gdr")
 	h.press(view.KeyActions, 0)
@@ -362,8 +344,6 @@ func TestTabCompletesARemote(t *testing.T) {
 
 func TestBlur(t *testing.T) {
 	h := newHarness(t)
-	// The blur comes in the same call on the main thread as Show, so that a busy machine can't
-	// delay it past blurGrace.
 	h.do(func() { h.l.Show(); h.v.Events.Blur() })
 	if !h.v.Shown {
 		t.Fatal("a blur right after showing is the show's own")
@@ -375,7 +355,6 @@ func TestBlur(t *testing.T) {
 		t.Error("a later blur hides")
 	}
 
-	// With the setting on, a blur leaves the launcher open, and Hide still closes it.
 	h.l.SetStaysOpen(true)
 	h.do(h.l.Show)
 	h.settle()
@@ -390,7 +369,6 @@ func TestBlur(t *testing.T) {
 	}
 }
 
-// selectRow selects the result titled title, and reports whether there is one.
 func (h *harness) selectRow(title string) bool {
 	found := false
 	h.do(func() {
@@ -403,7 +381,6 @@ func (h *harness) selectRow(title string) bool {
 	return found
 }
 
-// noCall fails if any platform call is made within a short time.
 func (h *harness) noCall(what string) {
 	h.t.Helper()
 	select {
@@ -413,9 +390,6 @@ func (h *harness) noCall(what string) {
 	}
 }
 
-// TestStopAsksInTheLauncher: an action that stops something asks for confirmation in the
-// launcher first. Cancel (or Esc) goes back to the results. Confirming runs the action with the
-// launcher still up, and the outcome appears in the status corner.
 func TestStopAsksInTheLauncher(t *testing.T) {
 	h := newHarness(t)
 	everything := &stopAll{}
@@ -437,7 +411,6 @@ func TestStopAsksInTheLauncher(t *testing.T) {
 		t.Fatalf("esc: shown %v, placeholder %q, query %q", h.v.Shown, h.v.Last.Placeholder, h.v.Query)
 	}
 
-	// the stop row asks too, and Enter confirms and runs it with the launcher up
 	h.settle()
 	if !h.selectRow("Unmount /Volumes/gdrive") {
 		t.Fatalf("no Unmount row: %q", h.v.Titles())
@@ -447,14 +420,12 @@ func TestStopAsksInTheLauncher(t *testing.T) {
 		t.Fatalf("question: %q", h.v.Last.Placeholder)
 	}
 	h.press(view.KeyEnter, 0)
-	// read on the main thread, because the stop fails at once and draws its failure there
 	var shown bool
 	var shownPlaceholder, query string
 	h.do(func() { shown, shownPlaceholder, query = h.v.Shown, h.v.Last.Placeholder, h.v.Query })
 	if !shown || shownPlaceholder != placeholder || query != "mount" {
 		t.Fatalf("answered: shown %v, placeholder %q, query %q", shown, shownPlaceholder, query)
 	}
-	// there is no core here, so the stop fails and shows the error in red
 	deadline := time.Now().Add(waitLimit)
 	for {
 		var st view.Status
@@ -473,8 +444,6 @@ func TestStopAsksInTheLauncher(t *testing.T) {
 	h.noCall("a failure with the launcher up: a dialog")
 }
 
-// TestOpeningAWindowActivates: an action that opens a window makes the app active during the key
-// press. An action that doesn't (such as a copy) leaves the focus in the user's previous app.
 func TestOpeningAWindowActivates(t *testing.T) {
 	h := newHarness(t)
 	h.do(h.l.Show)
@@ -493,8 +462,6 @@ func TestOpeningAWindowActivates(t *testing.T) {
 	}
 }
 
-// TestTheCornerListensToOneAction: the status corner shows only the last action run. An earlier
-// action, or one still running when the launcher closes, ends without a status or notification.
 func TestTheCornerListensToOneAction(t *testing.T) {
 	h := newHarness(t)
 	h.do(h.l.Show)
@@ -552,9 +519,6 @@ func TestTheCornerListensToOneAction(t *testing.T) {
 	}
 }
 
-// TestStopEverything: the stop button is enabled while something runs. It (and ⌘.) asks for
-// confirmation, saying how much it stops, and Cancel closes the question. Confirming makes one
-// call to the core's StopAll, and the status corner says what stopped.
 func TestStopEverything(t *testing.T) {
 	h := newHarness(t)
 	h.do(h.l.Show)
@@ -606,8 +570,6 @@ func TestStopEverything(t *testing.T) {
 	}
 }
 
-// TestEnterWaitsForTheAnswer: Enter pressed before the text's first results arrive runs the first
-// row of those results, not of the older rows drawn.
 func TestEnterWaitsForTheAnswer(t *testing.T) {
 	h := newHarness(t)
 	h.do(h.l.Show)
@@ -619,7 +581,6 @@ func TestEnterWaitsForTheAnswer(t *testing.T) {
 	if c := h.call(); c != "window Move /move" {
 		t.Fatalf("enter: %q", c)
 	}
-	// an edit after the Enter cancels it
 	h.do(h.l.Show)
 	h.settle()
 	h.do(func() {
@@ -641,8 +602,6 @@ func TestTildeBrowsesHome(t *testing.T) {
 	}
 }
 
-// TestTabThroughAFolderWithSpaces: Tab on a folder with a space opens a quote and leaves it
-// open, and the next Tab continues inside it.
 func TestTabThroughAFolderWithSpaces(t *testing.T) {
 	h := newHarness(t)
 	h.do(func() {
@@ -675,8 +634,6 @@ func TestTabThroughAFolderWithSpaces(t *testing.T) {
 	}
 }
 
-// TestTabThroughAFolderWithAQuote: a folder whose name contains a quote is completed inside a
-// different kind of quote, so the path stays whole.
 func TestTabThroughAFolderWithAQuote(t *testing.T) {
 	h := newHarness(t)
 	h.do(func() {
@@ -710,8 +667,6 @@ func TestTabThroughAFolderWithAQuote(t *testing.T) {
 	}
 }
 
-// TestDrop: dropped files are named at the top of the launcher, and the text chooses where they
-// go. Enter opens Copy with all of them. Esc clears them, and the next Esc hides.
 func TestDrop(t *testing.T) {
 	h := newHarness(t)
 	h.do(h.l.Show)
@@ -753,12 +708,9 @@ func TestDrop(t *testing.T) {
 	}
 }
 
-// TestClipboard: a link that was just copied comes first for the empty query. Once used, it isn't
-// offered again until the clipboard changes.
 func TestClipboard(t *testing.T) {
 	h := newHarness(t)
 	clip := engine.Clip{Text: "https://example.com/files/movie.mkv"}
-	// The peek can still run after the rows have settled, if it takes longer than clipboardWait.
 	var id atomic.Value
 	id.Store("1")
 	h.l.p.ClipboardPeek = func() (engine.Clip, string) { return clip, id.Load().(string) }
@@ -782,8 +734,6 @@ func TestClipboard(t *testing.T) {
 	h.settleOn("Download movie.mkv")
 }
 
-// TestRowShortcutWithoutARow: ⌘ with a row letter that has no row isn't handled by the launcher,
-// so the text box and the menus get it. The same holds in the panel.
 func TestRowShortcutWithoutARow(t *testing.T) {
 	h := newHarness(t)
 	h.do(h.l.Show)
@@ -808,8 +758,6 @@ func TestRowShortcutWithoutARow(t *testing.T) {
 	}
 }
 
-// TestCloseDismisses: closing the window (Alt+F4) hides the launcher at once, while Esc would only
-// close the panel or clear the dropped files. The query comes back at the next Show.
 func TestCloseDismisses(t *testing.T) {
 	h := newHarness(t)
 	h.do(h.l.Show)
@@ -830,8 +778,6 @@ func TestCloseDismisses(t *testing.T) {
 	}
 }
 
-// TestShowOverThePanel: showing the launcher again while the panel is open closes the panel and
-// restores the query.
 func TestShowOverThePanel(t *testing.T) {
 	h := newHarness(t)
 	h.do(h.l.Show)
@@ -845,9 +791,6 @@ func TestShowOverThePanel(t *testing.T) {
 	}
 }
 
-// TestLateClipboardKeepsTheSelection: a clipboard that becomes known only after the first results
-// adds its suggestion without moving the selection off the row the user picked. Enter pressed in
-// the meantime runs the row that is drawn as selected.
 func TestLateClipboardKeepsTheSelection(t *testing.T) {
 	h := newHarness(t)
 	release := make(chan struct{})
@@ -874,7 +817,6 @@ func TestLateClipboardKeepsTheSelection(t *testing.T) {
 		t.Errorf("selected %q, want %q", selected, picked)
 	}
 
-	// Enter while the clipboard is still being read runs the row drawn as selected
 	h.do(func() {
 		h.l.rerun()
 		if !h.l.fresh {
@@ -887,8 +829,6 @@ func TestLateClipboardKeepsTheSelection(t *testing.T) {
 	}
 }
 
-// TestAnActionThatPanics: an action that panics fails, the failure is shown in the corner, and
-// the launcher keeps working.
 func TestAnActionThatPanics(t *testing.T) {
 	h := newHarness(t)
 	h.do(h.l.Show)
@@ -919,7 +859,6 @@ func TestAnActionThatPanics(t *testing.T) {
 	}
 }
 
-// following records whether transfer progress is being followed.
 type following struct {
 	source
 	on *atomic.Bool

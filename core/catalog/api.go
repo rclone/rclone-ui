@@ -7,12 +7,10 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/late"
 )
 
-// API serves rclone's option catalog to the forms. rclone registers its backends and option
-// blocks as the process starts, so every method but Values answers at once, before the core has
-// started. Values reads the values that rclone's init sets, so it waits for the core.
+// Every method but Values answers at once, before the core has started. Values reads the values
+// that rclone's init sets, so it waits for the core.
 type API struct {
-	s *Service
-	// ready is set once the core has started, and fails when it can't.
+	s     *Service
 	ready *late.Value[struct{}]
 }
 
@@ -24,11 +22,9 @@ func (a *API) Get(context.Context) (Catalog, error) {
 	return *a.s.SummaryIn(i18n.Language()), nil
 }
 
-// English returns the catalog as Get does, but always with rclone's English text. The agents'
-// server uses it, because a model reads the text there, not the user.
+// English returns the catalog as Get does, but always with rclone's English text.
 func (a *API) English(context.Context) (Catalog, error) { return *a.s.Summary(), nil }
 
-// Values returns the values of the global options.
 func (a *API) Values(ctx context.Context) (Values, error) {
 	return late.CallValue(ctx, a.ready, func(struct{}) (*Values, error) { return a.s.Values(ctx), nil })
 }
@@ -49,7 +45,6 @@ func (a *API) ParseCommand(_ context.Context, command string) (ParsedCommand, er
 	return out, err
 }
 
-// value returns what p points to, or T's zero value when p is nil, as late.CallValue does.
 func value[T any](p *T, err error) (T, error) {
 	if p == nil {
 		var zero T
@@ -58,9 +53,9 @@ func value[T any](p *T, err error) (T, error) {
 	return *p, err
 }
 
-// SortOptions sorts a template's flat options into the catalog's groups, for the template
-// drawer's sections. serve is a serve's type, or "" for every type. The options that no group
-// takes come back as skipped, with the reason in the app's language.
+// SortOptions sorts a template's flat options into the catalog's groups. serve is a serve's type,
+// or "" for every type. The options that no group takes come back as skipped, with the reason in
+// the app's language.
 func (*API) SortOptions(_ context.Context, options Group, serve string) (Sorted, error) {
 	out := SortOptions(options, serve)
 	out.Skipped = LocalSkipped(out.Skipped)

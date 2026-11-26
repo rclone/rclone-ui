@@ -21,13 +21,6 @@ import { DEFAULT_WHEN, toCron, type WhenForm, whenInWords } from '../../componen
 import { WINDOWS } from '../../routes'
 import { protocolIcon } from '../Serve/protocols'
 
-// The Wizard asks what the user wants to do in plain questions, one step at a time, and finds the
-// operation for it. Its plan opens that operation's page with the answers filled in, where the
-// user looks it over and starts it (or saves the schedule). Nothing runs from the Wizard.
-//
-// The questions and the plan are the windows' text, in the app's language. Each sentence of the
-// plan is one message, with the places in it as values.
-
 export type Goal = 'transfer' | 'match' | 'mount' | 'share' | 'download' | 'clear'
 type ServeType = 'http' | 'webdav' | 'sftp' | 'ftp' | 's3' | 'nfs' | 'dlna' | 'restic'
 export type Refine =
@@ -42,15 +35,12 @@ export type Operation = PickerOperation
 export interface Answers {
     goal?: Goal
     refine?: Refine
-    /** One path, or several where the operation takes several (its picker's `many`). */
     sources?: string[]
     destination?: string
     url?: string
     metadata?: Metadata
-    /** The `metadata_mapper` rules, as the Metadata Mapper writes them. */
     mapper?: string[]
     when?: When
-    /** The time of a schedule, in the Schedule drawer's fields. */
     schedule?: WhenForm
     keep?: Keep
     templateName?: string
@@ -58,8 +48,6 @@ export interface Answers {
 
 export type { Tone }
 
-// Each operation has the look of its window (WINDOWS in src/routes.ts), so a choice that leads
-// to a window looks like it.
 export const OPERATION_TONE: Record<Operation, Tone> = {
     copy: WINDOWS.copy.tone,
     move: WINDOWS.move.tone,
@@ -153,7 +141,6 @@ export const GOALS: Choice<Goal>[] = [
     },
 ]
 
-/** The protocols' names, which read the same in every language. */
 const SERVE_LABEL: Record<ServeType, string> = {
     http: 'HTTP',
     webdav: 'WebDAV',
@@ -271,11 +258,6 @@ export function operationFor(answers: Answers): Operation | undefined {
     }
 }
 
-/**
- * The answers once refine is chosen. Sources that could be files are asked again when the new
- * choice takes folders only, as from Delete to Purge or from Sync to Bisync: nothing here tells a
- * file from a folder.
- */
 export function withRefine(answers: Answers, refine: Refine): Answers {
     const next = { ...answers, refine }
     const before = operationFor(answers)
@@ -291,7 +273,6 @@ export interface PlaceField {
     key: 'sources' | 'destination' | 'url'
     label: string
     kind: 'path' | 'url'
-    /** A path field's picker, the operation page's own. */
     picker?: Picker
 }
 
@@ -367,13 +348,11 @@ export function placesFor(operation: Operation): { question: string; fields: Pla
     }
 }
 
-/** A field's paths as answered: trimmed, none empty. */
 export function pathsOf(answers: Answers, key: PlaceField['key']): string[] {
     const values = key === 'sources' ? (answers.sources ?? []) : [answers[key] ?? '']
     return values.map((value) => value.trim()).filter(Boolean)
 }
 
-// Every field answered, and no path given twice: a source is never its own destination.
 function placesComplete(answers: Answers, operation: Operation): boolean {
     const fields = placesFor(operation).fields
     if (fields.some((field) => pathsOf(answers, field.key).length === 0)) return false
@@ -383,7 +362,6 @@ function placesComplete(answers: Answers, operation: Operation): boolean {
 
 export const METADATA_QUESTION = t`Should the files’ metadata come along?`
 
-// The short answers, which the plan's Metadata row shows too.
 const NO = t({ message: 'No', comment: 'Answer to “Should the files’ metadata come along?”' })
 const YES = t({ message: 'Yes', comment: 'Answer to “Should the files’ metadata come along?”' })
 
@@ -452,16 +430,11 @@ export const WHENS: Choice<When>[] = [
     },
 ]
 
-/** The schedule's cron expression, or undefined when it runs once or has no time yet. */
 export function cronFor(answers: Answers): string | undefined {
     if (answers.when !== 'schedule') return undefined
     return toCron(answers.schedule ?? DEFAULT_WHEN) || undefined
 }
 
-/**
- * When it runs, as the plan's When row says it: "Just once", or a schedule's time as the
- * Schedules window says it ("Every day at 02:00").
- */
 export function whenPhrase(answers: Answers): string | undefined {
     if (answers.when === 'once') return t`Just once`
     if (answers.when !== 'schedule') return undefined
@@ -505,16 +478,11 @@ export function stepsFor(answers: Answers): StepKey[] {
     return steps
 }
 
-/** How many steps a goal takes, counted with its first choice. */
 export function stepCount(goal: Goal): number {
     const refine = refineFor(goal)
     return stepsFor({ goal, refine: refine?.choices[0]?.key }).length
 }
 
-/**
- * Whether a step is answered. `problem` is what the core says is wrong with the schedule's time,
- * if anything. While it is set, the When step isn't answered.
- */
 export function stepComplete(step: StepKey, answers: Answers, problem?: string): boolean {
     switch (step) {
         case 'goal':
@@ -526,7 +494,6 @@ export function stepComplete(step: StepKey, answers: Answers, problem?: string):
             return !!operation && placesComplete(answers, operation)
         }
         case 'metadata':
-            // "Yes, with changes" without a rule is "Yes": the step waits for one.
             return (
                 !!answers.metadata && (answers.metadata !== 'map' || ruleCount(answers.mapper) > 0)
             )
@@ -544,10 +511,6 @@ export interface Segment {
     filled: boolean
 }
 
-// The plan's sentences are messages with the places in them as values. A place that isn't
-// answered yet is a blank: it is marked in the message (`marked`, as the action bar stresses its
-// places), and shows dimmed and underlined.
-
 const blank = (label: string) => marked(label)
 
 const unpicked = () =>
@@ -561,7 +524,6 @@ const unpicked = () =>
 const place = (path: string | undefined) =>
     path?.trim() ? buildReadablePath(path.trim()) : unpicked()
 
-/** Several paths are named by the first, and how many more. */
 export function placesPhrase(paths: readonly string[]): string | undefined {
     const shown = paths.map((path) => path.trim()).filter(Boolean)
     if (shown.length === 0) return undefined
@@ -573,7 +535,6 @@ export function placesPhrase(paths: readonly string[]): string | undefined {
 
 const places = (paths: string[] | undefined) => placesPhrase(paths ?? []) ?? unpicked()
 
-/** The plan's first sentence: what the operation does, and where. */
 function whatSentence(answers: Answers): string {
     const operation = operationFor(answers)
     const sources = places(answers.sources)
@@ -601,7 +562,6 @@ function whatSentence(answers: Answers): string {
         case 'delete':
             return t`Delete the files in ${sources}.`
         case 'purge': {
-            // "it" or "them", as the places are one folder or several.
             const count = Math.max(1, pathsOf(answers, 'sources').length)
             return plural(count, {
                 one: `Delete ${sources} and everything in it.`,
@@ -622,7 +582,6 @@ function whatSentence(answers: Answers): string {
     }
 }
 
-/** The plan as sentences that fill in as the user answers. */
 export function sentence(answers: Answers): Segment[] {
     if (!answers.goal) {
         const hint = t`Pick what you want to do, and the Wizard finds the operation for it.`
@@ -653,7 +612,6 @@ export function sentence(answers: Answers): Segment[] {
     return markedParts(plan).map(({ text, strong }) => ({ text, filled: !strong }))
 }
 
-/** The metadata options, flat, as rclone names them. */
 function metadataOptions(answers: Answers): Record<string, FlagValue> | undefined {
     switch (answers.metadata) {
         case 'keep':
@@ -665,11 +623,6 @@ function metadataOptions(answers: Answers): Record<string, FlagValue> | undefine
     }
 }
 
-/**
- * The route that the plan opens: the operation's page with the answers filled in. The transfer
- * pages take a preset (with the schedule's time, which opens their Schedule drawer). Mount,
- * Serve and Download take their paths in the query, as the launcher sends them.
- */
 export function routeFor(answers: Answers): string | undefined {
     const operation = operationFor(answers)
     if (!operation) return undefined
@@ -699,7 +652,6 @@ export function routeFor(answers: Answers): string | undefined {
     return presetRoute({ ...formOf(operation, args), ...(when ? { when } : {}) })
 }
 
-/** The template that the plan saves, without its id, or undefined when it saves none. */
 export function templateFor(answers: Answers): Omit<Template, 'id'> | undefined {
     const operation = operationFor(answers)
     const name = answers.keep === 'template' ? answers.templateName?.trim() : undefined
@@ -825,11 +777,6 @@ const KEEP_INFO = {
     ],
 }
 
-/**
- * The label of the link to each operation's page in rclone's docs. Serve's label names its
- * protocol, so `docsFor` builds it. Download has no link: it is the app's own, more than rclone's
- * copyurl.
- */
 const DOCS_LABEL: Record<Exclude<Operation, 'serve' | 'download'>, string> = {
     copy: t`Copy in the rclone docs`,
     move: t`Move in the rclone docs`,
@@ -857,7 +804,6 @@ function docsFor(operation: Operation, serveType: ServeType | undefined): Info['
     }
 }
 
-/** The "About this step" panel of a step, or undefined for a step without one. */
 export function infoFor(step: StepKey, answers: Answers, os: Platform): Info | undefined {
     switch (step) {
         case 'refine': {

@@ -1,19 +1,9 @@
-// Syntax highlighting for the text viewer (`CodeMirrorPreview`). Each language is its own chunk,
-// loaded when a file of that kind is opened. The langs pack (`@uiw/codemirror-extensions-langs`)
-// isn't used, because it imports every grammar up front: 1.6 MB for every file.
-//
-// The tables cover the extensions that the viewer receives (FileIcon's code, config and text
-// types) and that have a grammar, and a few files known by their name, which come first. Any
-// other extension (.txt, .log, .csv, .bat…) is shown as plain text, with line numbers but no
-// colors.
-
 import { StreamLanguage, type StreamParser } from '@codemirror/language'
 import type { Extension } from '@uiw/react-codemirror'
 import { getFileExtension } from '../utils'
 
 type Load = () => Promise<Extension>
 
-/** Wraps a CodeMirror 5 mode (`@codemirror/legacy-modes`) as a language. */
 function legacy(load: () => Promise<StreamParser<unknown>>): Load {
     return async () => StreamLanguage.define(await load())
 }
@@ -32,13 +22,10 @@ const erlang = legacy(() => import('@codemirror/legacy-modes/mode/erlang').then(
 const clojure = legacy(() => import('@codemirror/legacy-modes/mode/clojure').then((m) => m.clojure))
 const groovy = legacy(() => import('@codemirror/legacy-modes/mode/groovy').then((m) => m.groovy))
 const diff = legacy(() => import('@codemirror/legacy-modes/mode/diff').then((m) => m.diff))
-// INI, .conf, .env and Java properties files, which have `key = value` lines, `[sections]` and
-// comments.
 const properties = legacy(() =>
     import('@codemirror/legacy-modes/mode/properties').then((m) => m.properties)
 )
 
-/** Keyed by lowercase extension. */
 const LANGUAGES = new Map<string, Load>(
     Object.entries({
         js: javascript({}),
@@ -111,7 +98,6 @@ const LANGUAGES = new Map<string, Load>(
     })
 )
 
-/** Files known by their name, whatever their extension says. Checked before the extensions. */
 const BY_NAME: [RegExp, Load][] = [
     [
         /^CMakeLists\.txt$/,
@@ -141,10 +127,6 @@ export function hasLanguage(name: string): boolean {
     return loaderFor(name) !== undefined
 }
 
-/**
- * Loads the highlighting for a file named `name`. Returns `null` for plain text, and also when
- * the language's chunk can't be loaded (the text is still shown).
- */
 export async function loadLanguage(name: string): Promise<Extension | null> {
     const load = loaderFor(name)
     if (!load) return null

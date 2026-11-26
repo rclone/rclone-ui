@@ -105,7 +105,6 @@ func TestParseCommand(t *testing.T) {
 			t.Errorf("%s skipped as %q, want %q (all %v)", flag, why[flag], reason, why)
 		}
 	}
-	// None of the flags changed rclone's own settings.
 	if ci := fs.GetConfig(context.Background()); ci.Transfers != ciBefore.Transfers || ci.DryRun != ciBefore.DryRun || ci.Progress != ciBefore.Progress {
 		t.Errorf("rclone's config changed: transfers %d dry-run %v", ci.Transfers, ci.DryRun)
 	}
@@ -119,8 +118,6 @@ func TestParseCommand(t *testing.T) {
 	}
 }
 
-// A pasted Copy command puts this executable in front of the app's own metadata mapper, and the
-// import removes it again. Another program's mapper is kept whole.
 func TestParseCommandMapper(t *testing.T) {
 	const exe = "/opt/Rclone UI/rcui"
 	s := New(exe)
@@ -150,16 +147,12 @@ func TestParseCommandServeAndValues(t *testing.T) {
 		t.Errorf("serve.webdav %v", got)
 	}
 	vfs := groupOf(t, out, "vfs")
-	// Values keep the text as written, which rclone has parsed, rather than rclone's rendering of
-	// it (5m0s).
 	if vfs["vfs_cache_mode"] != "full" || vfs["read_only"] != true || vfs["dir_cache_time"] != "5m" {
 		t.Errorf("vfs %v", vfs)
 	}
 	if why := skipped(out)["--transfers"]; why == "" {
 		t.Errorf("a bad value taken: %v", out.Skipped)
 	}
-	// A serve's options are only taken from that serve's command. --addr in any other command
-	// isn't an option that a page sets.
 	out, err = s.ParseCommand(`sync a: b: --addr :8080`)
 	if err != nil {
 		t.Fatal(err)

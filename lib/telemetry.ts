@@ -1,8 +1,3 @@
-// The anonymous usage data and crash reports that the app sends when the user shares them
-// (core/telemetry). The pages send nothing themselves: everything goes through the core, which
-// takes only the events listed there and scrubs every error's message. The switch is in Settings,
-// under Privacy.
-
 import { useQuery } from '@tanstack/react-query'
 import { telemetry as api } from './core/api'
 import { coreKey } from './core/query'
@@ -24,7 +19,6 @@ export function track<E extends keyof PageEvents>(event: E, props: PageEvents[E]
     api.Track(event, props).catch(() => undefined)
 }
 
-/** What Settings shows about sharing, beyond the user's own switch. */
 export function useTelemetryInfo() {
     return useQuery({ queryKey: coreKey('telemetry', 'Info'), queryFn: () => api.Info() }).data
 }

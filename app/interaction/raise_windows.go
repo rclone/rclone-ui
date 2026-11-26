@@ -16,10 +16,8 @@ var (
 	procSetForeground = user32.NewProc("SetForegroundWindow")
 )
 
-// raise keeps the prompt titled title above every other window while it shows, until the function
-// it returns is called. zenity's prompt is an ordinary window, and the app's Startup window and
-// launcher may open on top of it, so that nobody would see it. zenity has no option for this, so
-// raise finds the prompt among this process's windows once it opens, and puts it on top.
+// zenity's prompt is an ordinary window that the Startup window and the launcher may cover, and
+// zenity has no option to keep it on top.
 func raise(title string) (stop func()) {
 	done := make(chan struct{})
 	go func() {
@@ -42,8 +40,6 @@ func raise(title string) (stop func()) {
 	return func() { close(done) }
 }
 
-// search is what findWindow looks for, and what it found. enumWindow reads it, and searchMu keeps
-// one search at a time.
 var (
 	searchMu sync.Mutex
 	search   struct {
@@ -70,7 +66,6 @@ var (
 	})
 )
 
-// findWindow returns the visible window of process pid whose title is title, or 0.
 func findWindow(pid uint32, title string) windows.HWND {
 	searchMu.Lock()
 	defer searchMu.Unlock()

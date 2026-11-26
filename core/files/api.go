@@ -7,21 +7,18 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// RenameItem is one entry in a batch rename.
 type RenameItem struct {
 	Path    string `json:"path"`
 	IsDir   bool   `json:"isDir"`
 	NewName string `json:"newName"`
 }
 
-// RenameResult is the new path of a renamed entry, and the transfer that renames a folder.
 type RenameResult struct {
 	Path string `json:"path"`
 	// TransferID is the recorded transfer that renames a folder. It is empty for a file.
 	TransferID string `json:"transferId"`
 }
 
-// API is the file actions API that the Commander calls to change entries in place.
 type API struct{ s *late.Value[*Service] }
 
 // NewAPI returns an API that waits for the service s to be set.

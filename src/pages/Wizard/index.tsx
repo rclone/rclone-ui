@@ -86,7 +86,6 @@ type Action =
 
 const planIndex = (answers: Answers) => stepsFor(answers).length - 1
 
-/** The picks that open more to fill in on the same step, so the step waits for Continue. */
 const stays = (action: Action) =>
     (action.type === 'metadata' && action.metadata === 'map') ||
     (action.type === 'when' && action.when === 'schedule') ||
@@ -98,14 +97,10 @@ function forward(state: WizardState, answers: Answers, cursor: number): WizardSt
         : { ...state, answers, cursor }
 }
 
-// A pick moves on by itself, and the steps that take typing wait for Continue. Back keeps the
-// answers, except back to the first step, which starts afresh. Change on the plan keeps the
-// answers in `editing`: a pick or Done returns to the plan, and "Back to plan" restores them.
 function reducer(state: WizardState, action: Action): WizardState {
     const { answers, cursor } = state
     switch (action.type) {
         case 'goal': {
-            // A different goal is a different path: the answers after it no longer apply.
             if (answers.goal !== action.goal) return { answers: { goal: action.goal }, cursor: 1 }
             return refineFor(action.goal) ? { ...state, cursor: 1 } : forward(state, answers, 1)
         }
@@ -145,10 +140,6 @@ function reducer(state: WizardState, action: Action): WizardState {
     }
 }
 
-/**
- * The Wizard ("Run" in the launcher): plain questions that lead to an operation, and a
- * plan that opens its page filled in. See flow.ts.
- */
 export default function Wizard() {
     const [key] = useState(() => stateKey(dataDir()))
     const [state, dispatch] = useReducer(reducer, key, loadState)
@@ -162,17 +153,13 @@ export default function Wizard() {
     const operation = operationFor(answers)
     const total = answers.goal ? stepCount(answers.goal) : undefined
 
-    // A pick unmounts the button that had focus, so focus moves to the next question, where
-    // keyboard users expect it.
     const heading = useRef<HTMLHeadingElement>(null)
     // biome-ignore lint/correctness/useExhaustiveDependencies: `step` is the trigger, not an input
     useEffect(() => {
         heading.current?.focus({ preventScroll: true })
     }, [step])
 
-    // The core's check of a schedule's time, as the When field shows it, holds Continue.
     const cron = step === 'when' ? cronFor(answers) : undefined
-    // An answer about an earlier time is ignored, so it never holds Continue.
     const { described, description } = useWhenDescription(cron ?? '')
     const cronProblem =
         cron && cron === described && !description.isPlaceholderData
@@ -185,8 +172,6 @@ export default function Wizard() {
     const setSources = (sources: string[] | undefined) =>
         set({ sources: sources && sources.length > 0 ? sources : undefined })
 
-    // Continue shows on a step already answered (to go on without changing it), and on the steps
-    // that take typing.
     const revisit = (answered: boolean) => (answered && !editing ? true : undefined)
 
     let question: string
@@ -212,7 +197,6 @@ export default function Wizard() {
             body = refine && (
                 <OptionCards
                     labelledBy={questionId}
-                    // A share offers the serve types that this rclone has (nfs isn't on Windows).
                     choices={refine.choices.filter(
                         (choice) =>
                             answers.goal !== 'share' ||
@@ -255,8 +239,6 @@ export default function Wizard() {
                                 />
                             )
                         } else if (key === 'sources' && picker?.many) {
-                            // The pickers are the operation page's: several paths where it takes
-                            // several, and files where it takes files.
                             field = (
                                 <MultiPathField
                                     paths={answers.sources ?? []}
@@ -286,7 +268,6 @@ export default function Wizard() {
                                     allowedKeys={picker?.allowedKeys}
                                     showFiles={picker?.files ?? false}
                                     remember={picker?.remember}
-                                    // A mount point on Windows can be a drive letter.
                                     problemOf={
                                         mountPoint
                                             ? (path) =>
@@ -413,7 +394,6 @@ export default function Wizard() {
     const back = editing ? t`Back to plan` : cursor > 0 ? t`Back` : undefined
     const segments = sentence(answers)
     const goal = GOALS.find((choice) => choice.key === answers.goal)
-    // The tile shows where the answers lead: the operation's window once it is known.
     const look: Pick<WindowLook, 'icon' | 'tone'> = operation
         ? WINDOWS[operation]
         : goal?.icon && goal.tone
@@ -482,7 +462,6 @@ export default function Wizard() {
                     </p>
                 </header>
 
-                {/* A form, so that Enter in a text field moves on, as Continue does. */}
                 <form
                     aria-labelledby={questionId}
                     className="flex flex-col gap-5"
@@ -590,7 +569,6 @@ function Progress({
         >
             {Array.from({ length: segments }, (_, at) => (
                 <span
-                    // The segments are positions, which never move.
                     key={at}
                     className={cn(
                         'h-1.5 flex-1 rounded-full transition-colors duration-300',
@@ -604,10 +582,6 @@ function Progress({
     )
 }
 
-/**
- * Opening the plan: it saves the template, if one was asked for, opens the operation's page with
- * the answers, clears the Wizard and closes it.
- */
 function usePlan(storageKey: string, answers: Answers, onReset: () => void) {
     const [opening, setOpening] = useState(false)
     const operation = operationFor(answers)
@@ -632,7 +606,6 @@ function usePlan(storageKey: string, answers: Answers, onReset: () => void) {
             })
             return
         }
-        // The plan is on its page now, so the Wizard starts afresh next time.
         saveState(storageKey, INITIAL)
         onReset()
         await currentWindow.close()
@@ -686,7 +659,6 @@ function Plan({
         label: string
         value: ReactNode
         step: StepKey
-        /** The Change button's name for a screen reader. */
         change: string
     }[] = [
         {

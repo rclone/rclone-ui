@@ -17,8 +17,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// Class is the group that a name falls into in a comparison. The classes match the groups in
-// CompareDrawer.tsx, in the same order.
 type Class string
 
 const (
@@ -31,7 +29,6 @@ const (
 	SameByHash Class = "sameByHash"
 )
 
-// Side describes a name on one side of a comparison.
 type Side struct {
 	IsDir   bool   `json:"isDir"`
 	Size    int64  `json:"size"` // -1 when the backend does not know
@@ -46,19 +43,11 @@ type Pair struct {
 	Right *Side  `json:"right,omitempty"`
 }
 
-// Comparison is two folders side by side. Each name appears once. Pairs are grouped by class in
-// the order of the Class constants, and within a class, folders come first, then names in order.
 type Comparison struct {
-	Pairs []Pair
-	// Capped reports that a side held more than CompareMax names and its listing stopped there.
-	// Some names are then missing, and a name that the other side has may be in the wrong class.
+	Pairs  []Pair
 	Capped bool
 }
 
-// Compare lists the folders left and right (rclone paths) one level down and sorts their names
-// into the four classes. Names that start with a dot are left out, as the page hides them, unless
-// hidden is set. Each side stops at CompareMax names, and Comparison.Capped reports when that
-// happened.
 func Compare(ctx context.Context, left, right string, fileDates, hidden bool) (Comparison, error) {
 	var (
 		fss   [2]fs.Fs
@@ -67,9 +56,6 @@ func Compare(ctx context.Context, left, right string, fileDates, hidden bool) (C
 		wg    sync.WaitGroup
 	)
 	locs := [2]string{left, right}
-	// Both remotes are opened on the caller's goroutine, which runs an rclone job, because a fatal
-	// rclone error while opening a remote can only be recovered there. They are then listed in
-	// parallel.
 	for i := range locs {
 		f, err := getFs(ctx, locs[i])
 		if err != nil {
@@ -125,14 +111,14 @@ func Compare(ctx context.Context, left, right string, fileDates, hidden bool) (C
 }
 
 type side struct {
-	items  []item // folders first, then by name
-	capped bool   // the listing stopped at CompareMax
+	items  []item
+	capped bool
 }
 
 type item struct {
 	name   string
 	side   Side
-	obj    fs.Object // nil for a folder
+	obj    fs.Object
 	paired bool
 }
 
@@ -187,8 +173,6 @@ func listSide(ctx context.Context, f fs.Fs, fileDates, hidden bool) (side, error
 	return s, nil
 }
 
-// CompareNames orders names roughly as the page's localeCompare does: ignoring case first, then
-// by exact bytes. The Commander's lists, Disk Usage and the agents' file tools all use it.
 func CompareNames(a, b string) int {
 	if c := strings.Compare(strings.ToLower(a), strings.ToLower(b)); c != 0 {
 		return c
@@ -196,10 +180,6 @@ func CompareNames(a, b string) int {
 	return strings.Compare(a, b)
 }
 
-// sameByHash reports whether two files have equal digests for a common hash type. It compares
-// them the way rclone's check does, with operations.CheckHashes, using one hash type that both
-// backends support. Different sizes settle the answer early, because on a local disk computing
-// a digest means reading the whole file.
 func sameByHash(ctx context.Context, a, b fs.Object) bool {
 	if a == nil || b == nil {
 		return false

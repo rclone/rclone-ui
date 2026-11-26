@@ -29,7 +29,6 @@ test('a running transfer is transferring, checking or still getting going', () =
     expect(phaseOf('running', progress({ transferring: [file], checking: [{ name: 'b' }] }))).toBe(
         'transferring'
     )
-    // Some bytes have moved and nothing is in flight right now, so it is still transferring.
     expect(phaseOf('running', progress({ bytes: 5 }))).toBe('transferring')
 })
 

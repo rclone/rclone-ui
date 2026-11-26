@@ -10,9 +10,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// unlockConfig asks for the config's password when the core started with an encrypted config
-// file and has no saved password or password command for it. If the user cancels, the config
-// stays locked. It can be unlocked later with the Remotes window's config file button.
 func (u *ui) unlockConfig(ctx context.Context) {
 	api := u.apis.Config
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)

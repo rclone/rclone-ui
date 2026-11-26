@@ -29,9 +29,6 @@ import { TIP } from '../../components/look/tip'
 import { toastSuccess } from '../../components/toast'
 import { WINDOWS } from '../../routes'
 
-// The parts of the Mount page that show next to its form: the running mounts, the stopped mounts
-// that still have uploads waiting, and a notice for a computer that can't mount.
-
 type State = { label: string; kind: StatusKind }
 
 const STARTING: State = { label: t`Starting`, kind: 'active' }
@@ -44,7 +41,6 @@ const STATE: Record<string, State> = {
     stopped: { label: t`Stopped`, kind: 'idle' },
 }
 
-/** Returns how a mount's state is shown. An unknown state is shown as starting. */
 function stateOf(state: string): State {
     return STATE[state] ?? STARTING
 }
@@ -80,7 +76,6 @@ function uploading(count: number): string {
     return t`${count} uploading`
 }
 
-/** What a stopped mount left behind. The count is unknown (negative) when it couldn't be read. */
 function waitingToUpload(pending: number): string {
     if (pending < 0) return t`Files waiting to upload`
     return plural(pending, { one: '# file waiting to upload', other: '# files waiting to upload' })
@@ -100,10 +95,6 @@ async function said(title: string, error: unknown) {
     await message(formatErrorMessage(error), { title, kind: 'error' })
 }
 
-/**
- * On a computer that can't mount, says why before the user tries. It offers to install WinFsp
- * when the app has the installer, and otherwise links to the download or the docs.
- */
 export function MountSupportNotice() {
     const support = useMountSupport()
     const [installing, setInstalling] = useState(false)
@@ -213,7 +204,6 @@ export function MountList() {
     const { mounts, query } = useMounts()
     const [stopping, setStopping] = useState<string | null>(null)
     const titleId = useId()
-    // The error is shown above the last list that loaded, if there is one.
     const error = query.isError ? (
         <LoadFailedNotice
             title={t`Couldn't load the mounts`}
@@ -333,10 +323,6 @@ export function MountList() {
     )
 }
 
-/**
- * The stopped mounts whose cache still holds uploads, which are never deleted automatically.
- * Mount again reuses the same cache and uploads them, and Discard deletes them.
- */
 export function StoppedMounts() {
     const { mounts: stopped, query } = useStoppedMounts()
     const [busy, setBusy] = useState<string | null>(null)
@@ -354,7 +340,6 @@ export function StoppedMounts() {
         try {
             await mountAgain(mount.folder)
         } catch (error) {
-            // On a computer that can't mount, the can't-mount dialog explains how to set it up.
             if (cannotMount(error) && (await explainMountSupport().catch(() => false))) return
             await said(cannotMount(error) ? t`Mount again` : t`The mount failed`, error)
         } finally {

@@ -28,10 +28,8 @@ function listening() {
     return n
 }
 
-/** Lets the promises queued so far run. */
 const settled = () => new Promise((r) => setTimeout(r, 0))
 
-/** Follows a start that resolves once `answer` is called. The test sets the row that is read. */
 function harness() {
     let answer: () => void = () => undefined
     const answered = new Promise<{ id: string }>((resolve) => {
@@ -122,7 +120,6 @@ test('a failed event before the start answers keeps the reason', async () => {
 
 test('a mount that failed for another reason shows its error', () => {
     expect(cannotMount(new MountFailedError('the remote said no'))).toBe(false)
-    // A rejection from the core, before the mount started, may be the can't-mount one.
     expect(cannotMount(new Error('This computer cannot mount'))).toBe(true)
 })
 

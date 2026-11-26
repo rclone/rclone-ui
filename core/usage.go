@@ -23,15 +23,8 @@ import (
 	"github.com/rclone/rclone-ui/core/version"
 )
 
-// The usage data that the core sends through core/telemetry, while the user shares it. Each event
-// here is built from kinds and counts only: an operation's kind, a backend's type, how many, how
-// long. A path, a file's name or a remote's name never goes into one.
-
-// newTelemetry creates the sender. It sends nothing until startTelemetry applies the user's
-// choice.
 func (c *Core) newTelemetry() *telemetry.Service {
 	return telemetry.New(telemetry.Options{
-		// Through the app's proxy, like the app's other requests.
 		Transport:  httpx.New(0).Transport,
 		DoNotTrack: doNotTrack(os.Getenv("DO_NOT_TRACK")),
 		Props:      telemetryProps,
@@ -41,8 +34,6 @@ func (c *Core) newTelemetry() *telemetry.Service {
 	})
 }
 
-// doNotTrack reports whether the DO_NOT_TRACK variable asks for no data: any value but none, 0
-// and false.
 func doNotTrack(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "", "0", "false":
@@ -51,7 +42,6 @@ func doNotTrack(value string) bool {
 	return true
 }
 
-// telemetryProps returns what every event carries about the app itself.
 func telemetryProps() map[string]any {
 	return map[string]any{
 		"app_version":    version.App,
@@ -77,20 +67,15 @@ func installKind() string {
 	return "standard"
 }
 
-// startTelemetry applies the user's choice now and after each change of the settings, and reports
-// the crash that the last run left, if any.
 func (c *Core) startTelemetry(ctx context.Context) {
 	c.settings.OnChange(func(st settings.Settings) { c.telemetry.Apply(st.Telemetry) })
 	st, err := c.settings.Get(ctx)
-	// Where sharing is on by default, the settings have no Telemetry.ID until they are saved. An
-	// empty Update saves them, which creates the ID. A build that sends nothing needs none.
 	if info := c.telemetry.Info(); err == nil && info.Built && !info.DoNotTrack && st.Telemetry.Enabled && st.Telemetry.ID == "" {
 		st, _, err = c.settings.Update(ctx, settings.Patch{})
 	}
 	if err == nil {
 		c.telemetry.Apply(st.Telemetry)
 	}
-	// The app's own log and crash.log are in the same folder (the shell's keepCrashes).
 	if c.logs != nil && c.logs.Path() != "" {
 		crashLog := filepath.Join(filepath.Dir(c.logs.Path()), "crash.log")
 		c.GoOnce("telemetry.crash", func(context.Context) { c.telemetry.CrashLog(crashLog) })
@@ -98,8 +83,6 @@ func (c *Core) startTelemetry(ctx context.Context) {
 	c.Subscribe(c.usageOf)
 }
 
-// describeRun sends the event that describes this run, once the config file can be read. A file
-// that still waits for its password has no remotes to count, so the event waits for the unlock.
 func (c *Core) describeRun() {
 	var once sync.Once
 	send := func() { once.Do(func() { c.GoOnce("telemetry.started", c.appStarted) }) }
@@ -109,8 +92,6 @@ func (c *Core) describeRun() {
 	}
 }
 
-// appStarted sends the event that describes this run: how much the user has set up, by count and
-// by the types of their remotes.
 func (c *Core) appStarted(ctx context.Context) {
 	names := c.store.GetSectionList()
 	types := map[string]bool{}
@@ -120,9 +101,8 @@ func (c *Core) appStarted(ctx context.Context) {
 		}
 	}
 	props := map[string]any{
-		"remotes":  len(names),
-		"backends": slices.Sorted(maps.Keys(types)),
-		// The run before this one didn't stop cleanly.
+		"remotes":        len(names),
+		"backends":       slices.Sorted(maps.Keys(types)),
 		"crashed_before": c.crashed,
 	}
 	if list, err := c.schedules.List(ctx); err == nil {
@@ -145,9 +125,6 @@ func (c *Core) appStarted(ctx context.Context) {
 	c.telemetry.Capture("app_started", props)
 }
 
-// backendOf returns the type of the backend that a path is on ("s3", "drive"), "local" for this
-// computer, and "unknown" for a remote that isn't in the config. The path's own text goes
-// nowhere.
 func (c *Core) backendOf(path string) string {
 	if path == "" {
 		return ""
@@ -167,9 +144,6 @@ func (c *Core) backendOf(path string) string {
 	return "unknown"
 }
 
-// transferEnded sends a transfer's end: what kind it was, where it was started from, between
-// which backends, how it ended and its totals. A watcher's run that changed nothing is left out,
-// because a watcher may run every minute.
 func (c *Core) transferEnded(t transfers.Transfer) {
 	if t.Origin.Kind == transfers.OriginWatcher && transfers.ChangedNothing(t.Stats) {
 		return
@@ -195,7 +169,6 @@ func (c *Core) transferEnded(t transfers.Transfer) {
 	c.telemetry.Capture("transfer_ended", props)
 }
 
-// usageOf sends the events that follow from the core's own: a mount or a serve that came up.
 func (c *Core) usageOf(ev bus.Event) {
 	switch d := ev.Data.(type) {
 	case bus.MountsChangedData:

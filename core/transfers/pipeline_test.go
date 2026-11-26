@@ -12,10 +12,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// Two folders are copied with a per-remote override and a filter. rclone names an overridden Fs
-// with a hash of its overrides (`:local{AbCdE}:/…`), but every file is still matched to the step
-// it came from, by the name given to the step's Fs. Files that the filter leaves out are not
-// copied.
 func TestFilesMatchedToSteps(t *testing.T) {
 	f := newFixture(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -51,8 +47,6 @@ func TestFilesMatchedToSteps(t *testing.T) {
 	}
 }
 
-// The Browser renames a folder and a file, recorded as one move. The test checks what a page
-// reads once it ends. Its failure isn't shown on the desktop, because the Commander shows it.
 func TestRenameTracked(t *testing.T) {
 	f := newFixture(t)
 	dir := t.TempDir()
@@ -85,7 +79,6 @@ func TestRenameTracked(t *testing.T) {
 	if err != nil || len(tracked) != 1 || tracked[0].State != StateFailed || len(tracked[0].Files) == 0 {
 		t.Errorf("tracked %+v %v", tracked, err)
 	}
-	// What failed, by step: the rename of a file that doesn't exist.
 	r, err := f.s.Retryable(ctx, started.ID)
 	if err != nil || len(r.Items) != 1 || r.Items[0].Kind != "step" || r.Items[0].Step == nil || *r.Items[0].Step != 2 ||
 		!strings.HasSuffix(r.Items[0].Label, "/gone.txt") {
@@ -93,8 +86,6 @@ func TestRenameTracked(t *testing.T) {
 	}
 }
 
-// A bisync dry run started from the page's arguments is recorded as a dry run and completes, and
-// nothing is written on either side.
 func TestBisyncDryRun(t *testing.T) {
 	f := newFixture(t)
 	one, two := t.TempDir(), t.TempDir()
@@ -149,8 +140,6 @@ func TestBisyncCarriesADelete(t *testing.T) {
 	}
 }
 
-// A transfer that a newer build recorded (with a plan and outcome from a later version, after a
-// downgrade) is read-only history. It can be read, shows its own error, and has nothing to retry.
 func TestNewerTransferIsHistory(t *testing.T) {
 	f := newFixture(t)
 	f.seed("1000-aaaaaa", 1000, map[string]any{

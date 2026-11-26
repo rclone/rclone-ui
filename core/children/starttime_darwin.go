@@ -6,7 +6,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// processStartTime returns when the process started, in microseconds (sysctl kern.proc.pid).
 func processStartTime(pid int) (int64, error) {
 	kp, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
 	if errors.Is(err, unix.EIO) || errors.Is(err, unix.ESRCH) {

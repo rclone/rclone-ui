@@ -23,8 +23,6 @@ func mountTable() ([]mountEntry, error) {
 	return parseMountinfo(f)
 }
 
-// MountPoints lists every mounted folder as /proc/self/mountinfo writes it, without touching
-// any of them.
 func MountPoints() ([]string, error) {
 	entries, err := mountTable()
 	if err != nil {
@@ -37,8 +35,6 @@ func MountPoints() ([]string, error) {
 	return points, nil
 }
 
-// Mounted reports whether /proc/self/mountinfo lists mountPoint, without touching the mount
-// itself.
 func Mounted(mountPoint string) (bool, error) {
 	entries, err := mountTable()
 	if err != nil {
@@ -53,9 +49,6 @@ func Mounted(mountPoint string) (bool, error) {
 	return false, nil
 }
 
-// brokenMounts returns the mount points that ClearLeftovers force-unmounts on Linux. It checks
-// every recorded or automount mount point and every fuse.rclone entry, and returns the ones
-// that are mounted and whose folder returns ENOTCONN (their FUSE daemon is gone).
 func brokenMounts(_ context.Context, recs []Record, automounts []string) []string {
 	entries, err := mountTable()
 	if err != nil {
@@ -105,6 +98,6 @@ func answersENOTCONN(mountPoint string) bool {
 	case err := <-done:
 		return errors.Is(err, unix.ENOTCONN)
 	case <-time.After(statWait):
-		return false // alive but slow, so it isn't ours to clear
+		return false
 	}
 }

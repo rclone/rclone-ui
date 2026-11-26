@@ -12,7 +12,6 @@ import (
 	"time"
 )
 
-// TestReadLoginPathOwnSession uses a fake shell that prints its process group instead of PATH.
 func TestReadLoginPathOwnSession(t *testing.T) {
 	shell := filepath.Join(t.TempDir(), "fakeshell")
 	script := "#!/bin/sh\nprintf '__RCUI_PATH__%s__RCUI_PATH__' \"$(ps -o pgid= -p $$)\"\n"
@@ -32,9 +31,6 @@ func TestReadLoginPathOwnSession(t *testing.T) {
 	}
 }
 
-// A job that the login shell leaves in the background keeps the output open, but the read doesn't
-// wait for it. The job runs for 30 seconds, so a read that waited for it would take that long,
-// far past the limit. A busy machine only adds seconds.
 func TestReadLoginPathBackgroundJob(t *testing.T) {
 	dir := t.TempDir()
 	shell := filepath.Join(dir, "fakeshell")

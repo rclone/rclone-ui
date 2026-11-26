@@ -17,9 +17,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// These tests cover what History reads: the ended list by state and search, the newer rows after
-// a cursor, the page size, the transfers recorded at once, and how an end is written.
-
 func idsOf(ts []Transfer) []string {
 	out := make([]string, len(ts))
 	for i, t := range ts {
@@ -28,7 +25,6 @@ func idsOf(ts []Transfer) []string {
 	return out
 }
 
-// The ended list can be narrowed to one end. Stopped also takes the interrupted ones.
 func TestEndedByState(t *testing.T) {
 	f := newFixture(t)
 	f.seed("1-open", 1, map[string]any{"state": "running", "ended_ms": nil})
@@ -59,8 +55,6 @@ func TestEndedByState(t *testing.T) {
 	}
 }
 
-// A transfer is found by its number, open or ended, and a number that the record doesn't have
-// is not found.
 func TestIDOf(t *testing.T) {
 	f := newFixture(t)
 	f.seed("1-open", 1, map[string]any{"state": "running", "ended_ms": nil})
@@ -75,9 +69,6 @@ func TestIDOf(t *testing.T) {
 	}
 }
 
-// searchCases is testdata/transfer_search_cases.json, the table that the frontend's
-// lib/transfers/ended.ts tests read too. The page filters its running transfers itself, so both
-// sides must find the same transfers for the same search.
 type searchCases struct {
 	Transfer Transfer `json:"transfer"`
 	Searches []struct {
@@ -86,8 +77,6 @@ type searchCases struct {
 	} `json:"searches"`
 }
 
-// A search finds the number, the operation, the paths, the error and the origin's name, in any
-// case.
 func TestMatches(t *testing.T) {
 	raw, err := os.ReadFile("../../testdata/transfer_search_cases.json")
 	if err != nil {
@@ -107,8 +96,6 @@ func TestMatches(t *testing.T) {
 	}
 }
 
-// A search keeps reading rows until its page is full, even past many rows that don't match, and
-// pages on with the same search.
 func TestEndedSearchFillsItsPage(t *testing.T) {
 	f := newFixture(t)
 	for i := range 30 {
@@ -136,7 +123,6 @@ func TestEndedSearchFillsItsPage(t *testing.T) {
 	if got := idsOf(page.Items); !slices.Equal(got, []string{"110-10", "100-00"}) || page.More {
 		t.Fatalf("second page %v more %v", got, page.More)
 	}
-	// By number, and together with a state.
 	page, _ = f.s.Ended(ctx, EndedQuery{Search: "#107"})
 	if got := idsOf(page.Items); !slices.Equal(got, []string{"107-07"}) {
 		t.Errorf("by number %v", got)
@@ -147,12 +133,9 @@ func TestEndedSearchFillsItsPage(t *testing.T) {
 	}
 }
 
-// After asks only for the transfers that ended since, newest created first. A page that stops at
-// its limit keeps the oldest ends, so that the next one leaves no gap.
 func TestEndedAfter(t *testing.T) {
 	f := newFixture(t)
 	f.seed("1-open", 1, map[string]any{"state": "running", "ended_ms": nil})
-	// Created in order, but 103 ended last, long after the others.
 	f.seed("100-a", 100, map[string]any{"ended_ms": 1000})
 	f.seed("101-b", 101, map[string]any{"ended_ms": 1001})
 	f.seed("102-c", 102, map[string]any{"ended_ms": 1002})
@@ -181,7 +164,6 @@ func TestEndedAfter(t *testing.T) {
 	}
 }
 
-// A page holds at most 200 rows, whatever it asks for.
 func TestEndedPageSize(t *testing.T) {
 	f := newFixture(t)
 	for i := range maxPage + 5 {
@@ -206,8 +188,6 @@ func TestEndedPageSize(t *testing.T) {
 	}
 }
 
-// An operation made at once (a single-file delete in the Commander) is recorded as a completed
-// transfer, reported like an end, and has nothing to retry.
 func TestDone(t *testing.T) {
 	f := newFixture(t)
 	began := time.Now().Add(-2 * time.Second)
@@ -250,7 +230,6 @@ func TestDone(t *testing.T) {
 	}
 }
 
-// The end of a transfer is tried for about a minute: after 1, 2, 4, 8, 16 and 30 seconds.
 func TestEndRetriesLastAMinute(t *testing.T) {
 	want := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second, 30 * time.Second}
 	if !slices.Equal(endRetries, want) {
@@ -261,12 +240,9 @@ func TestEndRetriesLastAMinute(t *testing.T) {
 	}
 }
 
-// A shutdown cuts the waits short, so that the end is written on its own before the app quits.
 func TestRetryEndStopsAtShutdown(t *testing.T) {
 	f := newFixture(t)
 	f.s.endWaits = []time.Duration{time.Hour, time.Hour}
-	// The shutdown begins once the first write has failed and the retry waits. A shutdown that
-	// came before that would leave no wait to cut short.
 	waiting := &onMessage{msg: "writing a transfer's end; trying again", seen: make(chan struct{})}
 	f.s.log = slog.New(waiting)
 	failing := errors.New("disk full")
@@ -291,7 +267,6 @@ func TestRetryEndStopsAtShutdown(t *testing.T) {
 	}
 }
 
-// onMessage is a log handler that closes seen at the first record with the message msg.
 type onMessage struct {
 	msg  string
 	seen chan struct{}

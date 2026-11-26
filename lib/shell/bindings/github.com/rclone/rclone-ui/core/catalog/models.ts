@@ -102,9 +102,6 @@ export class BackendOptions {
     }
 }
 
-/**
- * Block is one of rclone's option blocks (main, vfs, mount…).
- */
 export class Block {
     "name": string;
     "options": Option[];
@@ -171,11 +168,6 @@ export class BlockValues {
     }
 }
 
-/**
- * Catalog is rclone's reference data: its backends, its option blocks, and the sections that the
- * forms show. Defaults holds the app's default options (see Defaults), which the pages show in
- * their option groups.
- */
 export class Catalog {
     "version": string;
     "backends": Backend[];
@@ -254,16 +246,8 @@ export class Choice {
     }
 }
 
-/**
- * Group holds the options of one group of a form, such as its config or filter options, keyed by
- * rclone's option name as the page wrote it. Each value stays the JSON that the page sent, so a
- * number such as 1.50 keeps every digit until rclone's own parser reads it.
- */
 export type Group = { [_ in string]?: json$0.RawMessage };
 
-/**
- * Kind is how an option's value is edited.
- */
 export enum Kind {
     /**
      * The Go zero value for the underlying type of the enum.
@@ -318,10 +302,6 @@ export class Option {
      * Groups lists rclone's groups for a global option ("Copy,Performance").
      */
     "groups": string;
-
-    /**
-     * Type is rclone's type name ("SizeSuffix").
-     */
     "type": string;
     "kind": Kind;
 
@@ -446,10 +426,6 @@ export class OptionRef {
 
 export class ParsedCommand {
     "args": string[];
-
-    /**
-     * Groups holds the options of each catalog group that the command sets.
-     */
     "groups": { [_ in string]?: Group };
     "skipped": SkippedFlag[];
 

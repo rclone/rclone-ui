@@ -1,8 +1,5 @@
 package serves
 
-// This test binary also acts as every serve child that the tests start. An rclone child (marked
-// by childenv) runs rclone's command line, as main.go dispatches it.
-
 import (
 	"context"
 	"errors"
@@ -43,7 +40,6 @@ func TestMain(m *testing.M) {
 				time.Sleep(10 * time.Millisecond)
 			}
 		}
-		// An rclone child runs rclone's own main, as main.go's runRclone does.
 		childenv.Adopt(nil)
 		rclonecmd.Root.PersistentPreRun = func(*cobra.Command, []string) { childenv.Ready() }
 		rclonecmd.Root.SetArgs(os.Args[1:])
@@ -54,15 +50,12 @@ func TestMain(m *testing.M) {
 	testutil.Main(m, nil)
 }
 
-// holdEnv names a file. A child that has it in its environment waits for the file before it
-// starts to serve.
 const holdEnv = "SERVES_TEST_HOLD"
 
-// configs is the config service as the serves see it: one plain file.
 type configs struct {
 	mu   sync.Mutex
 	path string
-	err  error // returned by ChildPassword when set
+	err  error
 }
 
 func (c *configs) Path() string {
@@ -77,7 +70,6 @@ func (c *configs) ChildPassword(context.Context) (string, error) {
 	return "", c.err
 }
 
-// secrets is the keychain as the serves see it.
 type secrets struct {
 	mu sync.Mutex
 	m  map[string]string
@@ -116,7 +108,6 @@ func (k *secrets) all() map[string]string {
 	return maps.Clone(k.m)
 }
 
-// fixture is a Service with a real supervisor whose children really serve.
 type fixture struct {
 	t       *testing.T
 	s       *Service
@@ -138,7 +129,7 @@ type fixtureOpts struct {
 	run     string
 	data    string
 	db      *db.DB
-	secrets *secrets // the keychain from a previous run
+	secrets *secrets
 	tweak   func(*Options)
 }
 
@@ -213,7 +204,6 @@ func newFixture(t *testing.T, fo ...fixtureOpts) *fixture {
 	return f
 }
 
-// folder returns a folder with a.txt in it to serve.
 func (f *fixture) folder() string {
 	f.t.Helper()
 	dir := f.t.TempDir()
@@ -243,14 +233,12 @@ func (n *notes) Notify(_ context.Context, event notifications.NotificationEvent,
 	}
 }
 
-// onNext runs fn in the next Notify, on the goroutine that notifies.
 func (n *notes) onNext(fn func()) {
 	n.mu.Lock()
 	n.next = fn
 	n.mu.Unlock()
 }
 
-// Desktop fails the test: a serve's failure is never shown on the desktop.
 func (n *notes) Desktop(_ context.Context, e notifications.NotificationEvent, _ notifications.Payload, _ notifications.Desktop) {
 	panic("desktop notification " + string(e))
 }
@@ -299,7 +287,6 @@ func (e *events) count(id string, state children.Status) int {
 	return n
 }
 
-// waitN returns the nth event for id in one of states, and fails after a minute.
 func (e *events) waitN(t *testing.T, id string, n int, states ...children.Status) bus.ServesChangedData {
 	t.Helper()
 	deadline := time.After(time.Minute)
@@ -334,7 +321,6 @@ func (l *lines) emit(e logs.Record) {
 	l.mu.Unlock()
 }
 
-// cacheRefused returns a child's line saying that its VFS cache couldn't be created, or "".
 func (l *lines) cacheRefused() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()

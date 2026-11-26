@@ -8,9 +8,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// Clipboard suggests what was just copied, on the empty query: a link to download, or a path to
-// browse. When the clipboard can't be read without asking the user (macOS), only the fact that it
-// holds a link is known. The action then reads the clipboard once the user has chosen it.
 type Clipboard struct{}
 
 func (Clipboard) Query(_ context.Context, q engine.Query, d *engine.Data) []engine.Result {
@@ -26,7 +23,6 @@ func (Clipboard) Query(_ context.Context, q engine.Query, d *engine.Data) []engi
 			Icon: icons.Download, Pinned: true, Group: engine.GroupSuggested,
 			Actions: []engine.Action{{ID: "download", Name: openName("Download"), Icon: icons.Download, Opens: true,
 				Run: func(_ context.Context, env engine.Env) error {
-					// if it isn't a link after all, the window opens empty
 					link, _, _ := engine.ReadClip(env.ClipboardText(), nil, "")
 					env.OpenWindow("Download", withParams("/download", "initialUrl", link))
 					return nil

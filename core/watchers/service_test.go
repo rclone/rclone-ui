@@ -16,14 +16,11 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// The saves are checked: a name, two paths that rclone reads as meant, folders that don't
-// overlap, and a name used once. Errors name their field.
 func TestSaveChecks(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r, time.Hour)
 	ctx := context.Background()
 	f.save(Input{Name: "Docs", PathA: "/tmp/docs", PathB: "gdrive:Docs"})
-	// The sentence names what a full path starts with on this OS.
 	notFull := "This is not a full path. Use one that starts with /."
 	if runtime.GOOS == "windows" {
 		notFull = `This is not a full path. Use one that starts with a drive, as in C:\.`
@@ -49,7 +46,6 @@ func TestSaveChecks(t *testing.T) {
 			t.Errorf("%+v: %v (field %q), want %q on %s", c.in, err, errs.FieldOf(err), c.error, c.field)
 		}
 	}
-	// Folders side by side, or on different remotes, are fine.
 	f.save(Input{Name: "Near", PathA: "/a/b", PathB: "/a/bc"})
 	f.save(Input{Name: "apart", PathA: "gdrive:a", PathB: "box:a"})
 	ws, err := f.s.List(ctx)
@@ -68,8 +64,6 @@ func TestSaveChecks(t *testing.T) {
 	}
 }
 
-// Changing a folder clears the baseline and what the watcher needed, and runs it at once. A
-// rename only keeps both.
 func TestEditClearsTheBaseline(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r, time.Hour)
@@ -97,9 +91,6 @@ func TestEditClearsTheBaseline(t *testing.T) {
 	}
 }
 
-// The scheduler runs a watcher at once when it is created, and every tick after. A tick while a
-// run is in progress, or Sync now, starts no second run. A paused watcher and one that needs the
-// user are skipped. Resume and Sync now run at once. Deleting a watcher stops its run.
 func TestScheduler(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r, 30*time.Millisecond)
@@ -107,7 +98,6 @@ func TestScheduler(t *testing.T) {
 	f.run()
 	w := f.save(Input{Name: "Docs", PathA: "/tmp/a", PathB: "/tmp/b"})
 	testutil.Eventually(t, 5*time.Second, "the first run", func() bool { return r.count() == 1 })
-	// The first run merges, newer wins, with the parameters every run has.
 	p := r.params(t, 0)
 	for k, v := range map[string]any{"resync": true, "resyncMode": "newer", "conflictResolve": "newer",
 		"conflictLoser": "num", "resilient": true, "recover": true, "maxLock": "2m", "createEmptySrcDirs": true, "maxDelete": float64(50)} {
@@ -118,7 +108,6 @@ func TestScheduler(t *testing.T) {
 	if r.starts[0].Form.Operation != "bisync" || r.starts[0].Origin != (transfers.Origin{Kind: transfers.OriginWatcher, ID: w.ID, Name: w.Name}) {
 		t.Errorf("started %+v", r.starts[0])
 	}
-	// Ticks and Sync now don't start a second run while the first is in progress.
 	testutil.Must(t, f.s.SyncNow(ctx, w.ID))
 	time.Sleep(150 * time.Millisecond)
 	if r.count() != 1 {
@@ -131,25 +120,21 @@ func TestScheduler(t *testing.T) {
 		got.LastChangeAt == nil || got.LastRunAt == nil {
 		t.Errorf("after the merge: %+v", got)
 	}
-	// Later runs don't merge.
 	if p := r.params(t, 1); p["resync"] != nil || p["resyncMode"] != nil {
 		t.Errorf("a later run merges: %v", p)
 	}
-	// An idle run is not a change.
 	r.end(1, transfers.StateCompleted, "", &transfers.Summary{Checks: 4})
 	testutil.Eventually(t, 5*time.Second, "the next tick's run", func() bool { return r.count() == 3 })
 	if got := f.get(w.ID); got.LastChangeID != "t1" || got.LastTransferID != "t1" {
 		t.Errorf("an idle run was recorded as a change: %+v", got)
 	}
 
-	// Paused, it doesn't run.
 	testutil.Must(t, f.s.Pause(ctx, w.ID))
 	r.end(2, transfers.StateCompleted, "", nil)
 	time.Sleep(150 * time.Millisecond)
 	if r.count() != 3 {
 		t.Fatalf("a paused watcher ran")
 	}
-	// Sync now runs a paused watcher once.
 	testutil.Must(t, f.s.SyncNow(ctx, w.ID))
 	testutil.Eventually(t, 5*time.Second, "Sync now", func() bool { return r.count() == 4 })
 	r.end(3, transfers.StateCompleted, "", nil)
@@ -157,11 +142,9 @@ func TestScheduler(t *testing.T) {
 	if r.count() != 4 {
 		t.Fatalf("a paused watcher ran after Sync now")
 	}
-	// Resume runs it at once.
 	testutil.Must(t, f.s.Resume(ctx, w.ID))
 	testutil.Eventually(t, 5*time.Second, "the run on resume", func() bool { return r.count() == 5 })
 
-	// Deleting it stops its run, and it runs no more.
 	testutil.Must(t, f.s.Delete(ctx, w.ID))
 	if !slices.Equal(r.stops, []string{"t5"}) {
 		t.Errorf("stopped %v, want t5", r.stops)
@@ -179,9 +162,6 @@ func TestScheduler(t *testing.T) {
 	}
 }
 
-// A run that bisync can't go on from makes the watcher need the user, and it stops running. A
-// resync-required error asks for Resync, which merges once and lets it run again. Too many
-// deletes says which folder lost them, and Force runs once with force. Other failures retry.
 func TestNeedsAttention(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r, 30*time.Millisecond)
@@ -195,9 +175,8 @@ func TestNeedsAttention(t *testing.T) {
 		r.end(n, state, errText, nil)
 		n++
 	}
-	next(transfers.StateCompleted, "") // the merge
+	next(transfers.StateCompleted, "")
 
-	// An ordinary failure retries on the next tick.
 	next(transfers.StateFailed, "couldn't connect")
 	testutil.Eventually(t, 5*time.Second, "a retry", func() bool { return r.count() == n+1 })
 	if got := f.get(w.ID); got.LastResult != ResultFailed || got.LastError != "couldn't connect" || got.Attention != "" ||
@@ -224,7 +203,6 @@ func TestNeedsAttention(t *testing.T) {
 		if r.count() != n {
 			t.Fatalf("%q: a watcher that needs the user ran", c.err)
 		}
-		// Sync now doesn't run it either.
 		testutil.Must(t, f.s.SyncNow(ctx, w.ID))
 		time.Sleep(50 * time.Millisecond)
 		if r.count() != n {
@@ -251,8 +229,6 @@ func TestNeedsAttention(t *testing.T) {
 			t.Errorf("%q: after it was fixed: %+v", c.err, got)
 		}
 	}
-	// A failed resync keeps the need, and Force after it deletes: it never merges, which would
-	// bring the files back.
 	next(transfers.StateFailed, "too many deletes on Path1: bisync stopped")
 	testutil.Must(t, f.s.Resync(ctx, w.ID))
 	next(transfers.StateFailed, "couldn't connect")
@@ -265,7 +241,6 @@ func TestNeedsAttention(t *testing.T) {
 		t.Errorf("the force after a failed resync: %v", p)
 	}
 	next(transfers.StateFailed, "couldn't connect")
-	// Even a watcher that isn't baselined is forced without a merge.
 	testutil.Must(t, f.s.update(ctx, w.ID, `baselined = 0`))
 	testutil.Must(t, f.s.Force(ctx, w.ID))
 	testutil.Eventually(t, 5*time.Second, "the forced run", func() bool { return r.count() == n+1 })
@@ -275,16 +250,13 @@ func TestNeedsAttention(t *testing.T) {
 	next(transfers.StateFailed, "couldn't connect")
 }
 
-// A tick that finds a run's transfer closed before its end is reported doesn't free the run, as
-// the transfer service writes the end before it reports it. The next run starts once the end is
-// recorded, and doesn't merge again.
 func TestEndReportedAfterTheTransferCloses(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r, time.Hour)
 	ctx := context.Background()
 	w := f.save(Input{Name: "Docs", PathA: "/tmp/a", PathB: "/tmp/b"})
 	testutil.Eventually(t, 5*time.Second, "the first run", func() bool { return r.count() == 1 })
-	r.vanish(0) // the end is written, and not reported yet
+	r.vanish(0)
 	f.s.tick(ctx)
 	time.Sleep(50 * time.Millisecond)
 	if r.count() != 1 {
@@ -299,8 +271,6 @@ func TestEndReportedAfterTheTransferCloses(t *testing.T) {
 	}
 }
 
-// A resync asked for while a run waits to start isn't lost when that run is skipped, because the
-// watcher is paused: it runs.
 func TestQueuedResyncRunsWhenTheRunIsSkipped(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r, time.Hour)
@@ -312,7 +282,7 @@ func TestQueuedResyncRunsWhenTheRunIsSkipped(t *testing.T) {
 	testutil.Must(t, f.s.Pause(ctx, w.ID))
 	for range 20 {
 		n := r.count()
-		f.s.kick(w.ID, modeNormal) // skipped: paused
+		f.s.kick(w.ID, modeNormal)
 		testutil.Must(t, f.s.Resync(ctx, w.ID))
 		testutil.Eventually(t, 5*time.Second, "the resync", func() bool { return r.count() == n+1 })
 		if p := r.params(t, n); p["resync"] != true {
@@ -323,8 +293,6 @@ func TestQueuedResyncRunsWhenTheRunIsSkipped(t *testing.T) {
 	}
 }
 
-// A run that can't start (nothing recorded) fails like a run that did. watcher.failed is sent
-// once per streak of failures, to the targets and the desktop, which opens the Watchers window.
 func TestFailureNotifiedOncePerStreak(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r, time.Hour)
@@ -358,7 +326,6 @@ func TestFailureNotifiedOncePerStreak(t *testing.T) {
 	}
 }
 
-// A remote's rename rewrites the watchers' folders on it, which clears their baseline.
 func TestRenameRemote(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r, time.Hour)
@@ -376,7 +343,6 @@ func TestRenameRemote(t *testing.T) {
 	}
 }
 
-// A page that asks about a watcher that doesn't exist gets not_found, not invalid.
 func TestAPINotFound(t *testing.T) {
 	f := newFixture(t, &fakeRunner{}, time.Hour)
 	ctx := context.Background()

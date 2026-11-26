@@ -58,30 +58,24 @@ func TestMain(m *testing.M) {
 	})
 }
 
-// runner runs the service's background work until the test ends.
 func runner(t *testing.T) syncx.Runner {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	return syncx.RunnerFunc(func(_ string, fn func(context.Context)) { go fn(ctx) })
 }
 
-// follower is a Follower that calls its function.
 type follower func(ctx context.Context, old, new string) error
 
 func (f follower) RenameRemote(ctx context.Context, old, new string) error { return f(ctx, old, new) }
 
-// noUnlocks is a config file that is never unlocked.
 type noUnlocks struct{}
 
 func (noUnlocks) OnUnlocked(func()) {}
 
-// noListings is a listings cache with nothing to drop.
 type noListings struct{}
 
 func (noListings) InvalidateRemotes([]string) {}
 
-// setup gives the test its own config text and a started service that uses it. tweak changes
-// the service's options before it is created.
 func setup(t *testing.T, text string, tweak ...func(*Options)) (*Service, *bus.Sub) {
 	t.Helper()
 	if err := os.WriteFile(configPath, []byte(text), 0o600); err != nil {
@@ -105,7 +99,6 @@ func setup(t *testing.T, text string, tweak ...func(*Options)) (*Service, *bus.S
 	return s, sub
 }
 
-// waitEvent waits for an event named name.
 func waitEvent(t *testing.T, sub *bus.Sub, name string) bus.Event {
 	t.Helper()
 	timeout := time.After(20 * time.Second)
@@ -137,7 +130,6 @@ func TestListRowsAndFsinfo(t *testing.T) {
 	if !slices.Equal(names, []string{"b", "a"}) {
 		t.Errorf("names %v (config order, remotes only)", names)
 	}
-	// The fsinfo arrives in the background.
 	waitEvent(t, sub, bus.RemotesChanged)
 	testutil.Eventually(t, 10*time.Second, "the fsinfo", func() bool {
 		list, _ = s.List(context.Background())
@@ -148,7 +140,6 @@ func TestListRowsAndFsinfo(t *testing.T) {
 	}
 }
 
-// session runs a config session to its end.
 func runSession(t *testing.T, s *Service, sub *bus.Sub, req StartRequest) Step {
 	t.Helper()
 	st, err := s.Sessions().Start(context.Background(), req)
@@ -182,7 +173,6 @@ func TestCreateEditCancel(t *testing.T) {
 	if b, _ := os.ReadFile(configPath); !strings.Contains(string(b), "[store]") {
 		t.Errorf("not saved in the file:\n%s", b)
 	}
-	// An edit sends only the changed keys, and a rename happens in the same session.
 	st = runSession(t, s, sub, StartRequest{Kind: KindUpdate, Name: "store", NewName: "archive", Values: map[string]any{"remote": "/var"}})
 	if st.State != StateDone || st.Result.Name != "archive" {
 		t.Fatalf("edit: %+v", st)
@@ -193,14 +183,11 @@ func TestCreateEditCancel(t *testing.T) {
 	if _, _, err := s.Values("store"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("the old name is still there: %v", err)
 	}
-	// A create that uses an existing name is refused before rclone overwrites the remote.
 	if _, err := s.Sessions().Start(context.Background(), StartRequest{Kind: KindCreate, Name: "archive", Type: "memory"}); err == nil {
 		t.Error("a clashing create started")
 	}
 }
 
-// TestRenameThatCannotSave checks that a rename whose config save fails changes nothing. The old
-// name keeps its values and its app data, the new name doesn't exist, and the hooks don't run.
 func TestRenameThatCannotSave(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("a read-only folder still takes new files on Windows")
@@ -238,8 +225,6 @@ func TestRenameThatCannotSave(t *testing.T) {
 	}
 }
 
-// TestRenameThatTheStoreRefuses checks that a rename fails when the store refuses its save,
-// because the file changed outside the app and can't be read. The followers aren't told.
 func TestRenameThatTheStoreRefuses(t *testing.T) {
 	ctx := context.Background()
 	hooked := false
@@ -301,8 +286,6 @@ func TestRenameCarriesAndHooks(t *testing.T) {
 	}
 }
 
-// TestEdited checks that Options.Edited gets the remotes that changed with their wrappers, after
-// a change, a rename and a delete.
 func TestEdited(t *testing.T) {
 	ctx := context.Background()
 	var got [][]string
@@ -351,9 +334,6 @@ func TestHealth(t *testing.T) {
 	}
 }
 
-// TestHealthRecheckOfACheckInFlight checks a recheck of a remote whose earlier check is still
-// running, because the backend outlived the timeout. The recheck waits for that check and then
-// runs. It doesn't stay stuck in checking after every worker has exited.
 func TestHealthRecheckOfACheckInFlight(t *testing.T) {
 	s, sub := setup(t, "[hung]\ntype = memory\n")
 	h := s.health
@@ -366,7 +346,7 @@ func TestHealthRecheckOfACheckInFlight(t *testing.T) {
 		defer h.mu.Unlock()
 		return h.workers == 0 && h.queued["hung"]
 	})
-	h.done("hung") // the hung call finally returns
+	h.done("hung")
 	ev := waitEvent(t, sub, bus.RemotesHealth)
 	if he := ev.Data.(bus.RemotesHealthData); he.ID != "hung" || he.State != HealthOK {
 		t.Fatalf("health %+v", he)
@@ -403,9 +383,6 @@ func TestClaims(t *testing.T) {
 	}
 }
 
-// TestQuestionAndCancel checks that a create that asks one question at a time stops at rclone's
-// first question, returned as the catalog's option. A cancel then removes the section that
-// rclone had written.
 func TestQuestionAndCancel(t *testing.T) {
 	s, sub := setup(t, "")
 	st := runSession(t, s, sub, StartRequest{Kind: KindCreate, Name: "jotta", Type: "jottacloud", NonInteractive: true})
@@ -419,7 +396,6 @@ func TestQuestionAndCancel(t *testing.T) {
 	if !s.exists("jotta") {
 		t.Fatal("rclone wrote no section before asking")
 	}
-	// The create's own section doesn't make its name taken while it runs.
 	if problem := s.CheckName("jotta"); problem != nil {
 		t.Errorf("the create's own name is taken: %s", problem)
 	}
@@ -429,7 +405,6 @@ func TestQuestionAndCancel(t *testing.T) {
 	testutil.Eventually(t, 10*time.Second, "the unfinished remote to go", func() bool { return !s.exists("jotta") })
 }
 
-// TestCreatedNameIsTaken checks that a name is taken once its create is done.
 func TestCreatedNameIsTaken(t *testing.T) {
 	s, sub := setup(t, "")
 	st := runSession(t, s, sub, StartRequest{Kind: KindCreate, Name: "store", Type: "alias", Values: map[string]any{"remote": "/tmp"}})
@@ -441,8 +416,6 @@ func TestCreatedNameIsTaken(t *testing.T) {
 	}
 }
 
-// TestSessionThatCannotSave checks that a session fails when its remote can't be saved, rather
-// than reporting done while the change exists only in memory. A create's section is removed.
 func TestSessionThatCannotSave(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("a read-only folder still takes new files on Windows")
@@ -471,10 +444,6 @@ func TestSessionThatCannotSave(t *testing.T) {
 	}
 }
 
-// TestReconnectAsksJottacloud checks that a reconnect of a provider that is configured one
-// question at a time asks its questions, starting with rclone's default (no config_* answer is
-// stored). Answering them with their defaults would point the remote somewhere else. A cancel
-// leaves the remote as it was.
 func TestReconnectAsksJottacloud(t *testing.T) {
 	s, sub := setup(t, "[jotta]\ntype = jottacloud\ndevice = Mine\nmountpoint = Sync\n"+
 		`token = {"access_token":"a","token_type":"Bearer","refresh_token":"r","expiry":"2030-01-01T00:00:00Z"}`+"\n")
@@ -482,7 +451,6 @@ func TestReconnectAsksJottacloud(t *testing.T) {
 	if st.State != StateQuestion || st.Question == nil || st.Question.Name != "config_type" || fmt.Sprint(st.Question.Default) != "standard" {
 		t.Fatalf("step %+v", st)
 	}
-	// The backend comes from the remote's section.
 	if st.Type != "jottacloud" {
 		t.Errorf("the step's backend is %q", st.Type)
 	}
@@ -499,8 +467,6 @@ func TestReconnectAsksJottacloud(t *testing.T) {
 }
 
 func init() {
-	// A backend whose config asks which drive to use, as OneDrive's does. rclone stores the
-	// choice under a different name from the question's.
 	fs.Register(&fs.RegInfo{
 		Name: "pickdrive", Description: "a backend that asks which drive",
 		NewFs: func(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, error) {
@@ -519,8 +485,6 @@ func init() {
 	})
 }
 
-// TestReconnectKeepsTheAnsweredChoice checks that a reconnect that asks one question at a time
-// asks for the drive again, and saves the answer.
 func TestReconnectKeepsTheAnsweredChoice(t *testing.T) {
 	s, sub := setup(t, "[fk]\ntype = pickdrive\npick = second\n")
 	st := runSession(t, s, sub, StartRequest{Kind: KindReconnect, Name: "fk", NonInteractive: true})
@@ -545,7 +509,6 @@ func TestReconnectKeepsTheAnsweredChoice(t *testing.T) {
 	}
 }
 
-// configGroups returns the stats groups of config sessions that rclone holds.
 func configGroups(t *testing.T) []string {
 	t.Helper()
 	out, err := rc.Calls.Get("core/group-list").Fn(context.Background(), rc.Params{})
@@ -562,8 +525,6 @@ func configGroups(t *testing.T) []string {
 	return groups
 }
 
-// TestSessionJobGroup checks that a session's call to rclone is counted in its own stats group,
-// which is deleted once the session ends.
 func TestSessionJobGroup(t *testing.T) {
 	waiting, release := armSlowLogin(t)
 	defer close(release)
@@ -576,8 +537,6 @@ func TestSessionJobGroup(t *testing.T) {
 	<-waiting
 	want := rclone.UIGroup("config", st.ID)
 	var group string
-	// The session gets its job once rclone has accepted the call, which may be after the login
-	// began.
 	testutil.Eventually(t, 10*time.Second, "the session's job", func() bool {
 		ss.mu.Lock()
 		defer ss.mu.Unlock()
@@ -595,8 +554,6 @@ func TestSessionJobGroup(t *testing.T) {
 	testutil.Eventually(t, 10*time.Second, "the session's group to go", func() bool { return len(configGroups(t)) == 0 })
 }
 
-// TestListenerBusy checks that when rclone's sign-in listener fails on a taken port, the address
-// is named, however deeply rclone wrapped the error. Any other failure names nothing.
 func TestListenerBusy(t *testing.T) {
 	held, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -622,12 +579,9 @@ func TestListenerBusy(t *testing.T) {
 	}
 }
 
-// slowOpen, when set, blocks each open of a slowinfo remote until its release channel is
-// closed, and signals when an open starts.
 var slowOpen atomic.Pointer[struct{ opening, release chan struct{} }]
 
 func init() {
-	// A memory remote that is slow to open, like a distant remote.
 	fs.Register(&fs.RegInfo{
 		Name: "slowinfo", Description: "a memory remote slow to open",
 		NewFs: func(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, error) {
@@ -647,9 +601,6 @@ func init() {
 	})
 }
 
-// TestFSInfoAfterAChangeMidRefresh checks that when a remote's config changes while its fsinfo
-// is being read, the fsinfo is read again. The pages' list after the change found the read
-// already running, so it didn't request its own.
 func TestFSInfoAfterAChangeMidRefresh(t *testing.T) {
 	ctx := context.Background()
 	gate := &struct{ opening, release chan struct{} }{make(chan struct{}, 1), make(chan struct{})}
@@ -675,8 +626,6 @@ func TestFSInfoAfterAChangeMidRefresh(t *testing.T) {
 	})
 }
 
-// TestFSInfoAsStored checks that the fsinfo read from rclone's package is stored as the same JSON
-// that operations/fsinfo returns.
 func TestFSInfoAsStored(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -709,7 +658,6 @@ func TestFSInfoAsStored(t *testing.T) {
 }
 
 func init() {
-	// A backend whose config asks for a password and reveals the answer, as SugarSync's does.
 	fs.Register(&fs.RegInfo{
 		Name: "askpass", Description: "a backend that asks for a password",
 		NewFs: func(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, error) {
@@ -732,9 +680,6 @@ func init() {
 	})
 }
 
-// TestSessionInteractiveQuestions checks that a password given as an answer to rclone's question
-// reaches the backend obscured, as rclone's own config passes it on. Seafile's two-factor login
-// is the exception and takes its password as plain text (its server is faked here).
 func TestSessionInteractiveQuestions(t *testing.T) {
 	s, sub := setup(t, "")
 	st := runSession(t, s, sub, StartRequest{Kind: KindCreate, Name: "asker", Type: "askpass", NonInteractive: true})
@@ -794,8 +739,6 @@ func TestSessionInteractiveQuestions(t *testing.T) {
 	}
 }
 
-// waitDone waits for session id to leave the working state, either for its next question or
-// for its end.
 func waitDone(t *testing.T, s *Service, sub *bus.Sub, id string) Step {
 	t.Helper()
 	for {
@@ -807,9 +750,6 @@ func waitDone(t *testing.T, s *Service, sub *bus.Sub, id string) Step {
 	}
 }
 
-// TestCallAfterItsSessionEnded checks a create's call that begins just as its session ends,
-// from a cancel right after the start. The call is stopped and waited for, and the remote that
-// it wrote after the end's cleanup is removed.
 func TestCallAfterItsSessionEnded(t *testing.T) {
 	s, _ := setup(t, "")
 	ss := s.Sessions()
@@ -818,7 +758,7 @@ func TestCallAfterItsSessionEnded(t *testing.T) {
 	ss.cur = x
 	ss.mu.Unlock()
 	ss.run(x, func(ctx context.Context) (*fs.ConfigOut, error) {
-		time.Sleep(100 * time.Millisecond) // a call that notices its stop late
+		time.Sleep(100 * time.Millisecond)
 		return config.CreateRemote(context.WithoutCancel(ctx), "late", "memory", rc.Params{}, config.UpdateRemoteOpt{})
 	})
 	if s.exists("late") {
@@ -826,8 +766,6 @@ func TestCallAfterItsSessionEnded(t *testing.T) {
 	}
 }
 
-// TestRenameFailureIsOnTheName checks that a rename that fails at the end of an edit session
-// names the form's name field, so the edit form shows the error under the name.
 func TestRenameFailureIsOnTheName(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("a read-only folder still takes new files on Windows")
@@ -847,7 +785,6 @@ func TestRenameFailureIsOnTheName(t *testing.T) {
 	}
 }
 
-// TestCheckRemote checks that the edit form's check runs again for that remote only.
 func TestCheckRemote(t *testing.T) {
 	s, sub := setup(t, "[ok]\ntype = memory\n\n[broken]\ntype = alias\nremote = /definitely/not/here\n")
 	s.Health(context.Background())
@@ -865,9 +802,6 @@ func TestCheckRemote(t *testing.T) {
 	}
 }
 
-// TestSetupInTheAppsLanguage checks that a session's step names its remote's backend, which the
-// pages' view needs to put rclone's questions and errors in the app's language. Seafile asks for
-// a 2FA code, refuses a blank one, and shows its error with the question that it asks again.
 func TestSetupInTheAppsLanguage(t *testing.T) {
 	s, sub := setup(t, "")
 	st := runSession(t, s, sub, StartRequest{Kind: KindCreate, Name: "sea", Type: "seafile",
@@ -895,7 +829,6 @@ func TestSetupInTheAppsLanguage(t *testing.T) {
 	if v.Question.Help == st.Question.Help || v.Question.Help != catalog.FromQuestion("seafile", st.Question).Help {
 		t.Errorf("the question is %q", v.Question.Help)
 	}
-	// Without its backend, the step's texts stay English.
 	st.Type = ""
 	if v := stepView(&st); v.Notice != st.Notice || v.Question.Help != st.Question.Help {
 		t.Errorf("a step without a backend gives %q and %q", v.Notice, v.Question.Help)
@@ -907,8 +840,6 @@ func TestSetupInTheAppsLanguage(t *testing.T) {
 	}
 }
 
-// A page gets a failed session's error, and the saved items that a rename left, in the app's
-// language.
 func TestStepViewIsTranslated(t *testing.T) {
 	st := &Step{State: StateDone, Error: errs.New("Nothing happened for too long, so the session was stopped."),
 		Result: &StepResult{Name: "x", NotRewritten: []error{errs.Errorf("The favourite %s: %s is a favourite already", "a:b", "x:b")}}}
@@ -921,9 +852,6 @@ func TestStepViewIsTranslated(t *testing.T) {
 	}
 }
 
-// rclone can end a setup with an error and nowhere to go on from: a Seafile password left blank,
-// a Google Drive account with no Shared Drives. That is a setup that failed, with rclone's error
-// for the page, and for a new remote nothing is left behind. It used to count as done.
 func TestSetupThatRcloneRefuses(t *testing.T) {
 	s, sub := setup(t, "")
 	st := runSession(t, s, sub, StartRequest{Kind: KindCreate, Name: "blank", Type: "seafile",
@@ -938,7 +866,6 @@ func TestSetupThatRcloneRefuses(t *testing.T) {
 	if st.State != StateFailed || st.Error == nil || st.Error.Error() != "Password can't be blank" {
 		t.Fatalf("after a blank password: state %s, error %v", st.State, st.Error)
 	}
-	// The session says that it failed, then removes what rclone had written.
 	testutil.Eventually(t, 5*time.Second, "the remote that couldn't be set up is removed", func() bool {
 		list, err := s.List(context.Background())
 		if err != nil {
@@ -951,7 +878,6 @@ func TestSetupThatRcloneRefuses(t *testing.T) {
 		}
 		return true
 	})
-	// The page gets rclone's error in the app's language.
 	i18n.SetLanguage("es")
 	defer i18n.SetLanguage(i18n.English)
 	if v := stepView(&st); v.Error == "" || v.Error == "Password can't be blank" || v.Error != catalog.LocalNotice("seafile", "Password can't be blank") {

@@ -10,12 +10,10 @@ import (
 	"github.com/rclone/rclone/fs/config/configmap"
 )
 
-// slowLogin is the login of the backend "slowlogin", modeled on oauthutil's. It waits for the
-// browser and then stores the token. Each test sets it up with its own channels.
 var slowLogin struct {
 	mu      sync.Mutex
-	waiting chan struct{} // signaled when the login starts waiting
-	release chan struct{} // closed when the browser approves
+	waiting chan struct{}
+	release chan struct{}
 }
 
 func init() {
@@ -28,7 +26,6 @@ func init() {
 			slowLogin.mu.Lock()
 			waiting, release := slowLogin.waiting, slowLogin.release
 			slowLogin.mu.Unlock()
-			// Create the job's stats group, as a login's token exchange does.
 			accounting.Stats(ctx)
 			waiting <- struct{}{}
 			select {
@@ -42,7 +39,6 @@ func init() {
 	})
 }
 
-// armSlowLogin sets up slowlogin's channels. The login waits until release is closed.
 func armSlowLogin(t *testing.T) (waiting <-chan struct{}, release chan struct{}) {
 	t.Helper()
 	w, r := make(chan struct{}, 1), make(chan struct{})

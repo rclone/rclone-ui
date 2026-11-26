@@ -11,8 +11,6 @@ import (
 // for example, fails with the AppImage's libraries. The rcui children run this same executable,
 // so spawn gives them the AppImage's LD_LIBRARY_PATH back.
 
-// AppImageLibraryPath returns the AppImage's LD_LIBRARY_PATH when this process runs from an
-// AppImage ($APPIMAGE is set), and "" otherwise.
 func AppImageLibraryPath() string {
 	libs, ok := appImageLibraryPath(os.Environ())
 	if !ok {
@@ -21,8 +19,6 @@ func AppImageLibraryPath() string {
 	return libs
 }
 
-// appImageLibraryPath returns LD_LIBRARY_PATH from env, and whether env belongs to an AppImage
-// ($APPIMAGE is set).
 func appImageLibraryPath(env []string) (string, bool) {
 	var appImage, libs string
 	for _, kv := range env {
@@ -35,9 +31,6 @@ func appImageLibraryPath(env []string) (string, bool) {
 	return libs, appImage != ""
 }
 
-// withLibraryPath returns a rcui child's environment with LD_LIBRARY_PATH set back to the
-// AppImage's value (libs), replacing any other value. When libs is "" (not an AppImage), it
-// returns env unchanged.
 func withLibraryPath(env []string, libs string) []string {
 	if libs == "" {
 		return env

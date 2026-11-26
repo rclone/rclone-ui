@@ -18,7 +18,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// reopen makes the tests' own config active again when a test has finished using other files.
 func reopen(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
@@ -46,8 +45,6 @@ func touch(t *testing.T, path string, at time.Time) {
 	}
 }
 
-// encrypted writes text encrypted with password, as rclone does (config.Encrypt). It leaves
-// rclone's key unset, as it was, because the tests' config is plain.
 func encrypted(t *testing.T, path, password, text string) {
 	t.Helper()
 	if err := config.SetConfigPassword(password); err != nil {
@@ -93,8 +90,6 @@ func TestIsEncryptedAndCheckPassword(t *testing.T) {
 		t.Error("CheckPassword set rclone's key")
 	}
 
-	// The header may follow comments and blank lines, as rclone reads it. A newer scheme isn't
-	// supported.
 	b, err := os.ReadFile(enc)
 	if err != nil {
 		t.Fatal(err)
@@ -131,8 +126,6 @@ func TestOpenAnEncryptedConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Without a password, the file needs one, nothing is loaded, and a save is refused rather
-	// than attempted.
 	if err := store.Open(enc, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +145,6 @@ func TestOpenAnEncryptedConfig(t *testing.T) {
 		t.Errorf("the refused save: %+v", st)
 	}
 
-	// A wrong password is reported, and rclone's key stays unset.
 	if err := store.Open(enc, "nope"); err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +152,6 @@ func TestOpenAnEncryptedConfig(t *testing.T) {
 		t.Errorf("a wrong password: %+v, key set %v", st, config.IsEncrypted())
 	}
 
-	// With the right password, the file loads and is saved encrypted with it.
 	if err := store.Open(enc, "secret"); err != nil {
 		t.Fatal(err)
 	}
@@ -179,8 +170,6 @@ func TestOpenAnEncryptedConfig(t *testing.T) {
 		t.Error("the save is not encrypted with the password")
 	}
 
-	// For another, plain file, the password is dropped (a stale one passed in is ignored), and a
-	// save stays plain.
 	if err := store.Open(plain, "secret"); err != nil {
 		t.Fatal(err)
 	}
@@ -198,8 +187,6 @@ func TestOpenAnEncryptedConfig(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	// The states are: opened without a password, the refused save, the wrong password, the
-	// right one, and the other file.
 	if want := []Status{StatusNeedsPassword, StatusNeedsPassword, StatusNeedsPassword, StatusOK, StatusOK}; !slices.Equal(states, want) {
 		t.Errorf("state changes %v, want %v", states, want)
 	}
@@ -208,7 +195,6 @@ func TestOpenAnEncryptedConfig(t *testing.T) {
 func TestOpenAFileThatCannotBeRead(t *testing.T) {
 	reopen(t)
 	dir := t.TempDir()
-	// A folder where the file should be opens, but reading it fails.
 	broken := filepath.Join(dir, "broken.conf")
 	if err := os.Mkdir(broken, 0o700); err != nil {
 		t.Fatal(err)
@@ -223,7 +209,6 @@ func TestOpenAFileThatCannotBeRead(t *testing.T) {
 		t.Errorf("sections %v", got)
 	}
 
-	// A file that doesn't exist yet is fine, because rclone creates it on the first save.
 	fresh := filepath.Join(dir, "sub", "new.conf")
 	if err := store.Open(fresh, ""); err != nil {
 		t.Fatal(err)
@@ -276,13 +261,11 @@ func TestWatch(t *testing.T) {
 		touch(t, path, clock)
 	}
 
-	// Nothing changed, so nothing is reported.
 	store.Poll()
 	if c := took(); len(c) != 0 {
 		t.Errorf("an unchanged file: %+v", c)
 	}
 
-	// A mount child refreshes a token. rclone reads it, and nothing is reported.
 	edit("[drive]\ntype = drive\ntoken = {\"a\":2}\n\n[crypt]\ntype = crypt\nremote = drive:secret\n\n[other]\ntype = memory\n")
 	store.Poll()
 	if c := took(); len(c) != 0 {
@@ -292,7 +275,6 @@ func TestWatch(t *testing.T) {
 		t.Errorf("the new token not read: %q", v)
 	}
 
-	// An edit to drive also affects the crypt over it. Also add one remote and remove another.
 	edit("[drive]\ntype = drive\ntoken = {\"a\":2}\nroot_folder_id = x\n\n[crypt]\ntype = crypt\nremote = drive:secret\n\n[added]\ntype = memory\n")
 	store.Poll()
 	c := took()
@@ -303,7 +285,6 @@ func TestWatch(t *testing.T) {
 		t.Errorf("sections after the edit %v", got)
 	}
 
-	// The app's own save isn't an outside change.
 	config.FileSetValue("added", "description", "mine")
 	config.SaveConfig()
 	store.Poll()
@@ -311,8 +292,6 @@ func TestWatch(t *testing.T) {
 		t.Errorf("the core's own save: %+v", c)
 	}
 
-	// The app's next save reads an outside edit first (rclone reloads a changed file before a
-	// change), and the save reports it.
 	edit("[drive]\ntype = drive\ntoken = {\"a\":2}\nroot_folder_id = y\n\n[crypt]\ntype = crypt\nremote = drive:secret\n\n[added]\ntype = memory\ndescription = mine\n")
 	config.FileSetValue("added", "token", "t")
 	config.SaveConfig()
@@ -324,9 +303,6 @@ func TestWatch(t *testing.T) {
 		t.Errorf("reported twice: %+v", c)
 	}
 
-	// The file is encrypted outside the app (rclone config encryption set). It now needs the
-	// password, and the loaded config stays until the password is given, just as rclone keeps
-	// its previous config.
 	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -363,7 +339,6 @@ func TestWatch(t *testing.T) {
 	}
 }
 
-// watched opens text as the active config and collects the changes Poll reports.
 func watched(t *testing.T, text string) (path string, took func() []Change) {
 	t.Helper()
 	reopen(t)
@@ -388,10 +363,6 @@ func watched(t *testing.T, text string) (path string, took func() []Change) {
 	}
 }
 
-// TestPollWaitsOutASaveGap covers a poll that runs between the two renames of rclone's save
-// (for example, when a mount child refreshes a token) and finds no file. Poll accepts that the
-// file is missing only on the next check, so the remotes aren't reported as removed and then
-// back again.
 func TestPollWaitsOutASaveGap(t *testing.T) {
 	const before = "[drive]\ntype = drive\ntoken = {\"a\":1}\n\n[other]\ntype = memory\n"
 	path, took := watched(t, before)
@@ -474,9 +445,7 @@ func TestChangedSectionsAndTokenKeys(t *testing.T) {
 	}
 }
 
-// TestUserTokenEditIsAChange checks that an outside edit to a user-set option with "token" in
-// its name (webdav's bearer_token) is reported, so its cached Fs is dropped and made again. The
-// remote's name has more than one letter, because on Windows rclone reads "w:" as drive W.
+// The remote's name has more than one letter, because on Windows rclone reads "w:" as drive W.
 func TestUserTokenEditIsAChange(t *testing.T) {
 	path, took := watched(t, "[dav]\ntype = webdav\nurl = http://127.0.0.1:9/dav\nvendor = other\nbearer_token = OLD\n")
 	ctx := context.Background()
@@ -491,7 +460,6 @@ func TestUserTokenEditIsAChange(t *testing.T) {
 	if len(c) != 1 || !slices.Equal(c[0].Sections, []string{"dav"}) {
 		t.Fatalf("the edit of bearer_token: %+v", c)
 	}
-	// Do what core/remotes does with a change.
 	for _, name := range c[0].Sections {
 		cache.ClearConfig(name)
 	}
@@ -556,8 +524,6 @@ func TestMentions(t *testing.T) {
 	}
 }
 
-// The default config file is rclone's own choice (testutil.Home pointed it at the test's home),
-// not the one that Init opened.
 func TestDefaultConfigPathIsRclones(t *testing.T) {
 	want := filepath.Join(dataDir, "rclone", "rclone.conf")
 	if got, err := DefaultConfigPath(); err != nil || got != want {
@@ -568,9 +534,6 @@ func TestDefaultConfigPathIsRclones(t *testing.T) {
 	}
 }
 
-// TestDefaultConfigInAPortableCopy checks that a portable copy's config file is the rclone.conf in
-// its folder, even before the file exists and whatever rclone chose at init. Only rclone's own
-// choice may be left out of a script's commands, because any rclone finds it without --config.
 func TestDefaultConfigInAPortableCopy(t *testing.T) {
 	root := t.TempDir()
 	conf := filepath.Join(root, "rclone.conf")
@@ -594,8 +557,6 @@ func TestDefaultConfigInAPortableCopy(t *testing.T) {
 	}
 }
 
-// TestDefaultIgnoresRCLONE_CONFIG checks that RCLONE_CONFIG doesn't choose the app's file, so the
-// app opens the same file however it is started.
 func TestDefaultIgnoresRCLONE_CONFIG(t *testing.T) {
 	other := filepath.Join(t.TempDir(), "team.conf")
 	t.Setenv("RCLONE_CONFIG", other)
@@ -605,18 +566,11 @@ func TestDefaultIgnoresRCLONE_CONFIG(t *testing.T) {
 	}
 }
 
-// TestSaveReadsAFileChangedOutside checks that a save rereads the file first when it changed
-// outside the app since it was read, before Poll has checked it. A file that can't be read,
-// because its password was changed or set in a terminal, isn't overwritten at all, in plain text
-// or otherwise. A file whose password was removed is saved as plain text, not encrypted again
-// with the old password. A file that can be read keeps both the outside change and the edit
-// being saved.
 func TestSaveReadsAFileChangedOutside(t *testing.T) {
 	reopen(t)
 	t.Setenv("RCLONE_CONFIG_PASS", "")
 	dir := t.TempDir()
 	const text = "[work]\ntype = memory\n"
-	// outside writes the file as another process would, without touching rclone's key.
 	outside := func(path, password, text string) {
 		t.Helper()
 		data := []byte(text)
@@ -697,11 +651,6 @@ func TestSaveReadsAFileChangedOutside(t *testing.T) {
 	}
 }
 
-// TestPollFollowsAPasswordRemovedOutside checks what happens when the active file's password is
-// removed outside the app (rclone config encryption remove in a terminal). The file is read as
-// plain text and rclone's key is dropped. The app's next save stays plain and keeps what the
-// other process wrote, instead of encrypting it again with the old password. An emptied file
-// says nothing about a password, so the key is kept.
 func TestPollFollowsAPasswordRemovedOutside(t *testing.T) {
 	reopen(t)
 	t.Setenv("RCLONE_CONFIG_PASS", "")
@@ -714,7 +663,7 @@ func TestPollFollowsAPasswordRemovedOutside(t *testing.T) {
 	writeFile(t, path, "")
 	touch(t, path, time.Now().Add(time.Minute))
 	store.Poll()
-	store.Poll() // an emptied file is accepted on the next check
+	store.Poll()
 	if !store.State().Keyed {
 		t.Fatal("an emptied file dropped the key")
 	}
@@ -722,7 +671,7 @@ func TestPollFollowsAPasswordRemovedOutside(t *testing.T) {
 	writeFile(t, path, "[work]\ntype = memory\n\n[other]\ntype = memory\n")
 	touch(t, path, time.Now().Add(2*time.Minute))
 	store.Poll()
-	config.FileSetValue("work", "token", "refreshed") // a token refresh
+	config.FileSetValue("work", "token", "refreshed")
 	config.SaveConfig()
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -736,8 +685,6 @@ func TestPollFollowsAPasswordRemovedOutside(t *testing.T) {
 	}
 }
 
-// createEmpty makes a portable copy's rclone.conf when it is missing, and never touches one that
-// exists.
 func TestCreateEmpty(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "rclone.conf")
 	if err := createEmpty(path); err != nil {

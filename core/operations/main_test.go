@@ -11,11 +11,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// TestMain initializes rclone once for the package, with a config file in a temp folder, as the
-// core does. The tests run plans on local folders and the memory backend, bisync keeps its
-// listings in the temp cache, and nothing from the user's own rclone setup is read. The gdrive
-// and sftp remotes exist only for their types, which overrides are checked against. Nothing
-// opens them.
 func TestMain(m *testing.M) {
 	slog.SetDefault(slog.New(slog.DiscardHandler))
 	testutil.Main(m, func(dir string) error {

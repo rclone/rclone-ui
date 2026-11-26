@@ -15,8 +15,6 @@ import (
 // (see fs/fspath).
 var connParam = regexp.MustCompile(`,([A-Za-z0-9_-]+)=("(?:[^"]|"")*"|'(?:[^']|'')*'|[^,:\s]*)`)
 
-// userinfo matches a password in a URL (scheme://user:password@host), which the url of an http
-// or webdav remote may contain.
 var userinfo = regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.-]*://[^/\s:@]*:)[^/\s@]+@`)
 
 // sensitive holds the names of backend options marked IsPassword or Sensitive. It is built on
@@ -75,7 +73,6 @@ func secret(name string) bool {
 
 func redact(r *Record) { rewrite(r, Redact) }
 
-// rewrite runs fn over all of r's text: its message, object, source and extra values.
 func rewrite(r *Record, fn func(string) string) {
 	r.Message = fn(r.Message)
 	r.Object = fn(r.Object)
@@ -83,8 +80,6 @@ func rewrite(r *Record, fn func(string) string) {
 	rewriteMap(r.Extra, fn)
 }
 
-// rewriteMap rewrites m's values in place. This is safe because each record has its own map,
-// made by Record.add or when a child's line is decoded.
 func rewriteMap(m map[string]any, fn func(string) string) {
 	for k, v := range m {
 		m[k] = rewriteValue(v, fn)
@@ -101,15 +96,13 @@ func rewriteValue(v any, fn func(string) string) any {
 		if red == s {
 			return x
 		}
-		// An unquoted value runs to the next comma or colon, so the replacement can remove a
-		// JSON string's closing quote. A value that is no longer valid JSON is kept as text.
 		if json.Valid([]byte(red)) {
 			return json.RawMessage(red)
 		}
 		return red
 	case map[string]any:
 		rewriteMap(x, fn)
-	case []any: // a child's JSON line
+	case []any:
 		for i, e := range x {
 			x[i] = rewriteValue(e, fn)
 		}

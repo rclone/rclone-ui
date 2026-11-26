@@ -16,11 +16,6 @@ import (
 	"github.com/rclone/rclone-ui/app/launcher/view"
 )
 
-// DevScript runs launcher scripts that are dropped in dir (RCUI_DEV_LAUNCHER). A script is a file
-// named <anything>.cmd with one command per line. It runs once and is then removed. The commands
-// are: show, hide, type <text>, key <up|down|enter|esc|tab|actions|row:<char>>, hover <row>,
-// click <row>, drop <path>… (paths without spaces), sleep <duration>, and state (which is logged).
-// Only a development build has it.
 func (h *Host) DevScript(dir string) {
 	log := h.o.Log
 	if err := os.MkdirAll(dir, 0o700); err != nil {

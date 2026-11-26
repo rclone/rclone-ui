@@ -1,7 +1,6 @@
 import { createPluginRegistration } from '@embedpdf/core'
 import { EmbedPDF } from '@embedpdf/core/react'
 import { usePdfiumEngine } from '@embedpdf/engines/react'
-// PDFium's wasm is bundled (with Vite's ?url) rather than fetched from the default CDN URL.
 import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url'
 import {
     DocumentContent,
@@ -31,18 +30,10 @@ export default function PdfPreview({ url, name, onDownload }: PreviewViewerProps
         error: engineError,
     } = usePdfiumEngine({
         wasmUrl: pdfiumWasmUrl,
-        // Run PDFium on the main thread. The worker engine's async create/destroy
-        // lifecycle races with React StrictMode's double-mount, orphaning the
-        // openDocumentBuffer request so the document hangs in "loading" forever.
         worker: false,
-        // Never fetch fallback fonts from a remote CDN.
         fontFallback: null,
     })
 
-    // Fetch the bytes here and pass PDFium a buffer. This avoids EmbedPDF's default loader,
-    // which uses range requests and wasn't reliable against the media server. There is no wasm
-    // argument, because the engine above (usePdfiumEngine) loads the PDFium wasm, not
-    // setWasmSource.
     const { buffer, error: fetchError, progress } = usePreviewSource(url)
 
     const plugins = useMemo(
@@ -75,7 +66,6 @@ export default function PdfPreview({ url, name, onDownload }: PreviewViewerProps
     }
 
     return (
-        // Re-key on the url so switching to another PDF reloads the document cleanly.
         <EmbedPDF key={url} engine={engine} plugins={plugins}>
             {({ activeDocumentId }) => {
                 if (!activeDocumentId) {
@@ -116,21 +106,9 @@ function PdfViewport({ documentId, onDownload }: { documentId: string; onDownloa
     const lastWidthRef = useRef(0)
     const { provides: zoom } = useZoom(documentId)
 
-    // Fit the page to the viewport width on load, and again whenever the container's width
-    // changes (for example, when the drawer expands to 97%). The plugin's own `defaultZoomLevel`
-    // is unreliable: the viewport mounts only after the document loads, so its first
-    // calculation runs while clientWidth is still 0. A ResizeObserver fires once the element
-    // has a width, and the fit waits one frame so that EmbedPDF's viewport metrics are ready.
-    //
-    // Two guards keep this from overriding the user. It reacts only to width changes, not to
-    // height or scrollbar changes. And it fits only while the zoom is still in fit-width mode,
-    // so a manual zoom is left alone. Snapping back to fit would start a loop of resizes and
-    // zooms that flickers.
     useEffect(() => {
         const el = containerRef.current
         if (!el || !zoom) return
-        // The last requested frame. It is cancelled on cleanup, because a frame that runs after
-        // the viewer closes would zoom a document that no longer exists.
         let frame = 0
         const observer = new ResizeObserver(() => {
             const width = el.clientWidth

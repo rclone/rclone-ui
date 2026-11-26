@@ -20,9 +20,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// batchingFs is a memory Fs whose uploads commit through rclone's lib/batcher, as Dropbox's do
-// with batch_mode=sync. Its Shutdown shuts the batcher down, as Dropbox's does, so an upload
-// after that fails.
 type batchingFs struct {
 	fs.Fs
 	b          *batcher.Batcher[string, string]
@@ -32,10 +29,9 @@ type batchingFs struct {
 func (f *batchingFs) Name() string { return f.name }
 func (f *batchingFs) Root() string { return f.root }
 
-// batchPuts counts the uploads. atPut runs at the third one, in the middle of the copy.
 var (
 	batchPuts atomic.Int32
-	atPut     atomic.Value // func()
+	atPut     atomic.Value
 )
 
 func (f *batchingFs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
@@ -76,8 +72,6 @@ func init() {
 	})
 }
 
-// TestUnrelatedChangeKeepsInUseFs checks that a change to another remote during a copy leaves
-// the copy's target Fs running. Clearing rclone's whole cache would shut its batcher down.
 func TestUnrelatedChangeKeepsInUseFs(t *testing.T) {
 	s, _ := setup(t, "[up]\ntype = rcuibatching\n\n[other]\ntype = memory\n")
 	src := t.TempDir()
@@ -110,8 +104,6 @@ func TestUnrelatedChangeKeepsInUseFs(t *testing.T) {
 	}
 }
 
-// TestChangeClearsTheRemoteAndItsWrappers checks that a change to a remote drops its cached Fs
-// and those of the remotes built on it, and keeps the others.
 func TestChangeClearsTheRemoteAndItsWrappers(t *testing.T) {
 	s, _ := setup(t, "[base]\ntype = memory\n\n[al]\ntype = alias\nremote = base:x\n\n[other]\ntype = memory\n")
 	ctx := context.Background()

@@ -11,8 +11,8 @@ import (
 )
 
 type CallOpts struct {
-	Group string // the stats group (_group); "" uses rclone's job/<id>, deleted after a sync run
-	Async bool   // return the job at once (_async); the work then runs on its own context
+	Group string
+	Async bool
 }
 
 // Run runs fn as an rclone job. Everything that reaches an Fs runs this way, because
@@ -26,7 +26,7 @@ type CallOpts struct {
 //
 // A sync run uses ctx, so cancelling the caller cancels the run. An async run returns at once
 // and runs on its own context, so fn must add its own config and filters (fs.AddConfig,
-// filter.ReplaceConfig). Run returns fn's errors with their text unchanged.
+// filter.ReplaceConfig).
 func Run(ctx context.Context, o CallOpts, fn func(ctx context.Context) error) (*jobs.Job, error) {
 	job, _, err := runJob(ctx, func(ctx context.Context, _ rc.Params) (rc.Params, error) {
 		return nil, fn(ctx)
@@ -34,10 +34,6 @@ func Run(ctx context.Context, o CallOpts, fn func(ctx context.Context) error) (*
 	return job, err
 }
 
-// Call runs the rc function at path as a job, in the same way as Run. A leading / in path is
-// ignored. Call is for features that rclone offers only as rc functions (core/disks,
-// config/oauthstatus), because their state is unexported and has no Go API. Everything else
-// calls rclone's packages through Run.
 func Call(ctx context.Context, path string, in rc.Params, o CallOpts) (rc.Params, *jobs.Job, error) {
 	path = strings.TrimPrefix(path, "/")
 	call := rc.Calls.Get(path)
@@ -51,11 +47,6 @@ func Call(ctx context.Context, path string, in rc.Params, o CallOpts) (rc.Params
 	return out, job, err
 }
 
-// CallIn runs the rc function at path inside a job that Run already started. It runs on ctx,
-// which belongs to that job, with the job's config, filters and stats group, and it doesn't
-// create a job of its own. It is meant for an rc function that a Run closure needs because the
-// function maps its parameters onto rclone's options (sync/bisync does this for bisync).
-// CallIn refuses to run outside a job, because only a job recovers from a fatal rclone error.
 func CallIn(ctx context.Context, path string, in rc.Params) (rc.Params, error) {
 	path = strings.TrimPrefix(path, "/")
 	if _, ok := jobs.GetJob(ctx); !ok {
@@ -81,25 +72,19 @@ func runJob(ctx context.Context, fn rc.Func, in rc.Params, o CallOpts) (*jobs.Jo
 		params["_group"] = o.Group
 	}
 	job, out, err := jobs.NewJob(ctx, fn, params)
-	// A sync run that uses its own job/<id> group must delete it, because nothing reads it
-	// after the run.
 	if job != nil && !o.Async && job.Group == fmt.Sprintf("job/%d", job.ID) {
 		DeleteGroup(ctx, job.Group)
 	}
 	return job, out, err
 }
 
-// UIGroup returns the stats group for page work that reads through rclone, such as a listing,
-// a search, a size, a compare, a health check or a media stream. These groups are never counted
-// in a transfer's numbers, and the log handler (rclonelog) uses them to tell this work apart.
 func UIGroup(kind, id string) string { return "ui/" + kind + "/" + id }
 
-// DeleteGroup deletes a stats group (with core/stats-delete) once its work has ended.
 func DeleteGroup(ctx context.Context, group string) {
 	if group == "" {
 		return
 	}
 	if call := rc.Calls.Get("core/stats-delete"); call != nil {
-		_, _ = call.Fn(ctx, rc.Params{"group": group}) // only fails without a group
+		_, _ = call.Fn(ctx, rc.Params{"group": group})
 	}
 }

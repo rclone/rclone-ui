@@ -11,8 +11,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/syncx"
 )
 
-// A desktop notification shows the payload's message, redacted as the targets get it, unless
-// the caller gives its own text.
 func TestDesktopNotifyOS(t *testing.T) {
 	failed := MountFailed{Source: ":s3,secret_access_key=hush:photos", Destination: "/mnt/p", Error: "boom"}
 	got := Desktop{Route: "/mounts"}.NotifyOS(NotificationEventMountFailed, failed)
@@ -31,8 +29,6 @@ func TestDesktopNotifyOS(t *testing.T) {
 	}
 }
 
-// A desktop notification asked for before the UI subscribes to the bus is held, and shown in
-// order once it does. Later ones are shown at once.
 func TestDesktopWaitsForTheUI(t *testing.T) {
 	b := bus.New()
 	ctx, stop := context.WithCancel(context.Background())

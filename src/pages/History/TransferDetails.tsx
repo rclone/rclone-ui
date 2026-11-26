@@ -39,7 +39,6 @@ import { WINDOWS, type WindowLook } from '../../routes'
 import { bytesOf, formatWhen, operationLabel, originOf, standingOf, timingOf } from './describe'
 import { ArrowRotateLeftIcon, lookOfOperation, ORIGINS, STANDING_KIND } from './rows'
 
-/** The sections that group the files of a transfer. The first two exist only while it runs. */
 type SectionKey = 'checking' | 'transferring' | 'transferred' | 'failed' | 'checked'
 
 export function BackBar({ label, onBack }: { label: string; onBack: () => void }) {
@@ -59,11 +58,6 @@ export function BackBar({ label, onBack }: { label: string; onBack: () => void }
     )
 }
 
-/**
- * The details of one transfer. The transfer is fetched again on transfers.changed, and its files
- * are loaded in pages for each outcome. While it runs, it also shows the files in progress and
- * the newest finished ones from transfers.progress.
- */
 export default function TransferDetails({
     id,
     onBack,
@@ -153,7 +147,6 @@ function DetailsSkeleton() {
     )
 }
 
-/** A file in a section, either stored with the transfer or just reported by transfers.progress. */
 interface ShownFile {
     name: string
     error?: string
@@ -187,10 +180,6 @@ export function GeneralErrors({ general }: { general: Transfers.GeneralError[] }
     )
 }
 
-/**
- * Shown instead of Retry when this version of the app can't retry a transfer, because its plan
- * no longer passes the checks.
- */
 export function RetryRefused({ reason }: { reason: string }) {
     return (
         <Alert color="danger" variant="faded" title={t`This transfer can't be retried.`}>
@@ -199,10 +188,6 @@ export function RetryRefused({ reason }: { reason: string }) {
     )
 }
 
-/**
- * Where the transfer read from and where it wrote to, drawn as the operation's page draws them.
- * Bisync goes both ways, so both dots are filled.
- */
 function Route({ transfer }: { transfer: Transfers.Transfer }) {
     const { tone } = lookOfOperation(transfer.operation)
     const both = transfer.operation === 'bisync'
@@ -266,7 +251,6 @@ function Place({ label, paths }: { label: string; paths: readonly string[] }) {
     )
 }
 
-/** One figure of the report: a number with its name above, and a line under it. */
 interface Figure {
     label: string
     value: string
@@ -405,11 +389,6 @@ function RetriedAs({ seq }: { seq: number }) {
     return <Trans>Retried as #{seq}</Trans>
 }
 
-/**
- * The labels of the buttons that open the operation's page with this transfer's settings: the
- * tooltip of Reuse settings, and the button of the interrupted notice. Each operation has its
- * own sentence, so that a language can say it its own way.
- */
 function reuseLabels(operation: string): { tooltip: string; open: string } {
     switch (operation) {
         case 'copy':
@@ -438,7 +417,6 @@ function reuseLabels(operation: string): { tooltip: string; open: string } {
     }
 }
 
-/** What an open transfer without files says while rclone lists them: "Preparing · 1,200 entries listed". */
 function preparing(listed: number): string {
     const text = t({
         message: 'Preparing',
@@ -449,7 +427,6 @@ function preparing(listed: number): string {
     return [text, count].join(' · ')
 }
 
-/** How the transfer stands, as a dot and a word: running, queued, or how it ended. */
 function standingKindOf(transfer: Transfers.Transfer): { kind: StatusKind; label: string } {
     const standing = standingOf(transfer)
     if (standing) return { kind: STANDING_KIND[transfer.state] ?? 'idle', label: standing.label }
@@ -477,7 +454,6 @@ function Hero({
 }) {
     const { kind, label } = standingKindOf(transfer)
     const origin = originOf(transfer.origin)
-    // The schedule or the agent's app that started it, by name.
     const named = origin === 'schedule' || origin === 'agent' ? ORIGINS[origin] : null
     const when = whenOf(transfer)
     const seq = retryOf?.seq
@@ -558,8 +534,6 @@ function Details({
 }) {
     const { transfer } = detail
     const look = lookOfOperation(transfer.operation)
-    // This state lives here rather than in each section. A section can be empty for a moment
-    // while the transfer runs, and when it comes back it should be open or closed as before.
     const [closed, setClosed] = useState<Set<SectionKey>>(new Set())
     const section = (key: SectionKey) => ({
         isOpen: !closed.has(key),
@@ -572,11 +546,8 @@ function Details({
     })
 
     const live = isLive(transfer.state)
-    // How the transfer ended, once it has.
     const ended = ENDED[transfer.state]
     const open = transfer.endedAt === null
-    // Whether a transfer that ended without completing can be retried. The core decides, in the
-    // same way as for the retry view.
     const { retryable } = useRetryable(
         !open && transfer.state !== 'completed' ? transfer.id : undefined
     )
@@ -585,14 +556,10 @@ function Details({
     const progress = useLiveNumbers()
     const numbers = live ? (progress[transfer.id] ?? transfer.live) : undefined
 
-    // These are fetched again on transfers.changed. The core stores the end (or stop) of a
-    // transfer together with its last files, so the files read after that are complete.
     const transferred = useTransferFiles(transfer.id, 'transferred')
     const failed = useTransferFiles(transfer.id, 'failed')
     const checked = useTransferFiles(transfer.id, 'checked')
 
-    // The settings of the window that started this transfer. A watcher's run has none: it is
-    // not a page's form.
     const preset = originOf(transfer.origin) === 'watcher' ? null : (detail.preset ?? null)
     const reuse = preset ? reuseLabels(preset.operation) : undefined
 
@@ -600,8 +567,6 @@ function Details({
     const stop = async () => {
         setStopping(true)
         try {
-            // The core marks the transfer as stopped before it stops the job, so the job's
-            // "context canceled" error is never taken as a failure.
             await stopTransfer(transfer.id)
             toastSuccess(t`Transfer stopped`)
         } catch (error) {
@@ -614,8 +579,6 @@ function Details({
         }
     }
 
-    // The finished files, grouped by how each one ended. The files in progress are shown only
-    // while the transfer runs.
     const files = useMemo(() => {
         const newest = numbers?.transferred ?? []
         return {
@@ -633,9 +596,6 @@ function Details({
     const transferring = numbers?.transferring ?? []
     const checking = numbers?.checking ?? []
 
-    // The file counts. While the transfer runs, they come from rclone. After it ends, they are
-    // the final totals. Only the newest 1 000 transferred and checked files are stored, so the
-    // counts can be larger than the lists.
     const counts = {
         transferred: Math.max(
             files.transferred.length,
@@ -783,8 +743,6 @@ function Details({
                 <Figures transfer={transfer} live={numbers} counts={counts} tone={look.tone} />
                 <Route transfer={transfer} />
 
-                {/* Each section is shown only when it has files. Failures come before the
-                    files that went well, since they are what needs a look. */}
                 <div className="flex flex-col gap-6 pt-3">
                     {transferring.length > 0 && (
                         <Section
@@ -857,7 +815,6 @@ function Details({
                             }
                         >
                             {files.failed.map((item, itemIndex) => (
-                                // Show rclone's full error, since this row is where users read it.
                                 <li
                                     key={item.name || `item-${itemIndex}`}
                                     className="flex flex-col gap-0.5 px-4 py-2.5"
@@ -948,11 +905,6 @@ function FileRows({ files }: { files: ShownFile[] }) {
     ))
 }
 
-/**
- * The end of a section. While there are older pages of files, it offers to load the next one.
- * After the last page, it says how many of the files were kept, since only the newest 1 000 are
- * stored.
- */
 function More({
     shown,
     count,
@@ -1015,7 +967,6 @@ function Section({
     danger?: boolean
     isOpen: boolean
     onToggle: () => void
-    /** What goes under the panel: Show more, or how many were kept. */
     more?: ReactNode
     children: ReactNode
 }) {
@@ -1053,7 +1004,6 @@ function Section({
                 {isOpen && (
                     <motion.div
                         id={panel}
-                        // Clipped only while it opens or closes, so the panel keeps its shadow.
                         initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
                         animate={{
                             height: 'auto',

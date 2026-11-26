@@ -46,8 +46,6 @@ import { SHEET_COLUMN, SheetFooter, SheetHeader, sheetClass } from '../../compon
 import { WINDOWS } from '../../routes'
 import { rowField } from './fields'
 
-// Fields that can show an error when the core refuses a save. Any other refusal (such as for the
-// provider) is shown in a dialog.
 const REFUSABLE_FIELDS = ['name', 'url', 'chatId', 'events'] as const
 type RefusableField = (typeof REFUSABLE_FIELDS)[number]
 
@@ -61,7 +59,6 @@ const CONNECTION_LINE: Partial<Record<NotificationProvider, string>> & { webhook
 
 function pickedLine(picked: number, total: number): string {
     if (picked === 0) return t`None picked: nothing is sent.`
-    // The same in English, but a language may write "picked" to agree with the number.
     return plural(picked, {
         one: `# of ${total} picked.`,
         other: `# of ${total} picked.`,
@@ -75,10 +72,6 @@ function pickedOf(picked: number, total: number): string {
     })
 }
 
-// One component for both adding and editing. Its state is set from the props when it mounts, so
-// the parent gives it a key for each target and provider. The parent renders it only once the
-// catalog has loaded, because the event checkboxes come from the catalog. The core checks what is
-// saved, and a refusal is shown on the field it applies to.
 export default function NotificationTargetDrawer({
     isOpen,
     onClose,
@@ -95,8 +88,6 @@ export default function NotificationTargetDrawer({
     const providerMeta = metaOf(provider)
     const isEditing = !!target
     const isTelegram = provider === NotificationProvider.NotificationProviderTelegram
-    // The "url" of an email target holds its recipients. The mail is sent through the saved mail
-    // server.
     const isEmail = provider === NotificationProvider.NotificationProviderEmail
     const smtp = useSmtp()
     const smtpMissing = isEmail && !smtp.isLoading && !smtp.data?.host
@@ -104,8 +95,6 @@ export default function NotificationTargetDrawer({
     const allEventIds = useMemo(() => catalog.events.map((event) => event.id), [catalog])
 
     const [name, setName] = useState(target?.name ?? '')
-    // Telegram stores one combined URL (…/bot<token>/sendMessage?chat_id=…), but the form edits
-    // its two parts: the bot token, as BotFather sends it, and the chat id.
     const [url, setUrl] = useState(() =>
         target && isTelegram ? splitTelegramUrl(target.url).token : (target?.url ?? '')
     )
@@ -117,8 +106,6 @@ export default function NotificationTargetDrawer({
     const [urlTouched, setUrlTouched] = useState(false)
     const [chatIdTouched, setChatIdTouched] = useState(false)
     const [justTested, setJustTested] = useState(false)
-    // The errors from the core's refusal of the last save, by field. Each one is cleared when its
-    // field changes.
     const [refused, setRefused] = useState<Partial<Record<RefusableField, string>>>({})
     const unrefuse = (...fields: RefusableField[]) =>
         setRefused((prev) => {
@@ -128,8 +115,6 @@ export default function NotificationTargetDrawer({
             return next
         })
 
-    // The core checks Telegram's bot token and chat ID as the user types, in the URL that they
-    // make together. Its errors come back on url (the token) and chatId.
     const telegram = useTargetProblems(
         isTelegram
             ? {
@@ -142,7 +127,6 @@ export default function NotificationTargetDrawer({
             : undefined
     )
 
-    // An empty field shows its error once the user has left it, or after Save was pressed.
     const urlError = useMemo(() => {
         if (!urlTouched) {
             return null
@@ -152,8 +136,6 @@ export default function NotificationTargetDrawer({
 
     const chatIdError = isTelegram && chatIdTouched ? (telegram?.chatId ?? null) : null
 
-    // The URL as it will be stored and POSTed. For Telegram it is combined from both parts, once
-    // the core takes both.
     const effectiveUrl = useMemo(() => {
         if (!isTelegram) {
             return url.trim()
@@ -180,8 +162,6 @@ export default function NotificationTargetDrawer({
             await sendTestNotification({
                 provider,
                 url: effectiveUrl,
-                // Pass the saved target only while its URL matches the one here. An edited URL is
-                // tested as typed, and the result isn't recorded on the target.
                 id: target && effectiveUrl === target.url ? target.id : undefined,
                 name: name.trim() || undefined,
             })
@@ -201,8 +181,6 @@ export default function NotificationTargetDrawer({
     const handleSave = async (close: () => void) => {
         setUrlTouched(true)
         setChatIdTouched(true)
-        // The core refuses a Telegram target whose token or chat ID is wrong, on the field of
-        // that part.
         const fields = {
             provider,
             name: name.trim(),
@@ -353,8 +331,6 @@ export default function NotificationTargetDrawer({
                                                 value={chatId}
                                                 onValueChange={(value) => {
                                                     setChatId(value)
-                                                    // A refused URL covers both parts, so editing
-                                                    // either one clears the error.
                                                     unrefuse('url', 'chatId')
                                                 }}
                                                 onBlur={() => setChatIdTouched(true)}

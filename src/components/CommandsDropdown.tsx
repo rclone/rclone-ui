@@ -21,7 +21,6 @@ import { WINDOWS } from '../routes'
 import { IconTile } from './look/IconTile'
 import { TIP } from './look/tip'
 
-/** The operations that the menu opens, in the launcher's order. */
 const COMMANDS = [
     'download',
     'copy',
@@ -38,12 +37,6 @@ const PREVIEW = 'preview'
 const DOCS = 'docs'
 const COMMAND = 'command'
 
-/**
- * A menu of the operations, which opens the window of the one picked. On an operation page it is
- * the header's More menu: it also offers a dry run, the page's rclone command and the command's
- * page in the rclone docs, and the current operation is disabled. With a `title`, the trigger is
- * a button with that text (as in History's empty state).
- */
 export default function CommandsDropdown({
     currentCommand,
     docs,
@@ -52,13 +45,9 @@ export default function CommandsDropdown({
     title,
 }: {
     currentCommand?: string
-    /** The command's page on rclone.org, which the first item opens. */
     docs?: string
-    /** Starts a dry run of the page's operation. Disabled while the page can't start. */
     preview?: { run: () => unknown; isDisabled: boolean }
-    /** Shows the page's operation as rclone commands and as a program (CommandModal). */
     onCopyCommand?: () => void
-    /** The button's text, translated by the caller. Without it, the button is the More icon. */
     title?: string
 }) {
     const more = t({ message: 'More', comment: 'Button: opens a menu of more actions.' })

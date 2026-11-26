@@ -29,7 +29,6 @@ import { Panel } from '../../../components/look/Panel'
 import { StatusDot, type StatusKind } from '../../../components/look/Status'
 
 export default function ConfigPanel() {
-    // config.changed refetches the file, along with everything that depends on it.
     const { data: config, error, isError, isFetching, refetch } = useConfig()
 
     const exportConfigMutation = useMutation({
@@ -140,7 +139,6 @@ export default function ConfigPanel() {
 
     return (
         <div className="flex flex-col gap-3">
-            {/* Don't show a config that failed to load as missing. */}
             {isError && (
                 <Alert
                     color="danger"
@@ -163,8 +161,6 @@ export default function ConfigPanel() {
                 </Alert>
             )}
             {config?.saveError && (
-                // A save that failed ("not saved: …"), or a password that the keychain
-                // refused.
                 <Alert color="danger" variant="faded" title={upperFirst(config.saveError)} />
             )}
             {config && (
@@ -355,7 +351,6 @@ function statusOf(
     }
 }
 
-/** Capitalizes the first letter of s, because the core's messages start in lowercase. */
 function upperFirst(s: string): string {
     return s.charAt(0).toUpperCase() + s.slice(1)
 }

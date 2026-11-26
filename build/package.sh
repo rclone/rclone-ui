@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-# Packages a build made by build/build.sh (build/bin/<goos>-<goarch>) for its OS. The packages
-# go into build/dist, under the file names that every release uses and that its feed and the
-# release page link to (build/release's updateFiles and Published), with V the version:
-#
-#   darwin   Rclone-UI-V-macos-<arm64|x64>.dmg, Rclone-UI-V-macos-<arm64|x64>.app.tar.gz (for
-#            updates)
-#   windows  Rclone-UI-V-windows-<x64|arm64>-setup.exe (NSIS, also used by updates and WinGet),
-#            Rclone-UI-V-windows-<x64|arm64>-portable.zip (a portable copy, updated by hand)
-#   linux    Rclone-UI-V-linux-<x86_64|aarch64>.AppImage, Rclone-UI-V-linux-<amd64|arm64>.deb,
-#            Rclone-UI-V-linux-<x86_64|aarch64>.rpm
-#
-# Signing happens when its secrets are set:
-#   macOS    APPLE_SIGNING_IDENTITY (codesign), and APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
-#            (notarization). Without them the app is signed ad hoc, and only runs on this Mac.
-#   Windows  SIGN_COMMAND, a command with %1 for the file (Azure Trusted Signing in a release)
-# When APP_RELEASE_CHECK is set (a release build), missing macOS secrets fail the build instead.
-# The signatures that updates check are made by build/release, which the release workflow runs.
-#
-#   GOOS=darwin GOARCH=arm64 build/package.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -31,10 +12,8 @@ work=$(mktemp -d)
 name="Rclone-UI-$version"
 trap 'rm -rf "$work"' EXIT
 
-# wails3 runs on this machine, whatever GOOS/GOARCH the package is for.
 wails3() { env -u GOOS -u GOARCH go tool -modfile=tools/go.mod wails3 "$@"; }
 
-# fetch URL SHA256 DEST downloads a pinned file, and fails unless it has that sha256.
 fetch() {
     curl -fsSL -o "$3" "$1"
     echo "$2  $3" | sha256sum -c -
@@ -69,8 +48,6 @@ darwin)
         echo "a release is signed and notarized: APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID must all be set" >&2
         exit 1
     fi
-    # notarize FILE STAPLED sends FILE to Apple for notarization, then staples the ticket to
-    # STAPLED and checks it there. STAPLED is the app that FILE was zipped from, or the dmg itself.
     notarize() {
         echo "notarizing $1"
         xcrun notarytool submit "$1" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" \
@@ -85,7 +62,6 @@ darwin)
         if $notarizing; then
             (cd "$work" && ditto -c -k --keepParent "Rclone UI.app" app.zip)
             notarize "$work/app.zip" "$app"
-            # Check Gatekeeper's verdict, as a downloaded copy would get it.
             spctl -a -vv "$app"
         fi
     else
@@ -93,10 +69,8 @@ darwin)
     fi
     codesign --verify --strict "$app"
 
-    # The archive for updates has the bundle at its root (app/update's untarBundle).
     tar -C "$work" -czf "$dist/$name-macos-$arch.app.tar.gz" "Rclone UI.app"
 
-    # The dmg shows the app on the left and Applications on the right.
     wails3 tool package -format dmg -name "Rclone UI" -out "$work" -window-width 660 -window-height 400
     if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
         codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$work/Rclone UI.dmg"
@@ -113,7 +87,6 @@ windows)
     [ "$goarch" = arm64 ] && arch=arm64
     sign_windows "$bin/rcui.exe"
     sign_windows "$bin/bin/rclone.exe"
-    # The WebView2 bootstrapper, for machines without WebView2.
     wails3 generate webview2bootstrapper -dir "$work"
     # WinFsp's installer, unchanged, which is what its license lets the app ship. The installer
     # and the portable zip put it next to rcui.exe as winfsp.msi (core/mounts' WinFspInstaller).
@@ -144,9 +117,6 @@ windows)
     fi
     makensis -V3 "${nsisdefs[@]}" build/windows/nsis/project.nsi
 
-    # The portable zip holds one folder, "Rclone UI". Its empty data folder makes the copy
-    # portable (core/datadir's Portable): the app keeps its data there, and rclone's config in
-    # rclone.conf next to it. It ships the same license files as the installer.
     portable="$work/portable/Rclone UI"
     mkdir -p "$portable/bin" "$portable/data"
     cp "$bin/rcui.exe" "$portable/rcui.exe"
@@ -159,7 +129,7 @@ windows)
     # makes it fail rather than write a tar file under the zip's name.
     zip_tar=tar
     if command -v cygpath >/dev/null; then
-        zip_tar="$(cygpath -S)/tar.exe" # System32, in Git Bash's form
+        zip_tar="$(cygpath -S)/tar.exe"
     elif command -v bsdtar >/dev/null; then
         zip_tar=bsdtar
     fi
@@ -184,11 +154,6 @@ linux)
     wails3 tool package -format rpm -config "$work/nfpm.yaml" -name rcui -out "$work"
     mv "$work/rcui.rpm" "$dist/$name-linux-$rpm_arch.rpm"
 
-    # The AppImage is only built on Linux. Wails makes the AppDir, and linuxdeploy with its GTK
-    # plugin collects GTK 4, WebKitGTK 6.0 and the other libraries that rcui links, which include
-    # gtk4-layer-shell. Wails picks the GTK version from what rcui links. Then the license files
-    # are added, and linuxdeploy runs on the AppDir again to pack it. The second run keeps the
-    # AppRun that it wrapped the first time.
     if [ "$(uname -s)" = Linux ]; then
         # Pin linuxdeploy, because Wails fetches it from its `continuous` release, which can change
         # between builds. Wails writes the AppImage's AppRun itself: a script that starts rcui from
@@ -222,9 +187,6 @@ linux)
             install -m644 "$gpg_error" "$appdir/usr/lib/libgpg-error.so.0"
         fi
 
-        # Add the licenses: the app's license, the licenses of what it is built from, and the
-        # copyright files of the system libraries it carries. The copyright files come from the
-        # Debian packages that installed those libraries.
         install -Dm644 LICENSE "$appdir/usr/share/doc/rcui/LICENSE"
         install -Dm644 public/THIRD_PARTY_NOTICES.txt "$appdir/usr/share/doc/rcui/THIRD_PARTY_NOTICES.txt"
         find "$appdir/usr/lib" -type f -name '*.so*' -print0 | while IFS= read -r -d '' lib; do

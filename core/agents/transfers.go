@@ -25,29 +25,21 @@ import (
 )
 
 const (
-	transferListDefault = 20
-	transferListMax     = 100
-	// transferChangedShown, transferFailedShown and transferCheckedShown are how many files of
-	// each outcome get_transfer lists.
+	transferListDefault  = 20
+	transferListMax      = 100
 	transferChangedShown = 100
 	transferFailedShown  = 50
 	transferCheckedShown = 20
-	// transferChangedRead is how many changed files get_transfer reads, to put the deletions
-	// first. The record keeps the newest 1,000 of them, and a page holds at most 200.
-	transferChangedRead = 1000
-	transferFilesPage   = 200
-	// transferWaitDefault and transferWaitMax are wait_for_transfer's default and longest
-	// timeouts, in seconds.
-	transferWaitDefault = 30
-	transferWaitMax     = 120
-	// transferWaitPoll is how often wait_for_transfer reads the transfer again.
-	transferWaitPoll = 250 * time.Millisecond
+	transferChangedRead  = 1000
+	transferFilesPage    = 200
+	transferWaitDefault  = 30
+	transferWaitMax      = 120
+	transferWaitPoll     = 250 * time.Millisecond
 )
 
 type transferStarted struct {
-	TransferID string `json:"transfer_id" jsonschema:"the transfer's id, for wait_for_transfer, get_transfer and stop_transfer"`
-	Number     int64  `json:"number" jsonschema:"the transfer's number, which the app's History window shows as #12"`
-	// IgnoredOptions are the options that the operation doesn't take. It runs without them.
+	TransferID     string                  `json:"transfer_id" jsonschema:"the transfer's id, for wait_for_transfer, get_transfer and stop_transfer"`
+	Number         int64                   `json:"number" jsonschema:"the transfer's number, which the app's History window shows as #12"`
 	IgnoredOptions []ignoredTransferOption `json:"ignored_options" jsonschema:"the options that this operation doesn't take, each with the reason. The transfer runs without them"`
 }
 
@@ -56,7 +48,6 @@ type ignoredTransferOption struct {
 	Reason string `json:"reason"`
 }
 
-// transferCopyIn is what copy and move take.
 type transferCopyIn struct {
 	Sources     []string       `json:"sources" jsonschema:"the files and folders, such as [\"gdrive:Photos/2024\", \"/Users/me/notes.txt\"]"`
 	Destination string         `json:"destination" jsonschema:"the folder that they go into, such as \"s3:backup\""`
@@ -97,19 +88,17 @@ type transferDownloadIn struct {
 }
 
 type transferRow struct {
-	TransferID  string   `json:"transfer_id"`
-	Number      int64    `json:"number" jsonschema:"the number that History shows, as #12"`
-	Operation   string   `json:"operation" jsonschema:"copy, move, sync, bisync, delete, purge, download or cleanup"`
-	Sources     []string `json:"sources"`
-	Destination string   `json:"destination,omitempty"`
-	// State is queued, running, completed, failed, stopped or interrupted.
-	State     string         `json:"state" jsonschema:"queued, running, completed, failed, stopped (by someone), or interrupted (the app quit while it ran)"`
-	DryRun    bool           `json:"dry_run" jsonschema:"true when it only found out what it would do, and changed nothing"`
-	StartedBy transferOrigin `json:"started_by"`
-	StartedAt string         `json:"started_at"`
-	EndedAt   string         `json:"ended_at,omitempty"`
-	// Progress is set while the transfer runs.
-	Progress *transferProgress `json:"progress,omitempty"`
+	TransferID  string            `json:"transfer_id"`
+	Number      int64             `json:"number" jsonschema:"the number that History shows, as #12"`
+	Operation   string            `json:"operation" jsonschema:"copy, move, sync, bisync, delete, purge, download or cleanup"`
+	Sources     []string          `json:"sources"`
+	Destination string            `json:"destination,omitempty"`
+	State       string            `json:"state" jsonschema:"queued, running, completed, failed, stopped (by someone), or interrupted (the app quit while it ran)"`
+	DryRun      bool              `json:"dry_run" jsonschema:"true when it only found out what it would do, and changed nothing"`
+	StartedBy   transferOrigin    `json:"started_by"`
+	StartedAt   string            `json:"started_at"`
+	EndedAt     string            `json:"ended_at,omitempty"`
+	Progress    *transferProgress `json:"progress,omitempty"`
 }
 
 type transferOrigin struct {
@@ -130,23 +119,17 @@ type transferProgress struct {
 
 type transferDetail struct {
 	transferRow
-	// StillRunning is set by wait_for_transfer when its timeout passed first.
-	StillRunning bool   `json:"still_running,omitempty" jsonschema:"true when the wait ended before the transfer did: wait again"`
-	Error        string `json:"error,omitempty" jsonschema:"why the transfer failed"`
-	// Errors are the errors that belong to a step or to the whole transfer, besides Error.
-	Errors []transferError `json:"errors,omitempty" jsonschema:"other errors that are not about a single file"`
-	// Totals are set once the transfer has ended.
-	Totals *transferTotals `json:"totals,omitempty"`
-	// RetryableParts is how many parts retry_transfer would run again.
-	RetryableParts int `json:"retryable_parts,omitempty" jsonschema:"how many failed parts retry_transfer can run again"`
-	// RetryOf is the number of the transfer that this one retries.
-	RetryOf int64         `json:"retry_of,omitempty" jsonschema:"the number of the transfer that this one retries"`
-	Changed transferFiles `json:"changed" jsonschema:"the files copied, moved, renamed or deleted (in a dry run: that would be), deletions first"`
-	Failed  transferFiles `json:"failed" jsonschema:"the files that failed, each with its error"`
-	Checked transferFiles `json:"checked" jsonschema:"files that were compared and left as they were"`
+	StillRunning   bool            `json:"still_running,omitempty" jsonschema:"true when the wait ended before the transfer did: wait again"`
+	Error          string          `json:"error,omitempty" jsonschema:"why the transfer failed"`
+	Errors         []transferError `json:"errors,omitempty" jsonschema:"other errors that are not about a single file"`
+	Totals         *transferTotals `json:"totals,omitempty"`
+	RetryableParts int             `json:"retryable_parts,omitempty" jsonschema:"how many failed parts retry_transfer can run again"`
+	RetryOf        int64           `json:"retry_of,omitempty" jsonschema:"the number of the transfer that this one retries"`
+	Changed        transferFiles   `json:"changed" jsonschema:"the files copied, moved, renamed or deleted (in a dry run: that would be), deletions first"`
+	Failed         transferFiles   `json:"failed" jsonschema:"the files that failed, each with its error"`
+	Checked        transferFiles   `json:"checked" jsonschema:"files that were compared and left as they were"`
 }
 
-// transferError is an error about a step of a transfer, or about all of it.
 type transferError struct {
 	About string `json:"about,omitempty" jsonschema:"the step or path that it is about"`
 	Error string `json:"error"`
@@ -162,18 +145,15 @@ type transferTotals struct {
 	DurationSeconds  float64 `json:"duration_seconds"`
 }
 
-// transferFiles are a transfer's files with one outcome.
 type transferFiles struct {
-	Count int `json:"count" jsonschema:"how many files the record holds with this outcome. It keeps up to 1,000; totals has the full numbers"`
-	// ByAction counts the changed files by action. It covers only the files that were read.
+	Count     int            `json:"count" jsonschema:"how many files the record holds with this outcome. It keeps up to 1,000; totals has the full numbers"`
 	ByAction  map[string]int `json:"by_action,omitempty" jsonschema:"how many of the files were copied, deleted, moved or renamed"`
 	Files     []transferFile `json:"files"`
 	Truncated bool           `json:"truncated,omitempty" jsonschema:"true when files lists only some of them"`
 }
 
 type transferFile struct {
-	Path string `json:"path" jsonschema:"the file's full path, or its path inside the transfer's folder when the app doesn't know which folder (a deletion's)"`
-	// Action is what was done to the file, in plain words (transferFileAction).
+	Path   string `json:"path" jsonschema:"the file's full path, or its path inside the transfer's folder when the app doesn't know which folder (a deletion's)"`
 	Action string `json:"action" jsonschema:"copy, delete, move, rename (such as a bisync conflict's), or check. For a failed file, what failed"`
 	Size   int64  `json:"size"`
 	Error  string `json:"error,omitempty"`
@@ -188,8 +168,7 @@ type transferListIn struct {
 type transferList struct {
 	Transfers []transferRow `json:"transfers"`
 	Truncated bool          `json:"truncated,omitempty"`
-	// More says how to see the transfers left out, when Truncated is set.
-	More string `json:"more,omitempty"`
+	More      string        `json:"more,omitempty"`
 }
 
 type transferIn struct {
@@ -207,8 +186,7 @@ type transferTemplate struct {
 	Operations  []string `json:"operations" jsonschema:"what the template is for: copy, move, sync, bisync, delete, purge, mount or serve"`
 	Sources     []string `json:"sources,omitempty"`
 	Destination string   `json:"destination,omitempty"`
-	// CanRunAs are the operations that run_template runs it as.
-	CanRunAs []string `json:"can_run_as" jsonschema:"the operations that run_template can run it as. It needs saved paths"`
+	CanRunAs    []string `json:"can_run_as" jsonschema:"the operations that run_template can run it as. It needs saved paths"`
 }
 
 type transferTemplates struct {
@@ -221,10 +199,8 @@ type transferTemplateIn struct {
 	DryRun     bool   `json:"dry_run,omitempty" jsonschema:"only find out what would be done, and change nothing"`
 }
 
-// transferDryRunFirst ends the description of a tool that can delete or overwrite files.
 const transferDryRunFirst = " Run it with dry_run first, read what it would do with get_transfer, and tell the user before you run it for real."
 
-// transferStartsAtOnce ends the description of a tool that starts a transfer.
 const transferStartsAtOnce = " It runs in the background: this returns the transfer's id at once. Follow it with wait_for_transfer."
 
 func (s *Server) transferTools() {
@@ -438,13 +414,9 @@ func (s *Server) transferTools() {
 	})
 }
 
-// transferGroups sorts an agent's flat options into the groups of op's form, as a template's
-// options are sorted (operations.TemplateGroups), and returns the options that op doesn't take,
-// with the reasons in English.
 func transferGroups(op operations.Operation, options map[string]any) (operations.Groups, []ignoredTransferOption, error) {
 	flat := catalog.Group{}
 	for key, v := range options {
-		// The value was read from JSON, so it is written back as it was.
 		raw, err := json.Marshal(v)
 		if err != nil {
 			return operations.Groups{}, nil, fmt.Errorf("the option %s: %w", key, err)
@@ -466,15 +438,10 @@ func transferIgnored(skipped []catalog.SkippedFlag) []ignoredTransferOption {
 	return out
 }
 
-// startTransfer starts the transfer of a form as an operation's window does, with the form as
-// its preset, so that History can open the window with it again. The context makes the
-// transfer the agent's.
 func (s *Server) startTransfer(ctx context.Context, f operations.Form, dryRun bool, ignored []ignoredTransferOption) (transferStarted, error) {
 	return s.startTransferWith(ctx, f, f, dryRun, ignored)
 }
 
-// startTransferWith is startTransfer with a preset that differs from the form, as a download's
-// does.
 func (s *Server) startTransferWith(ctx context.Context, f, preset operations.Form, dryRun bool, ignored []ignoredTransferOption) (transferStarted, error) {
 	st, err := s.o.APIs.Transfers.Start(ctx, f, transfers.StartOptions{DryRun: dryRun, Origin: transfers.OriginPage, Preset: &preset})
 	if err != nil {
@@ -483,10 +450,6 @@ func (s *Server) startTransferWith(ctx context.Context, f, preset operations.For
 	return transferStarted{TransferID: st.ID, Number: st.Seq, IgnoredOptions: ignored}, nil
 }
 
-// transferStartError returns the error of a start as the agent reads it. A transfer that failed
-// at once was recorded first, so the error names it, for get_transfer. rclone refuses the first
-// bisync of two folders until a resync sets their baseline: the Bisync window offers that resync,
-// and the agent is told how to run it.
 func transferStartError(err error) error {
 	e := errs.Of(err)
 	switch {
@@ -501,14 +464,9 @@ func transferStartError(err error) error {
 	return errs.Errorf("%s (The transfer failed as #%d, transfer_id %s: get_transfer shows what failed.)", rclone.ErrorOf(err).Message, e.Transfer.Seq, e.Transfer.ID)
 }
 
-// startDownload starts a download as the Download window does. A page of a site that the link
-// service knows is looked up, and the media found there is downloaded under its own name. Any
-// other link is downloaded as it is, under the last part of its path. The preset keeps the link
-// as the agent gave it, so that History's Duplicate looks it up again.
 func (s *Server) startDownload(ctx context.Context, in transferDownloadIn) (transferStarted, error) {
 	typed := operations.DownloadArgs{URL: strings.TrimSpace(in.URL), Filename: strings.TrimSpace(in.Filename), Destination: in.Destination}
 	run := typed
-	// The window downloads the link itself when the lookup fails, and so does this.
 	if link, err := s.o.APIs.Links.Resolve(ctx, typed.URL); err == nil && link.Found {
 		run.URL = link.URL
 		if run.Filename == "" {
@@ -524,8 +482,6 @@ func (s *Server) startDownload(ctx context.Context, in transferDownloadIn) (tran
 	return s.startTransferWith(ctx, run.Form(), typed.Form(), false, []ignoredTransferOption{})
 }
 
-// linkFilename returns the last part of a link's path, decoded, as the Download window names a
-// link's file. It returns "" when the path ends in a slash or the link can't be read.
 func linkFilename(link string) string {
 	u, err := url.Parse(link)
 	if err != nil {
@@ -536,14 +492,12 @@ func linkFilename(link string) string {
 	if last == "" {
 		return ""
 	}
-	// A part that decodes to a path, such as "a%2Fb", is kept as it is written.
 	if name, err := url.PathUnescape(last); err == nil && !strings.ContainsAny(name, `/\`) && name != "." && name != ".." {
 		return name
 	}
 	return last
 }
 
-// listTransfers lists the open transfers, then the ended ones, newest first.
 func (s *Server) listTransfers(ctx context.Context, in transferListIn) (transferList, error) {
 	limit := in.Limit
 	if limit <= 0 {
@@ -584,7 +538,6 @@ func (s *Server) listTransfers(ctx context.Context, in transferListIn) (transfer
 		}
 	}
 	if ended && !out.Truncated {
-		// At least one is asked for, to learn whether the list goes on.
 		left := limit - len(out.Transfers)
 		page, err := s.o.APIs.Transfers.ListEnded(ctx, transfers.EndedQuery{Limit: max(left, 1), State: state, Search: in.Search})
 		if err != nil {
@@ -602,8 +555,6 @@ func (s *Server) listTransfers(ctx context.Context, in transferListIn) (transfer
 	return out, nil
 }
 
-// transferID returns the id of the transfer that an agent names: by its id, or by its number as
-// History shows it ("#12", or "12").
 func (s *Server) transferID(ctx context.Context, named string) (string, error) {
 	named = strings.TrimSpace(named)
 	if named == "" {
@@ -615,9 +566,6 @@ func (s *Server) transferID(ctx context.Context, named string) (string, error) {
 	return named, nil
 }
 
-// waitTransfer reads the transfer every transferWaitPoll until it has ended, the timeout has
-// passed, or the call is cancelled. When the timeout passes first, it reads the transfer once
-// more and returns it with StillRunning set.
 func (s *Server) waitTransfer(ctx context.Context, id string, timeout time.Duration) (transferDetail, error) {
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
@@ -644,8 +592,6 @@ func (s *Server) waitTransfer(ctx context.Context, id string, timeout time.Durat
 	}
 }
 
-// transferTime writes a time in milliseconds since the epoch as RFC 3339, in this computer's
-// time zone, or "" for no time.
 func transferTime(ms int64) string {
 	if ms == 0 {
 		return ""
@@ -678,8 +624,6 @@ func transferRowOf(t transfers.Transfer) transferRow {
 	return row
 }
 
-// transferDetailOf returns a transfer in full, as get_transfer shows it: the row, its errors in
-// English, its totals, and its files by outcome.
 func (s *Server) transferDetailOf(ctx context.Context, d transfers.Detail) (transferDetail, error) {
 	out := transferDetail{
 		transferRow:    transferRowOf(d.Transfer),
@@ -688,7 +632,6 @@ func (s *Server) transferDetailOf(ctx context.Context, d transfers.Detail) (tran
 	}
 	for _, g := range d.General {
 		text := g.ErrorText().String()
-		// The transfer's own error is often its one general error too.
 		if g.Subject == "" && text == out.Error {
 			continue
 		}
@@ -716,8 +659,6 @@ func (s *Server) transferDetailOf(ctx context.Context, d transfers.Detail) (tran
 	return out, nil
 }
 
-// transferFilesOf returns the newest files of a transfer with one outcome, at most limit of
-// them.
 func (s *Server) transferFilesOf(ctx context.Context, id string, outcome transfers.Outcome, limit int) (transferFiles, error) {
 	page, err := s.o.APIs.Transfers.Files(ctx, id, outcome, "", limit)
 	if err != nil {
@@ -730,9 +671,6 @@ func (s *Server) transferFilesOf(ctx context.Context, id string, outcome transfe
 	return out, nil
 }
 
-// transferChanged returns the files that a transfer changed, or that its dry run would change.
-// It reads as many as the record keeps, so that it can count them by action and list the
-// deletions, which matter most to the user, before the copies.
 func (s *Server) transferChanged(ctx context.Context, id string) (transferFiles, error) {
 	var all []transferFile
 	out := transferFiles{ByAction: map[string]int{}}
@@ -767,8 +705,6 @@ func (s *Server) transferChanged(ctx context.Context, id string) (transferFiles,
 	return out, nil
 }
 
-// transferActionRank orders changed files for the agent: deletions first, then moves and
-// renames, then anything else, and the copies last.
 func transferActionRank(action string) int {
 	switch action {
 	case "delete":
@@ -783,9 +719,6 @@ func transferActionRank(action string) int {
 	return 3
 }
 
-// transferFileOf returns a file of a transfer as an agent reads it. Its path is in the folder
-// that rclone names as its source. A deletion names none, so its path is the one inside the
-// folder that the transfer deleted it from.
 func transferFileOf(f transfers.File) transferFile {
 	path := f.Name
 	if f.SrcFs != "" {
@@ -794,11 +727,9 @@ func transferFileOf(f transfers.File) transferFile {
 	return transferFile{Path: path, Action: transferFileAction(f.What), Size: f.Size, Error: f.Error}
 }
 
-// transferFilePath returns the path of the file called name in the folder that rclone names
-// srcFs. The app opens a local folder as a remote of the local backend, so rclone names it
+// The app opens a local folder as a remote of the local backend, so rclone names it
 // ":local:/tmp/x". On Windows rclone uses the long form ("//?/C:/x", or "//?/UNC/server/share/x"
-// for a share). Both are turned back into the plain local path, as the agent wrote it. Any other
-// file is named by rclone's own join.
+// for a share).
 func transferFilePath(srcFs, name string) string {
 	root, ok := strings.CutPrefix(srcFs, ":local:")
 	if ok && runtime.GOOS == "windows" {
@@ -814,7 +745,6 @@ func transferFilePath(srcFs, name string) string {
 	return filepath.Join(filepath.FromSlash(root), filepath.FromSlash(name))
 }
 
-// transferFileAction returns what rclone did to a file (its "what") in plain words.
 func transferFileAction(what string) string {
 	switch what {
 	case "transferring":
@@ -833,8 +763,6 @@ func transferFileAction(what string) string {
 	return what
 }
 
-// transferTemplateOf returns a template as list_templates shows it. Its options are left out,
-// because they are rclone's own flags, which could hold a backend's secret.
 func transferTemplateOf(t templates.Template) transferTemplate {
 	out := transferTemplate{TemplateID: t.ID, Name: t.Name, Operations: []string{}, CanRunAs: []string{}}
 	for _, tag := range t.Tags {
@@ -849,8 +777,6 @@ func transferTemplateOf(t templates.Template) transferTemplate {
 	return out
 }
 
-// runsAsTransfer reports whether a template for op runs as a transfer. A mount's or a serve's
-// template is only applied in its window.
 func runsAsTransfer(op operations.Operation) bool {
 	switch op {
 	case operations.OperationCopy, operations.OperationMove, operations.OperationSync,
@@ -860,10 +786,6 @@ func runsAsTransfer(op operations.Operation) bool {
 	return false
 }
 
-// runSavedTemplate runs a saved template as one of its operations. History shows the run as the
-// template's, as when the user runs it. The core can't start a template as a dry run, so a dry
-// run starts the template's form like any other tool's transfer, and History shows it as the
-// agent's.
 func (s *Server) runSavedTemplate(ctx context.Context, in transferTemplateIn) (transferStarted, error) {
 	list, err := s.o.APIs.Templates.List(ctx)
 	if err != nil {

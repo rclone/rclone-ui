@@ -31,7 +31,6 @@ func TestFavorites(t *testing.T) {
 	ctx := context.Background()
 	d := testdb.Open(t)
 	s := New(d, bus.New())
-	// A favorite added an hour ago, which Add can't make.
 	old := time.Now().Add(-time.Hour)
 	if err := d.Write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO favorites (path, added_at) VALUES (?, ?)`, "gdrive:Photos", old.UnixMilli())
@@ -45,7 +44,6 @@ func TestFavorites(t *testing.T) {
 	if _, err := s.Add(ctx, "/Users/me/Documents"); err != nil {
 		t.Fatal(err)
 	}
-	// Adding again keeps the first time.
 	f, err := s.Add(ctx, "gdrive:Photos")
 	if err != nil || f.AddedAt != old.UnixMilli() {
 		t.Errorf("re-add: %v %v", f, err)
@@ -67,8 +65,6 @@ func TestFavorites(t *testing.T) {
 	}
 }
 
-// TestRenameOntoAFavourite checks that a favorite whose new path is already a favorite stays under
-// the old name, and that the rename reports it. The other favorites move to the new name.
 func TestRenameOntoAFavourite(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New())
@@ -87,8 +83,6 @@ func TestRenameOntoAFavourite(t *testing.T) {
 	}
 }
 
-// TestRenameNonASCII checks that renaming a remote whose name isn't ASCII updates its favorites,
-// and only its own.
 func TestRenameNonASCII(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New())
@@ -108,10 +102,6 @@ func TestRenameNonASCII(t *testing.T) {
 	}
 }
 
-// TestRenameConnectionString checks that a favorite on the remote written as a connection string
-// follows the rename with its parameters, as rclone reads it. A favorite on another remote whose
-// name starts the same, or on a ":from:" backend, is left alone. A rename that changes nothing
-// publishes nothing.
 func TestRenameConnectionString(t *testing.T) {
 	ctx := context.Background()
 	b := bus.New()

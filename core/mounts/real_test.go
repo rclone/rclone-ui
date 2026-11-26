@@ -13,11 +13,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// TestRealMount mounts a local folder for real through the service (nfsmount on macOS, FUSE on
-// Linux, WinFsp on Windows with -tags cmount). The mount starts at once, is ready once the OS
-// mount table lists it, reads and writes through the mount point, and unmounts when stopped. It
-// runs only with RCUI_TEST_MOUNTS=1. The ci workflow's mounts-linux job sets it (FUSE on Linux).
-// Elsewhere, the test is run by hand.
 func TestRealMount(t *testing.T) {
 	if os.Getenv("RCUI_TEST_MOUNTS") != "1" {
 		t.Skip("set RCUI_TEST_MOUNTS=1 to mount for real")
@@ -91,8 +86,6 @@ func TestRealMount(t *testing.T) {
 		return err == nil && len(queue) == 0
 	})
 
-	// After a crash, the mount point is cleaned (umount -f / fusermount -uz) and the mount is
-	// started again.
 	p, err := os.FindProcess(f.s.List()[0].PID)
 	if err != nil {
 		t.Fatal(err)
@@ -122,9 +115,6 @@ func TestRealMount(t *testing.T) {
 	}
 }
 
-// TestRealDriveMount runs a real Windows `*` mount (WinFsp, -tags cmount) with the children
-// logging errors only. The mount runs on the drive the app picked, which is known from the start
-// without any line from cmount. It runs only with RCUI_TEST_MOUNTS=1 on Windows.
 func TestRealDriveMount(t *testing.T) {
 	if os.Getenv("RCUI_TEST_MOUNTS") != "1" || runtime.GOOS != "windows" {
 		t.Skip("set RCUI_TEST_MOUNTS=1 on Windows to mount a drive for real")

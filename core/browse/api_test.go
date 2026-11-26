@@ -20,10 +20,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// The pages send one path, written as the user sees it, and use each row's path unchanged. These
-// tests cover the ways a panel writes a path, and the paths it gets back.
-
-// recorder keeps the events that an API sent, in order.
 type recorder struct {
 	mu     sync.Mutex
 	events []any
@@ -35,7 +31,6 @@ func (r *recorder) emit(_ context.Context, _ string, data any) {
 	r.events = append(r.events, data)
 }
 
-// rows returns the rows that the API sent, by path, after checking that the last piece is done.
 func (r *recorder) rows(t *testing.T) []browse.Row {
 	t.Helper()
 	r.mu.Lock()
@@ -67,7 +62,6 @@ func pathsOf(rows []browse.Row) []string {
 	return out
 }
 
-// memTree writes files into a memory bucket. files maps a slash-separated path to its content.
 func memTree(t *testing.T, bucket string, files map[string]string) {
 	t.Helper()
 	ctx := context.Background()
@@ -88,8 +82,6 @@ func TestRowsCarryTheirWholePath(t *testing.T) {
 	tree := map[string]string{"a/one.txt": "1", "a/sub/two.txt": "22", "a/.dot": "3"}
 	memTree(t, "rowpaths", tree)
 	local := browse.MakeTree(t, tree)
-	// The machine's own form of a path: its own separator throughout, and the drive first on
-	// Windows.
 	under := func(names ...string) string { return filepath.Join(append([]string{local}, names...)...) }
 	spelled := func(p string) string { return ":local:" + filepath.ToSlash(p) }
 
@@ -99,13 +91,9 @@ func TestRowsCarryTheirWholePath(t *testing.T) {
 	}{
 		{"a remote", "mem:rowpaths/a", []string{"mem:rowpaths/a/.dot", "mem:rowpaths/a/one.txt", "mem:rowpaths/a/sub"}},
 		{"a remote, with a trailing slash", "mem:rowpaths/a/", []string{"mem:rowpaths/a/.dot", "mem:rowpaths/a/one.txt", "mem:rowpaths/a/sub"}},
-		// The slash stays with the root. On sftp it is absolute, which is a different place from
-		// `remote:`.
 		{"a remote under its absolute root", "mem:/rowpaths/a", []string{"mem:/rowpaths/a/.dot", "mem:/rowpaths/a/one.txt", "mem:/rowpaths/a/sub"}},
 		{"a local folder", under("a"), []string{under("a", ".dot"), under("a", "one.txt"), under("a", "sub")}},
 		{"a local folder, with a trailing separator", under("a") + string(filepath.Separator), []string{under("a", ".dot"), under("a", "one.txt"), under("a", "sub")}},
-		// The local backend written as a remote stays in that form, with rclone's `/` (and the
-		// drive first on Windows).
 		{":local: spelled", ":local:" + under("a"), []string{spelled(under("a", ".dot")), spelled(under("a", "one.txt")), spelled(under("a", "sub"))}},
 	}
 	for _, tc := range cases {
@@ -150,10 +138,6 @@ func TestSizesAnswerByThePathAsked(t *testing.T) {
 	ctx := context.Background()
 	a, rec := api(t)
 	local := browse.MakeTree(t, map[string]string{"a/one": "1", "a/sub/two": "22", "b/": ""})
-	// The paths are written as a listing's rows write them: in the machine's form, or with
-	// `:local:` as typed. rclone would misread a relative path as relative to the process's
-	// working directory (this package's folder, where rel is), so it is left out along with the
-	// folders that can't be counted.
 	rel, err := os.MkdirTemp(".", "rel")
 	if err != nil {
 		t.Fatal(err)
@@ -195,8 +179,6 @@ func TestAFolderRcloneWouldMisreadIsRefused(t *testing.T) {
 			t.Errorf("%q: %+v", p, e)
 		}
 	}
-	// A comparison's two folders are refused in the same way as a listing's. A relative folder
-	// would be read from the process's working directory.
 	local := browse.MakeTree(t, map[string]string{"a/one": "1"})
 	for _, pair := range [][2]string{{"a", local}, {local, ":local:a"}, {local, "-bad:x"}} {
 		_, err := a.Compare(context.Background(), pair[0], pair[1], false, false)
@@ -231,7 +213,6 @@ func TestSearchFolderStopsAtItsMax(t *testing.T) {
 	}
 }
 
-// CountFolder counts one folder and says why it can't, where Sizes leaves the folder out.
 func TestCountFolder(t *testing.T) {
 	ctx := context.Background()
 	local := browse.MakeTree(t, map[string]string{"a/one": "1", "a/sub/two": "22", "file": "x"})

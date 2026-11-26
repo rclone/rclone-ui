@@ -13,10 +13,6 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// The APIs that need nothing from the boot answer before any core starts: the log, the app's
-// info, and the catalog's backends and options. The others wait for the core, as the catalog's
-// Values does, because it reads what rclone's init sets. Once the core fails, the waiting ones
-// fail with Unavailable, and the early ones keep answering.
 func TestEarlyAPIsAnswerBeforeTheBoot(t *testing.T) {
 	dir := t.TempDir()
 	l, err := logs.Open(logs.Options{Path: filepath.Join(dir, "rcui.log")})
@@ -27,14 +23,12 @@ func TestEarlyAPIsAnswerBeforeTheBoot(t *testing.T) {
 	l.Append(logs.Record{Message: "a line before the core"})
 
 	apis := NewAPIs(APIOptions{Log: l, DataDir: dir})
-	// Nothing sets the APIs, so a call that waited would fail with this deadline.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if info, err := apis.App.Info(ctx); err != nil || info.DataDir != dir || info.PID != os.Getpid() || info.StartedAt == 0 {
 		t.Errorf("Info: %+v %v", info, err)
 	}
-	// The log writes its lines on its own goroutine, so they reach the tail a moment later.
 	testutil.Eventually(t, 10*time.Second, "the log's lines", func() bool {
 		lines, err := apis.Logs.Tail(ctx, 10)
 		return err == nil && len(lines) > 0
@@ -70,7 +64,6 @@ func TestEarlyAPIsAnswerBeforeTheBoot(t *testing.T) {
 	}
 }
 
-// unavailable reports whether err is the Unavailable error of an API whose core didn't start.
 func unavailable(err error) bool {
 	e := errs.Of(err)
 	return e != nil && e.Code == errs.CodeUnavailable

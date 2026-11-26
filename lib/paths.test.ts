@@ -22,26 +22,18 @@ import {
     WINDOWS,
 } from './paths'
 
-// The machine that paths are built for, as the shell reports it. The tests switch it to read
-// paths as Windows would.
 const machine = vi.hoisted(() => ({ windows: false }))
 vi.mock('./shell', () => ({ isWindows: () => machine.windows }))
-
-// The table (`testdata/paths_cases.json`) is read here and also by a Go test that checks it
-// against rclone's `fspath`, so every expectation matches rclone's behavior.
 
 interface PathCase {
     id: string
     input: string
     host?: Host
     kind: 'remote' | 'local' | 'invalid'
-    /** For a remote: the name (with its `:` for an on-the-fly backend) and the path as typed. */
     name?: string
     path?: string
-    /** The fs root and relative path that the core splits it into (`Split` in `core/location`). */
     root?: string
     rel?: string
-    /** The message that `pathProblem` returns for it, if any. */
     problem?: string
 }
 
@@ -57,7 +49,6 @@ function expectCase(s: PathCase, host: Host | undefined) {
     if (parsed.kind === 'remote') {
         expect(parsed.name, s.id).toBe(s.name)
         expect(parsed.path, s.id).toBe(s.path)
-        // Nothing is added and nothing is removed.
         expect(formatRemote(parsed.name + parsed.params, parsed.path), s.id).toBe(s.input)
     }
     expect(pathProblem(s.input, host), s.id).toBe(s.problem)
@@ -80,22 +71,17 @@ test('without a host given, the grammar reads the machine’s from the shell', (
 })
 
 test('the panel can build and climb both roots without inventing a slash', () => {
-    // The directory string that the panel keeps is the part after the colon.
     expect(joinRemoteDir('', 'photos')).toBe('photos')
     expect(joinRemoteDir('photos', '2024')).toBe('photos/2024')
     expect(joinRemoteDir('photos/', '2024')).toBe('photos/2024')
     expect(joinRemoteDir('/', 'var')).toBe('/var')
     expect(joinRemoteDir('/var', 'www')).toBe('/var/www')
-    // Going up stops at each root, and neither root turns into the other.
     expect(remoteParentDir('/var/www')).toBe('/var')
     expect(remoteParentDir('/var')).toBe('/')
     expect(remoteParentDir('/')).toBe('/')
     expect(remoteParentDir('photos/2024')).toBe('photos')
     expect(remoteParentDir('photos')).toBe('')
     expect(remoteParentDir('')).toBe('')
-    // Round trips over every remote row of the table. Roots are skipped because they have no
-    // leaf, and so are URLs with `//`, because the panel can't produce such a path. A backslash
-    // is a separator on a Windows host only.
     for (const s of CASES) {
         if (s.kind !== 'remote' || s.path === '' || s.path === '/' || s.path?.includes('//'))
             continue
@@ -112,7 +98,6 @@ test('the panel can build and climb both roots without inventing a slash', () =>
 })
 
 test('a backslash separates on a Windows host only, as rclone reads it', () => {
-    // Elsewhere it is part of a name, so `a\b` is one folder and its parent is the root.
     expect(joinRemoteDir('a\\b', 'c', POSIX)).toBe('a\\b/c')
     expect(joinRemoteDir('a\\b', 'c', WINDOWS)).toBe('a/b/c')
     expect(joinRemoteDir('\\a', 'b', POSIX)).toBe('\\a/b')
@@ -137,7 +122,6 @@ test('the name at the end of a path', () => {
     expect(baseName(':local:/tmp/x')).toBe('x')
     expect(baseName('/tmp/a\\b.txt', POSIX)).toBe('a\\b.txt')
     expect(baseName('C:\\Users\\me\\a.txt', WINDOWS)).toBe('a.txt')
-    // A root has no name at the end.
     expect(baseName('gdrive:')).toBe('')
     expect(baseName('sftp:/')).toBe('')
     expect(baseName('/')).toBe('')
@@ -172,14 +156,11 @@ test('what cannot be sent is said, next to the field', () => {
     expect(pathProblem(':sftp/x')).toBe(
         'An on-the-fly remote needs a colon after its type, as in :sftp:path.'
     )
-    // A drive path on a host without drives: rclone would accept it, but read it differently.
     expect(pathProblem('C:\\Users\\me', POSIX)).toBe(
         'This host is not Windows, so C: would be read as a remote called C. Use a path that starts with /.'
     )
     expect(pathProblem('C:/Users/me', POSIX)).toMatch(/^This host is not Windows/)
     expect(pathProblem('C:\\Users\\me', WINDOWS)).toBeUndefined()
-    // A drive with no separator after it means the drive's current folder, which depends on
-    // the core's working directory.
     const notFull = 'This is not a full path. Use one that starts with a drive, as in C:\\.'
     expect(pathProblem('C:', WINDOWS)).toBe(notFull)
     expect(pathProblem('C:foo', WINDOWS)).toBe(notFull)
@@ -187,7 +168,6 @@ test('what cannot be sent is said, next to the field', () => {
     expect(pathProblem('C:\\', WINDOWS)).toBeUndefined()
     expect(pathProblem('c:/foo', WINDOWS)).toBeUndefined()
     expect(pathProblem('\\\\nas\\share\\x', WINDOWS)).toBeUndefined()
-    // On a host without drives, a one-letter remote is a valid remote.
     expect(pathProblem('c:photos', POSIX)).toBeUndefined()
 })
 
@@ -199,7 +179,6 @@ test('a local path climbs to its root and stops there', () => {
         ['/', '/', POSIX],
         ['a/b', 'a', POSIX],
         ['a', '', POSIX],
-        // On other hosts a backslash is part of a name.
         ['/tmp/a\\b', '/tmp', POSIX],
         ['C:\\a\\b', 'C:\\a', WINDOWS],
         ['C:\\a', 'C:\\', WINDOWS],
@@ -233,9 +212,6 @@ test('a name joins a local folder with the host separator, a share keeping its t
 })
 
 test('breadcrumb segments rebuild a local path with the host separator', () => {
-    // The path bar splits `C:\\Users\\me` into C:, Users and me. A click has to put the drive
-    // back in front, not a slash, because `/C:/Users` lists nothing on Windows. A share is one
-    // segment.
     expect(localSegments('/tmp/x', POSIX)).toEqual(['tmp', 'x'])
     expect(localSegments('/', POSIX)).toEqual([])
     expect(localSegments('C:\\Users\\me', WINDOWS)).toEqual(['C:', 'Users', 'me'])
@@ -247,7 +223,6 @@ test('breadcrumb segments rebuild a local path with the host separator', () => {
     expect(joinLocalSegments(['\\\\nas\\share', 'docs'], WINDOWS)).toBe('\\\\nas\\share\\docs')
     expect(joinLocalSegments(['tmp', 'x'], POSIX)).toBe('/tmp/x')
     expect(joinLocalSegments([], POSIX)).toBe('/')
-    // The Local button goes to the drive's or share's root on Windows, and to `/` elsewhere.
     expect(localRootOf(['C:', 'Users', 'me'], WINDOWS)).toBe('C:\\')
     expect(localRootOf(['\\\\nas\\share', 'docs'], WINDOWS)).toBe('\\\\nas\\share\\')
     expect(localRootOf(['tmp', 'x'], POSIX)).toBe('/')

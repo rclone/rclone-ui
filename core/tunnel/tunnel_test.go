@@ -1,9 +1,5 @@
 package tunnel
 
-// This test binary also acts as the tunnel's processes. An rclone child (marked by childenv)
-// runs rclone's command line with `tunnel`, in front of a stand-in for cloudflared (fakeEdge).
-// An unmarked `cat` is what core/command runs for a phone.
-
 import (
 	"context"
 	"errors"
@@ -35,12 +31,8 @@ import (
 	"github.com/rclone/rclone-ui/core/tunnel/tunnelcmd"
 )
 
-// originFileEnv names a file that the stand-in edge writes the rc server's address to, so a test
-// can call the server as the phone would through Cloudflare.
-const originFileEnv = "TUNNEL_TEST_ORIGIN_FILE" // not RCUI_, because children never inherit those
+const originFileEnv = "TUNNEL_TEST_ORIGIN_FILE"
 
-// slowEnv is how long the stand-in edge takes to be served (a time.Duration), to imitate an
-// offline cloudflared.
 const slowEnv = "TUNNEL_TEST_SLOW"
 
 func TestMain(m *testing.M) {
@@ -61,8 +53,6 @@ func TestMain(m *testing.M) {
 	testutil.Main(m, nil)
 }
 
-// fakeEdge stands in for cloudflared. It is served at once, or after slowEnv, on its own
-// address.
 func fakeEdge(_ context.Context, origin string, _ cloudflared.Options) (*cloudflared.Tunnel, error) {
 	if d, err := time.ParseDuration(os.Getenv(slowEnv)); err == nil {
 		time.Sleep(d)
@@ -79,7 +69,7 @@ type configs struct {
 	mu       sync.Mutex
 	path     string
 	password string
-	block    chan struct{} // the password is returned once this closes, like a slow keychain
+	block    chan struct{}
 }
 
 func (c *configs) Path() string {
@@ -145,8 +135,6 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
-// TestTunnel checks that a tunnel that is on has the edge's address and the child's credentials.
-// An update's restart brings the tunnel back, but a plain stop doesn't.
 func TestTunnel(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
@@ -162,7 +150,6 @@ func TestTunnel(t *testing.T) {
 		t.Fatalf("a second start: %+v %v", again, err)
 	}
 
-	// An update's restart records the tunnel, and the next run's Boot turns it on.
 	f.s.Shutdown(ctx, true)
 	if s := f.s.Status(); s.State != StateOff {
 		t.Fatalf("after the shutdown: %+v", s)
@@ -175,7 +162,6 @@ func TestTunnel(t *testing.T) {
 	if err := next.Stop(ctx); err != nil {
 		t.Fatal(err)
 	}
-	// A plain stop records nothing.
 	third := New(Options{DB: f.s.o.DB, Bus: bus.New(), Children: f.sup, Configs: f.configs})
 	third.Boot(ctx)
 	if s := third.Status(); s.State != StateOff {
@@ -183,13 +169,8 @@ func TestTunnel(t *testing.T) {
 	}
 }
 
-// TestShutdownEndsAStart checks that a start still waiting for its address when the core shuts
-// down ends at once and stops its child, instead of holding up the shutdown until it gives up.
-// No start begins after that.
 func TestShutdownEndsAStart(t *testing.T) {
 	f := newFixture(t)
-	// The edge takes a minute, so a shutdown that waited for the start would take far longer
-	// than the limit. A busy machine only adds seconds.
 	t.Setenv(slowEnv, "1m")
 	started := make(chan error, 1)
 	go func() {
@@ -225,15 +206,11 @@ func TestShutdownEndsAStart(t *testing.T) {
 	}
 }
 
-// TestShutdownRecordsAStart checks that an update's restart that happens while the tunnel is
-// starting records it, as it would for a tunnel that is on. This covers the time before the
-// child exists (while reading the config's password) and the time while the child waits for its
-// address. The shutdown ends the start, and the next run's Boot turns the tunnel on.
 func TestShutdownRecordsAStart(t *testing.T) {
 	for _, c := range []struct {
 		name  string
-		block bool   // the start waits for the config's password
-		slow  string // the start waits for the edge
+		block bool
+		slow  string
 	}{
 		{"before its child", true, ""},
 		{"waiting for its address", false, "20s"},
@@ -256,8 +233,6 @@ func TestShutdownRecordsAStart(t *testing.T) {
 				defer f.s.mu.Unlock()
 				return f.s.status.State == StateStarting && (c.block || f.s.unit != nil)
 			})
-			// Run the stop in the background, because it waits for the start, which waits for
-			// its password.
 			shut := make(chan struct{})
 			go func() {
 				f.s.Shutdown(ctx, true)
@@ -289,7 +264,6 @@ func TestShutdownRecordsAStart(t *testing.T) {
 	}
 }
 
-// waitFor fails the test when ch hasn't closed within d.
 func waitFor(t *testing.T, ch <-chan struct{}, d time.Duration, what string) {
 	t.Helper()
 	select {
@@ -299,9 +273,6 @@ func waitFor(t *testing.T, ch <-chan struct{}, d time.Duration, what string) {
 	}
 }
 
-// TestTunnelAnswers checks that with an encrypted config, the child's rc accepts only the QR
-// code's credentials. It also checks that core/command runs `cat` with the tunnel's own config,
-// passing the key on in a one-time file, as for a paired phone's downloads and thumbnails.
 func TestTunnelAnswers(t *testing.T) {
 	f := newFixture(t)
 	photos := t.TempDir()
@@ -357,8 +328,6 @@ func TestTunnelAnswers(t *testing.T) {
 	}
 }
 
-// TestLines checks that rclone's lines and cloudflared's lines keep their levels and messages,
-// and that the address comes only from the served line.
 func TestLines(t *testing.T) {
 	s := New(Options{})
 	s.url = make(chan string, 1)
@@ -382,10 +351,6 @@ func TestLines(t *testing.T) {
 	}
 }
 
-// TestStopEndsAStart checks that a Stop while the tunnel waits for its address ends the start at
-// once. Offline, the start would otherwise wait a minute. The start returns the tunnel as off,
-// without an error, and a later start begins from scratch. The same holds while the start reads
-// the config's password.
 func TestStopEndsAStart(t *testing.T) {
 	for _, c := range []struct {
 		name  string
@@ -397,7 +362,6 @@ func TestStopEndsAStart(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			f := newFixture(t)
-			// A stop that waited for the start would take a minute, or forever for the password.
 			t.Setenv(slowEnv, c.slow)
 			if c.block {
 				f.configs.block = make(chan struct{})
@@ -449,8 +413,6 @@ func TestStopEndsAStart(t *testing.T) {
 	}
 }
 
-// TestStartOutlivesItsRequest checks that a client that goes away while the tunnel starts
-// doesn't take the tunnel down with it.
 func TestStartOutlivesItsRequest(t *testing.T) {
 	f := newFixture(t)
 	t.Setenv(slowEnv, "1s")
@@ -482,9 +444,6 @@ func TestStartOutlivesItsRequest(t *testing.T) {
 	}
 }
 
-// TestFirstStartFailsAtOnce checks a child that can't even be spawned. It ends its first start
-// before the start stores its unit. The dead unit isn't stored, so the next start tries again
-// and explains why it fails instead of just returning off.
 func TestFirstStartFailsAtOnce(t *testing.T) {
 	run, err := os.MkdirTemp("", "rcui-") // kept short because socket paths have a length limit
 	if err != nil {

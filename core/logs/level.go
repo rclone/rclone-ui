@@ -8,8 +8,6 @@ import (
 	"github.com/rclone/rclone/fs"
 )
 
-// rclone has levels between and above slog's, and its log handler writes them with these
-// values. The log shows rclone's records at their own level.
 const (
 	LevelNotice   = fs.SlogLevelNotice
 	LevelCritical = fs.SlogLevelCritical
@@ -42,8 +40,6 @@ func ParseLevel(name string) (slog.Level, error) {
 	return 0, fmt.Errorf("unknown log level %q", name)
 }
 
-// levelOf reads the level names that children write: rclone's (debug … emergency), those in
-// slog's JSON (DEBUG, INFO, WARN, ERROR) and zerolog's (trace … panic).
 func levelOf(name string) (slog.Level, bool) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "trace", "debug":

@@ -11,15 +11,11 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// The limits on transfer_files rows per transfer. For failed files, the first 1,000 to fail are
-// kept, the same number that a plan's Record keeps for a sync. For each other outcome, the newest
-// 1,000 files are kept.
 const (
 	maxFailed = operations.MaxFailures
 	maxKept   = 1000
 )
 
-// fileRow is one finished file as it is stored in transfer_files.
 type fileRow struct {
 	outcome     Outcome
 	srcFs, name string
@@ -33,13 +29,10 @@ type fileRow struct {
 // changingChecks are the labels of rclone's checking transfers (NewCheckingTransfer) that change
 // the file: a server-side move, a delete, a rename that --track-renames found, and dedupe's merge.
 // rclone's other checking labels only read: checking, hashing, listing, bisync's "listing file -
-// Path1" and "listing dir - Path2", "computing hash with --download-hash", and the hasher's
+// PathN" and "listing dir - PathN", "computing hash with --download-hash", and the hasher's
 // importing.
 var changingChecks = []string{"moving", "deleting", "renaming", "merging"}
 
-// rowOf turns rclone's snapshot of a finished file into a row. The row records a failure (whatever
-// the action was), a check that changed nothing, or an action that changed the file (a transfer, a
-// delete, a move…). stepOf returns the plan step that the file belongs to.
 func rowOf(snap accounting.TransferSnapshot, stepOf func(accounting.TransferSnapshot) *int) fileRow {
 	r := fileRow{
 		srcFs: snap.SrcFs, name: snap.Name, what: snap.What, dstFs: snap.DstFs,
@@ -57,8 +50,6 @@ func rowOf(snap accounting.TransferSnapshot, stepOf func(accounting.TransferSnap
 	return r
 }
 
-// loggedRow is a file that a sync failed to transfer, as rclone's sync logger reported it
-// (operations.Failure). It has no step, because a whole sync has no steps to tell apart.
 func loggedRow(f operations.Failure) fileRow {
 	return fileRow{
 		outcome: OutcomeFailed, srcFs: f.SrcFs, name: f.Name, what: "transferring", dstFs: f.DstFs,
@@ -66,17 +57,11 @@ func loggedRow(f operations.Failure) fileRow {
 	}
 }
 
-// fileMerger writes finished files into transfer_files inside one transaction. Failed files are
-// keyed by (src_fs, name), replaced when they fail again, and capped at maxFailed. Other files
-// are upserted, then trimmed to the newest maxKept of their outcome.
 type fileMerger struct {
 	tx                                     *sql.Tx
 	update, countFailed, insertFailed, put *sql.Stmt
 	trimmed                                map[string]map[Outcome]bool
-	// failed is each transfer's count of failed rows. It is read from the table at the first
-	// failure, then increased as rows are added. Past maxFailed, a failure only replaces the
-	// existing row for its file.
-	failed map[string]int
+	failed                                 map[string]int
 }
 
 func newFileMerger(ctx context.Context, tx *sql.Tx) (*fileMerger, error) {
@@ -153,8 +138,6 @@ func (m *fileMerger) add(ctx context.Context, id string, r fileRow) error {
 	return nil
 }
 
-// trim keeps only the newest maxKept files of each outcome that got new files in this
-// transaction.
 func (m *fileMerger) trim(ctx context.Context) error {
 	for id, outcomes := range m.trimmed {
 		for o := range outcomes {
@@ -168,13 +151,6 @@ func (m *fileMerger) trim(ctx context.Context) error {
 	return nil
 }
 
-// stepMatcher returns a function that finds the step of p that a finished file belongs to. It
-// compares the file with the Fs names that each step opened. names comes from a Record and holds
-// fs.ConfigString values, which are the names that rclone's snapshots use. A file step matches by
-// its file and Fs, a purge by its folder, and any other step by either end. The file belongs to
-// the only step that matches. When none matches, a plan with a single step gets that step. In
-// every other case the result is nil. A whole sync or bisync has no steps to tell apart, so its
-// result is always nil.
 func stepMatcher(p operations.Plan, names []operations.StepRecord) func(accounting.TransferSnapshot) *int {
 	if p.Whole() || len(names) != len(p.Steps) {
 		return func(accounting.TransferSnapshot) *int { return nil }
@@ -196,7 +172,7 @@ func stepMatcher(p operations.Plan, names []operations.StepRecord) func(accounti
 				continue
 			}
 			if found >= 0 {
-				return nil // two steps match, so don't guess
+				return nil
 			}
 			found = i
 		}

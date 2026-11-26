@@ -9,13 +9,8 @@ import (
 	"github.com/rclone/rclone-ui/core/location"
 )
 
-// Group holds the options of one group of a form, such as its config or filter options, keyed by
-// rclone's option name as the page wrote it. Each value stays the JSON that the page sent, so a
-// number such as 1.50 keeps every digit until rclone's own parser reads it.
 type Group map[string]json.RawMessage
 
-// remotePathOptions are the options whose value rclone opens as a path, so they can name a
-// remote. compare_dest and copy_dest can hold a list. backup_dir1 and backup_dir2 are bisync's.
 var remotePathOptions = []string{"backup_dir", "compare_dest", "copy_dest", "backup_dir1", "backup_dir2"}
 
 // RenameRemote rewrites the values of the options that hold a path on the remote from, after the
@@ -37,8 +32,6 @@ func (g Group) RenameRemote(from, to string) bool {
 	return changed
 }
 
-// renameInValue rewrites a value that is a path or a list of paths. It returns the new JSON and
-// whether anything changed. In a list, other values are kept as they are.
 func renameInValue(value json.RawMessage, from, to string) (json.RawMessage, bool) {
 	var one string
 	if json.Unmarshal(value, &one) == nil {
@@ -68,11 +61,10 @@ func renameInValue(value json.RawMessage, from, to string) (json.RawMessage, boo
 	return marshal(list), true
 }
 
-// marshal writes v as JSON without escaping <, > and &, which can appear in paths.
 func marshal(v any) json.RawMessage {
 	var b bytes.Buffer
 	enc := json.NewEncoder(&b)
 	enc.SetEscapeHTML(false)
-	_ = enc.Encode(v) // strings and lists of raw JSON always encode
+	_ = enc.Encode(v)
 	return bytes.TrimRight(b.Bytes(), "\n")
 }

@@ -16,9 +16,6 @@ import (
 	"github.com/rclone/rclone-ui/core/settings"
 )
 
-// Building the services starts no goroutine and writes nothing. In particular, children.json
-// keeps the previous run's records, and stopping the services of a boot that failed before the
-// start leaves it so, for the next start to clear what that run left.
 func TestBuildStartsNothing(t *testing.T) {
 	runDir, err := os.MkdirTemp("", "rc") // a socket's path must stay short
 	if err != nil {
@@ -40,7 +37,6 @@ func TestBuildStartsNothing(t *testing.T) {
 	c := &Core{exe: executable(), dataDir: dataDir, runDir: runDir, socketDir: runDir, db: testdb.Open(t), bus: bus.New(), logs: l}
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	t.Cleanup(c.cancel)
-	// What openRclone creates, without rclone's init, which runs once per process.
 	c.keychain = keychain.New(dataDir)
 	c.settings = settings.New(c.db, c.bus)
 	c.configs = config.New(config.Options{DB: c.db, Bus: c.bus, Secrets: c.keychain, InUse: c.configUsers})
@@ -51,7 +47,6 @@ func TestBuildStartsNothing(t *testing.T) {
 	if !c.built {
 		t.Fatal("built isn't set")
 	}
-	// A loop that build started would still be running, and the wait would time out.
 	if !syncx.Wait(context.Background(), &c.goes, 10*time.Second) {
 		t.Error("build started a goroutine on the core")
 	}
@@ -93,13 +88,11 @@ func TestSubscribeMissesNothing(t *testing.T) {
 		}
 	}
 
-	// Published at once, before the subscription's goroutine had any time to start.
 	c.bus.Publish("first", nil)
 	if name := next(); name != "first" {
 		t.Fatalf("got %q, want the event published right after Subscribe", name)
 	}
 
-	// Nothing reads got, so the subscriber stops taking events and the bus drops it.
 	for range 1000 {
 		c.bus.Publish("flood", nil)
 	}

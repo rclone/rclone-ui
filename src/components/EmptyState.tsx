@@ -3,10 +3,6 @@ import type { ComponentType, ReactNode } from 'react'
 import { IconTile } from './look/IconTile'
 import { TONE_RGB, type Tone } from './look/tones'
 
-/**
- * What a page or section shows when it has nothing to list. `children` go under the actions. It
- * fills its container and centres itself.
- */
 export default function EmptyState({
     icon,
     tone = 'blue',
@@ -18,9 +14,7 @@ export default function EmptyState({
     className,
 }: {
     icon: ComponentType<{ className?: string }>
-    /** The tile's tone, which is the window's (WINDOWS in src/routes.ts). */
     tone?: Tone
-    /** A small line above the title, such as a chip. */
     eyebrow?: ReactNode
     title: string
     description?: ReactNode

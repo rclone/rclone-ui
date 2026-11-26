@@ -14,8 +14,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// fixture is a Linker set up in temporary folders, with the app's executable, the link's folder
-// (on PATH or not) and the pointer in the data folder.
 type fixture struct {
 	l       *Linker
 	root    string
@@ -75,7 +73,6 @@ func TestEnableDisable(t *testing.T) {
 	if st := f.l.Status(); st.Warning != "" {
 		t.Errorf("a link on PATH: warning %q", st.Warning)
 	}
-	// Enabling again changes nothing.
 	if st, err := f.l.Enable(); err != nil || !st.Enabled {
 		t.Fatalf("a second Enable: %+v %v", st, err)
 	}
@@ -209,7 +206,6 @@ func TestAdminPrompt(t *testing.T) {
 	var prompts []string
 	f.l.asAdmin = func(shellCmd, prompt string) error {
 		prompts = append(prompts, prompt)
-		// Act as the administrator's shell, with the folder writable while it runs.
 		if err := os.Chmod(dir, 0o755); err != nil {
 			return err
 		}
@@ -265,8 +261,6 @@ func TestCommand(t *testing.T) {
 	}
 }
 
-// TestRefusalsReachThePageTranslated: Enable's refusals keep their kind for errors.Is, and the
-// page gets their text in the app's language (the test language here).
 func TestRefusalsReachThePageTranslated(t *testing.T) {
 	i18n.SetLanguage(i18n.Pseudo)
 	t.Cleanup(func() { i18n.SetLanguage(i18n.English) })

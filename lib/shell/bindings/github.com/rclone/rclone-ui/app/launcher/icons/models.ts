@@ -14,9 +14,6 @@ export enum Name {
      */
     $zero = "",
 
-    /**
-     * The launcher's glyphs, named by what they stand for. After adding one, run go generate.
-     */
     Copy = "page",
     Move = "arrow-right-square",
     Sync = "arrows-rotate",

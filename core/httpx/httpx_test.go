@@ -15,12 +15,11 @@ import (
 	"time"
 )
 
-// recorder is a test server that replies with its name and records the requests it gets.
 type recorder struct {
 	*httptest.Server
 	name string
 	mu   sync.Mutex
-	seen []string // method and request target of each request
+	seen []string
 }
 
 func newRecorder(name string) *recorder {
@@ -45,8 +44,7 @@ func (r *recorder) requests() []string {
 }
 
 // proxy is the environment's proxy for this test process. It is set before anything reads it,
-// because Go reads it once per process. This mirrors how rclone.Init sets the proxy from Settings
-// in the core.
+// because Go reads it once per process.
 var proxy *recorder
 
 func TestMain(m *testing.M) {
@@ -71,8 +69,6 @@ func TestClientTakesTheEnvironmentsProxy(t *testing.T) {
 	t.Cleanup(target.Close)
 	targetAddr := strings.TrimPrefix(target.URL, "http://")
 
-	// Made-up hosts reach the target server when dialed directly. A proxied request dials the
-	// proxy's own loopback address instead.
 	base := baseTransport()
 	var dialer net.Dialer
 	base.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -110,7 +106,6 @@ func TestClientTakesTheEnvironmentsProxy(t *testing.T) {
 		t.Errorf("the proxy saw %q", got)
 	}
 
-	// https goes through the same proxy, with CONNECT.
 	if _, err := get("https://secure.test/"); err == nil {
 		t.Error("the CONNECT refused by the proxy did not fail the request")
 	}
@@ -157,8 +152,6 @@ func TestNewUsesTheTimeout(t *testing.T) {
 	}
 }
 
-// TestDevRedirect: a development run can send a host's requests to a local server, which keeps
-// their path and query. Other hosts are reached as usual.
 func TestDevRedirect(t *testing.T) {
 	stand := newRecorder("stand-in")
 	defer stand.Close()

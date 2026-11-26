@@ -35,12 +35,6 @@ import (
 // to a call, it sends the event to every window.
 type Emit func(ctx context.Context, name string, data any)
 
-// APIs are the APIs that the pages call, one per domain. The shell binds them before the core
-// starts. A call that arrives early waits for its service, and fails with Unavailable when the
-// core failed to start. The calls that need nothing from the boot answer at once: the log, the
-// app's info, and the catalog's backends and options (all but its Values). The links wait for the
-// boot like the rest, because their first request fixes the proxy for the whole process, and
-// rclone's init sets it.
 type APIs struct {
 	Prefs         *prefs.API
 	Settings      *settings.API
@@ -74,8 +68,6 @@ type APIs struct {
 	fails     []func(error)
 }
 
-// bind returns a value that an API waits for. Once the core has started, get reads the value
-// from it.
 func bind[T any](a *APIs, get func(*Core) T) *late.Value[T] {
 	v := late.New[T]()
 	a.sets = append(a.sets, func(c *Core) { v.Set(get(c)) })
@@ -97,7 +89,6 @@ func NewAPIs(o APIOptions) *APIs {
 	a := &APIs{}
 	dir := o.DataDir
 	if dir == "" {
-		// When the default can't be found, the core can't start either, and says why.
 		dir, _ = datadir.Default()
 	}
 	log := late.Of(o.Log)
@@ -134,14 +125,11 @@ func NewAPIs(o APIOptions) *APIs {
 	return a
 }
 
-// ListFolder lists a folder for the shell's launcher. It calls page with the rows as they
-// arrive.
 func (a *APIs) ListFolder(ctx context.Context, path string, page func([]browse.Row)) error {
 	l, err := a.lister.Get(ctx)
 	if err != nil {
 		return err
 	}
-	// The launcher shows no dates, so it never waits for slow ones.
 	_, _, err = browse.ListFolder(ctx, l, path, false, false, page)
 	return err
 }
@@ -183,14 +171,10 @@ func (a *APIs) CountFolder(ctx context.Context, path string) (browse.Size, error
 	return late.Call(ctx, a.core, func(*Core) (browse.Size, error) { return browse.CountFolder(ctx, path) })
 }
 
-// ReadFile returns the first limit bytes of a file, for the agents' server (media.Read).
 func (a *APIs) ReadFile(ctx context.Context, path string, limit int64) (media.Start, error) {
 	return late.Call(ctx, a.core, func(*Core) (media.Start, error) { return media.Read(ctx, path, limit) })
 }
 
-// StartCleanup starts the launcher's cleanup of a remote's trash and old file versions as a
-// transfer, which History follows. transfers.API.Start doesn't start a cleanup, because no page
-// does.
 func (a *APIs) StartCleanup(ctx context.Context, remote string) (transfers.Started, error) {
 	return late.Call(ctx, a.transfers, func(s *transfers.Service) (transfers.Started, error) {
 		return s.Start(ctx, transfers.Spec{
@@ -199,12 +183,10 @@ func (a *APIs) StartCleanup(ctx context.Context, remote string) (transfers.Start
 	})
 }
 
-// StopAll is the launcher's Stop Everything (see Core.StopAll). No page calls it.
 func (a *APIs) StopAll(ctx context.Context) (StopSummary, error) {
 	return late.Call(ctx, a.core, func(c *Core) (StopSummary, error) { return c.StopAll(ctx) })
 }
 
-// set gives each API its service, once every service has started.
 func (a *APIs) set(c *Core) {
 	if a == nil {
 		return
@@ -214,7 +196,6 @@ func (a *APIs) set(c *Core) {
 	}
 }
 
-// fail makes every waiting API call, and every later one, fail with Unavailable.
 func (a *APIs) fail(err error) {
 	if a == nil {
 		return

@@ -34,8 +34,6 @@ func TestBisyncTroubleOf(t *testing.T) {
 	}
 }
 
-// A max-delete line counts only for a side whose path it names as rclone quotes it, so a path
-// that is only a prefix of the named one doesn't count.
 func TestDeletedSide(t *testing.T) {
 	line := `too many deletes (>50%, 3 of 4) on Path2 "/data/ab". Run with --force if desired.`
 	if got := deletedSide(line, "/x", "/data/ab"); got != 2 {
@@ -49,13 +47,11 @@ func TestDeletedSide(t *testing.T) {
 	}
 }
 
-// bisync colours its critical error's line. It is heard without the colours, and only by a
-// bisync that ran alone: with another one in flight, the line could be the other one's.
 func TestHearCriticalError(t *testing.T) {
 	rclonelog.Install(nil)
 	ci := fs.GetConfig(context.Background())
 	old := ci.LogLevel
-	ci.LogLevel = fs.LogLevelNotice // the package's tests log only critical lines
+	ci.LogLevel = fs.LogLevelNotice
 	t.Cleanup(func() { ci.LogLevel = old })
 	red := func(s string) string { return "\x1b[31m" + s + "\x1b[0m" }
 	stop := hearBisync("/a/", "/b/", "/w/a..b")
@@ -76,7 +72,6 @@ func TestHearCriticalError(t *testing.T) {
 		t.Errorf("a bisync that overlapped another kept %q", heard.critical)
 	}
 
-	// A critical line that names a run's listings is that run's, even with others in flight.
 	first = hearBisync("/a/", "/b/", "/w/a..b")
 	second = hearBisync("/c/", "/d/", "/w/c..d")
 	fs.Errorf(nil, red("Bisync critical error: %v"), "empty prior Path1 listing: /w/c..d.path1.lst")
@@ -88,8 +83,6 @@ func TestHearCriticalError(t *testing.T) {
 	}
 }
 
-// An empty listing is read back as a merge to run (prior) or a side that lost every file
-// (current).
 func TestEmptyListings(t *testing.T) {
 	p := Plan{}
 	for _, c := range []struct {
@@ -109,8 +102,6 @@ func TestEmptyListings(t *testing.T) {
 	}
 }
 
-// An abort carries the critical error that bisync logged. It needs a resync once bisync has set
-// its listings aside, and is an ordinary failure while they are there.
 func TestBisyncErrorKeepsTheReason(t *testing.T) {
 	ctx := context.Background()
 	work := t.TempDir()
@@ -146,7 +137,6 @@ func TestBisyncErrorKeepsTheReason(t *testing.T) {
 	}
 }
 
-// A resync's abort carries its reason too, and is never read as needing a resync.
 func TestResyncAbortKeepsTheReason(t *testing.T) {
 	p := Plan{Bisync: map[string]any{"resync": true}}
 	got := p.bisyncError(context.Background(), bisync.ErrBisyncAborted, nil, nil, heardBisync{critical: "permission denied"})

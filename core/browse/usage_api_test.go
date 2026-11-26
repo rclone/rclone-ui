@@ -14,7 +14,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/testutil"
 )
 
-// progress keeps the progress that scans sent, by request.
 type progress struct {
 	mu   sync.Mutex
 	sent map[string][]browse.UsageProgress
@@ -40,7 +39,6 @@ func (p *progress) last(request string) (browse.UsageProgress, bool) {
 	return s[len(s)-1], true
 }
 
-// ended waits for request's scan to end and returns its last progress.
 func (p *progress) ended(t *testing.T, request string) browse.UsageProgress {
 	t.Helper()
 	var last browse.UsageProgress
@@ -57,8 +55,6 @@ func usageAPI() (*browse.API, *progress) {
 	return browse.NewAPI(late.Of(browse.NewLister()), p.emit), p
 }
 
-// scan starts a scan of path and returns a function that cancels its call, as the page does,
-// and waits for the call to return its error. Calling it again returns the same error.
 func scan(a *browse.API, request, path string) (release func() error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -89,7 +85,7 @@ func TestUsageScansARemote(t *testing.T) {
 	})}
 	root := browse.AddFixture(fx)
 	a, p := usageAPI()
-	release := scan(a, "r1", root+"photos/2024") // a folder deep down: the whole remote is scanned
+	release := scan(a, "r1", root+"photos/2024")
 	defer func() { _ = release() }()
 	if got, err := a.UsageRoot(ctx, root+"photos/2024"); err != nil || got != root {
 		t.Fatalf("the root of a folder deep down: %q %v", got, err)
@@ -126,7 +122,6 @@ func TestUsageScansARemote(t *testing.T) {
 		t.Fatalf("a forgotten folder: %v", err)
 	}
 
-	// Once the page lets go of the call, the scan is gone.
 	if err := release(); err != nil {
 		t.Fatal(err)
 	}
@@ -135,8 +130,6 @@ func TestUsageScansARemote(t *testing.T) {
 	}
 }
 
-// TestUsageReadsWhileItScans checks that a page can read a scan before it ends, and that Stop
-// ends the walk and keeps what it found.
 func TestUsageReadsWhileItScans(t *testing.T) {
 	ctx := context.Background()
 	entered := make(chan struct{})
@@ -182,8 +175,6 @@ func TestUsageReturnsTheErrorWhenNothingCouldBeRead(t *testing.T) {
 	}
 }
 
-// TestUsageKeepsTheNewestScans checks that a third scan lets go of the oldest one, because a page
-// that reloads can't cancel the call it made.
 func TestUsageKeepsTheNewestScans(t *testing.T) {
 	ctx := context.Background()
 	root := browse.AddFixture(&browse.Fixture{Inner: browse.MakeTree(t, map[string]string{"a": "1"})})
@@ -208,7 +199,6 @@ func TestUsageKeepsTheNewestScans(t *testing.T) {
 	}
 }
 
-// code returns the code that a page receives with err.
 func code(err error) errs.Code {
 	if e := errs.Of(err); e != nil {
 		return e.Code

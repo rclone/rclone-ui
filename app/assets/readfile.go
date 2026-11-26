@@ -5,7 +5,6 @@ import (
 	"path"
 )
 
-// readFile reads a regular file from tree. A directory is reported as not found.
 func readFile(tree fs.FS, name string) ([]byte, error) {
 	name = path.Clean(name)
 	st, err := fs.Stat(tree, name)

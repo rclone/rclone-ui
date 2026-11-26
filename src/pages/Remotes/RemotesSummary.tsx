@@ -9,13 +9,8 @@ import { TONE_GRADIENT } from '../../components/look/tones'
 import { segments, stressed } from '../../components/operation/summary'
 import { formatSize, listed, type Summary, spaceFree } from './usage'
 
-/** How many remotes the legend names before it counts the rest. */
 const LEGEND = 4
 
-/**
- * The top of the Remotes window: how much the remotes store together, and what their checks
- * found. The counts of problems are buttons that show only those remotes.
- */
 export function RemotesSummary({
     summary,
     onShowProblems,
@@ -157,9 +152,6 @@ function partStores(remote: string, size: string): string {
         comment: 'A remote and how much it stores: "gdrive 12 GB".',
     })
 }
-
-// The sentences that `Count` shows, like "3 connected". `count` picks the plural form. `n` is the
-// same number as text, formatted for the language and marked with `stressed`.
 
 function connectedLine(count: number, n: string): string {
     return t({

@@ -21,9 +21,6 @@ import (
 	"github.com/rclone/rclone-ui/core/serves"
 )
 
-// A mount and a serve run as processes of their own, so they are few, and their lists have no
-// limit.
-
 func (s *Server) runningTools() {
 	s.listMountsTool()
 	s.mountTool()
@@ -34,17 +31,11 @@ func (s *Server) runningTools() {
 	s.openWindowTool()
 }
 
-// optionLeftOut is an option that a tool didn't use, with the reason, so that the agent learns
-// which options an operation takes.
 type optionLeftOut struct {
 	Option string `json:"option"`
 	Reason string `json:"reason"`
 }
 
-// optionGroupsFor sorts an agent's flat options into the groups of op's form, as the options of a
-// template are sorted (operations.TemplateGroups). serve is a serve's protocol, or "" for any
-// other operation. It returns the options that the form leaves out, with the reason. The values
-// are checked when the operation starts.
 func optionGroupsFor(op operations.Operation, serve string, flat map[string]any) (operations.Groups, []optionLeftOut, error) {
 	if len(flat) == 0 {
 		return operations.Groups{}, nil, nil
@@ -69,15 +60,13 @@ func optionGroupsFor(op operations.Operation, serve string, flat map[string]any)
 }
 
 type mountItem struct {
-	ID         string `json:"id" jsonschema:"the mount's id, for unmount"`
-	Source     string `json:"source"`
-	MountPoint string `json:"mount_point" jsonschema:"the folder, or on Windows the drive, where the source's files appear"`
-	State      string `json:"state" jsonschema:"starting, running (ready to use) or restarting (it went down and is starting again)"`
-	// UploadsWaiting counts the files written through the mount that aren't on the remote yet.
-	UploadsWaiting int    `json:"uploads_waiting"`
-	Error          string `json:"error,omitempty" jsonschema:"why it last went down, while it restarts"`
-	NeedsRestart   bool   `json:"needs_restart,omitempty" jsonschema:"a remote it mounts changed since it started: unmount it and mount it again for the change to apply"`
-	// IgnoredOptions are the options that mount didn't use. Only mount returns them.
+	ID             string          `json:"id" jsonschema:"the mount's id, for unmount"`
+	Source         string          `json:"source"`
+	MountPoint     string          `json:"mount_point" jsonschema:"the folder, or on Windows the drive, where the source's files appear"`
+	State          string          `json:"state" jsonschema:"starting, running (ready to use) or restarting (it went down and is starting again)"`
+	UploadsWaiting int             `json:"uploads_waiting"`
+	Error          string          `json:"error,omitempty" jsonschema:"why it last went down, while it restarts"`
+	NeedsRestart   bool            `json:"needs_restart,omitempty" jsonschema:"a remote it mounts changed since it started: unmount it and mount it again for the change to apply"`
 	IgnoredOptions []optionLeftOut `json:"ignored_options,omitempty"`
 }
 
@@ -117,9 +106,6 @@ type mountIn struct {
 	Options    map[string]any `json:"options,omitempty" jsonschema:"rclone's mount, vfs, filter and config options by name, such as {\"vfs_cache_mode\": \"full\", \"read_only\": true}"`
 }
 
-// suggestedMountPoint returns where the Mount window mounts source when the user doesn't choose
-// (src/pages/Mount/mountPoint.ts): a folder named after its remote in ~/Rclone, which the core
-// creates, or on Windows the next free drive letter. A folder on this computer has no suggestion.
 func suggestedMountPoint(source string) (string, error) {
 	if runtime.GOOS == "windows" {
 		return "*", nil
@@ -217,21 +203,17 @@ func (s *Server) unmountTool() {
 }
 
 type serveItem struct {
-	ID       string `json:"id" jsonschema:"the serve's id, for stop_serve"`
-	Source   string `json:"source"`
-	Protocol string `json:"protocol"`
-	Address  string `json:"address" jsonschema:"host:port where clients connect"`
-	State    string `json:"state" jsonschema:"starting, running (it accepts connections) or restarting (it went down and is starting again)"`
-	Error    string `json:"error,omitempty" jsonschema:"why it last went down, while it restarts"`
-	// NeedsRestart is true when a remote it serves changed after it started.
-	NeedsRestart bool `json:"needs_restart,omitempty" jsonschema:"a remote it serves changed since it started: stop it and serve it again for the change to apply"`
-	// Warning and IgnoredOptions are only in what serve returns.
+	ID             string          `json:"id" jsonschema:"the serve's id, for stop_serve"`
+	Source         string          `json:"source"`
+	Protocol       string          `json:"protocol"`
+	Address        string          `json:"address" jsonschema:"host:port where clients connect"`
+	State          string          `json:"state" jsonschema:"starting, running (it accepts connections) or restarting (it went down and is starting again)"`
+	Error          string          `json:"error,omitempty" jsonschema:"why it last went down, while it restarts"`
+	NeedsRestart   bool            `json:"needs_restart,omitempty" jsonschema:"a remote it serves changed since it started: stop it and serve it again for the change to apply"`
 	Warning        string          `json:"warning,omitempty"`
 	IgnoredOptions []optionLeftOut `json:"ignored_options,omitempty"`
 }
 
-// serveItemOf converts a serve's row. Its form isn't returned, because it holds the serve's
-// password.
 func serveItemOf(r serves.ServeRow) serveItem {
 	return serveItem{
 		ID: r.ID, Source: r.Source, Protocol: r.Type, Address: r.Addr, State: r.State,
@@ -262,8 +244,8 @@ func (s *Server) listServesTool() {
 	})
 }
 
-// serveLogins says, for each protocol, which options make a client sign in. dlna and nfs have
-// none. An sftp serve refuses to start without one, unless no_auth is set.
+// serveLogins says, for each protocol, which options make a client sign in. An sftp serve refuses
+// to start without one, unless no_auth is set.
 var serveLogins = map[string]string{
 	"http":   "user and pass (or htpasswd, a file of users)",
 	"webdav": "user and pass (or htpasswd, a file of users)",
@@ -273,11 +255,8 @@ var serveLogins = map[string]string{
 	"s3":     `auth_key, as "ACCESS_KEY_ID,SECRET_ACCESS_KEY"`,
 }
 
-// loginOptions are the options that make a client of a serve sign in, by rclone's name.
 var loginOptions = []string{"user", "pass", "htpasswd", "auth_key", "authorized_keys", "auth_proxy"}
 
-// openWarning returns the warning for a serve that anyone who reaches it can use, or "" for one
-// that asks clients to sign in.
 func openWarning(protocol, addr string, serve catalog.Group) string {
 	given := func(name string) bool {
 		for key, raw := range serve {
@@ -295,7 +274,7 @@ func openWarning(protocol, addr string, serve catalog.Group) string {
 		}
 	}
 	can := "read and change the files (unless read_only is set)"
-	if protocol == "http" || protocol == "dlna" { // they only read
+	if protocol == "http" || protocol == "dlna" {
 		can = "read the files"
 	}
 	logins, ok := serveLogins[protocol]
@@ -382,17 +361,12 @@ func (s *Server) stopServeTool() {
 	})
 }
 
-// appWindows are the app's windows that open_window shows, by the names of their routes
-// (src/routes.ts). The startup screen, the launcher's window and the dev pages are left out.
 var appWindows = []string{
 	"remotes", "commander", "history", "schedules", "watchers", "templates", "automounts",
 	"copy", "move", "sync", "bisync", "delete", "purge", "download", "mount", "serve",
 	"settings", "notifications", "mobileRemoteControl", "guides", "wizard",
 }
 
-// The windows that take a path to start with, as the launcher opens them
-// (app/launcher/engine/providers): a source as initialSource, and a destination (a mount's mount
-// point) as initialDestination. The Commander takes a folder to show as path.
 var (
 	windowsWithSource      = []string{"copy", "move", "sync", "bisync", "delete", "purge", "mount", "serve", "commander"}
 	windowsWithDestination = []string{"copy", "move", "sync", "bisync", "download", "mount"}
@@ -417,7 +391,6 @@ func (s *Server) openWindowTool() {
 			"and nothing starts by itself. Use it when the user asks to see something, or when a step is theirs to take.",
 		Annotations: changes("Open a window"),
 	}, func(_ context.Context, in openWindowIn) (windowOpened, error) {
-		// The name is matched without case, and spelled as the route spells it from here on.
 		asked := strings.TrimSpace(in.Window)
 		i := slices.IndexFunc(appWindows, func(w string) bool { return strings.EqualFold(w, asked) })
 		if i < 0 {

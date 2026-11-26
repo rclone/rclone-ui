@@ -17,7 +17,6 @@ import { toneButton } from '../components/look/buttons'
 import { StatusDot } from '../components/look/Status'
 import { TONE_RGB } from '../components/look/tones'
 
-// A greeting in many languages, shown one after the other whatever the app's language is.
 const GREET = [
     'Hello',
     'こんにちは',
@@ -38,7 +37,6 @@ export default function Startup() {
 
     const [coreStatus, setCoreStatus] = useState<CoreStatus | null>(null)
     useEffect(() => core.onState(setCoreStatus), [])
-    // Before the first status, and while a quit stops the core, the screen shows the core starting.
     const state =
         coreStatus?.state === CoreState.CoreReady || coreStatus?.state === CoreState.CoreFailed
             ? coreStatus.state
@@ -77,9 +75,8 @@ export default function Startup() {
         return () => clearInterval(intervalId)
     }, [state])
 
-    // Close the window when it loses focus, unless the core failed. In that case the error and its
-    // QUIT button stay until the user has seen them. Linux is skipped, because Wayland can report
-    // a brief focus loss while the window is being shown.
+    // Linux is skipped, because Wayland can report a brief focus loss while the window is being
+    // shown.
     useEffect(() => {
         if (state === CoreState.CoreFailed) return
         return currentWindow.onBlur(async () => {
@@ -100,8 +97,6 @@ export default function Startup() {
           }
 
     return (
-        // On macOS the window is transparent, so this rounded card is all of it. Elsewhere the
-        // window is opaque and the card fills it: rounded corners would show the window behind.
         <div
             className={`relative flex flex-col h-screen overflow-hidden bg-content1 ${platform() === 'macos' ? 'rounded-2xl' : ''}`}
         >

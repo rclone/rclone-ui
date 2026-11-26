@@ -6,10 +6,6 @@ import { Panel } from '../look/Panel'
 import { SectionTitle } from '../look/SectionTitle'
 import { TONE_RGB } from '../look/tones'
 
-// The parts of the drawers that the list windows open to make or edit a thing (a template, a
-// watcher, an automount): a header in the window's look, and fields grouped in panels.
-
-/** The drawer's surface: the window's background, so that the panels of fields stand out. */
 export function drawerContentClass(macos: boolean) {
     return cn('bg-default-50 dark:bg-[#121212]', macos && 'pt-5')
 }

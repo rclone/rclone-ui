@@ -28,8 +28,6 @@ import { WINDOWS } from '../../routes'
 import { healthStatus, reconnect } from './RemoteCard'
 import RemoteFields, { useRemoteForm, valuesAsText } from './RemoteFields'
 
-// Saved fields that the drawer keeps read-only. Changing the provider would make it a different
-// remote.
 const LOCKED_FIELDS = ['provider'] as const
 
 export default function RemoteEditDrawer({
@@ -44,7 +42,6 @@ export default function RemoteEditDrawer({
     const { data: saved, isFetchedAfterMount, isError, error } = useRemoteConfig(remoteName)
     const missing = isError && coreError(error)?.code === 'not_found'
 
-    // The remote is checked again as the drawer opens, so a failing one says why at the top.
     const { refetch: refetchHealth } = useRemoteHealth()
     useEffect(() => {
         if (!isOpen) return
@@ -52,18 +49,10 @@ export default function RemoteEditDrawer({
             .then(() => refetchHealth())
             .catch((e: unknown) => console.warn('[remotes] checking the remote', e))
     }, [isOpen, remoteName, refetchHealth])
-    // The form is filled once, from data fetched after the drawer opened. Cached data may be older
-    // than the last save. A failed refetch keeps the cached data and still counts as fetched, so
-    // an error doesn't fill the form either. Once filled, the form stays as it is: later
-    // refetches never fill it again or unmount it.
     const [seededFor, setSeededFor] = useState<string>()
     const seeded = seededFor === remoteName
     if (!seeded && saved && isFetchedAfterMount && !isError) setSeededFor(remoteName)
 
-    // The config session that the form started. Every way of closing the drawer goes through the
-    // Drawer's onClose, which cancels the session, so a login approved later saves nothing. There
-    // is no need to check the session's state first. The core doesn't cancel a session that is
-    // already completing, and it forgets sessions that have ended.
     const session = useRef<string | null>(null)
     const closed = () => {
         if (session.current) cancelSession(session.current)
@@ -71,7 +60,6 @@ export default function RemoteEditDrawer({
         onClose()
     }
 
-    // The form reports whether it holds changes. Closing the drawer or the window asks first.
     const [edited, setEdited] = useState(false)
     const unsaved = useUnsavedChanges(isOpen && edited)
     const requestClose = async () => {
@@ -89,7 +77,6 @@ export default function RemoteEditDrawer({
             <DrawerContent className={sheetClass()}>
                 {(close) =>
                     seeded && saved ? (
-                        // Keyed by name, so another remote gets a fresh form.
                         <EditForm
                             key={remoteName}
                             remoteName={remoteName}
@@ -179,21 +166,15 @@ function EditForm({
     onEdited: (edited: boolean) => void
     forget: () => void
 }) {
-    // The values that the form started from. A refetch after the form opened doesn't change
-    // anything typed here.
     const [seed] = useState(saved)
     const [name, setName] = useState(remoteName)
     const renaming = name !== remoteName
     const nameProblem = useNameProblem(name, renaming)
-    // Why the core refused the rename, at the start or at the end of the save. Typing a name
-    // clears it.
     const [renameError, setRenameError] = useState<string>()
     const nameError = nameProblem || renameError
 
     const [showMore, setShowMore] = useState(false)
     const health = useRemoteHealth().data?.[remoteName]
-    // The check as the drawer opens reports the remote as checking for a moment. The last error
-    // stays shown meanwhile, so the alert doesn't flicker; any other answer clears it.
     const [fault, setFault] = useState<string>()
     const nextFault =
         health?.state === 'faulty' ? health.error : health?.state === 'checking' ? fault : undefined
@@ -202,7 +183,6 @@ function EditForm({
     const form = useRemoteForm({ saved: seed })
     const { pending: config, setPending: setConfig, effective, fields, missingCredentials } = form
 
-    // A value typed back to what is saved isn't a change.
     const edited =
         renaming || Object.entries(config).some(([k, v]) => String(v ?? '') !== (seed[k] ?? ''))
     useEffect(() => {
@@ -210,8 +190,6 @@ function EditForm({
     }, [edited, onEdited])
     useEffect(() => () => onEdited(false), [onEdited])
 
-    // The save runs in the core as a config session. It writes only the changed keys, then
-    // renames the remote.
     const updateRemoteMutation = useMutation({
         mutationFn: async () => {
             const first = await startSession({
@@ -223,7 +201,6 @@ function EditForm({
             session.current = first.id
             const end = await followSession(first, remoteName)
             if (end?.state === 'failed') {
-                // A failed rename shows under the name.
                 if (end.field === 'newName' && end.error) {
                     setRenameError(end.error)
                     return null

@@ -11,11 +11,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// A copy whose filter lists its files separated by NUL (files_from0) copies only those files.
-// The test runs end to end, as the transfer service does. The page's form is built into a plan
-// (BuildPlan), stored as the ledger stores it and read back (ParsePlan), and then run as a job in
-// a stats group of its own (Plan.Run). The list's path contains a comma, which stays intact
-// because a single text for a repeated flag is kept whole.
 func TestFilesFrom0Copy(t *testing.T) {
 	src, dst := filepath.ToSlash(t.TempDir()), filepath.ToSlash(t.TempDir())
 	for _, f := range []string{"data/a.txt", "data/b.txt", "data/sub/c.txt", "data/sub/d.txt"} {

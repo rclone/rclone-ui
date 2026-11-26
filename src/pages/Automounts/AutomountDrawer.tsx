@@ -47,10 +47,8 @@ const GROUPS = ['mount', 'vfs', 'config', 'filter'] as const satisfies readonly 
 type Group = (typeof GROUPS)[number]
 
 const LOOK = WINDOWS.automounts
-/** The route is a mount's, so it has the Mount window's colors. */
 const MOUNT = WINDOWS.mount
 
-/** The fields that the core can refuse, by the names it uses. */
 type Field = 'remote' | 'remotePath' | 'mountPoint' | `options.${Group}`
 
 const FIELDS: ReadonlySet<string> = new Set<Field>([
@@ -60,13 +58,8 @@ const FIELDS: ReadonlySet<string> = new Set<Field>([
     ...GROUPS.map((group) => `options.${group}` as const),
 ])
 
-/** What the core said about a save: the fields it refused, or one message for the whole form. */
 type Refused = Partial<Record<Field, string>> & { form?: string }
 
-/**
- * The drawer's fields, apart from the option groups. `mountPoint` is undefined until the user
- * edits it, so the suggestion shows.
- */
 interface Form {
     remote: string
     remotePath: string
@@ -86,12 +79,6 @@ function formOf(
     }
 }
 
-/**
- * The drawer that adds an automount, or edits `automount`. `start` fills in the remote and the
- * folder of a new one. Each option editor shows a mount's defaults with the saved options over
- * them, as the Mount page does. The core checks the form, and probes the folder when the
- * automount is on. An error that it gives for a field shows on that field.
- */
 export default function AutomountDrawer({
     isOpen,
     onClose,
@@ -119,14 +106,11 @@ export default function AutomountDrawer({
     const [picking, setPicking] = useState(false)
     const startLabel = useId()
 
-    // A new automount mounts at ~/Rclone/<remote> until the user picks a place. On Windows, an
-    // empty mount point is the next free drive letter.
     const suggestion = form.remote
         ? suggestedMountPoint(form.remote, homeDir(), windows)
         : undefined
     const mountPoint = mountPointOf(form.mountPoint, suggestion, windows) ?? ''
 
-    // A remote that is gone from the config stays in the choices, so the form still shows it.
     const remotes = useMemo(
         () => (form.remote && !names.includes(form.remote) ? [form.remote, ...names] : names),
         [names, form.remote]
@@ -147,8 +131,6 @@ export default function AutomountDrawer({
         },
         onError: (error) => {
             const fields = refusedFields(error)
-            // A refusal of a field that the drawer doesn't show, such as a metadata mapper
-            // without `metadata`, is shown as the form's message.
             const names = Object.keys(fields)
             if (names.length > 0 && names.every((name) => FIELDS.has(name))) {
                 setRefused(fields as Partial<Record<Field, string>>)
@@ -173,8 +155,6 @@ export default function AutomountDrawer({
             setRefused(broken)
             return
         }
-        // Saved option groups that the drawer doesn't edit (such as metadata) are kept. The
-        // others are saved without the defaults, which the core adds when it mounts.
         const options: Operations.Groups = { ...automount?.options }
         for (const group of GROUPS) options[group] = groups[group].sent
         save.mutate({
@@ -188,7 +168,6 @@ export default function AutomountDrawer({
         })
     }
 
-    // Changing a field clears the error the core gave it, and the form's message.
     const clear = useCallback((...fields: Field[]) => {
         setRefused((prev) => {
             const out = { ...prev, form: undefined }
@@ -202,7 +181,6 @@ export default function AutomountDrawer({
     }
     const clearGroup = useCallback((group: Group) => clear(`options.${group}`), [clear])
 
-    // Each group's error shows under its editor, and a group with an error opens.
     const errors = useMemo(
         () => Object.fromEntries(GROUPS.map((group) => [group, refused[`options.${group}`]])),
         [refused]
@@ -376,7 +354,6 @@ export default function AutomountDrawer({
                             items={optionItems}
                             defaultExpandedKeys={GROUPS.filter((group) => errors[group])}
                         />
-                        {/* Enter in a field saves. */}
                         <button type="submit" hidden={true} />
                     </form>
                     {picking && (

@@ -1,5 +1,3 @@
-// The parts that the Commander and the path picker build file panels from. Everything else is
-// internal to the panels.
 export { default as BatchRenameDrawer } from './BatchRenameDrawer'
 export { default as CompareDrawer, type PanelLocation } from './CompareDrawer'
 export { type DiskUsageActions, default as DiskUsageDrawer } from './DiskUsageDrawer'

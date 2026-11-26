@@ -75,11 +75,6 @@ function firstLine(text: string): string {
     return text.split('\n')[0] ?? text
 }
 
-/**
- * One place that notifications go, as a row. Pressing the row edits the target. A failed
- * delivery's error, or the missing mail server, shows under the row. Send test shows while the
- * pointer or the focus is on the row.
- */
 export default function TargetRow({
     target,
     catalog,
@@ -107,7 +102,6 @@ export default function TargetRow({
         [target.events, catalog]
     )
 
-    // A test that went through says so on its button for a moment.
     const [sent, setSent] = useState(false)
     useEffect(() => {
         if (!sent) return
@@ -354,7 +348,6 @@ export default function TargetRow({
     )
 }
 
-/** A line under a row about what needs attention, lined up with the row's name. */
 function RowNote({ tone, children }: { tone: 'warning' | 'danger'; children: ReactNode }) {
     return (
         <div

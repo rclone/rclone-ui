@@ -9,11 +9,10 @@ import (
 	"github.com/rclone/rclone-ui/core/children"
 )
 
-// busyWait limits how long reading one mount's upload queue can take.
 const busyWait = 2 * time.Second
 
-// ListUploads works like List, but also reads each running mount's upload queue for the Mount
-// page's "uploading" count. It reads all queues at once and waits at most busyWait for each.
+// ListUploads works like List, but also reads each running mount's upload queue. It reads all
+// queues at once and waits at most busyWait for each.
 func (s *Service) ListUploads(ctx context.Context) []Mount {
 	all := s.reg.All()
 	queues := readQueues(ctx, all)
@@ -46,8 +45,6 @@ func (s *Service) Busy(ctx context.Context, restore bool) []BusyMount {
 	return out
 }
 
-// readQueues reads the upload queue (vfs/queue) of every running mount at once, waiting at most
-// busyWait for each. It returns 0 for a mount that isn't up or doesn't respond in time.
 func readQueues(ctx context.Context, mounts []*child) []int {
 	out := make([]int, len(mounts))
 	var wg sync.WaitGroup

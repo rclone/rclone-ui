@@ -32,23 +32,14 @@ import { useJob } from './jobs'
 import type { RemoteString } from './types'
 import { panelFolder, serializeRemotePath } from './utils'
 
-// The current location of a Browser panel, as reported by FilePanel's onNavigate.
 export type PanelLocation = { remote: RemoteString; path: string }
 
-/** The maximum number of names in a compare. Past it, the drawer says so. */
 const COMPARE_CAP = 20_000
 
-/** Heights in px of a bucket's title bar (h-9), a pair (h-11), and the gap between buckets. */
 const HEADER_HEIGHT = 36
 const ROW_HEIGHT = 44
 const BUCKET_GAP = 16
 
-/**
- * The height of a line. The box around a bucket's pairs adds a border above the first row and
- * below the last. When another bucket follows, the last row also adds the gap between them. The
- * gap belongs to the row rather than the next header, so a sticky header looks the same as one
- * in its normal place.
- */
 function lineHeight(line: CompareLine, hasNext: boolean): number {
     if (line.kind === 'header') return HEADER_HEIGHT
     return (
@@ -59,7 +50,6 @@ function lineHeight(line: CompareLine, hasNext: boolean): number {
     )
 }
 
-/** The panel's folder as the rclone path that the compare expects, or null when it shows none. */
 function comparedPath(loc: PanelLocation | null): string | null {
     return loc ? panelFolder(loc.remote, loc.path) : null
 }
@@ -70,7 +60,6 @@ function locationLabel(loc: PanelLocation | null): string {
     return serializeRemotePath(loc.remote ?? '', loc.path)
 }
 
-/** The color of each bucket's dot, so the summary and the list read the same way. */
 const BUCKET_DOT: Record<CompareClass, string> = {
     onlyLeft: 'bg-sky-500',
     onlyRight: 'bg-violet-500',
@@ -78,8 +67,6 @@ const BUCKET_DOT: Record<CompareClass, string> = {
     sameByHash: 'bg-emerald-500',
 }
 
-// One side of a pair. A missing entry (the empty side of an "only on" row) is a spacer of the
-// same height, so the two sides stay aligned.
 function CompareCell({ entry, last }: { entry?: CompareEntry; last: boolean }) {
     const edge = last ? '' : 'border-b border-divider'
     if (!entry) {
@@ -105,7 +92,6 @@ function CompareCell({ entry, last }: { entry?: CompareEntry; last: boolean }) {
     )
 }
 
-// A bucket's pairs look like one panel with two columns, and each row is a slice of it.
 function ComparePairRow({
     pair,
     first,
@@ -144,10 +130,6 @@ function CompareHeader({ title, count, bucket }: { title: string; count: number;
     )
 }
 
-/**
- * Shows the buckets as one virtualized list, so only the rows in view are rendered. The header
- * of the bucket at the top of the view stays pinned while its rows scroll past.
- */
 function CompareList({ data }: { data: CompareResult }) {
     const scrollRef = useRef<HTMLDivElement>(null)
     const lines = useMemo(() => compareLines(data), [data])
@@ -156,7 +138,6 @@ function CompareList({ data }: { data: CompareResult }) {
         for (let i = 0; i < lines.length; i++) if (lines[i].kind === 'header') at.push(i)
         return at
     }, [lines])
-    // The pinned header: the last header at or above the first line in view.
     const stuck = useRef(0)
     const rangeExtractor = useCallback(
         (range: Range) => {
@@ -167,7 +148,6 @@ function CompareList({ data }: { data: CompareResult }) {
         },
         [headers]
     )
-    // Keyed by line, so a new result is measured again.
     const getItemKey = useCallback((i: number) => lines[i].key, [lines])
     const virtualizer = useVirtualizer({
         count: lines.length,
@@ -184,8 +164,6 @@ function CompareList({ data }: { data: CompareResult }) {
                 {virtualizer.getVirtualItems().map((item) => {
                     const line = lines[item.index]
                     if (line.kind === 'header' && item.index === stuck.current) {
-                        // Placed in the normal flow at the top of the list, so it sticks to the
-                        // top of the view.
                         return (
                             <div key={item.key} className="sticky top-0 z-10">
                                 <CompareHeader
@@ -226,9 +204,6 @@ function CompareList({ data }: { data: CompareResult }) {
     )
 }
 
-// Mounted only while the drawer is open, so the compare runs while the drawer is open and is
-// cancelled when it closes. Each opening compares again, because nothing tells the drawer whether
-// the folders changed in the meantime.
 function CompareView({
     left,
     right,

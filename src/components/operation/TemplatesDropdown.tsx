@@ -31,17 +31,11 @@ import {
 import type { FlagValue } from '../../../types/rclone'
 import { TIP } from '../look/tip'
 
-/**
- * The page's paths, as a template keeps them. `get` reads them for "Save as template", and `set`
- * receives them after a template is applied. A single-source page uses the first source.
- */
 export interface PagePaths {
     get: () => TemplatePaths
     set: (paths: TemplatePaths) => void
 }
 
-// The buttons of the question before a template is applied. `message` answers with the label of
-// the button that was pressed.
 const MERGE = t`Add to Existing`
 const REPLACE = t`Replace All`
 
@@ -53,15 +47,9 @@ export default function TemplatesDropdown({
     getOptions,
     paths,
 }: {
-    /**
-     * Receives the template's options, sorted by the core into the groups of the page's form. An
-     * option that the form doesn't take is left out.
-     */
     onSelect: (groups: Operations.Groups, shouldMerge: boolean) => void
     operation: TemplateTag
-    /** The Serve page's type, whose options a template applies. Without one, every type's. */
     serveType?: string
-    /** Bad JSON in a group disables every item: saving, and applying a template. */
     isDisabled: boolean
     getOptions: () => Record<string, FlagValue>
     paths?: PagePaths
@@ -75,7 +63,6 @@ export default function TemplatesDropdown({
 
     const hasTemplates = useMemo(() => templates.length > 0, [templates])
 
-    // Asks for a name, then saves the page's options and paths as a template for this operation.
     const keep = async () => {
         const result = await prompt({
             title: t`Add template`,
@@ -114,8 +101,6 @@ export default function TemplatesDropdown({
         }
     }
 
-    // Asks whether to merge or replace, then applies the paths and the options, which the core
-    // sorts into the page's groups. Cancel, Esc and closing the dialog leave the page unchanged.
     const apply = async (template: Template) => {
         const carriesPaths = hasTemplatePaths(template.paths)
         const pressed = await message(
@@ -148,8 +133,6 @@ export default function TemplatesDropdown({
         onSelect(applied.groups, merge)
     }
 
-    // The tooltip stays shut while a question is open. The menu gives the focus back to the button
-    // as it closes, and an open tooltip would sit over the question.
     const [asking, setAsking] = useState(false)
 
     return (
@@ -192,7 +175,6 @@ export default function TemplatesDropdown({
                     if (key !== 'add' && !template) {
                         return
                     }
-                    // Waits for the menu to close before the dialog opens.
                     setTimeout(async () => {
                         setAsking(true)
                         try {

@@ -12,7 +12,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// MountRow is a running mount as the pages see it.
 type MountRow struct {
 	ID         string `json:"id"`
 	Source     string `json:"source"`
@@ -28,7 +27,6 @@ type MountRow struct {
 	Restart bool `json:"restart"`
 }
 
-// StoppedRow is a stopped mount that has uploads waiting.
 type StoppedRow struct {
 	Folder     string               `json:"folder"`
 	Source     string               `json:"source"`
@@ -88,15 +86,13 @@ func (a *API) Start(ctx context.Context, args operations.MountArgs) (MountRow, e
 }
 
 // StartReady starts a mount from a form, as Start does, and returns once the mount is ready, or
-// with why its first start failed. A page learns both from mounts.changed. An agent's tool gets
-// no events, so it waits here instead. A mount that is still starting when ctx ends comes back as
+// with why its first start failed. A mount that is still starting when ctx ends comes back as
 // it is.
 func (a *API) StartReady(ctx context.Context, args operations.MountArgs) (MountRow, error) {
 	return late.Call(ctx, a.s, func(s *Service) (MountRow, error) {
 		if err := operations.StoreMapper(&args.Options); err != nil {
 			return MountRow{}, err
 		}
-		// The subscription comes before the start, so that none of the mount's events is missed.
 		var events <-chan bus.Event
 		if s.o.Bus != nil {
 			sub := s.o.Bus.Subscribe()
@@ -115,7 +111,7 @@ func (a *API) StartReady(ctx context.Context, args operations.MountArgs) (MountR
 				d, mine := ev.Data.(bus.MountsChangedData)
 				switch {
 				case !ok:
-					events = nil // the subscription fell behind, so the list says how the mount is
+					events = nil
 				case !mine || d.ID != m.ID:
 				case d.State == string(children.StatusRunning):
 					events = nil
@@ -131,7 +127,7 @@ func (a *API) StartReady(ctx context.Context, args operations.MountArgs) (MountR
 				return Row(now), nil
 			}
 		}
-		return MountRow{}, ErrNotFound // it failed, and its event was missed
+		return MountRow{}, ErrNotFound
 	})
 }
 
@@ -148,14 +144,12 @@ func (a *API) Command(ctx context.Context, args operations.MountArgs) (operation
 }
 
 // Check returns the refusal of the page's form that Start would give before it mounts anything,
-// or nil. The page calls it as the user types. The mount point's own checks, such as whether it
-// is in use, are left to Start.
+// or nil. The mount point's own checks, such as whether it is in use, are left to Start.
 func (a *API) Check(ctx context.Context, args operations.MountArgs) error {
 	return a.s.Do(ctx, func(s *Service) error {
 		if err := operations.StoreMapper(&args.Options); err != nil {
 			return err
 		}
-		// Start picks the NFS port. Any port reads the form the same way.
 		_, err := operations.MountCommand(args, s.env(1))
 		return err
 	})
@@ -172,7 +166,6 @@ func (a *API) StopAll(ctx context.Context) error {
 	})
 }
 
-// Stopped lists the stopped mounts that have uploads waiting.
 func (a *API) Stopped(ctx context.Context) ([]StoppedRow, error) {
 	return late.Call(ctx, a.s, func(s *Service) ([]StoppedRow, error) {
 		list, err := s.Stopped(ctx)

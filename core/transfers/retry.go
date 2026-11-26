@@ -13,36 +13,22 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// This file works out what can be retried in an ended transfer, and builds the plan that retries
-// a selection of it. Everything comes from the plan that the transfer was started with, its
-// steps' errors, and the files that failed while it ran.
-
-// fileOps maps each folder step whose failed files are retried one by one to the step that
-// retries each file.
 var fileOps = map[string]string{
 	operations.OpCopy: operations.OpCopyFile,
 	operations.OpMove: operations.OpMoveFile,
 }
 
-// failedFile is one failed row of transfer_files.
 type failedFile struct {
 	srcFs, name, what, dstFs, err string
-	step                          *int // the step it failed in, when known
+	step                          *int
 }
 
-// retrySource holds what a retry plan is built from.
 type retrySource struct {
-	// plan is the plan that the transfer ran. It is empty when this build can't read the plan
-	// (because another version wrote it), and then there is nothing to retry.
 	plan     operations.Plan
-	out      *outcome // the steps' errors; nil when the end has none
+	out      *outcome
 	failed   []failedFile
-	recorded i18n.Text // the row's error
-	// errors is rclone's count of the transfer's errors at its end, or 0 when no totals were
-	// recorded. When it is larger than the number of failed files, some failures were never
-	// seen. They were pruned from the snapshots before a tick read them, or were not about a
-	// file.
-	errors int64
+	recorded i18n.Text
+	errors   int64
 }
 
 func (s *Service) retrySource(ctx context.Context, id string) (retrySource, error) {
@@ -67,10 +53,8 @@ func (s *Service) retrySource(ctx context.Context, id string) (retrySource, erro
 			src.errors = summary.Errors
 		}
 		if src.plan, err = operations.ParsePlan([]byte(request)); err != nil {
-			return nil // an unreadable plan: nothing to retry, and the row's error explains why
+			return nil
 		}
-		// The steps of a stopped or interrupted job only report that they were cancelled. So,
-		// as with no outcome, the failures collected while it ran are what can be retried.
 		if out, ok := parseOutcome([]byte(output.String)); ok && state != StateStopped && state != StateInterrupted {
 			src.out = &out
 		}
@@ -100,8 +84,6 @@ func (s *Service) retrySource(ctx context.Context, id string) (retrySource, erro
 	return src, err
 }
 
-// Retryable returns what the retry page lists: the failures of an ended transfer that can be
-// retried, and the errors that are not tied to a file. A running transfer has none yet.
 func (s *Service) Retryable(ctx context.Context, id string) (Retryable, error) {
 	t, err := s.get(ctx, id)
 	if err != nil {
@@ -117,9 +99,6 @@ func (s *Service) Retryable(ctx context.Context, id string) (Retryable, error) {
 	}
 	r.Items = retryPlan(src)
 	if len(r.Items) > 0 {
-		// Check the plan that Retry would start, the same way a start checks it. If this build
-		// won't run it (for example, because rclone dropped an option), show the reason once
-		// instead of offering items whose retry would fail.
 		if err := retryOf(r.Items, src.plan).Check(); err != nil {
 			r.Items, r.refused = []RetryItem{}, cantRun(t.Operation, err)
 			r.Refused = r.refused.String()
@@ -133,8 +112,6 @@ func (s *Service) Retryable(ctx context.Context, id string) (Retryable, error) {
 	return r, nil
 }
 
-// cantRun explains why a transfer of operation can't run, as the retry page shows it, for
-// example "Copy can't run: ‘x’ is not an rclone option".
 func cantRun(operation operations.Operation, err error) i18n.Text {
 	switch operation {
 	case operations.OperationCopy:
@@ -159,10 +136,6 @@ func cantRun(operation operations.Operation, err error) i18n.Text {
 	return i18n.M("This transfer can't run: %v", err)
 }
 
-// Retry starts one new transfer that retries a selection of an ended transfer's failures. keys
-// are the Keys of items that Retryable returned, and no keys means all of them. The new transfer
-// keeps the original's operation, destination, settings, tags and dry run setting. Its sources
-// are the items being retried.
 func (s *Service) Retry(ctx context.Context, id string, keys [][2]string) (Started, error) {
 	t, err := s.get(ctx, id)
 	if err != nil {
@@ -193,13 +166,10 @@ func (s *Service) Retry(ctx context.Context, id string, keys [][2]string) (Start
 	})
 }
 
-// retryPlan returns everything in a transfer that can be retried: its steps in the plan's order,
-// with a folder's failed files sorted by name.
 func retryPlan(src retrySource) []RetryItem {
 	items := []RetryItem{}
 	var failed []failedFile
 	for _, f := range src.failed {
-		// Keep only failed transfers, not deletes, checks or skipped files.
 		if f.name != "" && (f.what == "" || f.what == "transferring") {
 			failed = append(failed, f)
 		}
@@ -220,18 +190,12 @@ func retryPlan(src retrySource) []RetryItem {
 		return items
 	}
 
-	// errorOf returns each step's error, in order. When no end was recorded, there are no
-	// errors: any folder may be the one that a file failed in, and no step is known to have
-	// failed as a whole.
 	errorOf := func(i int) string {
 		if src.out != nil && i < len(src.out.Errors) {
 			return src.out.Errors[i]
 		}
 		return ""
 	}
-	// rclone counts each error once. More errors than failed files means that some were never
-	// seen, so a folder step that failed is retried whole, rather than only the files that were
-	// seen.
 	missed := src.errors > int64(len(src.failed))
 	var folders []int
 	for i, st := range steps {
@@ -244,13 +208,10 @@ func retryPlan(src retrySource) []RetryItem {
 		home := -1
 		switch {
 		case f.step != nil:
-			// The step that rclone's snapshot matched. Only folder steps take files, because a
-			// failure in a file step is the step's own failure.
 			if slices.Contains(folders, *f.step) {
 				home = *f.step
 			}
 		case len(folders) == 1:
-			// With one folder, every file belongs to it. With several, don't guess.
 			home = folders[0]
 		}
 		if home >= 0 {
@@ -264,8 +225,6 @@ func retryPlan(src retrySource) []RetryItem {
 			}
 			continue
 		}
-		// The step failed as a whole: a file that didn't exist, a folder that never started, or
-		// a folder whose failures were not all seen. Retry it as it was, which re-runs a folder.
 		if e := errorOf(i); e != "" {
 			items = append(items, stepItem(i, st, e))
 		}
@@ -273,9 +232,6 @@ func retryPlan(src retrySource) []RetryItem {
 	return items
 }
 
-// fileItem retries one failed file of a folder step, with the step's source and destination.
-// The plan's filter doesn't apply to a file step: a named file needs no filter, and a filter that
-// excluded it would make the retry do nothing.
 func fileItem(index *int, f failedFile, op string, st operations.Step) RetryItem {
 	var stepIndex *int
 	if index != nil {
@@ -290,8 +246,6 @@ func fileItem(index *int, f failedFile, op string, st operations.Step) RetryItem
 	}
 }
 
-// stepItem retries a step that failed as a whole, as it was. err is the step's error as the
-// outcome saves it.
 func stepItem(i int, st operations.Step, err string) RetryItem {
 	f, remote := st.Src, st.SrcRemote
 	if f == "" {
@@ -304,12 +258,6 @@ func stepItem(i int, st operations.Step, err string) RetryItem {
 	}
 }
 
-// resumeOf returns what an interrupted run of p left to do, so that a restart for an update can
-// start it again. That is the steps whose end output (job_output) doesn't record a success, in
-// order and with p's options. Steps that succeeded are not run again, because the finished moves
-// of a batch rename would fail on files that are no longer there. When the end output doesn't
-// cover every step (the process ended before the end handler wrote it), all of p is left. When
-// every step succeeded, nothing is left.
 func resumeOf(p operations.Plan, output []byte) operations.Plan {
 	out, ok := parseOutcome(output)
 	if !ok || len(out.Errors) != len(p.Steps) {
@@ -325,8 +273,6 @@ func resumeOf(p operations.Plan, output []byte) operations.Plan {
 	return left
 }
 
-// retryOf builds the plan for a selection of items: their steps, with the original's options and
-// concurrency.
 func retryOf(items []RetryItem, of operations.Plan) operations.Plan {
 	steps := make([]operations.Step, len(items))
 	for i, it := range items {

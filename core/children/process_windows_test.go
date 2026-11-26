@@ -40,9 +40,6 @@ func TestChildrenAreInTheKillOnCloseJob(t *testing.T) {
 	}
 }
 
-// TestChildrenAreNotOnTheAppsConsole checks that the children are not attached to the app's
-// console. A Ctrl+C there reaches every attached process, so the children would end before the
-// app's shutdown stops them.
 func TestChildrenAreNotOnTheAppsConsole(t *testing.T) {
 	if f := sysProcAttr().CreationFlags; f&windows.CREATE_NO_WINDOW == 0 || f&windows.CREATE_NEW_PROCESS_GROUP == 0 {
 		t.Fatalf("creation flags %#x", f)

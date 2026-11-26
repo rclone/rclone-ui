@@ -4,7 +4,6 @@ import { useAppInfo } from '../../lib/app'
 import { invalidates } from '../../lib/live'
 import { type CoreStatus, core } from '../../lib/shell'
 
-/** A diagnostics page: the core's status, the app info, and the events that windows receive. */
 function Test() {
     const [status, setStatus] = useState<CoreStatus | null>(null)
     const [events, setEvents] = useState<{ name: string; data: unknown }[]>([])

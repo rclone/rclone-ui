@@ -57,12 +57,6 @@ function Chevron() {
     )
 }
 
-/**
- * Where the panel is: the place (a remote, this computer or the favorites) and then each folder
- * down to the one shown, as pills that open their folder. The pencil, which shows on hover, turns
- * the path into a field to type one. When the row is short, the folders between the place and the
- * one shown give way first.
- */
 export default function PathBreadcrumb({
     remote,
     path,
@@ -83,8 +77,6 @@ export default function PathBreadcrumb({
     const [isInputMode, setIsInputMode] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
 
-    // While the peek key is held, a path with crumbs that are cut off or hidden shows in full,
-    // under the crumbs. It wraps before the panel's edge. The state is the room it has, in px.
     const crumbs = useRef<HTMLDivElement>(null)
     const peek = usePeek()
     const [fullPathRoom, setFullPathRoom] = useState<number | null>(null)
@@ -94,7 +86,6 @@ export default function PathBreadcrumb({
         const all = [
             ...(crumbs.current?.querySelectorAll('[data-crumb], [data-crumb] .truncate') ?? []),
         ]
-        // The panel clips what it holds, so the room ends at its edge.
         let right = window.innerWidth
         for (let el = crumbs.current?.parentElement; el; el = el.parentElement) {
             if (getComputedStyle(el).overflowX !== 'visible') {
@@ -106,13 +97,9 @@ export default function PathBreadcrumb({
         setFullPathRoom(peek && !isInputMode && all.some(cut) ? right - left - 8 : null)
     }, [peek, isInputMode])
 
-    // A remote browsed with parameters (`gdrive,shared_with_me`) has the type of its config.
     const configName = remote ? configNameOf(remote) : null
     const remoteType = useRemotes().remotes.find((candidate) => candidate.name === configName)?.type
 
-    // A remote location under its absolute root (`remote:/var/www`, which is the machine's `/`
-    // on sftp) shows that root as its own crumb, `/`, before the segments. The remote's name
-    // stands for the other root (`remote:`, the login folder). The two roots are different.
     const isRemote = remote !== 'UI_LOCAL_FS' && remote !== 'UI_FAVORITES'
     const absolute = isRemote && leadingSeparatorOf(currentHost()).test(path)
     const segments =
@@ -122,9 +109,6 @@ export default function PathBreadcrumb({
               ? ['/', ...getPathSegments(path)]
               : getPathSegments(path)
 
-    // A local path is rebuilt with the host's separator. On a Windows host, the first segment
-    // is the drive (`C:`) or the share (`\\nas\share`), which must start the path rather than
-    // follow a slash.
     const handleSegmentClick = useCallback(
         (index: number) => {
             if (remote === 'UI_LOCAL_FS') {
@@ -188,7 +172,6 @@ export default function PathBreadcrumb({
         if (remote === 'UI_FAVORITES') {
             return <StarIcon variant="filled" className="text-warning size-4 shrink-0" />
         }
-        // A remote with no saved type (one written on the fly) shows a plain cloud.
         if (remote) {
             return (
                 <BackendIcon
@@ -268,15 +251,12 @@ export default function PathBreadcrumb({
                             aria-current={atRoot ? 'location' : undefined}
                         >
                             {renderRemoteIcon()}
-                            {/* In a narrow panel, the place's icon stands for it below its root. */}
                             <span className={cn('truncate max-w-40', !atRoot && '@max-lg:hidden')}>
                                 {remoteLabel}
                             </span>
                         </button>
                     )}
 
-                    {/* In a narrower panel, the folders between the place and the last two fold
-                        into a menu, and in a narrow one, all but the folder shown. */}
                     {segments.length > 1 && (
                         <span
                             className={cn(
@@ -325,8 +305,6 @@ export default function PathBreadcrumb({
                     {segments.map((segment, index) => {
                         const isLast = index === segments.length - 1
                         return (
-                            // The folders between the place and the one shown give way first, down
-                            // to an ellipsis each. The folder shown keeps the most room.
                             <span
                                 key={`${segment}-${index}`}
                                 data-crumb={true}

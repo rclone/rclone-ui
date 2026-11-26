@@ -9,8 +9,6 @@ import (
 	"strings"
 )
 
-// processStartTime returns field 22 of /proc/<pid>/stat, which is the process's start time in
-// clock ticks since boot.
 func processStartTime(pid int) (int64, error) {
 	b, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
 	if errors.Is(err, fs.ErrNotExist) {

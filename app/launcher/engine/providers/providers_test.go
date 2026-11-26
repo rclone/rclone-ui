@@ -24,17 +24,13 @@ import (
 	"github.com/rclone/rclone-ui/core/vfs"
 )
 
-// ms returns t in milliseconds since the epoch, the unit of a transfer's times.
 func ms(t time.Time) *int64 {
 	v := t.UnixMilli()
 	return &v
 }
 
-// eta returns a transfer's seconds left.
 func eta(s int64) *int64 { return &s }
 
-// data returns a core state with three remotes (one of which can clean up and purge), a mount, a
-// serve, two VFS caches, and a folder to complete in.
 func data() *engine.Data {
 	return &engine.Data{
 		Remotes: []engine.Remote{
@@ -70,7 +66,6 @@ func data() *engine.Data {
 	}
 }
 
-// run runs text through every provider and returns the final ranked results.
 func run(t *testing.T, text string, d *engine.Data, usage engine.Usage) []engine.Result {
 	t.Helper()
 	c := NewCompletion()
@@ -94,8 +89,6 @@ func titles(rs []engine.Result) []string {
 	return out
 }
 
-// TestEmptyQueryListsTheGroups: the running items come first, then "Run" (which stands
-// for the operations), the remotes and the app's screens, each group under its label.
 func TestEmptyQueryListsTheGroups(t *testing.T) {
 	rs := run(t, "", data(), nil)
 	got := titles(rs)
@@ -122,14 +115,12 @@ func TestEmptyQueryListsTheGroups(t *testing.T) {
 	}
 }
 
-// TestRecentsComeFirst: results that the history says are used come first in their group. The
-// operations stay out of the empty query however much they are used.
 func TestRecentsComeFirst(t *testing.T) {
 	now := time.Now()
 	usage := engine.Usage{
 		"op:sync":          {Count: 5, Last: now.Add(-time.Hour)},
 		"remote:s3-backup": {Count: 3, Last: now.Add(-2 * time.Hour)},
-		"remote:gdrive":    {Count: 1, Last: now}, // a single use isn't a habit
+		"remote:gdrive":    {Count: 1, Last: now},
 	}
 	got := titles(run(t, "", data(), usage))
 	remotes := slices.Index(got, "s3-backup")
@@ -138,8 +129,6 @@ func TestRecentsComeFirst(t *testing.T) {
 	}
 }
 
-// TestOperationsWhenTyped: a word finds the operations that the empty query leaves out, and
-// "Run" is found by its own words.
 func TestOperationsWhenTyped(t *testing.T) {
 	if got := titles(run(t, "sync", data(), nil)); len(got) == 0 || got[0] != "Sync" {
 		t.Errorf("sync: got %q", got)
@@ -149,8 +138,6 @@ func TestOperationsWhenTyped(t *testing.T) {
 	}
 }
 
-// TestActiveIsCapped: with more than four running items, the empty query lists three, plus a row
-// that shows all of them, as "active" does.
 func TestActiveIsCapped(t *testing.T) {
 	d := data()
 	for _, id := range []string{"m2", "m3", "m4"} {
@@ -172,9 +159,6 @@ func TestActiveIsCapped(t *testing.T) {
 	}
 }
 
-// TestTransfersAreActive: the queued and running transfers are one row, first among the running
-// items, which opens the History window. "stop" offers to stop them, and to stop everything,
-// saying what will stop.
 func TestTransfersAreActive(t *testing.T) {
 	d := data()
 	d.Transfers = []transfers.Transfer{
@@ -206,15 +190,12 @@ func TestTransfersAreActive(t *testing.T) {
 	if _, ok := StopEverything(idle); ok {
 		t.Error("nothing runs: nothing to stop")
 	}
-	// The tunnel stops too, so the question names it.
 	idle.Tunnel = true
 	if r, ok := StopEverything(idle); !ok || r.Actions[0].Confirm != "Stop the remote tunnel?" {
 		t.Errorf("the tunnel is on: %v, %+v", ok, r)
 	}
 }
 
-// TestTransfersSayHowFar: once the core reports progress, the transfers row shows the combined
-// progress instead of "Running".
 func TestTransfersSayHowFar(t *testing.T) {
 	d := data()
 	d.Transfers = []transfers.Transfer{{ID: "t1", State: "running", Operation: "sync", Sources: []string{"/tmp/photos"},
@@ -232,8 +213,6 @@ func TestTransfersSayHowFar(t *testing.T) {
 	}
 }
 
-// TestFailedTransfers: a transfer that failed in the last day gets its own row among the running
-// items, which opens its details. An older failure doesn't, and neither does a success.
 func TestFailedTransfers(t *testing.T) {
 	d := data()
 	now := time.Now()
@@ -241,10 +220,8 @@ func TestFailedTransfers(t *testing.T) {
 		{ID: "f1", State: "failed", Operation: "sync", Sources: []string{"/tmp/Photos"}, Destination: "gdrive:Photos",
 			Error: "12 files couldn't be copied\nmore", EndedAt: ms(now.Add(-10 * time.Minute))},
 		{ID: "f2", State: "failed", Operation: "delete", Sources: []string{"s3-backup:old"}, EndedAt: ms(now.Add(-25 * time.Hour))},
-		// A watcher's run is left out: it runs every minute, and has its own window.
 		{ID: "f3", State: "failed", Operation: "bisync", Sources: []string{"/tmp/a"}, Destination: "/tmp/b",
 			Origin: transfers.Origin{Kind: transfers.OriginWatcher}, EndedAt: ms(now.Add(-time.Minute))},
-		// A retry of a watcher's run is the user's own, so it is listed.
 		{ID: "f4", State: "failed", Operation: "bisync", Sources: []string{"/tmp/a"}, Destination: "/tmp/b",
 			Origin: transfers.Origin{Kind: transfers.OriginWatcher}, RetryOf: "f3", EndedAt: ms(now.Add(-time.Minute))},
 	}
@@ -276,7 +253,6 @@ func TestFailedTransfers(t *testing.T) {
 	}
 }
 
-// TestProgressLine: the known parts of the progress, in a short line.
 func TestProgressLine(t *testing.T) {
 	for _, c := range []struct {
 		p    corestate.Sum
@@ -294,8 +270,6 @@ func TestProgressLine(t *testing.T) {
 	}
 }
 
-// TestOpensMarksTheWindows: an action is marked Opens exactly when it opens one of the app's
-// windows, so the launcher can make the app active for it.
 func TestOpensMarksTheWindows(t *testing.T) {
 	d := data()
 	seen := 0
@@ -328,7 +302,6 @@ func TestFirstResult(t *testing.T) {
 		{"c", "Copy"},
 		{"sync", "Sync"},
 		{"copy gdrive: /tmp", "Copy gdrive: → /tmp"},
-		// Sync is one-way and deletes, so it uses Copy's arrow, not Bisync's
 		{"sync gdrive: /tmp", "Sync gdrive: → /tmp"},
 		{"bisync gdrive: /tmp", "Bisync gdrive: ↔ /tmp"},
 		{"gdrive: /tmp", "Copy gdrive: → /tmp"},
@@ -361,9 +334,7 @@ func TestContains(t *testing.T) {
 		has  []string
 		not  []string
 	}{
-		// "mount gdrive:" offers Mount on the typed path
 		{"mount gdrive:", []string{"Mount gdrive:"}, nil},
-		// a path typed alone gets every operation that can start from it
 		{"gdrive:", []string{"Browse gdrive:", "Copy from gdrive:", "Move from gdrive:", "Sync from gdrive:", "Bisync from gdrive:",
 			"Mount gdrive:", "Serve gdrive:", "Download to gdrive:", "Delete gdrive:", "Purge gdrive:", "Clean up gdrive",
 			"Edit gdrive", "New automount for gdrive"}, nil},
@@ -375,7 +346,6 @@ func TestContains(t *testing.T) {
 		{"serve", []string{"Serve", "HTTP s3-backup: · 127.0.0.1:8080", "Stop HTTP s3-backup:"}, nil},
 		{"stop", []string{"gdrive: → /Volumes/gdrive", "Unmount /Volumes/gdrive", "HTTP s3-backup: · 127.0.0.1:8080",
 			"Stop HTTP s3-backup:"}, []string{"Unmount All", "Stop All Serves"}},
-		// the Browse drill-in lists each remote, and Back
 		{"browse", []string{"Browse gdrive", "Browse s3-backup", "Browse My Box", "Back"}, []string{"gdrive"}},
 		{"browse gd", []string{"Browse gdrive"}, []string{"Back"}},
 		{"gdr", []string{"gdrive"}, []string{"Browse gdrive", "Edit gdrive"}},
@@ -399,7 +369,6 @@ func TestContains(t *testing.T) {
 	}
 }
 
-// TestToolbarCommands: every command is found by its name and by its keywords.
 func TestToolbarCommands(t *testing.T) {
 	cases := []struct{ text, title string }{
 		{"copy", "Copy"}, {"cp", "Copy"},
@@ -434,8 +403,6 @@ func TestToolbarCommands(t *testing.T) {
 			t.Errorf("%q: missing %q in %q", c.text, c.title, got)
 		}
 	}
-	// the rows shown when there is nothing to list: no remote can clean up, none to browse, no
-	// cache
 	d := data()
 	d.Remotes, d.Vfs = nil, nil
 	for text, want := range map[string]string{"cleanup": "Cleanup", "browse": "Browse", "vfs": "VFS"} {
@@ -445,8 +412,6 @@ func TestToolbarCommands(t *testing.T) {
 	}
 }
 
-// TestPanels: a remote, a path and a listed folder each offer every operation that can start from
-// them.
 func TestPanels(t *testing.T) {
 	panel := func(text, title string) []string {
 		t.Helper()
@@ -495,8 +460,6 @@ func TestCompletion(t *testing.T) {
 	if entries[0].Complete != "gdrive:Photos/" || !reflect.DeepEqual(entries[0].Match(), []int{0, 1, 2}) {
 		t.Errorf("Photos: complete %q, match %v", entries[0].Complete, entries[0].Match())
 	}
-	// a hidden entry is offered only when its dot is typed, and nothing is offered for a path that
-	// isn't being typed
 	if got := titles(run(t, "gdrive:.h", data(), nil)); !slices.Contains(got, ".hidden/") {
 		t.Errorf("dot typed: %q", got)
 	}
@@ -507,8 +470,6 @@ func TestCompletion(t *testing.T) {
 	}
 }
 
-// slowList is a listing that sends its first page at once and the second after release. It
-// counts how often it is called, and closes stopped if its context ends first.
 type slowList struct {
 	calls   atomic.Int32
 	release chan struct{}
@@ -536,13 +497,10 @@ func (l *slowList) list(ctx context.Context, dir string, page func([]engine.Entr
 	return nil
 }
 
-// typing returns a query that is typing the path text.
 func typing(text string) engine.Query {
 	return engine.Query{Typing: &engine.Path{Text: text, Remote: "gdrive"}}
 }
 
-// TestCompletionStreams: the first page is offered before the listing ends, and the rest once it
-// ends.
 func TestCompletionStreams(t *testing.T) {
 	c := NewCompletion()
 	c.delay = 0
@@ -563,8 +521,6 @@ func TestCompletionStreams(t *testing.T) {
 	}
 }
 
-// TestCompletionSharesListing: further typing in a folder joins its listing rather than starting
-// another, even when the newer query cancelled the earlier one.
 func TestCompletionSharesListing(t *testing.T) {
 	c := NewCompletion()
 	c.delay = 0
@@ -576,7 +532,7 @@ func TestCompletionSharesListing(t *testing.T) {
 		c.QueryStream(ctx, typing("gdrive:f"), d, func([]engine.Result) { close(got) })
 	}()
 	<-got
-	cancel() // the next keystroke
+	cancel()
 	done := make(chan []string, 1)
 	go func() {
 		done <- titles(c.QueryStream(context.Background(), typing("gdrive:fi"), d, func([]engine.Result) {}))
@@ -588,15 +544,12 @@ func TestCompletionSharesListing(t *testing.T) {
 	if n := l.calls.Load(); n != 1 {
 		t.Fatalf("listed %d times", n)
 	}
-	// a finished listing is reused for the folder until Reset
 	c.QueryStream(context.Background(), typing("gdrive:"), d, func([]engine.Result) {})
 	if n := l.calls.Load(); n != 1 {
 		t.Fatalf("listed %d times after it finished", n)
 	}
 }
 
-// TestCompletionStopsOtherFolder: typing in another folder stops the unfinished listing of the
-// first one, and a listing that failed is tried again.
 func TestCompletionStopsOtherFolder(t *testing.T) {
 	c := NewCompletion()
 	c.delay = 0
@@ -630,7 +583,6 @@ func TestCompletionStopsOtherFolder(t *testing.T) {
 	}
 }
 
-// env records the calls that actions make.
 type env struct {
 	calls []string
 	yes   bool
@@ -712,11 +664,9 @@ func TestStopsAskFirst(t *testing.T) {
 	}
 }
 
-// TestQuitIsNeverARecent: Quit has no history key, so however often it is picked, an empty query
-// never suggests it.
 func TestQuitIsNeverARecent(t *testing.T) {
 	now := time.Now()
-	usage := engine.Usage{"nav:quit": {Count: 9, Last: now}} // as if Quit had been picked often
+	usage := engine.Usage{"nav:quit": {Count: 9, Last: now}}
 	rs := run(t, "", data(), usage)
 	if rs[0].Title == "Quit" {
 		t.Errorf("quit suggested: %q", titles(rs))
@@ -728,9 +678,6 @@ func TestQuitIsNeverARecent(t *testing.T) {
 	}
 }
 
-// TestCompletionKeys: a completed folder is stored in the history under the same key as the typed
-// folder, with or without a trailing separator. A folder offered for dropped files has its own
-// key.
 func TestCompletionKeys(t *testing.T) {
 	keys := map[string]string{}
 	for _, r := range run(t, "gdrive:Pho", data(), nil) {
@@ -761,8 +708,6 @@ func TestCompletionKeys(t *testing.T) {
 	}
 }
 
-// TestCopyAddress: Copy Address copies only the serve's address, as the Serve page does, and
-// says so in the notification.
 func TestCopyAddress(t *testing.T) {
 	d := data()
 	d.Serves[0].Args = operations.ServeArgs{Type: "http", Options: operations.Groups{Serve: catalog.Group{"user": []byte(`"me"`), "pass": []byte(`"secret"`)}}}
@@ -789,8 +734,6 @@ func TestCopyAddress(t *testing.T) {
 	}
 }
 
-// TestDropped: dropped files go to a remote, a typed path, or a place chosen later. A single
-// folder can also be synced, served and browsed. Completion lists only folders, as destinations.
 func TestDropped(t *testing.T) {
 	d := data()
 	files := []engine.Path{{Text: "/nowhere/a.jpg", Local: true}, {Text: "/nowhere/b.jpg", Local: true}}
@@ -830,9 +773,6 @@ func TestDropped(t *testing.T) {
 	}
 }
 
-// TestClipboard: a link or path that was just copied is suggested first on the empty query. A
-// link whose text isn't known yet is read when chosen. Anything else, or a typed query, gets no
-// suggestion.
 func TestClipboard(t *testing.T) {
 	d := data()
 	ask := func(clip engine.Clip, text string) []engine.Result {
@@ -864,7 +804,6 @@ func TestClipboard(t *testing.T) {
 	if len(e.calls) != 1 || e.calls[0] != "window Download /download?initialUrl=https%3A%2F%2Fexample.com%2Fx.zip" {
 		t.Fatalf("read when chosen: %q", e.calls)
 	}
-	// pinned above the empty query's recent results
 	ranked := engine.Rank(engine.Query{}, append(ask(engine.Clip{Text: "https://example.com/a/movie.mkv"}, ""),
 		engine.Result{ID: "r", Key: "r", Title: "Recent"}), engine.Usage{"r": {Count: 5, Last: time.Now()}}, time.Now())
 	if ranked[0].Title != "Download movie.mkv" {
@@ -872,7 +811,6 @@ func TestClipboard(t *testing.T) {
 	}
 }
 
-// runAction runs a, as the launcher does once any question is answered.
 func runAction(a engine.Action, e *env) (bool, error) {
 	if a.Run == nil {
 		return true, nil
@@ -880,8 +818,6 @@ func runAction(a engine.Action, e *env) (bool, error) {
 	return true, a.Run(context.Background(), e)
 }
 
-// TestOpenInBrowser: a serve on every interface opens at 127.0.0.1, and one on a specific address
-// opens at that address.
 func TestOpenInBrowser(t *testing.T) {
 	for _, c := range []struct{ addr, want string }{
 		{":8080", "http://127.0.0.1:8080"},
@@ -914,20 +850,17 @@ func TestOpenInBrowser(t *testing.T) {
 	}
 }
 
-// TestRowsMatchBothLanguages: in another language (the test language, Pseudo, stands in for
-// one), the rows are drawn translated, and typing finds them by their English titles and search
-// words as well as by their translated ones. A drill-in types its word in the app's language.
 func TestRowsMatchBothLanguages(t *testing.T) {
 	i18n.SetLanguage(i18n.Pseudo)
 	t.Cleanup(func() { i18n.SetLanguage(i18n.English) })
 	for _, c := range []struct{ typed, want string }{
-		{"copy", "[Çópý]"},               // an operation's English title
-		{"çópý", "[Çópý]"},               // and its translation
-		{"settings", "[Séttíñgs]"},       // a screen's English title
-		{"preferences", "[Séttíñgs]"},    // and an English search word
-		{"préféréñçés", "[Séttíñgs]"},    // and its translation
-		{"new remote", "[Ñéw Rémóté]"},   // two English words
-		{"edit gdrive", "[Édít gdrive]"}, // a command word and a name
+		{"copy", "[Çópý]"},
+		{"çópý", "[Çópý]"},
+		{"settings", "[Séttíñgs]"},
+		{"preferences", "[Séttíñgs]"},
+		{"préféréñçés", "[Séttíñgs]"},
+		{"new remote", "[Ñéw Rémóté]"},
+		{"edit gdrive", "[Édít gdrive]"},
 		{"unmount", "[Úñmóúñt /Volumes/gdrive]"},
 	} {
 		if got := titles(run(t, c.typed, data(), nil)); !slices.Contains(got, c.want) {

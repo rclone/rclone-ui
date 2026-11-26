@@ -10,8 +10,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// Read returns a file's start, says whether that is the whole file, and refuses what isn't a
-// file.
 func TestRead(t *testing.T) {
 	ctx := context.Background()
 	root, _ := filepath.EvalSymlinks(t.TempDir())

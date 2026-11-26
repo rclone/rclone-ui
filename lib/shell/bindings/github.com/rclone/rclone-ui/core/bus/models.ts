@@ -258,10 +258,6 @@ export class TransferProgress {
      * the last 50
      */
     "transferred": TransferredFile[];
-
-    /**
-     * Watcher is set for a watcher's run, which the tray's count leaves out.
-     */
     "watcher"?: boolean;
 
     /** Creates a new TransferProgress instance. */
@@ -336,9 +332,6 @@ export class TransferProgress {
     }
 }
 
-/**
- * TransferredFile is a file that was transferred, or that failed.
- */
 export class TransferredFile {
     "name": string;
     "size": number;
@@ -406,9 +399,6 @@ export class TransferringFile {
     }
 }
 
-/**
- * TransfersChangedData reports that a transfer was created, ended or stopped.
- */
 export class TransfersChangedData {
     "id": string;
     "state": string;

@@ -11,13 +11,8 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// Operations offers the operation pages (copy, move, sync, bisync, delete, purge, download, mount,
-// serve), opened with the typed paths, and cleanup, which runs in the launcher. The empty query
-// lists none of them: "Run" opens the Wizard, which asks what the user wants to do and
-// finds the operation for it. Typing finds each operation by name.
 type Operations struct{}
 
-// wizard returns "Run", which opens the Wizard.
 func wizard() engine.Result {
 	return engine.Result{
 		ID: "op:wizard", Key: "op:wizard", Icon: icons.Wizard, Score: 50,
@@ -30,20 +25,15 @@ func wizard() engine.Result {
 		i18n.M("wizard, run, operation, start, new"))
 }
 
-// op is an operation page. Its messages name it in its rows.
 type op struct {
 	id, window, route string
 	icon              icons.Name
 	name, desc        i18n.Text
-	// words are the search words, separated by commas (see engine.Result.Say).
-	words i18n.Text
-	// on names the operation on a path, or on a transfer's paths: "Copy gdrive:Photos".
-	on    func(what string) i18n.Text
-	score int // ranks the operations that a query matches equally
-	// pair, from and to are set for an operation from a source to a destination. pair names it
-	// on both ("Copy gdrive:a → /b"), from on its source and to on its destination.
-	pair     func(src, dst string) i18n.Text
-	from, to func(p string) i18n.Text
+	words             i18n.Text
+	on                func(what string) i18n.Text
+	score             int
+	pair              func(src, dst string) i18n.Text
+	from, to          func(p string) i18n.Text
 }
 
 var (
@@ -118,7 +108,6 @@ var (
 		on:    func(w string) i18n.Text { return i18n.M("Serve %s", w) }}
 )
 
-// opByID returns the operation page with that id. A transfer's Operation uses the same ids.
 func opByID(id string) (op, bool) {
 	for _, o := range []op{copyOp, moveOp, syncOp, bisyncOp, deleteOp, purgeOp, downloadOp, mountOp, serveOp} {
 		if o.id == id {
@@ -128,17 +117,12 @@ func opByID(id string) (op, bool) {
 	return op{}, false
 }
 
-// pairOps are the operations from a source to a destination.
 var pairOps = []op{copyOp, moveOp, syncOp, bisyncOp}
 
-// from returns an action that opens o's window with p as its source. name is its label in the ⌘K
-// panel.
 func from(o op, p engine.Path, name string) engine.Action {
 	return named(open(o.id, o.window, o.route, o.icon, "initialSource", pathArg(p)), name)
 }
 
-// Query returns the operations. Without paths or a URL, it also returns "Run". With paths, it
-// offers each operation on them (as a pair for two or more). With a URL, it offers to download it.
 func (Operations) Query(_ context.Context, q engine.Query, d *engine.Data) []engine.Result {
 	var out []engine.Result
 	if len(q.Paths) == 0 && q.URL == "" {
@@ -156,8 +140,6 @@ func (Operations) Query(_ context.Context, q engine.Query, d *engine.Data) []eng
 	return inGroup(engine.GroupOperations, out)
 }
 
-// generic returns an operation's own result, which opens its window empty. The empty query gets
-// none: "Run" stands for them there.
 func generic(o op, q engine.Query) []engine.Result {
 	if q.Empty() {
 		return nil
@@ -168,7 +150,6 @@ func generic(o op, q engine.Query) []engine.Result {
 	}, o.name)}
 }
 
-// result returns r as one of o's rows: titled title, with o's description, icon and search words.
 func (o op) result(r engine.Result, title i18n.Text) engine.Result {
 	r.Subtitle, r.Icon = o.desc.Local(), o.icon
 	return r.Say(title, o.words)
@@ -199,7 +180,6 @@ func transferResults(o op, q engine.Query) []engine.Result {
 	return out
 }
 
-// singleResults returns an operation on one path at a time, for the paths that ok accepts.
 func singleResults(o op, q engine.Query, ok func(engine.Path) bool) []engine.Result {
 	if len(q.Paths) == 0 {
 		return generic(o, q)
@@ -217,8 +197,6 @@ func singleResults(o op, q engine.Query, ok func(engine.Path) bool) []engine.Res
 	return out
 }
 
-// serveResults returns Serve for each path, over the type named by a word ("serve webdav
-// gdrive:").
 func serveResults(q engine.Query, d *engine.Data) []engine.Result {
 	typ := ""
 	for _, t := range q.Terms {
@@ -246,8 +224,6 @@ func serveResults(q engine.Query, d *engine.Data) []engine.Result {
 	return out
 }
 
-// downloadResults returns downloads of the typed URL into each typed path. Either can be left
-// out and chosen later in the window.
 func downloadResults(q engine.Query) []engine.Result {
 	if q.URL == "" && len(q.Paths) == 0 {
 		return generic(downloadOp, q)
@@ -276,7 +252,6 @@ func downloadResults(q engine.Query) []engine.Result {
 	return out
 }
 
-// urlLabel returns the last name in a URL's path, or its host.
 func urlLabel(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -288,10 +263,6 @@ func urlLabel(raw string) string {
 	return u.Host
 }
 
-// cleanupResults returns Cleanup for each remote that supports it: the typed ones, or all of them
-// when a word is typed. If none supports it, a typed word gets a Cleanup row that says so. No row
-// has a history key, because a single pick would move Cleanup above Browse for the typed remote,
-// and Enter would then ask to delete.
 func cleanupResults(q engine.Query, d *engine.Data) []engine.Result {
 	desc := i18n.T("Clean up a remote: empty its trash, or delete old versions of files.")
 	// i18n: Search words for the launcher's Cleanup rows, separated by commas. Add any word that people would type to find them.
@@ -330,8 +301,6 @@ func cleanupResults(q engine.Query, d *engine.Data) []engine.Result {
 	return out
 }
 
-// cleanup returns an action that starts rclone's cleanup of remote as a transfer, so the History
-// page can follow it. It asks for confirmation first, because what it deletes can't be recovered.
 func cleanup(remote string) engine.Action {
 	return engine.Action{ID: "cleanup", Name: i18n.T("Cleanup"), Icon: icons.Cleanup, Stay: true,
 		Confirm: i18n.T("Clean up %s? Trash and old file versions will be removed for good.", remote),

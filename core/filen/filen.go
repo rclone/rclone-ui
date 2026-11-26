@@ -1,10 +1,3 @@
-// Package filen gets a Filen account's API key for the API key field in the remote forms. rclone's
-// filen backend needs a key but cannot fetch one (the option's help says to run the Filen CLI's
-// `export-api-key`). The core logs in the same way that command does, using Filen's own Go SDK.
-// rclone's backend is built on that SDK, so it is already in the build. The SDK handles every
-// Filen auth version and two-factor codes, and its requests go through rclone's HTTP client,
-// including the proxy from Settings. The password is the one that the form already has for the
-// remote, because rclone keeps it in the remote's config.
 package filen
 
 import (
@@ -22,15 +15,11 @@ import (
 // authentication.
 const noCode = "XXXXXX"
 
-// The errors for the request's `code` field that the form acts on. ErrTwoFactor asks for the
-// account's two-factor code, and ErrWrongTwoFactor asks for it again.
 var (
 	ErrTwoFactor      = errs.Field("code", "This Filen account uses two-factor authentication: enter the code from your authenticator app.")
 	ErrWrongTwoFactor = errs.Field("code", "That two-factor code was not accepted. Enter the current one.")
 )
 
-// login logs in with the SDK and returns the account's API key. The e2e build and the tests
-// replace it with a stand-in, because they can't reach Filen's gateway.
 var login = func(ctx context.Context, email, password, code string) (string, error) {
 	f, err := sdk.New(ctx, email, password, code)
 	if err != nil {
@@ -39,14 +28,8 @@ var login = func(ctx context.Context, email, password, code string) (string, err
 	return f.Client.APIKey, nil
 }
 
-// budget is how long a login may take. A gateway that doesn't answer would otherwise keep the
-// Generate button spinning.
 var budget = 20 * time.Second
 
-// APIKey logs in to the account and returns its API key. code is the two-factor code, or empty
-// when there is none. Every error is a sentence to show to the user: ErrTwoFactor when the
-// account needs a code, ErrWrongTwoFactor when the code was wrong, and Filen's own message
-// otherwise. The login is given up after budget, even when the SDK doesn't stop by itself.
 func APIKey(ctx context.Context, email, password, code string) (string, error) {
 	email, code = strings.TrimSpace(email), strings.TrimSpace(code)
 	if email == "" || password == "" {

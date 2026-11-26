@@ -5,7 +5,6 @@ import { type Flags, type GroupKey, OPTION_GROUPS } from './optionGroups'
 
 const option = (name: string) => ({ name }) as Option
 
-// A catalog with two serve types. addr is in both, with a different app-wide value in each.
 const flags = {
     globalFlags: {
         main: { transfers: '8' },
@@ -38,7 +37,6 @@ describe('OPTION_GROUPS', () => {
     it("offers the catalog's list of each group", () => {
         const names = (key: GroupKey) => OPTION_GROUPS[key].available(flags).map((o) => o.name)
         expect(names('copy')).toEqual(['checksum'])
-        // Move and bisync take copy's options.
         expect(names('move')).toEqual(['checksum'])
         expect(names('bisync')).toEqual(['checksum'])
         expect(names('sync')).toEqual(['delete_before'])
@@ -65,7 +63,6 @@ describe('OPTION_GROUPS', () => {
     it('merges every serve type without one', () => {
         const serve = OPTION_GROUPS.serve
         expect(serve.available(flags).map((o) => o.name)).toEqual(['addr', 'template', 'user'])
-        // A later type's value wins.
         expect(serve.global(flags)).toEqual({ addr: ':9090', user: 'me' })
     })
 

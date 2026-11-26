@@ -62,8 +62,6 @@ func TestSearchMatching(t *testing.T) {
 	}
 }
 
-// With hidden files shown, the names that start with a dot match too, and so does what is inside
-// a dot folder.
 func TestSearchHidden(t *testing.T) {
 	var found []string
 	err := Search(context.Background(), AddFixture(&Fixture{Inner: MakeTree(t, searchTree)}), "", "report", SearchWalkMax, false, true,
@@ -107,8 +105,6 @@ func TestSearchThroughTheBackendsListR(t *testing.T) {
 	}
 }
 
-// TestSearchStopsAfterItsWalkMax checks that the walk ends after max entries, matching or not,
-// without an error, and keeps the matches it found until then.
 func TestSearchStopsAfterItsWalkMax(t *testing.T) {
 	ctx := context.Background()
 	f, err := cache.Get(ctx, ":memory:search-walkmax")
@@ -128,8 +124,6 @@ func TestSearchStopsAfterItsWalkMax(t *testing.T) {
 	}
 }
 
-// TestSearchIgnoresTheUnicodeForm checks that a term typed in composed form (NFC) finds a name
-// stored in decomposed form (NFD, as macOS names files), and the other way round.
 func TestSearchIgnoresTheUnicodeForm(t *testing.T) {
 	ctx := context.Background()
 	f, err := cache.Get(ctx, ":memory:search-nfc")

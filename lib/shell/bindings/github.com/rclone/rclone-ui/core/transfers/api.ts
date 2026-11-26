@@ -18,8 +18,8 @@ import * as $models from "./models.js";
 
 /**
  * Check returns Start's refusal of a page's form, as far as it can be told without asking rclone
- * about the paths (operations.CheckForm), or nil. The pages call it as the user types. A refused
- * option comes back on its group's field (options.config…).
+ * about the paths (operations.CheckForm), or nil. A refused option comes back on its group's
+ * field (options.config…).
  */
 export function Check(f: operations$0.Form): $CancellablePromise<void> {
     return $Call.ByID(1871589343, f);
@@ -58,8 +58,7 @@ export function Get(id: string): $CancellablePromise<$models.Detail> {
 }
 
 /**
- * IDOf returns the id of the transfer whose number is seq, the "#12" that the pages show. The
- * agents' server calls it, so that an agent can name a transfer by its number.
+ * IDOf returns the id of the transfer whose number is seq, the "#12" that the pages show.
  */
 export function IDOf(seq: number): $CancellablePromise<string> {
     return $Call.ByID(437731273, seq);
@@ -157,7 +156,7 @@ export function Stop(id: string): $CancellablePromise<void> {
 
 /**
  * Tracked returns the current state of the transfers that a page started, each with its most
- * recent files. The Commander's bar uses it.
+ * recent files.
  */
 export function Tracked(ids: string[]): $CancellablePromise<$models.TrackedTransfer[]> {
     return $Call.ByID(1581646165, ids).then(($result: any) => {

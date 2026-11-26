@@ -28,7 +28,6 @@ func TestRcloneArgs(t *testing.T) {
 				"--rc", "--rc-addr=unix://" + filepath.Join(run, "c-0123abcd.sock")},
 		},
 		{
-			// The tunnel serves its own rc and rejects --rc. Its socket is one more address.
 			name:   "Tunnel",
 			own:    []string{"tunnel"},
 			absent: []string{"--rc"},

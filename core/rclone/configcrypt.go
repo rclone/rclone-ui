@@ -38,8 +38,6 @@ func EncryptConfig(plain []byte, password string) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// DecryptConfig decrypts a config file's text with password. It returns ErrWrongPassword when
-// the password doesn't open it, and returns a file that isn't encrypted unchanged.
 func DecryptConfig(data []byte, password string) ([]byte, error) {
 	plain, err := decrypt(data, password)
 	if errors.Is(err, ErrNotEncrypted) {
@@ -48,9 +46,6 @@ func DecryptConfig(data []byte, password string) ([]byte, error) {
 	return plain, err
 }
 
-// decrypt decrypts a config file's text as rclone's Decrypt does (crypt.go:128-172), with the
-// key that rclone's SetConfigPassword derives (configKey). It returns ErrNotEncrypted for a file
-// without rclone's header, and ErrWrongPassword for a password that doesn't open it.
 func decrypt(data []byte, password string) ([]byte, error) {
 	r, err := afterHeader(bufio.NewReader(bytes.NewReader(data)))
 	if err != nil {

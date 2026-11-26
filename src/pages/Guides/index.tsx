@@ -29,10 +29,6 @@ function useShortcutCaps(): string[] {
     return useMemo(() => keycaps(shortcut, platform()), [shortcut])
 }
 
-/**
- * The Guides window: what Rclone UI can do and how, as short guides with steps that open the
- * windows they talk about. "All guides" shows them all as cards; a guide shows its steps.
- */
 export default function Guides() {
     const pageQuery = usePageQuery()
     const setPageQuery = useSetPageQuery()
@@ -52,7 +48,6 @@ export default function Guides() {
 
     const select = (id: string | null) => {
         setSelected(id)
-        // The address shows the guide, so a reload opens it again.
         setPageQuery({ [PARAM]: id })
         content.current?.scrollTo({ top: 0 })
     }
@@ -203,10 +198,6 @@ function Overview({ onSelect }: { onSelect: (id: string) => void }) {
     )
 }
 
-/**
- * Guides as cards, two to a row in the window's width. A last card left alone in its row takes
- * the whole row.
- */
 function CardGrid({ guides, onSelect }: { guides: Guide[]; onSelect: (id: string) => void }) {
     return (
         <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] [&>:last-child:nth-child(odd)]:col-span-full">
@@ -312,10 +303,6 @@ function GuideView({ guide, onSelect }: { guide: Guide; onSelect: (id: string) =
     )
 }
 
-/**
- * A section's steps. A step's button is left out when it opens the guide's own window, which the
- * header offers.
- */
 function Steps({
     steps,
     tone,

@@ -76,7 +76,6 @@ describe('the guides', () => {
     })
 
     it('keep their translated search words in step with the English ones', () => {
-        // The tests run in English, where each translated word is its English one.
         for (const g of GUIDES) {
             for (const word of g.keywords?.translated ?? []) {
                 expect(g.keywords?.english, `${g.id}: ${word}`).toContain(word)
@@ -100,7 +99,6 @@ describe('search', () => {
     })
 
     it('finds a guide by its English search words in every language', async () => {
-        // The guides are read again in a language where these words are translated.
         i18n.loadAndActivate({
             locale: 'es',
             messages: {
@@ -117,7 +115,6 @@ describe('search', () => {
         expect(found('Paleta de comandos')).toContain('launcher')
         expect(found('keyboard')).toContain('launcher')
         expect(found('command palette')).toContain('launcher')
-        // Names that read the same everywhere are found too.
         expect(found('webdav')).toContain('serve')
     })
 

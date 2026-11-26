@@ -11,7 +11,6 @@ import (
 
 type API struct{ s *late.Value[*Service] }
 
-// NewAPI creates the API. s provides the service once the core has started.
 func NewAPI(s *late.Value[*Service]) *API { return &API{s: s} }
 
 // List returns every template, in the list's order, and every tag that a template can have.

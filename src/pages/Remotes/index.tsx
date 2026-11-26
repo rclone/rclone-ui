@@ -68,8 +68,6 @@ function sectionRank(key: string): number {
     return 2
 }
 
-// Splits the remotes into sections, with a header row before each. `remotes` must already be
-// sorted, because each section keeps the incoming order.
 function buildRemoteRows(remotes: string[]): RemoteRow[] {
     const buckets = new Map<string, string[]>()
     for (const remote of remotes) {
@@ -104,11 +102,9 @@ export default function Remotes() {
 
     const [editingDrawerOpen, setEditingDrawerOpen] = useState(false)
     const [creatingDrawerOpen, setCreatingDrawerOpen] = useState(false)
-    // The type that a new remote starts with, when it was picked in the empty window.
     const [creatingType, setCreatingType] = useState<string>()
     const [configDrawerOpen, setConfigDrawerOpen] = useState(false)
 
-    // When rclone can't read the config file, the reason shows above the list.
     const configQuery = useConfig()
     const config = configQuery.data ?? null
     const unreadable =
@@ -116,7 +112,6 @@ export default function Remotes() {
             ? config.message || t`Rclone could not read the config file.`
             : undefined
 
-    // remotes.changed and remotes.health keep both queries up to date.
     const { remotes: remoteList, query: remotesQuery } = useRemotes()
     const healthQuery = useRemoteHealth()
     const health = healthQuery.data
@@ -130,20 +125,14 @@ export default function Remotes() {
     const problems = summary.failing + summary.noAnswer
 
     const [searchQuery, setSearchQuery] = useState('')
-    // "Needs attention" shows only the remotes whose check found a problem. It is offered only
-    // while there are some.
     const [onlyProblems, setOnlyProblems] = useState(false)
     const showingProblems = onlyProblems && problems > 0
 
-    // The refresh button spins while the health checks run, the ones it started and the first
-    // ones alike.
     const [refreshing, setRefreshing] = useState(false)
     const checking = refreshing || remotes.some((r) => health?.[r]?.state === 'checking')
     const refresh = async () => {
         setRefreshing(true)
         try {
-            // Runs the health check on every remote again. The list itself already follows the
-            // config file.
             try {
                 await recheckRemotes()
             } catch (error) {
@@ -171,10 +160,7 @@ export default function Remotes() {
         )
     }, [remotes, searchQuery, showingProblems, health])
 
-    // The remotes list is virtualized, and scrolls with the window under the summary. Each card
-    // has a fixed height with a gap under it. Section headers are shorter.
     const scrollRef = useRef<HTMLDivElement>(null)
-    // Where the list starts in the scrolling content, under the summary and any alert.
     const listStart = useRef<HTMLDivElement>(null)
     const [scrollMargin, setScrollMargin] = useState(0)
     useLayoutEffect(() => {
@@ -201,9 +187,6 @@ export default function Remotes() {
         scrollMargin,
     })
 
-    // The list animates in only the first time it appears. The rows are held back until the
-    // scroll element has a size, and they animate in as they are added. Afterwards, auto-animate
-    // is switched off, so scrolling (which mounts and unmounts rows) and later edits are instant.
     const [animateListRef, setListAnimated] = useAutoAnimate()
     const listEl = useRef<HTMLDivElement | null>(null)
     // The callback must stay the same between renders. A new callback on each render would
@@ -314,8 +297,6 @@ export default function Remotes() {
         !unreadable &&
         !creatingDrawerOpen
 
-    // What the window shows instead of the list. For an unreadable config it is an empty element,
-    // because the alert above the list says why.
     const placeholder = remotesQuery.isLoading ? (
         <div aria-busy={true} aria-label={t`Loading the remotes`} className="flex flex-col gap-2.5">
             {[0, 1, 2, 3].map((i) => (
@@ -579,7 +560,6 @@ export default function Remotes() {
                     onClose={() => {
                         setEditingDrawerOpen(false)
                         setTimeout(() => {
-                            // Wait for the drawer to slide out.
                             setPickedRemote(null)
                         }, 100)
                     }}

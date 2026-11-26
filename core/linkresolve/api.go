@@ -43,13 +43,12 @@ func (a *API) Resolve(ctx context.Context, url string) (Resolved, error) {
 		link, err := r.Resolve(ctx, url)
 		switch {
 		case err != nil && ctx.Err() != nil:
-			return Resolved{}, ctx.Err() // the page asked for another address meanwhile
+			return Resolved{}, ctx.Err()
 		case err != nil:
 			miss := MissNothing
 			if errors.Is(err, ErrNoAnswer) {
 				miss = MissUnreachable
 			}
-			// The address isn't logged: it may name a private post.
 			logs.Logger(logs.CompApp, "links").WarnContext(ctx, "looking up a link failed", "error", err)
 			return Resolved{Miss: miss}, nil
 		case link == nil && Listed(url):

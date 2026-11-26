@@ -8,7 +8,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// withoutSource and unattended return a new form, and leave the schedule's own as it was.
 func TestArgsLeaveTheFormAlone(t *testing.T) {
 	mv := form("move", json.RawMessage(`{"sources":["/a","/b"],"destination":"/c"}`))
 	out, left := withoutSource(mv, "/a")
@@ -32,7 +31,6 @@ func TestArgsLeaveTheFormAlone(t *testing.T) {
 	}
 }
 
-// Two forms are the same when they run the same, whatever the order of their options' keys.
 func TestSameForm(t *testing.T) {
 	a := form("copy", json.RawMessage(`{"sources":["/a"],"destination":"/b","options":{"config":{"transfers":4,"checkers":8}}}`))
 	b := form("copy", json.RawMessage(`{"destination":"/b","options":{"config":{"checkers":8,"transfers":4}},"sources":["/a"]}`))
@@ -45,9 +43,6 @@ func TestSameForm(t *testing.T) {
 	}
 }
 
-// LeftOff names what a schedule leaves off, and leaves the form as it was. A dry run is left off
-// in any group, such as the Copy group, where a schedule would otherwise run it as a dry run
-// every time.
 func TestLeftOff(t *testing.T) {
 	cp := form("copy", json.RawMessage(`{"sources":["/a"],"destination":"/b","options":{"copy":{"dry_run":true},"config":{"transfers":4}}}`))
 	got, err := LeftOff(cp)

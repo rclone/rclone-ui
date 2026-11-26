@@ -8,9 +8,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// These are the service's types, as the pages receive them. Times are in milliseconds since the
-// epoch. The transfer number shown on the pages is its Seq.
-
 // State is the state of a transfer. Queued and running transfers are still open. The other
 // states mean that the transfer has ended.
 type State string
@@ -50,10 +47,6 @@ const (
 
 type originKey struct{}
 
-// WithOrigin returns a context whose transfers start with the origin o instead of a page's or
-// the Commander's. The agents' server sets it around a tool's call, so that whatever the call
-// starts, through any service, is recorded as the agent's. A run that belongs to a template, a
-// watcher or a schedule keeps its own origin.
 func WithOrigin(ctx context.Context, o Origin) context.Context {
 	return context.WithValue(ctx, originKey{}, o)
 }
@@ -66,8 +59,8 @@ func (k OriginKind) valid() bool {
 	return false
 }
 
-// Origin records where a transfer was started from. History names it on each row, and a search
-// finds its name. A retry has the origin of the transfer it retries.
+// Origin records where a transfer was started from. A retry has the origin of the transfer it
+// retries.
 type Origin struct {
 	Kind OriginKind `json:"kind"`
 	// ID is the template's, the watcher's or the schedule's id, and "" for any other origin.
@@ -76,8 +69,7 @@ type Origin struct {
 	Name string `json:"name,omitempty"`
 }
 
-// Summary holds a transfer's totals when it ended, stored as final_stats. The transfer's page
-// shows them, and Retry compares the error count with the number of failed files recorded.
+// Summary holds a transfer's totals when it ended.
 type Summary struct {
 	Bytes      int64 `json:"bytes"`
 	TotalBytes int64 `json:"totalBytes"`
@@ -91,14 +83,11 @@ type Summary struct {
 	DurationMs int64 `json:"durationMs"`
 }
 
-// ChangedNothing reports whether a transfer that ended with these totals copied, deleted and
-// renamed nothing. A transfer without totals changed nothing either.
 func ChangedNothing(s *Summary) bool {
 	return s == nil || s.Transfers == 0 && s.Deletes == 0 && s.Renames == 0
 }
 
-// Transfer is one row of the ledger, as the Transfers list, the Commander and the callbacks that
-// run when a transfer ends see it.
+// Transfer is one row of the ledger.
 type Transfer struct {
 	ID          string               `json:"id"`
 	Seq         int64                `json:"seq"`
@@ -111,28 +100,22 @@ type Transfer struct {
 	Destination string               `json:"destination"`
 	IsDryRun    bool                 `json:"isDryRun"`
 	Origin      Origin               `json:"origin"`
-	// Group is the stats group that the transfer's job ran in (transfer/<id>).
-	Group string `json:"-"`
+	Group       string               `json:"-"`
 	// Error is why the transfer failed. It is English inside the core, and the API gives it in
-	// the app's language. ErrorText gives it as a translatable text.
+	// the app's language.
 	Error string `json:"error"`
 	// Stats holds the totals at the end. It is nil while the transfer runs, and when it ended
 	// without any numbers.
 	Stats *Summary `json:"stats"`
-	// Live is the latest progress of a running transfer (the payload of transfers.progress). It
-	// lets a page show numbers before the next event arrives.
+	// Live is the latest progress of a running transfer (the payload of transfers.progress).
 	Live *bus.TransferProgress `json:"live"`
 
-	// RetryOf is the id of the transfer that this one retries. Detail adds its number.
 	RetryOf string `json:"-"`
-	// Resume is set when a restart for an update marked the transfer to be started again.
-	Resume bool `json:"-"`
+	Resume  bool   `json:"-"`
 
-	saved string // Error in the form that the ledger saves it (i18n.Save)
+	saved string
 }
 
-// ErrorText returns the transfer's error as a translatable text: Error in English, which is shown
-// in the app's language. rclone's own errors stay in rclone's words.
 func (t Transfer) ErrorText() i18n.Text {
 	if t.saved != "" {
 		return i18n.Saved(t.saved)
@@ -150,8 +133,6 @@ func (t Transfer) WithErrorText(text i18n.Text) Transfer {
 	return t
 }
 
-// SavedError returns the transfer's error in the form to save (see saveText), for a watcher's or
-// a schedule's last error.
 func (t Transfer) SavedError() string {
 	if t.saved != "" {
 		return t.saved
@@ -159,7 +140,6 @@ func (t Transfer) SavedError() string {
 	return t.Error
 }
 
-// local returns t as a page sees it, with its error in the app's language.
 func (t Transfer) local() Transfer {
 	t.Error = t.ErrorText().Local()
 	return t
@@ -173,15 +153,15 @@ type Ref struct {
 }
 
 // Detail is the transfer as its own page shows it. Besides the row, it holds the transfer it
-// retries, the retries made of it, its preset (used by Duplicate), the errors that are not tied
-// to a file, and how many of its failures can be retried.
+// retries, the retries made of it, its preset, the errors that are not tied to a file, and how
+// many of its failures can be retried.
 type Detail struct {
 	Transfer `json:"transfer"`
 	RetryOf  *Ref             `json:"retryOf"`
 	Retries  []Ref            `json:"retries"`
 	Preset   *operations.Form `json:"preset"`
 	General  []GeneralError   `json:"general"`
-	// Retryable is how many items the retry page offers. When it is 0, there is no Retry button.
+	// Retryable is how many items the retry page offers.
 	Retryable int `json:"retryable"`
 }
 
@@ -194,7 +174,7 @@ const (
 	OutcomeChecked     Outcome = "checked"
 )
 
-// File is a file that a transfer has finished with, stored in transfer_files.
+// File is a file that a transfer has finished with.
 type File struct {
 	// Cursor is the Before value for the next page, when this is the last row shown.
 	Cursor  string  `json:"cursor"`
@@ -233,16 +213,13 @@ type GeneralError struct {
 	// Error is English inside the core, and the API gives it in the app's language.
 	Error string `json:"error"`
 
-	text i18n.Text // Error as a translatable text
+	text i18n.Text
 }
 
 func generalError(subject string, text i18n.Text) GeneralError {
 	return GeneralError{Subject: subject, Error: text.String(), text: text}
 }
 
-// ErrorText returns the error as a translatable text, whose String is English. The API gives
-// Error in the app's language, and the agents' server reads this instead, because a model reads
-// it.
 func (g GeneralError) ErrorText() i18n.Text {
 	if !g.text.IsZero() {
 		return g.text
@@ -272,8 +249,8 @@ type RetryItem struct {
 	Step  *int   `json:"step"`
 	DstFs string `json:"dstFs"`
 
-	step operations.Step // the step that retries it
-	text i18n.Text       // Error as a translatable text, for a step's error
+	step operations.Step
+	text i18n.Text
 }
 
 // Retryable is the list shown on the retry page.
@@ -285,7 +262,7 @@ type Retryable struct {
 	// is English inside the core, and the API gives it in the app's language.
 	Refused string `json:"refused"`
 
-	refused i18n.Text // Refused as a translatable text
+	refused i18n.Text
 }
 
 func (r Retryable) local() Retryable {

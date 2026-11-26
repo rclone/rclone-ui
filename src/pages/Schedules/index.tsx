@@ -31,15 +31,9 @@ type Schedule = Core.Schedule
 
 const LOOK = WINDOWS.schedules
 
-/**
- * The Schedules window. A schedule runs an operation's form at set times, while the app runs.
- * Schedules are created on the operation pages (and from templates), so "New schedule" asks which
- * operation and opens its page. The list follows the core's schedules.changed events.
- */
 export default function Schedules() {
     const query = useSchedules()
     const now = useNow()
-    // The drawer edits a schedule's name and time.
     const { drawer, open, close } = useDrawer<Schedule>()
 
     const editing = drawer.item
@@ -123,7 +117,6 @@ function editOperation(s: Schedule) {
     )
 }
 
-/** `title` is for the error dialog. `log` says in English what failed, for the log. */
 async function call(fn: () => Promise<unknown>, title: string, log: string) {
     try {
         await fn()
@@ -150,7 +143,6 @@ function rowActions(s: Schedule, onEdit: () => void): RowActions {
             const sure = await ask(question.text, {
                 title: t`Run ${name}`,
                 kind: question.warning ? 'warning' : 'info',
-                // The warning is about the files that the run deletes.
                 destructive: question.warning,
                 okLabel: t`Run now`,
                 cancelLabel: t`Cancel`,

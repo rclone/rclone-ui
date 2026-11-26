@@ -11,18 +11,14 @@ import (
 	"testing"
 )
 
-// sigpipeHelper is the variable that tells the test binary to run as the writing process, and in
-// which mode.
 const sigpipeHelper = "RCUI_TEST_SIGPIPE"
 
-// TestIgnoreSIGPIPE checks that a process survives writing to stderr after its reader is gone
-// when it ignores SIGPIPE, and is killed by SIGPIPE otherwise.
 func TestIgnoreSIGPIPE(t *testing.T) {
 	if mode, ok := os.LookupEnv(sigpipeHelper); ok {
 		if mode == "ignore" {
 			IgnoreSIGPIPE()
 		}
-		_, _ = io.Copy(io.Discard, os.Stdin) // the parent closes stdin once the reader is gone
+		_, _ = io.Copy(io.Discard, os.Stdin)
 		_, _ = fmt.Fprintln(os.Stderr, "a line nobody reads")
 		os.Exit(0)
 	}

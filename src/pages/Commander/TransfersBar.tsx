@@ -27,9 +27,8 @@ import { TIP } from '../../components/look/tip'
 import type { Tone } from '../../components/look/tones'
 import { onTransferEnd, PlacesMenu } from '../../components/navigator'
 
-// A tool in the bar's header row. The tooltip says why the button is disabled, and the wrapping
-// div keeps it working while the button is disabled. The div also stops the click from toggling
-// the bar.
+// The tooltip says why the button is disabled, and the wrapping div keeps it working while the
+// button is disabled.
 function BarAction({
     label,
     icon: Icon,
@@ -39,7 +38,6 @@ function BarAction({
 }: {
     label: string
     icon: ComponentType<{ className?: string }>
-    /** How many items the tool would act on, shown beside its name. */
     count?: number
     disabledReason?: string
     onPress: () => void
@@ -107,13 +105,8 @@ function partWords(bytes: number, total: number): string {
     })
 }
 
-/** The acknowledgement recorded once the user has seen where a transfer's progress shows. */
 const ACTIVITY_TIP = 'commanderActivityTip'
 
-/**
- * Whether the activity tip is still due, and a function that marks it as seen. It is stored in the
- * `acknowledgements` pref, so it shows once on this machine.
- */
 function useActivityTipSeen(): [boolean, () => void] {
     const loaded = usePrefsLoaded()
     const [acknowledged, setAcknowledged] = usePref('acknowledgements')
@@ -127,10 +120,6 @@ function useActivityTipSeen(): [boolean, () => void] {
     return [due, markSeen]
 }
 
-/**
- * Returns a function for the page to call as it starts a transfer. The first time, while the bar
- * is closed, a dialog says that the bar shows the transfer's progress, and offers to open it.
- */
 export function useActivityTip(isExpanded: boolean, setExpanded: (open: boolean) => void) {
     const [due, markSeen] = useActivityTipSeen()
     return useCallback(() => {
@@ -147,11 +136,6 @@ export function useActivityTip(isExpanded: boolean, setExpanded: (open: boolean)
     }, [due, isExpanded, markSeen, setExpanded])
 }
 
-/**
- * Returns the end state of each of the page's transfers, by id. Each end is recorded as it
- * happens, so the bar knows which transfers are still running without asking the core.
- * `onTransferEnd` also reports a transfer that ended before its id was returned.
- */
 function useEnds(ids: readonly string[]): Record<string, string> {
     const [ends, setEnds] = useState<Record<string, string>>({})
     const key = ids.join(',')
@@ -170,11 +154,6 @@ function useEnds(ids: readonly string[]): Record<string, string> {
 
 const NONE: ReadonlySet<string> = new Set()
 
-/**
- * The ids that the page was restored with and that the core doesn't know. Missed events aren't
- * replayed, so the restored ids are checked once, against the first answer that the core gives.
- * A transfer that the core has no record of counts as ended.
- */
 function useGone(
     ids: readonly string[],
     answer: readonly { transfer: { id: string } }[] | undefined
@@ -202,23 +181,17 @@ export default function TransfersBar({
     renameCount,
 }: {
     trackedIds: string[]
-    /** Whether the bar is open. The page keeps it, so it is the same when the window opens again. */
     isExpanded: boolean
     onExpandedChange: (expanded: boolean) => void
     onOpenCompare: () => void
     compareDisabledReason?: string
     onOpenBatchRename: () => void
     renameDisabledReason?: string
-    /** How many items Batch Rename would rename. */
     renameCount?: number
 }) {
     const [, markTipSeen] = useActivityTipSeen()
     const reduceMotion = useReducedMotion()
 
-    // The transfers that this page started, both drops and saves. All of them are recorded and
-    // tagged `commander`. The files of a running transfer arrive every second with
-    // transfers.progress. The files of an ended transfer are read from the core's record
-    // (useTracked), which is fetched again when transfers.changed reports that another one ended.
     const ends = useEnds(trackedIds)
     const { items: trackedItems, query: trackedQuery } = useTracked(trackedIds)
     const endedByCore = new Set(
@@ -230,7 +203,6 @@ export default function TransfersBar({
     const isEnded = (id: string) => !!ends[id] || endedByCore.has(id) || gone.has(id)
     const running = trackedIds.filter((id) => !isEnded(id))
 
-    // Progress is followed only while one of this page's transfers is running.
     const progress = useLiveNumbers(running.length > 0)
     const jobs = running.map((id) => progress[id]).filter((job) => job !== undefined)
     const endedItems = trackedItems.filter((item) => isEnded(item.transfer.id))
@@ -246,7 +218,6 @@ export default function TransfersBar({
         transferring.length + checking.length + transferred.length > 0 ||
         (endedItems.length > 0 && trackedQuery.isFetching)
 
-    // The running transfers together: their bytes, files, speed and the time the last one needs.
     let bytes = 0
     let totalBytes = 0
     let speed = 0
@@ -260,7 +231,6 @@ export default function TransfersBar({
     const failed = transferred.filter((item) => item.error).length
     const done = transferred.length - failed
 
-    // Opening the bar by hand also counts as having seen the activity tip.
     const toggleExpanded = useCallback(() => {
         if (!isExpanded) markTipSeen()
         onExpandedChange(!isExpanded)
@@ -278,8 +248,6 @@ export default function TransfersBar({
             aria-label={t`Page activity`}
             className={cn('mx-2 mb-2 overflow-hidden shrink-0', SURFACE)}
         >
-            {/* A click anywhere on the row toggles the bar. The chevron button does the same for
-                the keyboard. */}
             <div
                 className="flex items-center h-12 gap-2 pl-2 pr-2 cursor-pointer select-none"
                 onClick={toggleExpanded}

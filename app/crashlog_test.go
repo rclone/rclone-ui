@@ -8,13 +8,10 @@ import (
 	"testing"
 )
 
-// TestKeepCrashes runs the test binary again, to crash it with a panic on another goroutine.
 func TestKeepCrashes(t *testing.T) {
 	if dir := os.Getenv("RCUI_TEST_CRASH_DIR"); dir != "" {
 		keepCrashes(dir)
 		go panic("the crash this test expects")
-		// The crash must be the child's only way out. If the test returned here, the child could
-		// exit with success before the panic ends it.
 		select {}
 	}
 	dir := t.TempDir()

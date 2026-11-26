@@ -132,8 +132,8 @@ const (
 	htClient         = 1
 	htCaption        = 2
 	pmRemove         = 1
-	gwlpWndProc      = ^uintptr(3) // -4
-	hwndTopmost      = ^uintptr(0) // -1
+	gwlpWndProc      = ^uintptr(3)
+	hwndTopmost      = ^uintptr(0)
 	idcArrow         = 32512
 	colorHighlight   = 13
 	mdtEffectiveDpi  = 0
@@ -153,7 +153,7 @@ const (
 	eventObjectShow = 0x8002
 	objidWindow     = 0
 	gaRoot          = 2
-	gwlExStyle      = ^uintptr(19) // -20
+	gwlExStyle      = ^uintptr(19)
 )
 
 const (
@@ -183,7 +183,7 @@ const (
 	dwmwaWindowCornerPreference   = 33
 	dwmwaSystemBackdropType       = 38
 	dwmwcpRound                   = 2
-	dwmsbtTransientWindow         = 3 // acrylic
+	dwmsbtTransientWindow         = 3
 )
 
 type point struct{ X, Y int32 }
@@ -256,8 +256,6 @@ func defWindowProc(hwnd, m, wp, lp uintptr) uintptr {
 	return r
 }
 
-// sendMessage sends a message that carries no pointers. Code that sends a pointer calls the proc
-// directly, so the conversion happens inside the call that keeps it alive.
 func sendMessage(hwnd, m, wp, lp uintptr) uintptr {
 	r, _, _ := procSendMessageW.Call(hwnd, m, wp, lp)
 	return r
@@ -327,7 +325,6 @@ func workArea(monitor uintptr) (rect, bool) {
 	return mi.Work, r != 0
 }
 
-// monitorDpi returns the monitor's effective DPI, or 96 when Windows can't report it (before 8.1).
 func monitorDpi(monitor uintptr) uint32 {
 	if procGetDpiForMonitor.Find() != nil {
 		return 96
@@ -340,7 +337,6 @@ func monitorDpi(monitor uintptr) uint32 {
 	return x
 }
 
-// windowDpi returns the window's DPI, or 96 before Windows 10 1607.
 func windowDpi(hwnd uintptr) uint32 {
 	if procGetDpiForWindow.Find() != nil {
 		return 96
@@ -361,13 +357,12 @@ func windowText(hwnd uintptr) []uint16 {
 
 func setWindowText(hwnd uintptr, text string) {
 	p, err := windows.UTF16PtrFromString(text)
-	if err != nil { // the text contains a NUL, which the box can't show
+	if err != nil {
 		return
 	}
 	_, _, _ = procSetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(p)))
 }
 
-// dwmSet sets a DWORD-sized DWM attribute and reports whether Windows accepted it.
 func dwmSet(hwnd uintptr, attr uintptr, value uint32) bool {
 	r, _, _ := procDwmSetWindowAttribute.Call(hwnd, attr, uintptr(unsafe.Pointer(&value)), unsafe.Sizeof(value))
 	return int32(r) >= 0
@@ -393,7 +388,6 @@ func redrawNow(hwnd uintptr) {
 // unhook. The hook is out of context, so fn runs on this thread while it processes its messages.
 // It returns 0 when Windows refuses.
 func hookShows(fn uintptr) uintptr {
-	// WINEVENT_OUTOFCONTEXT is 0; thread 0 means any thread of the process
 	r, _, _ := procSetWinEventHook.Call(eventObjectShow, eventObjectShow, 0, fn, uintptr(windows.GetCurrentProcessId()), 0, 0)
 	return r
 }
@@ -417,8 +411,6 @@ func sysColor(index uintptr) (r, g, b uint8) {
 	return uint8(c), uint8(c >> 8), uint8(c >> 16)
 }
 
-// queryFont takes size in DIPs. It uses ClearType, which works because the box sits on an opaque
-// band.
 func queryFont(size float64, dpi uint32) uintptr {
 	const fwNormal, defaultCharset, cleartype = 400, 1, 5
 	face, _ := windows.UTF16PtrFromString("Segoe UI")
@@ -444,9 +436,6 @@ func mouseDown() bool {
 	return false
 }
 
-// Mouse wheel constants: the delta for one notch, and the system setting for how many lines a
-// notch scrolls. At the ends of its range, the setting means no scrolling (0) or a whole page
-// (wheelPageScroll).
 const (
 	wheelDelta             = 120
 	spiGetWheelScrollLines = 0x0068
@@ -461,10 +450,8 @@ func wheelLines() uint32 {
 	return n
 }
 
-// wheelTurn returns the delta of a WM_MOUSEWHEEL. Positive is away from the user.
 func wheelTurn(wp uintptr) int32 { return int32(int16(uint16(wp >> 16))) }
 
-// droppedFiles returns the paths from a WM_DROPFILES drop and releases the drop.
 func droppedFiles(drop uintptr) []string {
 	defer func() { _, _, _ = procDragFinish.Call(drop) }()
 	n, _, _ := procDragQueryFileW.Call(drop, 0xFFFFFFFF, 0, 0)
@@ -478,11 +465,8 @@ func droppedFiles(drop uintptr) []string {
 	return paths
 }
 
-// keyTap presses a key, or releases it when flags includes keyeventfKeyUp, as the keyboard would.
 func keyTap(vk, flags uintptr) { _, _, _ = procKeybdEvent.Call(vk, 0, flags, 0) }
 
-// appsUseLightTheme reports the system's app mode (Settings › Personalisation › Colours). It
-// returns light when Windows doesn't say, because that is the default.
 func appsUseLightTheme() bool {
 	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`, registry.QUERY_VALUE)
 	if err != nil {

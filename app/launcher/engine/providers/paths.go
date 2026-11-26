@@ -8,8 +8,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// Paths offers each typed path. The default action browses it in the Commander, and the ⌘K panel
-// lists every operation that can start from it.
 type Paths struct{}
 
 func (Paths) Query(_ context.Context, q engine.Query, d *engine.Data) []engine.Result {
@@ -36,9 +34,6 @@ var (
 	pathWords = i18n.M("browse, open, view, files")
 )
 
-// pathActions returns every operation that can start from p. It is used for the ⌘K panel of a
-// typed path, a remote and a listed entry. A file (dir false) gets only the operations that accept
-// a file. The caller adds the action that copies the path, because it chooses its name.
 func pathActions(p engine.Path, d *engine.Data, dir bool) []engine.Action {
 	arg := pathArg(p)
 	var out []engine.Action

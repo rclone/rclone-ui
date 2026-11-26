@@ -28,7 +28,7 @@ func TestMaskHidesEveryForm(t *testing.T) {
 	for _, form := range []string{
 		secret, url.QueryEscape(secret), url.PathEscape(secret), quoted, jsonOf(secret),
 		jsonOf(quoted), jsonOf(url.QueryEscape(secret)),
-		`p\"a s&<\\/>`, // slog's JSON leaves <, > and & as they are
+		`p\"a s&<\\/>`,
 		"ab",
 	} {
 		if got := hidden(m, "before "+form+" after"); got != "before *** after" {

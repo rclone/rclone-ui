@@ -13,17 +13,11 @@ import (
 
 const DefaultShortcut = "CmdOrCtrl+Shift+/"
 
-// Accelerator converts a shortcut from the format stored in the settings into Wails' accelerator
-// syntax. The settings use the syntax that the Settings recorder writes ("Command+Shift+/",
-// "Ctrl+Alt+K", "CmdOrCtrl+Shift+ArrowUp"). The Wails forms are "Super+Shift+/", "Ctrl+Alt+k" and
-// "CmdOrCtrl+Shift+up". Command, Cmd, Meta and Super mean the Command key on macOS and the
-// Windows/Super key elsewhere.
 func Accelerator(shortcut string) (string, error) {
 	s := strings.TrimSpace(shortcut)
 	if s == "" {
 		return "", errs.New("empty shortcut")
 	}
-	// "+" can itself be the key, as in "Ctrl++", where it follows the modifier's "+".
 	var parts []string
 	if before, ok := strings.CutSuffix(s, "++"); ok {
 		parts = append(strings.Split(before, "+"), "plus")
@@ -71,8 +65,6 @@ var modifiers = map[string]string{
 	"shift":            "Shift",
 }
 
-// keyName converts a key name from the settings' syntax (a character, "Slash", "KeyA", "Digit1",
-// "ArrowUp", "F5", …) to Wails' syntax.
 func keyName(k string) (string, error) {
 	if k == "" {
 		return "", errs.New("no key")
@@ -141,24 +133,19 @@ var namedKeys = map[string]string{
 	"right":        "right",
 }
 
-// Shortcut is the launcher's global shortcut, which calls fn. fn receives the compositor's
-// activation token for the key press when there is one (on Wayland), and "" otherwise.
 type Shortcut struct {
 	log  *slog.Logger
 	fn   func(token string)
 	bind binder
 	mu   sync.Mutex
-	held string // the registered accelerator
+	held string
 }
 
-// binder registers an accelerator with the OS. It uses Wails' global shortcuts, or on Wayland the
-// launcher's own portal session (shortcut_linux.go), which passes on the activation token.
 type binder interface {
 	register(accel string, fn func(token string)) error
 	unregister(accel string) error
 }
 
-// wailsBinder uses Wails' global shortcuts, which don't provide a token.
 type wailsBinder struct{ app *application.App }
 
 func (b wailsBinder) register(accel string, fn func(token string)) error {
@@ -171,9 +158,6 @@ func NewShortcut(app *application.App, log *slog.Logger, fn func(token string)) 
 	return &Shortcut{log: log, fn: fn, bind: newBinder(app, log)}
 }
 
-// Set replaces the shortcut, and "" removes it. shortcut uses the syntax that Settings
-// records. If the OS refuses the new shortcut, the previous one stays in place and Set
-// returns the reason. Settings saves a shortcut only after it is registered.
 func (s *Shortcut) Set(shortcut string) error {
 	next := ""
 	if shortcut != "" {
@@ -200,8 +184,6 @@ func (s *Shortcut) Set(shortcut string) error {
 				return err
 			}
 			if rerr := s.bind.register(prev, s.fn); rerr != nil {
-				// Neither shortcut is registered now, so none is held, and the error reports
-				// both failures.
 				s.held = ""
 				s.log.Error("could not restore the launcher shortcut", "shortcut", prev, "error", rerr)
 				return errs.Errorf("%w (and the previous shortcut could not be restored: %v)", err, rerr)

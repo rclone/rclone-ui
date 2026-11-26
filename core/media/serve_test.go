@@ -25,7 +25,6 @@ func TestAllowedOrigin(t *testing.T) {
 	}
 }
 
-// The pages of a development run are allowed on the dev server's port, whichever it is.
 func TestDevOrigins(t *testing.T) {
 	for devURL, want := range map[string][]string{
 		"": nil,
@@ -53,7 +52,6 @@ func TestDevOrigins(t *testing.T) {
 	}
 }
 
-// A preflight request for a range read is answered only for the app's pages.
 func TestPreflight(t *testing.T) {
 	h := cors(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) }))
 	for origin, want := range map[string]string{"wails://localhost": "wails://localhost", "https://evil.example": ""} {

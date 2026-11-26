@@ -14,7 +14,6 @@ describe('startPathsProblem', () => {
             startPathsProblem({ source: 'gdrive:', destination: '/mnt/g' }, POSIX)
         ).toBeUndefined()
         expect(startPathsProblem({ destination: 'C:\\Downloads' }, WINDOWS)).toBeUndefined()
-        // A missing path is reported by the page itself, not by this check.
         expect(startPathsProblem({ sources: [''], source: undefined }, POSIX)).toBeUndefined()
         expect(startPathsProblem({}, POSIX)).toBeUndefined()
     })
@@ -34,7 +33,6 @@ describe('startPathsProblem', () => {
             'Fix the destination path'
         )
         expect(startPathsProblem({ destination: 'M:' }, WINDOWS)).toBe('Fix the destination path')
-        // A path that rclone would refuse.
         expect(startPathsProblem({ destination: '-gdrive:x' }, POSIX)).toBe(
             'Fix the destination path'
         )

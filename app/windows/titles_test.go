@@ -12,12 +12,8 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// A route of src/routes.ts and the title of its look: "settings: {" and, a few lines down,
-// "look: { title: t`Settings`".
 var routeTitle = regexp.MustCompile("(?s)\\n    ([a-z]+): \\{[^}]*?title: t`([^`]+)`")
 
-// The titles that Go gives the windows are the pages' own (src/routes.ts), so a window's title
-// doesn't change when its page has loaded. In another language, a title is translated.
 func TestTitlesMatchThePages(t *testing.T) {
 	src, err := os.ReadFile("../../src/routes.ts")
 	if err != nil {
@@ -48,9 +44,6 @@ func TestTitlesMatchThePages(t *testing.T) {
 	}
 }
 
-// A title is translated twice: for Go, which gives it to the window (core.po), and for the page,
-// which sets it again once it has loaded (app.po). The two translations must be the same in every
-// language, or the title would change under the user's eyes.
 func TestTitlesAreTranslatedTheSameOnBothSides(t *testing.T) {
 	src, err := os.ReadFile("../../src/routes.ts")
 	if err != nil {
@@ -72,8 +65,7 @@ func TestTitlesAreTranslatedTheSameOnBothSides(t *testing.T) {
 		core, app := catalog(lang, "core.po"), catalog(lang, "app.po")
 		for _, m := range routeTitle.FindAllStringSubmatch(string(src), -1) {
 			title := m[2]
-			// Each catalog is asked for the translation alone. The methods are held in variables
-			// because vet takes them for fmt.Sprintf.
+			// go vet takes these methods for fmt.Sprintf unless they are held in variables.
 			fromCore, fromApp := core.Get, app.Get
 			if c, a := fromCore(title), fromApp(title); c != a {
 				t.Errorf("%s: %q is %q for Go and %q for the page", lang, title, c, a)

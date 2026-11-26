@@ -27,7 +27,6 @@ describe('nextHandoff', () => {
 
     it('keeps a transfer that left while an older question was on its way', () => {
         const seen = nextHandoff(start([transfer('a')]), [], [], 0, 200)
-        // The answer arrives after the transfer left, but its question was sent before.
         expect(nextHandoff(seen, seen.active, [], 150, 400)).toBe(seen)
     })
 

@@ -13,7 +13,6 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// realFixture runs the watchers through a real transfer service, so each run is a bisync.
 func realFixture(t *testing.T) (*fixture, *transfers.Service) {
 	t.Helper()
 	f := newFixture(t, nil, time.Hour)
@@ -36,7 +35,6 @@ func read(t *testing.T, path string) string {
 	return string(b)
 }
 
-// syncNow runs w once and waits for its run to end. It returns the watcher as the run left it.
 func (f *fixture) syncNow(w *Watcher, do func(context.Context, string) error) *Watcher {
 	f.t.Helper()
 	before := f.get(w.ID).LastRunAt
@@ -49,11 +47,6 @@ func (f *fixture) syncNow(w *Watcher, do func(context.Context, string) error) *W
 	return got
 }
 
-// The first run merges the folders, newer wins, and deletes nothing. Later runs copy changes both
-// ways, and keep both versions of a file changed on both sides. A run that changed nothing is
-// dropped from History, and the others are kept. Many files deleted on one side stop the watcher
-// with that side; Force deletes them on the other side, and Resync brings them back. Listings
-// that are gone need a resync.
 func TestRuns(t *testing.T) {
 	f, ts := realFixture(t)
 	ctx := context.Background()
@@ -87,7 +80,6 @@ func TestRuns(t *testing.T) {
 	}
 	merge := got.LastChangeID
 
-	// Nothing changed: the run is dropped from History.
 	got = f.syncNow(w, f.s.SyncNow)
 	if got.LastResult != ResultSynced || got.LastChangeID != merge {
 		t.Errorf("an idle run: %+v", got)
@@ -99,7 +91,6 @@ func TestRuns(t *testing.T) {
 		t.Errorf("History holds %d running and %+v", len(active), ended.Items)
 	}
 
-	// Changes go both ways, and a file changed on both sides keeps both versions.
 	write(t, filepath.Join(a, "new-a.txt"), "na", time.Now())
 	testutil.Must(t, os.Remove(filepath.Join(b, "only-b.txt")))
 	write(t, filepath.Join(a, "both.txt"), "from a", time.Now().Add(-10*time.Second))
@@ -128,7 +119,6 @@ func TestRuns(t *testing.T) {
 		}
 	}
 
-	// More than half the files deleted in B: the watcher stops, saying B lost them.
 	testutil.Must(t, os.RemoveAll(filepath.Join(b, "many")))
 	testutil.Must(t, os.Remove(filepath.Join(b, "only-a.txt")))
 	got = f.syncNow(w, f.s.SyncNow)
@@ -141,7 +131,6 @@ func TestRuns(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(a, "many", "1.txt")); err != nil {
 		t.Error("the safety let the deletes through")
 	}
-	// Resync brings them back.
 	got = f.syncNow(w, f.s.Resync)
 	if got.LastResult != ResultSynced || got.Attention != "" || !got.Baselined {
 		t.Fatalf("after Resync: %+v", got)
@@ -150,7 +139,6 @@ func TestRuns(t *testing.T) {
 		t.Error("Resync didn't bring the files back")
 	}
 
-	// The same deletes in A, then Force deletes them in B too.
 	testutil.Must(t, os.RemoveAll(filepath.Join(a, "many")))
 	testutil.Must(t, os.Remove(filepath.Join(a, "only-a.txt")))
 	got = f.syncNow(w, f.s.SyncNow)
@@ -165,7 +153,6 @@ func TestRuns(t *testing.T) {
 		t.Error("Force didn't delete the files in B")
 	}
 
-	// Listings that are gone need a resync.
 	testutil.Must(t, os.RemoveAll(f.s.o.Workdir))
 	got = f.syncNow(w, f.s.SyncNow)
 	if got.LastResult != ResultFailed || got.Attention != AttentionResync {
@@ -176,8 +163,6 @@ func TestRuns(t *testing.T) {
 		t.Fatalf("after Resync: %+v", got)
 	}
 
-	// No run told the notification targets or the desktop about its transfer. The failures all
-	// came within minutes of a success, so they make one streak, and one watcher.failed.
 	if n := len(f.notes.desktop()); n != 1 || f.notes.count() != 1 {
 		t.Errorf("%d desktop notifications and %d watcher.failed, want one of each", n, f.notes.count())
 	}
@@ -186,9 +171,6 @@ func TestRuns(t *testing.T) {
 	}
 }
 
-// Two empty folders stay quiet: bisync refuses to go on from the empty listing that the last
-// merge left, so the watcher merges instead, and nothing is recorded or told. A file added later
-// is copied across.
 func TestEmptyFolders(t *testing.T) {
 	f, ts := realFixture(t)
 	ctx := context.Background()
@@ -220,9 +202,6 @@ func TestEmptyFolders(t *testing.T) {
 	}
 }
 
-// A folder that lost every file stops the watcher like too many deletes, with that folder.
-// Force can't use bisync's force, which refuses an empty side, so it syncs the empty folder to
-// the other one, and then merges: the watcher is fine again, with two empty folders.
 func TestEmptiedFolder(t *testing.T) {
 	f, _ := realFixture(t)
 	a, b := t.TempDir(), t.TempDir()
@@ -250,14 +229,12 @@ func TestEmptiedFolder(t *testing.T) {
 	if len(entries) != 0 {
 		t.Errorf("B still holds %d entries", len(entries))
 	}
-	// Two empty folders now: quiet.
 	got = f.syncNow(w, f.s.SyncNow)
 	if got.LastResult != ResultSynced || got.Attention != "" || !got.Baselined {
 		t.Errorf("after the force: %+v", got)
 	}
 }
 
-// emptyA makes a watcher whose folder A lost every file, so that it waits for Force or Resync.
 func emptyA(t *testing.T, f *fixture) (w *Watcher, a, b string) {
 	t.Helper()
 	a, b = t.TempDir(), t.TempDir()
@@ -275,9 +252,6 @@ func emptyA(t *testing.T, f *fixture) (w *Watcher, a, b string) {
 	return w, a, b
 }
 
-// Force doesn't sync from a folder that has files again since it was found empty: that sync
-// would delete the other folder's files. Nothing changes, and the watcher needs a resync, which
-// merges the two folders.
 func TestForceAfterTheFolderFilledAgain(t *testing.T) {
 	f, _ := realFixture(t)
 	w, a, b := emptyA(t, f)
@@ -301,8 +275,6 @@ func TestForceAfterTheFolderFilledAgain(t *testing.T) {
 	}
 }
 
-// Force doesn't run when the folder that was empty can't be listed, such as a disk that isn't
-// attached. The watcher still waits for Force or Resync.
 func TestForceWhenTheFolderIsGone(t *testing.T) {
 	f, _ := realFixture(t)
 	w, a, b := emptyA(t, f)
@@ -310,7 +282,6 @@ func TestForceWhenTheFolderIsGone(t *testing.T) {
 	if err := f.s.Force(context.Background(), w.ID); err == nil || !strings.Contains(err.Error(), "could not be checked") {
 		t.Fatalf("Force: %v", err)
 	}
-	// The run checks too, for a folder that disappears between Force and the run's start.
 	f.s.kick(w.ID, modeForce)
 	var got *Watcher
 	testutil.Eventually(t, 30*time.Second, "the force's end", func() bool {

@@ -5,8 +5,6 @@ import { SURFACE } from '../../components/look/Panel'
 import { SectionTitle } from '../../components/look/SectionTitle'
 import { type BoundGroup, useBoundOption } from '../../components/operation/optionBinding'
 
-// The cache modes offered for a mount, stored in the VFS group's vfs_cache_mode. rclone also has
-// a "minimal" mode, which isn't offered here, so no option is selected for it.
 const MODES = [
     {
         value: 'off',
@@ -28,14 +26,9 @@ const MODES = [
     },
 ] as const
 
-// The mount's violet (look/tones.ts), for the ring of the picked card.
 const PICKED =
     'data-[selected=true]:shadow-[0_0_0_2px_rgb(139_92_246),0_6px_16px_-6px_rgb(139_92_246/0.45)] dark:data-[selected=true]:shadow-[0_0_0_2px_rgb(139_92_246),0_6px_16px_-6px_rgb(139_92_246/0.6)]'
 
-/**
- * Three cards that pick the mount's cache mode. The mode is written to the VFS group's JSON. When
- * no mode is set, `fallback` (the app-wide value) is shown, or else rclone's default, off.
- */
 export default function CacheMode({ group, fallback }: { group: BoundGroup; fallback?: string }) {
     const { value, set, disabled } = useBoundOption(group, 'vfs_cache_mode')
     const titleId = useId()

@@ -1,9 +1,3 @@
-// Tracks the slow or large reads behind the panels: listings, search, folder sizes and compare.
-// The core sends the items as it finds them (streams.ts). They are collected here in a small
-// store that components read with useSyncExternalStore. Aborting a run cancels the core's call.
-// The items are the core's own types (`Browse.Row`, `Browse.FolderSize`, `Browse.Pair`), and a
-// row's path is complete and ready to use.
-
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { coreError } from '../../../lib/errors'
 import { needsReconnect } from '../../../lib/reconnect'
@@ -14,20 +8,15 @@ export type JobArgs = Record<string, string | number | boolean | string[] | null
 type JobPhase = 'idle' | 'running' | 'done' | 'failed'
 
 export interface JobState<T> {
-    /** The arguments that `items` belong to, or `null` when nothing was requested. */
     args: JobArgs | null
     items: T[]
     phase: JobPhase
-    /** How many items the job holds so far. */
     total: number | undefined
     progress: number | undefined
     fetchedAt: number | undefined
     error: string | undefined
-    /** The job failed because the folder or file it reads doesn't exist (the core's `not_found`). */
     notFound: boolean
-    /** The remote whose sign-in expired, when that is why the job failed. */
     reconnect: string | undefined
-    /** The cap was reached, so `items` is incomplete. */
     capped: boolean
 }
 
@@ -48,12 +37,6 @@ function sameArgs(a: JobArgs | null, b: JobArgs | null): boolean {
     return JSON.stringify(a) === JSON.stringify(b)
 }
 
-/**
- * How often (in ms) a running job shows the items that arrived since the last update. A large
- * folder arrives in many pieces, and showing each one rebuilds and sorts all of the panel's rows.
- * So the pieces that arrive in between are held and shown together. The first piece is shown
- * immediately, and so is the end.
- */
 const BATCH_MS = 100
 
 export class JobRunner<T> {
@@ -62,11 +45,8 @@ export class JobRunner<T> {
     private abort: AbortController | null = null
     private serial = 0
     private again = false
-    /** Everything the running job has received, shown or not (`state.items` is a copy). */
     private received: T[] = []
-    /** Whether `received` holds items not shown yet. */
     private unshown = false
-    /** Progress not shown yet. */
     private pending: Partial<JobState<T>> | null = null
     private timer: ReturnType<typeof setTimeout> | undefined
 
@@ -94,13 +74,11 @@ export class JobRunner<T> {
         for (const l of this.listeners) l()
     }
 
-    /** Shows new items with the next batch. The first items are shown immediately. */
     private hold() {
         if (this.state.items.length === 0 && this.unshown) this.flush()
         else this.timer ??= setTimeout(() => this.flush(), this.batchMs)
     }
 
-    /** Shows what is held, applying `patch` (an end or a failure) in the same update. */
     private flush(patch: Partial<JobState<T>> = {}) {
         const held: Partial<JobState<T>> = { ...this.pending }
         if (this.unshown) {
@@ -112,7 +90,6 @@ export class JobRunner<T> {
         if (Object.keys(change).length > 0) this.set(change)
     }
 
-    /** Clears what is held, after it is shown or when the job is stopped. */
     private drop() {
         clearTimeout(this.timer)
         this.timer = undefined
@@ -120,10 +97,7 @@ export class JobRunner<T> {
         this.pending = null
     }
 
-    /** Cancels the old run and starts one for `args`. `null` means there is nothing to read. */
     start(args: JobArgs | null, fresh = false) {
-        // The same arguments keep their result, or their run while it is still going. A run that
-        // was stopped before it ended (by an unmount) is started again.
         const settled =
             this.state.phase === 'done' ||
             this.state.phase === 'failed' ||
@@ -137,16 +111,10 @@ export class JobRunner<T> {
         if (args) this.go(args, fresh)
     }
 
-    /** Reads from rclone again, bypassing the core's cache. */
     refresh = () => {
         if (this.state.args) this.start(this.state.args, true)
     }
 
-    /**
-     * Reads the same arguments from the core again, which may have a newer result after a change
-     * made by the page or a transfer that ended. A job that is still running is allowed to
-     * finish, and then runs again.
-     */
     reask = () => {
         const args = this.state.args
         if (!args) return
@@ -158,7 +126,6 @@ export class JobRunner<T> {
         this.start(args)
     }
 
-    /** Cancels the run, for example on unmount or new arguments. */
     stop() {
         this.serial += 1
         this.abort?.abort()
@@ -174,13 +141,10 @@ export class JobRunner<T> {
         const sink: Sink<T> = {
             add: (items) => {
                 if (!mine()) return
-                // Append in place. The new items are shown with the next batch.
                 const room = Math.max(0, this.cap - this.received.length)
                 for (let i = 0; i < items.length && i < room; i++) this.received.push(items[i])
                 this.unshown = true
                 if (this.received.length >= this.cap) {
-                    // Show the items before cancelling the run, because cancelling clears
-                    // what is held.
                     this.flush({ phase: 'done', capped: true })
                     this.stop()
                     this.over()
@@ -226,12 +190,6 @@ export class JobRunner<T> {
     }
 }
 
-/**
- * Runs the job `kind` with `args`, which is `null` while there is nothing to read. New `args`
- * cancel the old run and start a new one, and unmounting cancels it too. `cap` is the
- * component's item limit (50 000 for a listing, 5 000 for a search, 20 000 for a compare).
- * `fresh` reads from rclone instead of the core's cache each time the arguments change.
- */
 export function useJob<T>(
     kind: 'list' | 'search' | 'sizes' | 'compare',
     args: JobArgs | null,

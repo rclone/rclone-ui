@@ -17,9 +17,6 @@ import (
 	"github.com/rclone/rclone-ui/core/vfs"
 )
 
-// fakeCore is a fake core. Its first Mounts call waits for release and returns a starting mount.
-// Every later call returns the mount as running. Its transfers are what active holds. Everything
-// else is empty.
 type fakeCore struct {
 	calls   atomic.Int32
 	entered chan struct{}
@@ -58,7 +55,6 @@ func newCore() *fakeCore {
 	return &fakeCore{entered: make(chan struct{}), release: make(chan struct{})}
 }
 
-// ready returns a Store over c with the core running and nothing read yet.
 func ready(c Reader) *Store {
 	s := New(c, slog.New(slog.DiscardHandler))
 	s.snap.Ready, s.run = true, 1
@@ -76,8 +72,6 @@ func eventually(t *testing.T, what string, ok func() bool) {
 	}
 }
 
-// TestRunningReadsInOrder: two changes in a row read the running items twice. The first read's
-// older result never overwrites the second's.
 func TestRunningReadsInOrder(t *testing.T) {
 	c := newCore()
 	s := ready(c)
@@ -86,7 +80,6 @@ func TestRunningReadsInOrder(t *testing.T) {
 	wg.Go(func() { s.refreshRunning(context.Background()) })
 	<-c.entered
 	wg.Go(func() { s.refreshRunning(context.Background()) })
-	// the second read is requested before the first returns
 	eventually(t, "the second read's request", func() bool { return s.runningRead.gen.Load() == 2 })
 	close(c.release)
 	wg.Wait()
@@ -112,8 +105,6 @@ func TestCoreDownForgetsTheCore(t *testing.T) {
 	}
 }
 
-// TestCoreDownDropsAReadInFlight: a read that began before the core stopped doesn't land, not
-// even once the core is ready again, because it belongs to the run that ended.
 func TestCoreDownDropsAReadInFlight(t *testing.T) {
 	c := newCore()
 	s := ready(c)
@@ -123,7 +114,7 @@ func TestCoreDownDropsAReadInFlight(t *testing.T) {
 	<-c.entered
 	s.CoreDown()
 	s.mu.Lock()
-	s.snap.Ready, s.run = true, s.run+1 // the next run, without its own reads
+	s.snap.Ready, s.run = true, s.run+1
 	s.mu.Unlock()
 	close(c.release)
 	wg.Wait()
@@ -133,8 +124,6 @@ func TestCoreDownDropsAReadInFlight(t *testing.T) {
 	}
 }
 
-// TestSubscriberSeesLatestSnapshot: a subscriber that is slow gets the changes made in the
-// meantime in one later call, and that call's snapshot shows the latest state.
 func TestSubscriberSeesLatestSnapshot(t *testing.T) {
 	s := ready(newCore())
 	first := make(chan struct{})
@@ -158,7 +147,6 @@ func TestSubscriberSeesLatestSnapshot(t *testing.T) {
 	})
 	s.land(1, Remotes, func(*Snapshot) {})
 	<-first
-	// three changes while the subscriber is busy
 	for n := 1; n <= 3; n++ {
 		s.land(1, Transfers, func(d *Snapshot) {
 			d.Transfers = []transfers.Transfer{{ID: "t1", Sources: make([]string, n)}}
@@ -185,8 +173,6 @@ func TestSubscriberSeesLatestSnapshot(t *testing.T) {
 	}
 }
 
-// TestTransfersChangedPrunesLive: when a transfer ends, the next read of the transfers drops its
-// progress and keeps the progress of the transfers that still run.
 func TestTransfersChangedPrunesLive(t *testing.T) {
 	c := newCore()
 	s := ready(c)
@@ -201,7 +187,7 @@ func TestTransfersChangedPrunesLive(t *testing.T) {
 	}
 
 	c.mu.Lock()
-	c.active = c.active[1:] // t1 ended
+	c.active = c.active[1:]
 	c.mu.Unlock()
 	s.Event(context.Background(), bus.Event{Name: bus.TransfersChanged, Data: bus.TransfersChangedData{ID: "t1", State: "completed"}})
 	eventually(t, "the read of the transfers", func() bool { return len(s.Snapshot().Live) == 1 })

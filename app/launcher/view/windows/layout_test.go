@@ -22,14 +22,13 @@ func TestKeyFor(t *testing.T) {
 		{vkUp, false, false, false, view.KeyEvent{Key: view.KeyUp}, true},
 		{vkDown, false, false, false, view.KeyEvent{Key: view.KeyDown}, true},
 		{vkTab, false, false, false, view.KeyEvent{Key: view.KeyTab}, true},
-		{vkTab, false, true, false, view.KeyEvent{}, false}, // shift-tab
+		{vkTab, false, true, false, view.KeyEvent{}, false},
 		{'K', true, false, false, view.KeyEvent{Key: view.KeyActions}, true},
 		{'3', true, false, false, view.KeyEvent{Key: view.KeyRow, Char: '3'}, true},
 		{'B', true, false, false, view.KeyEvent{Key: view.KeyRow, Char: 'b'}, true},
-		{'B', false, false, false, view.KeyEvent{}, false}, // typing
-		{'Q', true, false, true, view.KeyEvent{}, false},   // AltGr+Q types @
-		{0x70, true, false, false, view.KeyEvent{}, false}, // Ctrl+F1
-		// Ctrl+. stops everything. A . alone, or with AltGr, is typed.
+		{'B', false, false, false, view.KeyEvent{}, false},
+		{'Q', true, false, true, view.KeyEvent{}, false},
+		{0x70, true, false, false, view.KeyEvent{}, false},
 		{vkPeriod, true, false, false, view.KeyEvent{Key: view.KeyRow, Char: '.'}, true},
 		{vkPeriod, false, false, false, view.KeyEvent{}, false},
 		{vkPeriod, true, false, true, view.KeyEvent{}, false},
@@ -50,7 +49,6 @@ func TestBoldRanges(t *testing.T) {
 		{"Move", nil, nil},
 		{"Move", []int{0, 1}, []textRange{{0, 2}}},
 		{"Show Remotes", []int{7, 8, 5}, []textRange{{5, 1}, {7, 2}}},
-		// 😀 is two UTF-16 units, so the runes after it are shifted by one
 		{"😀 docs", []int{0, 2, 3}, []textRange{{0, 2}, {3, 2}}},
 		{"ab", []int{5, -1, 1, 1}, []textRange{{1, 1}}},
 	} {
@@ -66,7 +64,7 @@ func TestBoldRanges(t *testing.T) {
 func TestWordStart(t *testing.T) {
 	text := utf16.Encode([]rune("copy gdrive:  "))
 	for _, c := range []struct{ caret, want int }{
-		{len(text), 5}, // skips the spaces, then the word
+		{len(text), 5},
 		{4, 0},
 		{5, 0},
 		{0, 0},
@@ -85,7 +83,7 @@ func TestBlurDue(t *testing.T) {
 		want       bool
 	}{
 		{true, true, 0, false},
-		{true, false, time.Hour, false}, // still down, so a drag may come back
+		{true, false, time.Hour, false},
 		{false, false, 0, true},
 		{false, true, 0, false},
 		{false, true, dropGrace - time.Millisecond, false},
@@ -97,8 +95,6 @@ func TestBlurDue(t *testing.T) {
 	}
 }
 
-// TestLayoutCache checks that a layout which a full frame doesn't draw is released at the next
-// frame, and created again if it comes back.
 func TestLayoutCache(t *testing.T) {
 	var made, released []uintptr
 	next := uintptr(0)
@@ -114,11 +110,11 @@ func TestLayoutCache(t *testing.T) {
 	if c.get(a, build) != la || len(made) != 2 {
 		t.Fatalf("made %v", made)
 	}
-	c.frame() // draws a only
+	c.frame()
 	if c.get(a, build) != la || len(released) != 0 {
 		t.Fatalf("a: made %v, released %v", made, released)
 	}
-	c.frame() // b wasn't drawn for a full frame
+	c.frame()
 	if len(released) != 1 || released[0] != lb {
 		t.Fatalf("released %v, want [%d]", released, lb)
 	}
@@ -183,7 +179,6 @@ func TestAnnouncement(t *testing.T) {
 	}
 }
 
-// TestColorRef checks GDI's byte order, which is blue, green, red.
 func TestColorRef(t *testing.T) {
 	if got := colorRef(colorF{1, 0, 0, 1}); got != 0x0000ff {
 		t.Errorf("red: %#06x", got)

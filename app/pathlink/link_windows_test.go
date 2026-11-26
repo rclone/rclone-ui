@@ -11,7 +11,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// memPath keeps the user's PATH in memory instead of HKCU\Environment.
 type memPath struct{ value string }
 
 func (m *memPath) get() (string, error) { return m.value, nil }

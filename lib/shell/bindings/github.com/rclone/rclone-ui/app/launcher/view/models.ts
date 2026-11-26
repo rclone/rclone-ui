@@ -9,9 +9,6 @@ import { Create as $Create } from "@wailsio/runtime";
 // @ts-ignore: Unused imports
 import * as icons$0 from "../icons/models.js";
 
-/**
- * Hint is a key and what it does, such as {"⏎", "Browse"}.
- */
 export class Hint {
     "keys": string;
     "label": string;
@@ -38,9 +35,6 @@ export class Hint {
 }
 
 export class Line {
-    /**
-     * StatusNone means the hints are shown
-     */
     "status": Status;
     "hints": string;
 
@@ -70,33 +64,13 @@ export class Line {
 }
 
 export class Row {
-    /**
-     * Group is the label of the group that starts at this row, drawn above it. It is empty
-     * when the row doesn't start a group.
-     */
     "group": string;
     "icon": icons$0.Name;
     "title": string;
-
-    /**
-     * indexes of the runes in Title that matched the query, drawn bold
-     */
     "bold": number[];
     "subtitle": string;
-
-    /**
-     * grey text at the right: "3 active", a mount point
-     */
     "tail": string;
-
-    /**
-     * the row's shortcut: "⌘1"
-     */
     "hint": string;
-
-    /**
-     * Danger marks a row that stops or deletes something. Its icon and its selection are red.
-     */
     "danger": boolean;
 
     /** Creates a new Row instance. */
@@ -144,37 +118,12 @@ export class Row {
 
 export class Snapshot {
     "placeholder": string;
-
-    /**
-     * Header, when set, is a line above the rows that names the item whose actions are shown.
-     */
     "header": string;
-
-    /**
-     * Rows are the rows to draw: as many rows of the list as fit in MaxListH.
-     */
     "rows": Row[];
-
-    /**
-     * Selected is the highlighted row, -1 for none.
-     */
     "selected": number;
-
-    /**
-     * More reports that the list has more rows than those drawn. The list then keeps its full
-     * height, so the window doesn't change size while scrolling.
-     */
     "more": boolean;
     "footer": Hint[];
-
-    /**
-     * Status, when set, replaces the hints in the footer.
-     */
     "status": Status;
-
-    /**
-     * Running makes the stop-everything button red rather than muted.
-     */
     "running": boolean;
 
     /** Creates a new Snapshot instance. */

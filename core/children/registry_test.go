@@ -18,8 +18,6 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// TestClip checks that a child's error is cut on a character boundary, whatever is at the cut,
-// and made valid UTF-8, because the pages show it as is.
 func TestClip(t *testing.T) {
 	const n = 10
 	for _, r := range []string{"é", "€", "😀"} {
@@ -47,11 +45,10 @@ func TestClip(t *testing.T) {
 
 var errGone = errors.New("not running any more")
 
-// changes records the calls to a registry's hooks.
 type changes struct {
 	mu    sync.Mutex
 	list  []change
-	downs []bool // the again argument of each Down call, in order
+	downs []bool
 	ups   int
 	ch    chan struct{}
 }
@@ -76,7 +73,6 @@ func (c *changes) publish(ch *Child[string], st Status, err error) {
 	}
 }
 
-// wait returns the nth change of id to one of states. It fails the test after 30 s.
 func (c *changes) wait(t *testing.T, id string, n int, states ...Status) change {
 	t.Helper()
 	deadline := time.After(30 * time.Second)
@@ -125,7 +121,6 @@ func newRegistry(t *testing.T, sup *Supervisor, tweak func(*RegistryOptions[stri
 	return NewRegistry(o), ch
 }
 
-// helperConfig is the config file that the registry's children get.
 type helperConfig struct{}
 
 func (helperConfig) Path() string                                  { return "helper.conf" }
@@ -135,8 +130,6 @@ func newChild(name string) *Child[string] {
 	return &Child[string]{Name: name, Source: "src:" + name, Started: time.Now(), Log: slog.New(slog.DiscardHandler), Own: name}
 }
 
-// spawn reserves c and starts the helper child with args. When ready is true, the child counts
-// as ready as soon as it runs.
 func spawn(t *testing.T, r *Registry[string], c *Child[string], ready bool, args ...string) {
 	t.Helper()
 	if err := r.Reserve(c, "", func([]*Child[string]) error { return nil }); err != nil {
@@ -151,10 +144,6 @@ func spawn(t *testing.T, r *Registry[string], c *Child[string], ready bool, args
 	}
 }
 
-// TestRegistryStartStop checks that a reserved and spawned child is starting, then running with
-// its process. The service's check refuses another start at the same place, and the registry
-// refuses one under the same id. A stop ends the child, publishes stopped, and removes it from
-// the registry. The child runs on the config file that Configs names.
 func TestRegistryStartStop(t *testing.T) {
 	sup := newSupervisor(t, Options{})
 	r, ch := newRegistry(t, sup, nil)
@@ -208,10 +197,6 @@ func TestRegistryStartStop(t *testing.T) {
 	}
 }
 
-// TestRegistryWaitStops checks that a stop whose context ended carries on to its cleanup on its
-// own goroutine. WaitStops waits for it, up to its time limit and never past its context. Once
-// WaitStops returns true, the stop is over: stopped is published and the child is out of the
-// registry.
 func TestRegistryWaitStops(t *testing.T) {
 	sup := newSupervisor(t, Options{})
 	release := make(chan struct{})
@@ -253,17 +238,11 @@ func TestRegistryWaitStops(t *testing.T) {
 	}
 }
 
-// TestRegistryFirstStartFails checks that a child whose process fails before it is ready is
-// reported as failed with its last error line (clipped to valid UTF-8, however long), and leaves
-// the registry. A child that isn't ready in time is reported as failed with the Late text.
 func TestRegistryFirstStartFails(t *testing.T) {
 	sup := newSupervisor(t, Options{})
-	// The failing child gets the usual ready timeout, so that a slow start can't be reported as
-	// late before the child prints its error. Only the late child's registry waits 500ms.
 	r, ch := newRegistry(t, sup, nil)
 	lateR, lateCh := newRegistry(t, sup, func(o *RegistryOptions[string]) { o.ReadyTimeout = 500 * time.Millisecond })
 
-	// The 1000th byte is inside an "é".
 	line := "x" + strings.Repeat("é", maxErrorText)
 	c := newChild("fails")
 	spawn(t, r, c, false, "fail", line)
@@ -291,9 +270,6 @@ func TestRegistryFirstStartFails(t *testing.T) {
 	}
 }
 
-// TestRegistryRestart checks that a child that has run and then goes down is restarting, then
-// running again, and stays in the registry. The reason given is its exit, because it printed no
-// error line.
 func TestRegistryRestart(t *testing.T) {
 	sup := newSupervisor(t, Options{})
 	r, ch := newRegistry(t, sup, nil)
@@ -317,8 +293,6 @@ func TestRegistryRestart(t *testing.T) {
 	}
 }
 
-// TestRegistryResume checks that Resume offers the previous run's records of its kind in order,
-// drops those that are not started again, and stops when the core stops, leaving the rest.
 func TestRegistryResume(t *testing.T) {
 	rec := func(id string, kind Kind) Record {
 		return Record{ID: id, Kind: kind, Name: id, Args: []string{"serve"}}
@@ -335,7 +309,7 @@ func TestRegistryResume(t *testing.T) {
 		case "0000000a":
 			return ErrNotRecorded
 		case "0000000c":
-			return nil // stays pending, because nothing started under its id
+			return nil
 		case "0000000d":
 			return fmt.Errorf("start: %w", ErrClosed)
 		}
@@ -354,7 +328,6 @@ func TestRegistryResume(t *testing.T) {
 	}
 }
 
-// clock is a time that a test moves forward.
 type clock struct{ at atomic.Int64 }
 
 func newClock() *clock {
@@ -379,7 +352,6 @@ func crash(t *testing.T, r *Registry[string], c *Child[string]) {
 	}
 }
 
-// waitLastErr waits until the registry has read c's error line.
 func waitLastErr(t *testing.T, r *Registry[string], c *Child[string]) {
 	t.Helper()
 	deadline := time.Now().Add(30 * time.Second)
@@ -397,8 +369,6 @@ func waitLastErr(t *testing.T, r *Registry[string], c *Child[string]) {
 	}
 }
 
-// TestRegistryErrorAge checks why a running child that crashed went down: its last error line
-// while that line is recent, and how its process exited once the line is older than 30 s.
 func TestRegistryErrorAge(t *testing.T) {
 	sup := newSupervisor(t, Options{})
 	clk := newClock()
@@ -429,8 +399,6 @@ func TestRegistryErrorAge(t *testing.T) {
 	}
 }
 
-// TestRegistryRemotesChanged checks that RemotesChanged flags the children it picks, once, and
-// publishes them with their status. The flag clears when the child starts again.
 func TestRegistryRemotesChanged(t *testing.T) {
 	sup := newSupervisor(t, Options{})
 	r, ch := newRegistry(t, sup, nil)
@@ -442,7 +410,7 @@ func TestRegistryRemotesChanged(t *testing.T) {
 
 	picks := func(c *Child[string]) bool { return c == a }
 	r.RemotesChanged(picks)
-	r.RemotesChanged(picks) // already flagged: nothing is published again
+	r.RemotesChanged(picks)
 	if rep, _ := r.View(a); !rep.Restart || rep.Status != StatusRunning {
 		t.Fatalf("a after the change: %+v", rep)
 	}
@@ -471,8 +439,6 @@ func TestRegistryRemotesChanged(t *testing.T) {
 	}
 }
 
-// TestRegistryCheck checks that Launch.Check runs before each start, and that its error fails
-// that start with the error as the reason.
 func TestRegistryCheck(t *testing.T) {
 	sup := newSupervisor(t, Options{})
 	r, ch := newRegistry(t, sup, nil)

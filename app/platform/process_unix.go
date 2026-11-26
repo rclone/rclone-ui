@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-// DetachedProcess starts a process in its own session, so that it isn't affected when this
-// process ends.
 func DetachedProcess() *syscall.SysProcAttr { return &syscall.SysProcAttr{Setsid: true} }
 
 func WaitForExit(pid int, limit time.Duration) {

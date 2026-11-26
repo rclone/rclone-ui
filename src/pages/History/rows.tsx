@@ -36,15 +36,10 @@ import {
 type Transfer = Core.Transfers.Transfer
 type Icon = typeof PageIcon
 
-/** Zappicon has no arrow that turns left, so the one that turns right is mirrored. */
 export function ArrowRotateLeftIcon({ className }: { className?: string }) {
     return <ArrowRotateRightIcon className={cn('-scale-x-100', className)} />
 }
 
-/**
- * The look of a recorded operation: its window's tile when it has a window (Sync's green), and a
- * tile of its own for the Commander's small operations.
- */
 export function lookOfOperation(operation: string): WindowLook {
     switch (operation) {
         case 'copy':
@@ -105,8 +100,6 @@ export type Row = Transfer & {
 }
 
 export function toRow(transfer: Transfer, live: Core.Bus.TransferProgress | null | undefined): Row {
-    // While a transfer runs, its numbers come from the latest progress update. Once it has
-    // ended, they come from its stored stats.
     const numbers = transfer.state === 'running' ? live : undefined
     const bytes = numbers?.bytes ?? transfer.stats?.bytes ?? 0
     const totalBytes = numbers?.totalBytes ?? transfer.stats?.totalBytes ?? 0
@@ -116,8 +109,6 @@ export function toRow(transfer: Transfer, live: Core.Bus.TransferProgress | null
         bytes,
         totalBytes,
         speed: numbers?.speed ?? 0,
-        // A completed transfer shows 100%, even when everything was already there and nothing
-        // moved.
         progress: transfer.state === 'completed' ? 100 : percent(bytes, totalBytes),
         status: statusOf(transfer, numbers),
     }
@@ -156,11 +147,6 @@ function Paths({ row }: { row: Row }) {
     )
 }
 
-/**
- * Where a transfer came from, when `originOf` names it. A schedule, a template or a watcher shows
- * its label and its name. An agent shows its app's name alone ("Claude Code"), or "Agent" when
- * its app gave none.
- */
 function Origin({ row }: { row: Row }) {
     const key = originOf(row.origin)
     if (!key) return null
@@ -280,7 +266,6 @@ export const EndedRow = memo(function EndedRow({
             <IconTile icon={look.icon} tone={look.tone} size="md" />
             <span className="flex flex-col flex-1 min-w-0 gap-0.5">
                 <span className="flex items-baseline min-w-0 gap-2 text-sm">
-                    {/* The operation's name covers the row: it opens the details. */}
                     <button
                         type="button"
                         data-row={true}
@@ -326,8 +311,6 @@ export const EndedRow = memo(function EndedRow({
             {standing && (
                 <span
                     className={cn(
-                        // At least the width of the usual labels, so the column lines up, and
-                        // wider for a long one ("Stopped at 40%") rather than cutting it.
                         'flex items-center gap-2 text-sm font-medium min-w-32 whitespace-nowrap shrink-0',
                         failed && 'text-danger-600 dark:text-danger-500'
                     )}

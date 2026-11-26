@@ -44,8 +44,6 @@ func TestMain(m *testing.M) {
 
 type recorder struct{ paths []string }
 
-// started is the transfer service. It keeps what was started and what was recorded as done. When
-// answer is set, each start returns its result instead.
 type started struct {
 	ops    []rcops.Operation
 	forms  []rcops.Form
@@ -119,7 +117,6 @@ func TestLocalActions(t *testing.T) {
 	if moved.Path != filepath.Join(root, "c.txt") || moved.TransferID != "" {
 		t.Errorf("renamed %+v", moved)
 	}
-	// Folders are renamed and deleted by transfers.
 	if err := s.write(ctx, filepath.Join(dir, "in.txt"), []byte("x")); err != nil {
 		t.Fatal(err)
 	}
@@ -150,8 +147,6 @@ func TestLocalActions(t *testing.T) {
 		t.Errorf("invalidated %v", inv.paths)
 	}
 
-	// A folder transfer that failed to launch is still recorded, so its id is returned (as with
-	// a batch) and the page can show why. A transfer that was never recorded returns the error.
 	failing := New(b, inv, &started{answer: func() (transfers.Started, error) {
 		return transfers.Started{ID: "t9", Seq: 9}, errors.New("refused at launch")
 	}})
@@ -169,8 +164,6 @@ func TestLocalActions(t *testing.T) {
 	}
 }
 
-// IsFolder tells a file from a folder by the path alone, on a disk and in a bucket, where a
-// folder is only the prefix of the files in it.
 func TestIsFolder(t *testing.T) {
 	ctx := context.Background()
 	root, _ := filepath.EvalSymlinks(t.TempDir())
@@ -236,7 +229,6 @@ func TestBatchRename(t *testing.T) {
 	if len(st.ops) != 0 {
 		t.Error("the batch started despite the taken target")
 	}
-	// A bucket backend returns not-found for a folder, so the listing has to find it.
 	for _, p := range []string{"mem:bucket/x/keep.txt", "mem:bucket/y.txt"} {
 		if err := s.write(ctx, p, []byte(p)); err != nil {
 			t.Fatal(err)
@@ -268,8 +260,8 @@ func TestBatchRenameDuplicates(t *testing.T) {
 		}
 	}
 	const (
-		nfc = "\u00e9.txt"  // é as one code point
-		nfd = "e\u0301.txt" // e and a combining accent
+		nfc = "\u00e9.txt"
+		nfd = "e\u0301.txt"
 	)
 	for _, tc := range []struct {
 		name  string
@@ -294,13 +286,11 @@ func TestBatchRenameDuplicates(t *testing.T) {
 	if len(st.ops) != 0 {
 		t.Fatalf("started %v", st.ops)
 	}
-	// The same name in two different folders doesn't clash.
 	if _, err := s.BatchRename(ctx, []Item{{Path: filepath.Join(root, "a"), NewName: "x.txt"}, {Path: filepath.Join(root, "in", "c"), NewName: "x.txt"}}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// names returns the names in dir, spelled as the store spells them.
 func names(t *testing.T, dir string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -339,8 +329,6 @@ func TestRenameCaseOnly(t *testing.T) {
 		t.Fatalf("a folder: %+v %v", r, err)
 	}
 
-	// On a store that keeps both spellings, the rename is refused, because the second move would
-	// replace the other file.
 	for _, p := range []string{"mem:case/x.txt", "mem:case/X.txt", "mem:case/y.txt"} {
 		if err := s.write(ctx, p, []byte(p)); err != nil {
 			t.Fatal(err)
@@ -379,8 +367,6 @@ func TestBatchRenameCaseOnly(t *testing.T) {
 	}
 }
 
-// appearingFs is a memory Fs whose next lookup of the name in appearing reports it missing. This
-// simulates a file that appears between a rename's check and its move.
 type appearingFs struct {
 	fs.Fs
 	name, root string
@@ -442,9 +428,6 @@ func read(t *testing.T, p string) string {
 	return string(b)
 }
 
-// TestRenameKeepsAFileThatAppeared checks that a file that appears at the new name after the
-// rename's check is kept. The rename reports that the name is taken, and the source file stays
-// as it was.
 func TestRenameKeepsAFileThatAppeared(t *testing.T) {
 	ctx := context.Background()
 	s := New(bus.New(), &recorder{}, &started{})
@@ -470,8 +453,6 @@ func TestRenameKeepsAFileThatAppeared(t *testing.T) {
 	}
 }
 
-// A single-file delete is recorded once it is done. A folder delete, which runs as a transfer, and
-// a delete that fails are not recorded this way.
 func TestFileDeleteIsRecorded(t *testing.T) {
 	ctx := context.Background()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -504,8 +485,6 @@ func TestFileDeleteIsRecorded(t *testing.T) {
 	}
 }
 
-// write writes content to the file at path, replacing any file already there. Tests use it to
-// lay out the files that an action then changes.
 func (s *Service) write(ctx context.Context, path string, content []byte) error {
 	err := at(ctx, path, "path", func(p *place) error {
 		_, err := operations.Rcat(p.ctx, p.f, p.leaf, io.NopCloser(bytes.NewReader(content)), time.Now(), nil)

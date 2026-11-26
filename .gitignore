@@ -11,7 +11,6 @@ lerna-debug.log*
 /dist-ssr
 *.local
 
-# Editor directories and files
 /.vscode/*
 !/.vscode/extensions.json
 /.idea
@@ -29,11 +28,9 @@ lerna-debug.log*
 /.work
 /video/
 
-# The embedded, compressed Vite build (tools/zstdassets)
 /app/assets/dist/
 /build/bin/
 /build/dist/
 *.syso
 
-# The ads proposal, the presentation images and the tools that make them
 /.showcase/

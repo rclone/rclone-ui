@@ -54,8 +54,6 @@ func TestTheFileWhenNoKeychainAnswers(t *testing.T) {
 	if v, err := k.Get("host:a"); err != nil || v != "token" {
 		t.Fatalf("Get = %q, %v", v, err)
 	}
-	// The file's copy is removed, but Delete reports an error, because the keychain wasn't
-	// available and may still have a copy from before.
 	if err := k.Delete("host:a"); err == nil {
 		t.Error("a delete no keychain answered said nothing")
 	}
@@ -63,8 +61,6 @@ func TestTheFileWhenNoKeychainAnswers(t *testing.T) {
 		t.Error("an empty file was left behind")
 	}
 
-	// A secret is stored in the file, and then the keychain comes back. The secret is still found,
-	// and a new Set moves it to the keychain.
 	if err := k.Set("smtp", "old"); err != nil {
 		t.Fatal(err)
 	}
@@ -80,15 +76,12 @@ func TestTheFileWhenNoKeychainAnswers(t *testing.T) {
 	}
 }
 
-// TestAnOutageLeavesNoStaleSecret checks that a secret changed while the keychain was unavailable
-// is read from the file once the keychain is back, not from the keychain's older copy.
 func TestAnOutageLeavesNoStaleSecret(t *testing.T) {
 	keyring.MockInitWithError(errors.New("no secret service"))
 	k := New(t.TempDir())
 	if err := k.Set("smtp", "new"); err != nil {
 		t.Fatal(err)
 	}
-	// The keychain is back, with the copy it had before it became unavailable.
 	keyring.MockInit()
 	if err := keyring.Set(Service, "smtp", "old"); err != nil {
 		t.Fatal(err)

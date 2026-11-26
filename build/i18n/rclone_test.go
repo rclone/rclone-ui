@@ -28,8 +28,6 @@ func fixture() map[string]map[string]string {
 	}
 }
 
-// live is what the rclone on this system gives: it lacks nounc (a Windows option), has a new
-// option, a changed text, and the ACL help under a longer provider list.
 func live() map[string]string {
 	return map[string]string{
 		k("backend", "local", "description"):                                "Local Disk",

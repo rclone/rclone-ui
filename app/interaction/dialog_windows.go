@@ -7,13 +7,10 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-// show uses Wails' question dialog, because that is the one Wails shows as a Windows task dialog
-// when it has buttons of its own (#5794). A task dialog sizes its buttons to their labels, where a
-// plain message box keeps the standard size and cuts a longer label short ("Skip This Version").
-// It also puts itself above every window when it opens, including the Startup window and the
-// launcher, which stay on top and would hide a plain message box. Before Wails' application is
-// made, zenity's message box shows the dialog. Every caller runs once the application has started,
-// because until then Wails would show nothing.
+// Wails shows its question dialog as a Windows task dialog when it has buttons of its own
+// (#5794). A task dialog sizes its buttons to their labels, where a plain message box cuts a
+// longer label short. It also puts itself above every window when it opens, including the
+// Startup window and the launcher.
 func show(d Dialog) Answer {
 	app := application.Get()
 	if app == nil {
@@ -47,18 +44,16 @@ func show(d Dialog) Answer {
 	case a := <-answers:
 		return a
 	default:
-		// No button reported, which only happens if the dialog couldn't be shown.
 		return AnswerCancel
 	}
 }
 
-// ShowPlain shows d in a plain Win32 message box, which needs nothing from Wails, and waits for
+// ShowPlain shows d in a plain Win32 message box, which needs nothing from Wails, and may be
+// called from the main thread. A message box's buttons keep the standard width, so their labels
+// must be short.
 // the answer. It is for when Wails itself failed, as when WebView2 doesn't start, and it may be
-// called from the main thread then. A message box's buttons keep the standard width, so their
-// labels must be short ("Download", not "Download WebView2").
 func ShowPlain(d Dialog) Answer { return present(d, showZenity) }
 
-// showZenity shows the dialog with zenity's Win32 message box, which can relabel its buttons.
 func showZenity(d Dialog) Answer {
 	opts := []zenity.Option{zenity.Title(d.Title), zenity.OKLabel(d.OK)}
 	switch d.Kind {
@@ -72,7 +67,6 @@ func showZenity(d Dialog) Answer {
 		opts = append(opts, zenity.InfoIcon)
 	}
 	if d.Cancel == "" && d.Extra == "" {
-		// With one button, closing the box gives the same answer.
 		_ = zenity.Info(d.Message, opts...)
 		return AnswerOK
 	}

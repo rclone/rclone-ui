@@ -16,7 +16,6 @@ func TestDispatch(t *testing.T) {
 		{"/Applications/Rclone UI.app/Contents/MacOS/rcui", nil, roleUI},
 		{"rcui", []string{"ui"}, roleUI},
 		{"rcui", []string{"rclone://add-template?x=1"}, roleUI},
-		// Any number of slashes is accepted, as in deeplink.Parse.
 		{"rcui", []string{"rclone:add-template?x=1"}, roleUI},
 		{"rcui", []string{"RCLONE:/add-template?x=1"}, roleUI},
 		{"rcui", []string{"-psn_0_12345"}, roleUI},
@@ -50,7 +49,6 @@ func TestCalledAs(t *testing.T) {
 		{map[string]string{"APPIMAGE": "/home/me/Rclone_UI.AppImage", "ARGV0": "rclone"}, "rclone"},
 		{map[string]string{"APPIMAGE": "/home/me/Rclone_UI.AppImage", "ARGV0": "/home/me/.local/bin/rclone"}, "/home/me/.local/bin/rclone"},
 		{map[string]string{"APPIMAGE": "/home/me/Rclone_UI.AppImage"}, exe},
-		// $ARGV0 means nothing outside an AppImage.
 		{map[string]string{"ARGV0": "rclone"}, exe},
 	} {
 		if got := calledAs(exe, env(c.vars)); got != c.want {
@@ -62,8 +60,6 @@ func TestCalledAs(t *testing.T) {
 	}
 }
 
-// main hasn't added its own commands (tunnel, update) in this test, so the commands that are
-// checked are rclone's own.
 func TestRoleWordsAreNotRcloneCommands(t *testing.T) {
 	for _, c := range rclonecmd.Root.Commands() {
 		for _, name := range append([]string{c.Name()}, c.Aliases...) {
@@ -87,7 +83,6 @@ func TestWithConfig(t *testing.T) {
 		{[]string{"ls", "a:", "--config", "team.conf"}, []string{"ls", "a:", "--config", "team.conf"}},
 		{[]string{"--config=team.conf", "ls", "a:"}, []string{"--config=team.conf", "ls", "a:"}},
 		{[]string{"lsf", "a:", "--", "--config"}, []string{"--config=" + conf, "lsf", "a:", "--", "--config"}},
-		// A flag whose name only starts with "config" isn't --config.
 		{[]string{"ls", "a:", "--config-dir=x"}, []string{"--config=" + conf, "ls", "a:", "--config-dir=x"}},
 	} {
 		if got := withConfig(slices.Clone(c.args), conf, unset); !slices.Equal(got, c.want) {

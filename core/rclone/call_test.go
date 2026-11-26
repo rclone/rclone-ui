@@ -32,7 +32,6 @@ func TestCall(t *testing.T) {
 	if out["in"].(rc.Params)["a"] != 1 || job == nil || out["jobid"] != job.ID {
 		t.Errorf("out %v job %v", out, job)
 	}
-	// The job's own group is deleted after a sync call.
 	if g := out["group"].(string); g != job.Group || slices.Contains(groups(t), g) {
 		t.Errorf("implicit group %q left behind (groups %v)", g, groups(t))
 	}
@@ -44,7 +43,6 @@ func TestCall(t *testing.T) {
 		t.Errorf("error text changed: %v", err)
 	}
 
-	// _config reaches the job (calling Fn directly would ignore it).
 	out, _, err = Call(ctx, "rcui-test/echo", rc.Params{"_config": `{"DryRun": true}`}, CallOpts{})
 	if err != nil || out["dryRun"] != true {
 		t.Errorf("_config: %v %v", out, err)
@@ -98,7 +96,7 @@ func TestCallAsync(t *testing.T) {
 	if out["jobid"] != job.ID || job.Group != "transfer/t1" {
 		t.Errorf("out %v group %s", out, job.Group)
 	}
-	cancel() // an async job runs on its own context
+	cancel()
 	time.Sleep(20 * time.Millisecond)
 	done := make(chan struct{})
 	job.OnFinish(func() { close(done) })
@@ -116,8 +114,6 @@ func TestCallAsync(t *testing.T) {
 	DeleteGroup(context.Background(), "transfer/t1")
 }
 
-// TestRun checks that fn runs as a job, in its stats group, marked as an rc request, and that a
-// fatal rclone error becomes the job's error instead of exiting the process.
 func TestRun(t *testing.T) {
 	ctx := context.Background()
 	var group string

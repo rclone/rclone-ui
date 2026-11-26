@@ -1,8 +1,3 @@
-// Package cloudflared builds cloudflared's quick tunnel into rcui, so the tunnel needs no
-// download. `rclone tunnel` (package tunnelcmd) runs it in its own process, in front of its rc
-// server, in the same way as `cloudflared tunnel --no-autoupdate --url <origin>`. No other part
-// of cloudflared's command line can be reached: not its updater (which would replace rcui), and
-// not its service install or Access commands.
 package cloudflared
 
 import (
@@ -27,10 +22,8 @@ import (
 // them together.
 const Version = "2026.9.3"
 
-// gracePeriod is how long cloudflared lets requests finish once it is asked to stop.
 const gracePeriod = "3s"
 
-// Options control how cloudflared logs to stderr.
 type Options struct {
 	// LogLevel is cloudflared's log level: debug, info, warn or error.
 	LogLevel string
@@ -38,7 +31,6 @@ type Options struct {
 	JSON bool
 }
 
-// Tunnel is a quick tunnel that Cloudflare serves.
 type Tunnel struct {
 	// URL is the tunnel's address on trycloudflare.com.
 	URL string
@@ -95,8 +87,6 @@ func Start(ctx context.Context, origin string, o Options) (*Tunnel, error) {
 	return &Tunnel{URL: "https://" + host, Done: done}, nil
 }
 
-// waitServed polls cloudflared's metrics server, first for the quick tunnel's hostname, then for
-// its first connection to Cloudflare (/ready).
 func waitServed(ctx context.Context, metrics string, done <-chan error) (string, error) {
 	client := &http.Client{Timeout: 2 * time.Second}
 	get := func(path string) (*http.Response, error) {

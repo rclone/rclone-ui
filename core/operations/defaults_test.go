@@ -10,12 +10,8 @@ import (
 	"github.com/rclone/rclone-ui/core/catalog"
 )
 
-// serveDefaultFlags are the flags of the app's defaults for a serve that sets none of them: the
-// config group's, sorted by name.
 var serveDefaultFlags = []string{"--checkers=16", "--transfers=8"}
 
-// A plan gets the app's defaults for its operation under the page's own options. A null names an
-// option without a value, so its default is left out and rclone's own applies.
 func TestPlanDefaults(t *testing.T) {
 	dir, folder, file := localTree(t)
 	ctx := context.Background()
@@ -37,7 +33,6 @@ func TestPlanDefaults(t *testing.T) {
 			t.Errorf("copy with no options: %s is %v, want %s", name, got, want)
 		}
 	}
-	// Those three are the app's only defaults. Everything else is rclone's own.
 	if len(p.Config) != 3 {
 		t.Errorf("copy with no options: config %v, want the three defaults only", p.Config)
 	}
@@ -49,28 +44,23 @@ func TestPlanDefaults(t *testing.T) {
 	if _, ok := form.Copy.Options.Config["checkers"]; ok {
 		t.Error("building the plan added the defaults to the form")
 	}
-	// The page's own value wins, in whichever group the page put it.
 	if p := build(copyOf(groups("copy", `{"transfers": 4}`))); p.Config["transfers"] != "4" {
 		t.Errorf("copy's own transfers: config %v", p.Config)
 	}
 
-	// A purge reads only its config group, and has no multi-thread default.
 	p = build(PurgeArgs{Sources: []string{folder}}.Form())
 	if p.Config["transfers"] != "8" || p.Config["multi_thread_streams"] != nil {
 		t.Errorf("purge: config %v", p.Config)
 	}
-	// A download has no defaults.
 	p = build(DownloadArgs{URL: "https://example.com/x", Filename: "x", Destination: dir}.Form())
 	if len(p.Config) != 0 {
 		t.Errorf("download: config %v", p.Config)
 	}
-	// A save from the Commander gets a copy's defaults, in its config group.
 	p = build(SaveArgs{Source: file, Destination: dir + "/saved.txt"}.Form())
 	if p.Config["transfers"] != "8" || p.Config["multi_thread_streams"] != "8" {
 		t.Errorf("save: config %v", p.Config)
 	}
 
-	// A template's card runs with the defaults too, and its own options win.
 	f, err := TemplateArgs(OperationSync, []string{folder}, dir+"/synced",
 		catalog.Group{"checkers": json.RawMessage(`4`), "transfers": json.RawMessage(`null`)})
 	if err != nil {
@@ -81,7 +71,6 @@ func TestPlanDefaults(t *testing.T) {
 		t.Errorf("a template's sync: config %v", p.Config)
 	}
 
-	// The script shows the defaults, and leaves a null out.
 	script, err := build(copyOf(groups("config", `{"checkers": null}`))).Script(testExe, "linux", "")
 	if err != nil {
 		t.Fatal(err)
@@ -93,9 +82,6 @@ func TestPlanDefaults(t *testing.T) {
 	}
 }
 
-// A mount gets the config group's defaults, and the writes cache mode in its vfs group. A mode that
-// the user sets wins, and a null for it leaves rclone's own default. The program of the Copy
-// command shows the same defaults as the command line.
 func TestMountDefaults(t *testing.T) {
 	env := MountEnv{OS: "linux"}
 	m, err := MountCommand(MountArgs{Source: "gdrive:photos", Destination: "/mnt/photos"}, env)
@@ -146,7 +132,6 @@ func TestMountDefaults(t *testing.T) {
 	}
 }
 
-// A serve's program shows the defaults too.
 func TestServeDefaults(t *testing.T) {
 	script, err := ServeScript(ServeArgs{Source: "/srv", Type: "webdav"}, ServeEnv{}, "linux", "")
 	if err != nil {
@@ -159,8 +144,6 @@ func TestServeDefaults(t *testing.T) {
 	}
 }
 
-// Any spelling of an option's name counts, and so does a group other than the default's.
-// withDefaults leaves the groups that it was given unchanged.
 func TestWithDefaults(t *testing.T) {
 	g := groups("config", `{"--multi-thread-streams": 2}`, "copy", `{"transfers": 2}`, "remotes", `{"gdrive": {"checkers": 1}}`)
 	out := withDefaults(OperationCopy, g)
@@ -170,7 +153,6 @@ func TestWithDefaults(t *testing.T) {
 	if _, ok := out.Config["transfers"]; ok {
 		t.Errorf("transfers in the copy group didn't count: %v", out.Config)
 	}
-	// A remote's own override isn't one of rclone's options for the operation.
 	if string(out.Config["checkers"]) != "16" {
 		t.Errorf("defaults %v %v", out.Config, out.Copy)
 	}

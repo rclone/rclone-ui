@@ -5,13 +5,8 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// OperationName returns an operation's name as History shows it, in the app's language: "Sync"
-// for sync, "Delete Folder" for delete-folder. The English names are the windows' titles. An
-// operation without a name gives its key.
 func OperationName(operation operations.Operation) string { return operationName(operation).Local() }
 
-// operationName returns an operation's name as a translatable text, or the zero Text for an
-// operation without a name.
 func operationName(operation operations.Operation) i18n.Text {
 	switch operation {
 	case operations.OperationCopy:

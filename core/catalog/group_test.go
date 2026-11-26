@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// A rename rewrites the options that hold a path on the remote, one path or a list, and leaves
-// other remotes, local paths and other options alone.
 func TestGroupRenameRemote(t *testing.T) {
 	for _, c := range []struct{ in, want string }{
 		{`{"transfers":4,"backup_dir":"old:Trash"}`, `{"backup_dir":"new:Trash","transfers":4}`},

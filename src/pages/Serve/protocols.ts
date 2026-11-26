@@ -11,9 +11,6 @@ import {
     TowerBroadcast as TowerBroadcastIcon,
 } from '@zappicon/react'
 
-// The protocols that a folder can be served over: how each is written, and its icon. The Serve
-// page's choices, its running serves and the Wizard's share step show them the same way.
-
 export const PROTOCOL: Record<string, { name: string; icon: typeof PageIcon }> = {
     http: { name: 'HTTP', icon: GlobeSimpleIcon },
     webdav: { name: 'WebDAV', icon: FolderConnectionIcon },
@@ -29,7 +26,6 @@ export function protocolName(type: string): string {
     return PROTOCOL[type]?.name ?? type.toUpperCase()
 }
 
-/** A protocol's icon. One that this list doesn't have gets the Serve window's. */
 export function protocolIcon(type: string): typeof PageIcon {
     return PROTOCOL[type]?.icon ?? TowerBroadcastIcon
 }

@@ -28,8 +28,8 @@ func TestHeightAndRows(t *testing.T) {
 		{QueryH, 3, false, 0},
 		{QueryH + RowH - 1, 3, false, 0},
 		{QueryH + RowH, 3, false, 1},
-		{QueryH + 3*RowH, 3, false, -1}, // the footer
-		{QueryH + 10, 3, true, -1},      // the header line
+		{QueryH + 3*RowH, 3, false, -1},
+		{QueryH + 10, 3, true, -1},
 		{QueryH + HeaderH, 3, true, 0},
 	} {
 		s := Snapshot{Rows: rows(c.rows)}
@@ -69,18 +69,16 @@ func TestGroupLabels(t *testing.T) {
 		y    float64
 		want int
 	}{
-		{QueryH + 1, -1}, // the first label
+		{QueryH + 1, -1},
 		{QueryH + GroupH, 0},
 		{QueryH + GroupH + RowH, 1},
-		{QueryH + GroupH + 2*RowH + 1, -1}, // the second label
+		{QueryH + GroupH + 2*RowH + 1, -1},
 		{QueryH + 2*GroupH + 2*RowH, 2},
 	} {
 		if got := RowAt(c.y, s); got != c.want {
 			t.Errorf("RowAt(%v) = %d, want %d", c.y, got, c.want)
 		}
 	}
-	// Eight rows and a label: the eighth row is cut off, and the list is MaxListH tall no matter
-	// what is drawn.
 	long := Snapshot{Rows: append([]Row{{Group: "Active"}}, rows(7)...), More: true}
 	if ListH(long) != MaxListH || Height(long) != FullHeight() {
 		t.Errorf("a longer list: ListH %v, Height %v", ListH(long), Height(long))
@@ -102,8 +100,8 @@ func TestCentred(t *testing.T) {
 	}{
 		{1920, 1000, 1, (1920 - 700) / 2, (1000 - full) / 2},
 		{1920, 1048, 1, 610, (1048 - full) / 2},
-		{2560, 1400, 1.5, (2560 - 1050) / 2, (1400 - 1.5*full) / 2}, // 150%: 1050 pixels wide
-		{1920, 300, 1, 610, 0},                                      // too short, so at the top
+		{2560, 1400, 1.5, (2560 - 1050) / 2, (1400 - 1.5*full) / 2},
+		{1920, 300, 1, 610, 0},
 	} {
 		dx, dy := Centred(c.w, c.h, c.scale)
 		if dx != c.dx || dy != c.dy {

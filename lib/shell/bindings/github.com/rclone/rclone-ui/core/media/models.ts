@@ -9,9 +9,6 @@ import { Create as $Create } from "@wailsio/runtime";
  * SignedURL is a URL that a page can load a file from without any other credential.
  */
 export class SignedURL {
-    /**
-     * URL is on the media server's port: http://127.0.0.1:port/media?…
-     */
     "url": string;
 
     /**

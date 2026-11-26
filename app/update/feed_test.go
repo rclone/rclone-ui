@@ -15,16 +15,11 @@ import (
 	"time"
 )
 
-// feed is a fake release server: /latest/download/<FeedName>, /releases (GitHub's list of the
-// newest releases), /v<version>/<FeedName> and /files/.
 type feed struct {
-	srv    *httptest.Server
-	stable *Feed // nil means 404, as before the first stable release
-	beta   *Feed // the newest beta: in the list as a pre-release, with its feed. nil means none.
-	// listed are more releases of the list, by tag: true for a pre-release. Their feeds are in
-	// releases.
-	listed map[string]bool
-	// limited makes the list answer as GitHub does once it answers no more requests.
+	srv       *httptest.Server
+	stable    *Feed
+	beta      *Feed
+	listed    map[string]bool
 	limited   bool
 	releases  map[string]*Feed
 	files     map[string][]byte
@@ -70,8 +65,6 @@ func (f *feed) serve(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(m)
 }
 
-// serveList answers as GitHub's list of releases does: the releases that aren't the app's betas
-// (the stable ones, and other things released from the same repository), the beta and listed.
 func (f *feed) serveList(w http.ResponseWriter) {
 	if f.limited {
 		w.Header().Set("X-RateLimit-Remaining", "0")
@@ -96,8 +89,6 @@ func (f *feed) serveList(w http.ResponseWriter) {
 	_ = json.NewEncoder(w).Encode(list)
 }
 
-// release makes a feed with the given artifact for kind on every platform. The artifact is served
-// at /files/<version>-<kind>.
 func (f *feed) release(version, rclone string, kind Kind, content []byte) *Feed {
 	name := version + "-" + string(kind)
 	f.files[name] = content
@@ -128,7 +119,6 @@ func (f *feed) options(t *testing.T, current string) Options {
 	}
 }
 
-// engineFor returns an engine that believes it is an install of type it.
 func engineFor(opts Options, it InstallType, location string) *Engine {
 	e := New(opts)
 	e.installed, e.location = it, location
@@ -136,7 +126,6 @@ func engineFor(opts Options, it InstallType, location string) *Engine {
 	return e
 }
 
-// nativeType returns this OS's own install type and artifact kind.
 func nativeType() (InstallType, Kind) {
 	switch runtime.GOOS {
 	case "darwin":
@@ -147,7 +136,6 @@ func nativeType() (InstallType, Kind) {
 	return TypeAppImage, KindAppImage
 }
 
-// artifactBytes returns file contents that pass checkKind for kind.
 func artifactBytes(kind Kind) []byte {
 	head := map[Kind][]byte{
 		KindApp:      {0x1f, 0x8b},
@@ -186,11 +174,10 @@ func TestCompareVersions(t *testing.T) {
 		{"v4.0.1", "4.0.1", 0},
 		{"4.1.0-beta.1", "4.0.9", 1},
 		{"4.1.0-beta.1", "4.1.0", -1},
-		// The betas of a version are numbered, and the numbers are compared as numbers.
 		{"4.1.0-beta.1", "4.1.0-beta.2", -1},
 		{"4.1.0-beta.2", "4.1.0-beta.10", -1},
 		{"3.7.5", "4.0.0", -1},
-		{"4.0.0", "dev", 1}, // a dev build is older than any release
+		{"4.0.0", "dev", 1},
 		{"dev", "dev", 0},
 	} {
 		if got := compareVersions(c.a, c.b); got != c.want {
@@ -255,7 +242,6 @@ func TestCheckBetaChannel(t *testing.T) {
 		{"stable newer", "4.1.0", "4.1.0-beta.2", "4.1.0"},
 		{"no beta yet", "4.0.2", "", "4.0.2"},
 		{"no stable release yet", "", "4.0.0-beta.1", "4.0.0-beta.1"},
-		// The betas of a version stop once it is released: the release is newer than all of them.
 		{"the betas' version is released", "4.0.0", "4.0.0-beta.2", "4.0.0"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -279,8 +265,6 @@ func TestCheckBetaChannel(t *testing.T) {
 	}
 }
 
-// A copy that runs a beta is offered the next beta, and then the version that the betas led
-// to, once that is released.
 func TestCheckFromABeta(t *testing.T) {
 	it, kind := nativeType()
 	f := newFeed(t)
@@ -301,8 +285,6 @@ func TestCheckFromABeta(t *testing.T) {
 	}
 }
 
-// The beta channel takes the newest beta of GitHub's list, whatever the list's order, and nothing
-// else in it: a release that isn't marked as a pre-release, or one whose tag isn't a version.
 func TestCheckNewestBeta(t *testing.T) {
 	it, kind := nativeType()
 	f := newFeed(t)
@@ -311,31 +293,26 @@ func TestCheckNewestBeta(t *testing.T) {
 	}
 	f.listed = map[string]bool{
 		"v4.0.0-beta.2": true, "v4.0.0-beta.10": true, "v4.0.0-beta.9": true,
-		"v9.0.0-beta.1": false, // not marked as a pre-release
-		"nightly":       true,  // not a version
-		"v8.0.0":        true,  // a pre-release without a pre-release part: not one of the betas
+		"v9.0.0-beta.1": false,
+		"nightly":       true,
+		"v8.0.0":        true,
 	}
 	opts := f.options(t, "4.0.0-beta.2")
 	opts.Channel = Beta
-	// The numbers are compared as numbers: beta.10 is after beta.9.
 	rel, err := engineFor(opts, it, "/x").Check(context.Background())
 	if err != nil || rel.Version != "4.0.0-beta.10" || !rel.Newer() {
 		t.Fatalf("Check = %+v %v, want 4.0.0-beta.10", rel, err)
 	}
-	// A beta whose release was deleted is gone from the list, and the one before it is offered.
 	delete(f.listed, "v4.0.0-beta.10")
 	if rel, err := engineFor(opts, it, "/x").Check(context.Background()); err != nil || rel.Version != "4.0.0-beta.9" {
 		t.Fatalf("after deleting the newest: %+v %v, want 4.0.0-beta.9", rel, err)
 	}
-	// A feed that describes another version than its release's tag is refused.
 	f.releases["4.0.0-beta.9"] = f.release("4.0.0-beta.2", "v1.77.0", kind, artifactBytes(kind))
 	if _, err := engineFor(opts, it, "/x").Check(context.Background()); err == nil || !strings.Contains(err.Error(), "describes") {
 		t.Errorf("a feed for another version: %v", err)
 	}
 }
 
-// When GitHub answers no more requests, the beta channel takes the stable release, and says why
-// it has nothing when there is no stable release either.
 func TestCheckBetaListLimited(t *testing.T) {
 	it, kind := nativeType()
 	f := newFeed(t)
@@ -351,7 +328,6 @@ func TestCheckBetaListLimited(t *testing.T) {
 	if err != nil || rel.Version != "4.0.1" {
 		t.Errorf("limited, with a stable release: %+v %v, want 4.0.1", rel, err)
 	}
-	// The stable channel never asks for the list.
 	opts.Channel = Stable
 	if rel, err := engineFor(opts, it, "/x").Check(context.Background()); err != nil || rel.Version != "4.0.1" {
 		t.Errorf("the stable channel: %+v %v", rel, err)
@@ -381,7 +357,6 @@ func TestCheckVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Downgrades are allowed, so a release that is neither newer nor the same is accepted.
 	if rel.Version != "4.0.0" || rel.Newer() || rel.Same() {
 		t.Errorf("Check = %+v", rel)
 	}
@@ -398,7 +373,7 @@ func TestCheckVersionValues(t *testing.T) {
 		"v4.0.2":                 nil,
 		" 4.1.0-beta.1 ":         nil,
 		"4.0.0-beta.1":           nil,
-		"3.7.5":                  nil, // a version that was never released is ErrNoRelease, from the feed
+		"3.7.5":                  nil,
 		"4.0":                    ErrBadVersion,
 		"latest":                 ErrBadVersion,
 		"4.0.2/../../x":          ErrBadVersion,

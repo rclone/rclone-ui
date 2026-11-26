@@ -21,10 +21,9 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// sourceDouble responds to the service's checks of a mount's source (Options.list, stat).
 type sourceDouble struct {
 	mu     sync.Mutex
-	calls  []string // "list|stat root path"
+	calls  []string
 	answer func(look, root, path string) (found, isDir bool, err error)
 }
 
@@ -59,7 +58,6 @@ func (d *sourceDouble) reset() {
 	d.mu.Unlock()
 }
 
-// store writes an automount straight into the automounts table.
 func (f *fixture) store(m Automount) {
 	f.t.Helper()
 	raw, _ := json.Marshal(m.Options)
@@ -99,7 +97,7 @@ func TestSaveAutomount(t *testing.T) {
 	for _, c := range []struct {
 		name   string
 		form   Automount
-		field  string // "" with msg means a refusal without a field
+		field  string
 		msg    string
 		probes []string
 	}{
@@ -140,8 +138,6 @@ func TestSaveAutomount(t *testing.T) {
 			}
 		})
 	}
-	// The saved ones: the whole remote, a folder, a probe that couldn't tell, the root of down, and
-	// the one switched off.
 	rows, err := f.s.Automounts(f.ctx)
 	if err != nil || len(rows) != 5 {
 		t.Fatalf("saved %d (%v)", len(rows), err)
@@ -198,18 +194,12 @@ func TestSaveAutomount(t *testing.T) {
 	})
 }
 
-// TestAutomountOfTheWholeRemote checks that an empty remote path mounts the remote's root.
 func TestAutomountOfTheWholeRemote(t *testing.T) {
 	if a := (Automount{Remote: "gdrive", Enabled: true, MountPoint: "/m"}).args(); a.Source != "gdrive:" || a.Destination != "/m" {
 		t.Errorf("args %+v", a)
 	}
 }
 
-// TestBootAutomounts checks that at start, each enabled automount is probed (with retries),
-// started, and then listed once more. A mount whose source doesn't respond is skipped after the
-// retries, and one whose path is missing is skipped at once. Both send notifications and show OS
-// notifications. Remotes that no longer exist are skipped. A computer that can't mount sends no
-// notifications.
 func TestBootAutomounts(t *testing.T) {
 	var (
 		mu       sync.Mutex
@@ -223,14 +213,14 @@ func TestBootAutomounts(t *testing.T) {
 		if path != "photos" {
 			return false, false, errors.New("not a look at the mount's path")
 		}
-		if look == "list" { // the listing after the mount is up
+		if look == "list" {
 			if strings.Contains(root, "flaky") {
 				return false, false, errors.New("connection reset")
 			}
 			return true, true, nil
 		}
 		switch {
-		case strings.Contains(root, "slow") && n < 3: // responds on the third attempt
+		case strings.Contains(root, "slow") && n < 3:
 			return false, false, errors.New("network is unreachable")
 		case strings.Contains(root, "dead"):
 			return false, false, errors.New("network is unreachable")
@@ -246,7 +236,6 @@ func TestBootAutomounts(t *testing.T) {
 		o.probeDelays = []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond}
 	}
 	f := newFixture(t, fixtureOpts{tweak: tweak})
-	// The remotes are aliases of local folders, in the config file that the children read.
 	disk := filepath.Join(f.base, "disk")
 	if err := os.MkdirAll(filepath.Join(disk, "photos"), 0o700); err != nil {
 		t.Fatal(err)
@@ -287,8 +276,6 @@ func TestBootAutomounts(t *testing.T) {
 	if len(list) != 1 || list[0].MountPoint != mp || !list[0].Automount {
 		t.Fatalf("list %+v", all)
 	}
-	// slow: two failures, the success, and the listing after mounting. dead: every attempt of
-	// the backoff. moved: once, because a wrong path isn't retried.
 	mu.Lock()
 	if want := map[string]int{"slow:": 4, "dead:": len(f.s.o.probeDelays) + 1, "moved:": 1, "flaky:": 2}; !maps.Equal(attempts, want) {
 		t.Fatalf("attempts %v, want %v", attempts, want)
@@ -312,13 +299,11 @@ func TestBootAutomounts(t *testing.T) {
 	if p := skipped["moved:photos"]; p.Destination != movedMp || !strings.Contains(p.Reason, `"photos" was not found on moved:`) || !strings.HasSuffix(p.Reason, "Fix its folder in the Automounts window.") {
 		t.Fatalf("moved: %+v", p)
 	}
-	// The flaky mount is up, with a warning that its folder may look empty.
 	got := f.ev.toastTitles()
 	slices.Sort(got)
 	if !slices.Equal(got, []string{"Automount may look empty", "Automount skipped", "Automount skipped"}) {
 		t.Fatalf("OS notifications %q", got)
 	}
-	// An automount keeps its cache folder when stopped.
 	folder := f.folderOf(t, list[0].ID)
 	if err := f.s.Stop(f.ctx, list[0].ID); err != nil {
 		t.Fatal(err)
@@ -339,9 +324,6 @@ func TestBootAutomounts(t *testing.T) {
 	})
 }
 
-// TestBootRestore checks that after a planned restart, the mounts that were running start again
-// with the same id and cache folder. On a computer that can no longer mount, they don't start,
-// and a mount whose cache holds uploads that rclone hadn't sent is listed in stopped_mounts.
 func TestBootRestore(t *testing.T) {
 	for _, canMount := range []bool{true, false} {
 		t.Run(fmt.Sprintf("canMount=%v", canMount), func(t *testing.T) {
@@ -353,7 +335,6 @@ func TestBootRestore(t *testing.T) {
 				t.Fatalf("got %+v\n%s", got, first.lines.dump())
 			}
 			folder := first.folderOf(t, m.ID)
-			// The planned restart stops every child and keeps the running mounts so they come back.
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			if err := first.sup.StopAll(ctx, func(children.Record) bool { return true }); err != nil {
@@ -401,8 +382,6 @@ func TestBootRestore(t *testing.T) {
 	}
 }
 
-// TestProbeThroughRclone runs the form's probe with rclone in this process (rclone.Run and the
-// config's remotes) against a folder, a file, and a missing path.
 func TestProbeThroughRclone(t *testing.T) {
 	initRclone(t)
 	f := newFixture(t, fixtureOpts{tweak: func(o *Options) {
@@ -420,7 +399,6 @@ func TestProbeThroughRclone(t *testing.T) {
 	if _, err := f.s.SaveAutomount(f.ctx, Automount{Remote: "disk", Enabled: true, RemotePath: "photos/a.txt", MountPoint: mp + "3"}); !errors.As(err, &inv) || !strings.Contains(inv.Message, "is a file") {
 		t.Fatalf("a file: %v", err)
 	}
-	// A link to a folder is a folder, as for /tmp on macOS. The mount follows it.
 	link := filepath.Join(rcloneDisk, "linked")
 	if err := os.Symlink(filepath.Join(rcloneDisk, "photos"), link); err != nil && !errors.Is(err, os.ErrExist) {
 		t.Skip("no symlinks here:", err)
@@ -451,8 +429,6 @@ var (
 	rcloneErr  error
 )
 
-// initRclone initialises rclone in this process once (Init runs once per process). The config
-// file has one remote, disk, which is an alias of a folder that holds photos/a.txt.
 func initRclone(t *testing.T) {
 	t.Helper()
 	rcloneOnce.Do(func() {
@@ -484,9 +460,6 @@ func initRclone(t *testing.T) {
 	}
 }
 
-// TestBootDuringShutdown checks that a shutdown or planned restart that begins while Boot runs
-// doesn't count as a mount failing. Nothing is notified, and the records that StopAll kept stay
-// kept, so a mount from the previous run that Boot couldn't start comes back after the restart.
 func TestBootDuringShutdown(t *testing.T) {
 	t.Run("RestoreAfterStopAll", func(t *testing.T) {
 		src := t.TempDir()
@@ -536,8 +509,6 @@ func TestBootDuringShutdown(t *testing.T) {
 	})
 }
 
-// TestLockedConfig checks that a mount from a config file with an unknown password is refused
-// before anything starts, and that the error names the file.
 func TestLockedConfig(t *testing.T) {
 	f := newFixture(t)
 	f.configs.err = errors.New("the config is encrypted: enter its password")
@@ -552,8 +523,6 @@ func TestLockedConfig(t *testing.T) {
 	}
 }
 
-// TestEnabled checks that an automount runs when it is switched on and has a mount point. Its
-// source is the remote's path, or the remote's root when there is no path.
 func TestEnabled(t *testing.T) {
 	all := []Automount{
 		{Remote: "path", Enabled: true, RemotePath: "photos", MountPoint: "/mnt/photos"},

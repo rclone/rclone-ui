@@ -14,7 +14,6 @@ func (a *API) Catalog(ctx context.Context) (NotificationCatalog, error) {
 	return late.Call(ctx, a.s, func(s *Service) (NotificationCatalog, error) { return s.Catalog(), nil })
 }
 
-// ListTargets lists the targets, with their last errors in the app's language.
 func (a *API) ListTargets(ctx context.Context) ([]NotificationTarget, error) {
 	return late.Call(ctx, a.s, func(s *Service) ([]NotificationTarget, error) {
 		list, err := s.Targets(ctx)
@@ -38,7 +37,6 @@ func (a *API) CreateTarget(ctx context.Context, in TargetInput) (NotificationTar
 	})
 }
 
-// UpdateTarget replaces a target. Its last error comes back in the app's language.
 func (a *API) UpdateTarget(ctx context.Context, id string, in TargetInput) (NotificationTarget, error) {
 	return late.Call(ctx, a.s, func(s *Service) (NotificationTarget, error) {
 		t, err := s.Update(ctx, id, in)
@@ -70,7 +68,6 @@ func (a *API) TestSmtp(ctx context.Context, to string) (Outcome, error) {
 	return late.Call(ctx, a.s, func(s *Service) (Outcome, error) { return s.TestSMTP(ctx, to) })
 }
 
-// ReportUpdate sends app.update-available when the shell's updater finds a new release.
 func (a *API) ReportUpdate(ctx context.Context, u UpdateAvailable) error {
 	return a.s.Do(ctx, func(s *Service) error {
 		s.Notify(context.WithoutCancel(ctx), NotificationEventUpdateAvailable, u)

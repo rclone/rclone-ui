@@ -19,19 +19,16 @@ import (
 	"github.com/ebitengine/purego/objc"
 )
 
-// Values of NSPasteboardAccessBehavior (macOS 15.4).
 const (
 	accessAlwaysAllow = 2
 	accessAlwaysDeny  = 3
 )
 
-// detectWait is how long a peek waits for the pasteboard's pattern detection, which replies on
-// its own queue.
 const detectWait = 200 * time.Millisecond
 
 var (
 	clipOnce sync.Once
-	webURL   objc.ID // NSPasteboardDetectionPatternProbableWebURL, or 0 before macOS 15.4
+	webURL   objc.ID
 
 	poolOnce sync.Once
 	poolPush func() uintptr
@@ -71,10 +68,6 @@ func clipSetup() {
 	}
 }
 
-// PeekClipboard returns what the launcher can learn about the clipboard without macOS prompting
-// the user: the change count, which tells one copy apart from the next, and whether it holds a
-// link. When reading doesn't prompt, it also returns the text. That is the case before macOS 15.4,
-// or when the user always allows Rclone UI to paste. It can be called from any thread.
 func PeekClipboard() (text string, link bool, count string) {
 	autoreleased(func() { text, link, count = peek() })
 	return text, link, count
@@ -84,7 +77,7 @@ func peek() (text string, link bool, count string) {
 	clipOnce.Do(clipSetup)
 	pb := msg(class("NSPasteboard"), "generalPasteboard")
 	count = strconv.Itoa(objc.Send[int](pb, sel("changeCount")))
-	access := -1 // no pasteboard privacy, so reading doesn't prompt
+	access := -1
 	if msgBool(pb, "respondsToSelector:", sel("accessBehavior")) {
 		access = objc.Send[int](pb, sel("accessBehavior"))
 	}
@@ -109,8 +102,6 @@ func detectLink(pb objc.ID) bool {
 	})
 }
 
-// detect gives each call its own completion handler. A late reply, which arrives after its peek
-// gave up, then can't be taken as the reply to the next peek, which may be about a different copy.
 func detect(ask func(done objc.Block)) bool {
 	found := make(chan bool, 1)
 	done := objc.NewBlock(func(_ objc.Block, patterns, _ objc.ID) {

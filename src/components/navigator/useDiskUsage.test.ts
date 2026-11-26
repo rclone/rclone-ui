@@ -3,8 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { coreFailure } from '../../../lib/errors.testing'
 import { DiskUsage } from './useDiskUsage'
 
-// Fakes of the Wails events and the bound calls. A scan's call stays open until the test ends
-// it, and the test sends its progress.
 const fake = vi.hoisted(() => ({
     listeners: new Set<(ev: { name: string; data: unknown }) => void>(),
     scans: [] as {
@@ -63,7 +61,6 @@ vi.mock('../../../lib/core/api', () => ({
     },
 }))
 
-/** Sends a scan's progress the way the core does. */
 function progress(request: string, state: string, root = 'gdrive:', bytes = 0) {
     const data = {
         request,
@@ -136,7 +133,6 @@ describe('the scan that the page holds', () => {
         usage.rescan()
         expect(fake.scans).toHaveLength(2)
         expect(fake.scans[1].from).toBe('gdrive:')
-        // The first call's end no longer matters.
         expect(usage.snapshot().phase).toBe('opening')
         detach()
     })
@@ -161,7 +157,6 @@ describe('the scan that the page holds', () => {
         fake.scans[0].resolve()
         await settle()
         expect(usage.snapshot().phase).toBe('gone')
-        // A gone scan isn't shown again: opening scans anew.
         await usage.open('gdrive:')
         expect(fake.scans).toHaveLength(2)
         detach()

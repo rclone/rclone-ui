@@ -33,7 +33,6 @@ const GOOGLE_PLAY = 'https://play.google.com/store/apps/details?id=com.rclone.mo
 
 type Field = 'url' | 'user' | 'pass' | 'command'
 
-/** The tunnel's state, as the page shows it. */
 type Phase = 'loading' | 'unknown' | 'off' | 'failed' | 'starting' | 'restarting' | 'on'
 
 const PHASES: Record<Phase, { label: string; kind: StatusKind }> = {
@@ -48,22 +47,12 @@ const PHASES: Record<Phase, { label: string; kind: StatusKind }> = {
 
 type StepState = 'current' | 'done' | 'failed' | 'upcoming'
 
-// The remote tunnel (core/tunnel). While it's on, the core runs `rclone tunnel` on the active
-// config. This serves rclone's rc with random credentials behind a cloudflared quick tunnel. The
-// QR code holds {url, user, pass}, which the mobile app reads. The same command also works in a
-// terminal.
-/**
- * The Mobile & Remote Control window: three steps that connect a phone (get the app, turn on the
- * tunnel, scan its code). Each step shows whether it is done.
- */
 export default function MobileRemoteControl() {
     const statusQuery = useTunnel()
     const status = statusQuery.data
     const on = status?.state === TunnelState.StateOn
     const starting =
         status?.state === TunnelState.StateStarting || status?.state === TunnelState.StateRestarting
-    // The tunnel can also be turned off while it is starting (for example, waiting for the
-    // network) or keeps restarting.
     const canDisable = on || starting
     const cloudflaredTunnel = on ? status : undefined
 
@@ -341,7 +330,6 @@ function Step({
     )
 }
 
-/** What a screen reader says before a step's title. */
 function stepWords(n: number, state: StepState): string {
     switch (state) {
         case 'done':
@@ -573,7 +561,6 @@ function QrPlaceholder() {
     )
 }
 
-/** Running the same tunnel in a terminal, folded away because most people won't. */
 function Terminal({
     command,
     copied,
@@ -707,7 +694,6 @@ function StoreButton({ store, onPress }: { store: 'apple' | 'google'; onPress: (
     )
 }
 
-// The badges' words, as Apple and Google write them: a small line over the store's name.
 const SMALL = 'text-[10px] leading-tight tracking-wide opacity-80'
 const LARGE = 'text-base font-semibold leading-tight tracking-tight'
 
@@ -760,10 +746,6 @@ function PlayMark() {
     )
 }
 
-/**
- * The picture of a phone beside the steps, with a glow of the window's tone behind it. It is left
- * out of a narrow window.
- */
 function Phone() {
     return (
         <div
@@ -782,7 +764,6 @@ function Phone() {
     )
 }
 
-/** The host of the tunnel's address, which is all of it that matters at a glance. */
 function hostOf(url: string | undefined): string {
     if (!url) return ''
     try {

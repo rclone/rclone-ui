@@ -41,8 +41,6 @@ const ENCRYPTION: { key: SMTPEncryption; label: string }[] = [
     },
 ]
 
-// Fields that can show an error when the core refuses a save. Any other refusal is shown in a
-// dialog.
 const REFUSABLE_FIELDS = ['port', 'encryption', 'fromAddress'] as const
 type RefusableField = (typeof REFUSABLE_FIELDS)[number]
 
@@ -51,7 +49,6 @@ interface Draft {
     port: string
     encryption: SMTPEncryption
     username: string
-    /** Never filled in from the core. Empty means "keep the saved password". */
     password: string
     fromAddress: string
     fromName: string
@@ -74,9 +71,6 @@ function draftOf(view: SMTPView | undefined): Draft {
     }
 }
 
-// The mail server that every Email notification goes through. The core reads it at the moment of
-// sending. The password is write-only: it goes to the keychain, and the form only learns whether
-// one is saved (`hasPassword`).
 export default function SmtpDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const smtp = useSmtp()
     const saved = smtp.data
@@ -84,8 +78,6 @@ export default function SmtpDrawer({ isOpen, onClose }: { isOpen: boolean; onClo
     const [testTo, setTestTo] = useState('')
     const [isSaving, setIsSaving] = useState(false)
     const [isTesting, setIsTesting] = useState(false)
-    // The errors from the core's refusal of the last save, by field. Each one is cleared when its
-    // field changes.
     const [refused, setRefused] = useState<Partial<Record<RefusableField, string>>>({})
     const set = (key: keyof Draft) => (value: string) => {
         setDraft((previous) => ({ ...previous, [key]: value }))
@@ -97,9 +89,6 @@ export default function SmtpDrawer({ isOpen, onClose }: { isOpen: boolean; onClo
         })
     }
 
-    // The saved settings fill the form each time the drawer opens, and again when they change
-    // (after a save in this or another window). What the user typed stays while they don't
-    // change. They are compared by value, because every refetch returns a new object.
     const savedKey = JSON.stringify(draftOf(saved))
     useEffect(() => {
         if (!isOpen) return
@@ -116,8 +105,6 @@ export default function SmtpDrawer({ isOpen, onClose }: { isOpen: boolean; onClo
             const host = draft.host.trim()
             await saveSmtp({
                 host,
-                // Anything other than a whole number is sent as 0, which the core refuses with
-                // the field's name.
                 port: RE_WHOLE_NUMBER.test(draft.port.trim()) ? Number(draft.port.trim()) : 0,
                 encryption: draft.encryption,
                 username: draft.username.trim(),
@@ -152,7 +139,6 @@ export default function SmtpDrawer({ isOpen, onClose }: { isOpen: boolean; onClo
     const test = async () => {
         setIsTesting(true)
         try {
-            // The core's message comes in the app's language.
             const sent = await testSmtp(testTo.trim())
             await message(sent || t`Test email sent.`, { title: t`Test email sent`, kind: 'info' })
         } catch (error) {

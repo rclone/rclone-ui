@@ -36,8 +36,7 @@ const (
 )
 
 // Form is an operation and its arguments. Only the field of the operation is set, or none for
-// an operation's empty form. The fields are separate, rather than one field of an interface type,
-// so that the pages get a type for each operation's arguments.
+// an operation's empty form.
 type Form struct {
 	Operation    Operation     `json:"operation"`
 	Copy         *CopyArgs     `json:"copy,omitempty"`
@@ -57,38 +56,23 @@ type Form struct {
 }
 
 type args interface {
-	// paths returns the paths that rclone opens as an Fs. They are checked before rclone is
-	// asked anything about them.
 	paths() []string
-	// ends returns the sources and destination shown on the transfer. The sources are also the
-	// paths that describeSources asks rclone about.
 	ends() (sources []string, destination string)
-	// groups returns the option groups, or nil for a form without options.
 	groups() *Groups
-	// pathFields returns the fields that hold a path, so that a remote's rename can rewrite
-	// them.
 	pathFields() []*string
 }
 
-// argsOf is satisfied by a pointer to an arguments type.
 type argsOf[A any] interface {
 	*A
 	args
 }
 
-// slot is an operation's field of Form.
 type slot struct {
-	// live returns the field's arguments, or nil when the field is not set. Changing them
-	// changes the form.
-	live func(f *Form) args
-	// copy returns a copy of the field's arguments, or nil when the field is not set. The copy
-	// shares the option groups with the form.
-	copy func(f *Form) args
-	// fresh sets the field to empty arguments and returns them, for decoding into.
+	live  func(f *Form) args
+	copy  func(f *Form) args
 	fresh func(f *Form) args
 }
 
-// slotOf returns the slot of the field that field points to.
 func slotOf[A any, P argsOf[A]](field func(*Form) **A) slot {
 	return slot{
 		live: func(f *Form) args {
@@ -113,7 +97,6 @@ func slotOf[A any, P argsOf[A]](field func(*Form) **A) slot {
 	}
 }
 
-// slots holds the field of each operation, in the order of Form's fields.
 var slots = []struct {
 	op Operation
 	slot
@@ -142,9 +125,6 @@ func slotFor(op Operation) (slot, bool) {
 	return slot{}, false
 }
 
-// args returns a copy of the form's arguments, or empty arguments when its field is not set. It
-// refuses an unknown operation, and a form with the field of another operation set, because the
-// page would have meant something that doesn't run.
 func (f Form) args() (args, error) {
 	own, ok := slotFor(f.Operation)
 	if !ok {
@@ -161,15 +141,11 @@ func (f Form) args() (args, error) {
 	return own.fresh(&f), nil
 }
 
-// Check returns an error when the form's operation is unknown, or when it holds the arguments of
-// another operation.
 func (f Form) Check() error {
 	_, err := f.args()
 	return err
 }
 
-// MarshalArgs returns the form's arguments as JSON, which is how a transfer and a schedule store
-// them. DecodeForm reads them back.
 func (f Form) MarshalArgs() (json.RawMessage, error) {
 	a, err := f.args()
 	if err != nil {
@@ -184,9 +160,6 @@ func (f Form) MarshalArgs() (json.RawMessage, error) {
 	return bytes.TrimRight(b.Bytes(), "\n"), nil
 }
 
-// DecodeForm returns the form of op with the arguments that MarshalArgs wrote. A field that the
-// operation's arguments don't have is refused, so a form never runs without part of what it
-// asked for.
 func DecodeForm(op Operation, raw json.RawMessage) (Form, error) {
 	s, ok := slotFor(op)
 	if !ok {
@@ -206,8 +179,6 @@ func DecodeForm(op Operation, raw json.RawMessage) (Form, error) {
 	return f, nil
 }
 
-// Ends returns the sources and destination shown on a transfer of the form. It returns nothing
-// for a form that args refuses.
 func (f Form) Ends() (sources []string, destination string) {
 	a, err := f.args()
 	if err != nil {
@@ -216,8 +187,6 @@ func (f Form) Ends() (sources []string, destination string) {
 	return a.ends()
 }
 
-// Groups returns the option groups of the form's arguments, or nil when f is nil, when the
-// operation has none, or when its field is not set. Changing them changes the form.
 func (f *Form) Groups() *Groups {
 	if f == nil {
 		return nil
@@ -233,10 +202,6 @@ func (f *Form) Groups() *Groups {
 	return a.groups()
 }
 
-// RenameRemote rewrites the form after the remote from is renamed to to: its paths, the option
-// values that name a path on the remote, the keys of the remotes group, and bisync's outer backup
-// folders. It changes the form in place, and reports whether anything changed, and whether the
-// paths did.
 func (f *Form) RenameRemote(from, to string) (changed, paths bool) {
 	s, ok := slotFor(f.Operation)
 	if !ok {
@@ -258,7 +223,6 @@ func (f *Form) RenameRemote(from, to string) (changed, paths bool) {
 	return changed, paths
 }
 
-// Form returns the arguments as a form of their operation. There is one for each arguments type.
 func (a CopyArgs) Form() Form { return Form{Operation: OperationCopy, Copy: &a} }
 
 func (a MoveArgs) Form() Form { return Form{Operation: OperationMove, Move: &a} }

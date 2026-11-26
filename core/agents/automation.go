@@ -19,9 +19,6 @@ import (
 	"github.com/rclone/rclone-ui/core/watchers"
 )
 
-// The tools for what runs by itself: schedules, which run a transfer at set times, and watchers,
-// which keep two folders the same.
-
 func (s *Server) automationTools() {
 	s.listSchedulesTool()
 	s.saveScheduleTool()
@@ -37,13 +34,11 @@ func (s *Server) automationTools() {
 	s.syncWatcherNowTool()
 }
 
-// The limits of list_schedules and list_watchers.
 const (
 	automationLimit    = 100
 	automationLimitMax = 500
 )
 
-// automationCap returns how many of n items a list returns for the limit an agent asked for.
 func automationCap(n, limit int) int {
 	if limit <= 0 {
 		limit = automationLimit
@@ -51,8 +46,6 @@ func automationCap(n, limit int) int {
 	return min(n, limit, automationLimitMax)
 }
 
-// rfc3339MS returns a time in milliseconds as RFC 3339, in this computer's time zone, or "" for
-// none.
 func rfc3339MS(ms *int64) string {
 	if ms == nil {
 		return ""
@@ -60,17 +53,12 @@ func rfc3339MS(ms *int64) string {
 	return time.UnixMilli(*ms).Format(time.RFC3339)
 }
 
-// removed is what the tools that delete a schedule or a watcher return.
 type removed struct {
 	Deleted string `json:"deleted" jsonschema:"the name of what was deleted"`
 }
 
-// scheduleOps are the operations that a schedule runs, for the refusals.
 const scheduleOps = "copy, move, sync, bisync, delete or purge"
 
-// cronInWords says a cron expression in words, in this computer's time zone, for the shapes that
-// the app's schedule drawer writes (src/components/schedule/when.ts): "every day at 02:00". It
-// returns "" for any other expression, which an agent reads as it is.
 func cronInWords(expr string) string {
 	switch strings.ToLower(strings.TrimSpace(expr)) {
 	case "@hourly":
@@ -120,7 +108,6 @@ func cronInWords(expr string) string {
 	return ""
 }
 
-// cronNumber reads a cron field that is one plain number between lo and hi.
 func cronNumber(field string, lo, hi int) (int, bool) {
 	n, err := strconv.Atoi(field)
 	if err != nil || n < lo || n > hi || strings.ContainsAny(field, "+-") {
@@ -129,8 +116,6 @@ func cronNumber(field string, lo, hi int) (int, bool) {
 	return n, true
 }
 
-// flatOptions returns the options of a form's groups as one map, by rclone's name, as an agent
-// gives them. Bisync's switches and the per-remote overrides aren't options, and are left out.
 func flatOptions(g *operations.Groups) map[string]any {
 	if g == nil {
 		return nil
@@ -150,9 +135,6 @@ func flatOptions(g *operations.Groups) map[string]any {
 	return out
 }
 
-// scheduleForm builds the form that a schedule runs from an agent's flat fields. It refuses what
-// the operation's form can't hold, so that an agent can't save a form that means something else:
-// a sync and a bisync take one source, and a delete and a purge take no destination.
 func scheduleForm(op operations.Operation, sources []string, destination string, g operations.Groups) (operations.Form, error) {
 	if len(sources) == 0 {
 		return operations.Form{}, errs.Errorf("Give the sources that the %s reads, such as [\"gdrive:Photos\"].", op)
@@ -185,33 +167,29 @@ func scheduleForm(op operations.Operation, sources []string, destination string,
 	return operations.BisyncArgs{Source: sources[0], Destination: destination, Options: g}.Form(), nil
 }
 
-// takesDestination reports whether an operation that a schedule runs writes to a destination.
 func takesDestination(op operations.Operation) bool {
 	return op != operations.OperationDelete && op != operations.OperationPurge
 }
 
-// scheduleItem is a schedule, as the schedule tools return it.
 type scheduleItem struct {
-	ID          string         `json:"id" jsonschema:"the schedule's id, for the other schedule tools"`
-	Name        string         `json:"name"`
-	Operation   string         `json:"operation" jsonschema:"copy, move, sync, bisync, delete or purge"`
-	Sources     []string       `json:"sources"`
-	Destination string         `json:"destination,omitempty"`
-	Options     map[string]any `json:"options,omitempty" jsonschema:"rclone's options that each run uses, by name"`
-	When        string         `json:"when" jsonschema:"the cron expression, in this computer's time zone"`
-	WhenInWords string         `json:"when_in_words,omitempty" jsonschema:"the same in words, for the common shapes"`
-	Paused      bool           `json:"paused"`
-	NextRun     string         `json:"next_run,omitempty" jsonschema:"when it runs next, or nothing while it is paused"`
-	// Running is set while a run is in progress, with its transfer once it has started.
-	Running           bool   `json:"running,omitempty"`
-	RunningTransferID string `json:"running_transfer_id,omitempty"`
-	LastRunAt         string `json:"last_run_at,omitempty" jsonschema:"when the last run ended"`
-	LastResult        string `json:"last_result,omitempty" jsonschema:"how the last run ended: completed, nothing (nothing to do), failed, stopped or interrupted"`
-	LastError         string `json:"last_error,omitempty"`
-	LastTransferID    string `json:"last_transfer_id,omitempty" jsonschema:"the last run's transfer, for get_transfer and History"`
+	ID                string         `json:"id" jsonschema:"the schedule's id, for the other schedule tools"`
+	Name              string         `json:"name"`
+	Operation         string         `json:"operation" jsonschema:"copy, move, sync, bisync, delete or purge"`
+	Sources           []string       `json:"sources"`
+	Destination       string         `json:"destination,omitempty"`
+	Options           map[string]any `json:"options,omitempty" jsonschema:"rclone's options that each run uses, by name"`
+	When              string         `json:"when" jsonschema:"the cron expression, in this computer's time zone"`
+	WhenInWords       string         `json:"when_in_words,omitempty" jsonschema:"the same in words, for the common shapes"`
+	Paused            bool           `json:"paused"`
+	NextRun           string         `json:"next_run,omitempty" jsonschema:"when it runs next, or nothing while it is paused"`
+	Running           bool           `json:"running,omitempty"`
+	RunningTransferID string         `json:"running_transfer_id,omitempty"`
+	LastRunAt         string         `json:"last_run_at,omitempty" jsonschema:"when the last run ended"`
+	LastResult        string         `json:"last_result,omitempty" jsonschema:"how the last run ended: completed, nothing (nothing to do), failed, stopped or interrupted"`
+	LastError         string         `json:"last_error,omitempty"`
+	LastTransferID    string         `json:"last_transfer_id,omitempty" jsonschema:"the last run's transfer, for get_transfer and History"`
 }
 
-// scheduleItemOf converts a schedule.
 func scheduleItemOf(sc schedules.Schedule) scheduleItem {
 	sources, destination := sc.Form.Ends()
 	if sources == nil {
@@ -233,8 +211,7 @@ type schedulesIn struct {
 type scheduleList struct {
 	Schedules []scheduleItem `json:"schedules"`
 	Total     int            `json:"total"`
-	// Truncated is set when there are more schedules than were returned.
-	Truncated bool `json:"truncated,omitempty" jsonschema:"there are more: call again with a higher limit"`
+	Truncated bool           `json:"truncated,omitempty" jsonschema:"there are more: call again with a higher limit"`
 }
 
 func (s *Server) listSchedulesTool() {
@@ -268,13 +245,10 @@ type saveScheduleIn struct {
 	Options     map[string]any `json:"options,omitempty" jsonschema:"rclone's options for each run, by name, such as {\"max_age\": \"7d\", \"exclude\": [\"*.tmp\"]}. When changing a schedule, these replace its saved options."`
 }
 
-// scheduleSaved is what save_schedule returns: the schedule, and what it found while saving.
 type scheduleSaved struct {
-	Schedule scheduleItem `json:"schedule"`
-	// NextRuns are the next 3 times it runs.
-	NextRuns []string `json:"next_runs,omitempty" jsonschema:"the next 3 times it runs, unless it is paused"`
-	Warning  string   `json:"warning,omitempty"`
-	// IgnoredOptions are the options that the operation doesn't use, which weren't saved.
+	Schedule       scheduleItem    `json:"schedule"`
+	NextRuns       []string        `json:"next_runs,omitempty" jsonschema:"the next 3 times it runs, unless it is paused"`
+	Warning        string          `json:"warning,omitempty"`
 	IgnoredOptions []optionLeftOut `json:"ignored_options,omitempty"`
 }
 
@@ -331,7 +305,6 @@ func (s *Server) saveScheduleTool() {
 			return scheduleSaved{}, errs.New("Give when the schedule runs, as a cron expression such as \"0 2 * * *\".")
 		}
 
-		// A dry run is for one run, so a schedule never keeps it.
 		var ignored []optionLeftOut
 		flat := maps.Clone(in.Options)
 		for key := range in.Options {
@@ -348,14 +321,12 @@ func (s *Server) saveScheduleTool() {
 			groups, left, err = optionGroupsFor(op, "", flat)
 		case op == saved.Form.Operation:
 			groups = *old
-		default: // the saved options, sorted again for the new operation
+		default:
 			groups, left, err = optionGroupsFor(op, "", flatOptions(old))
 		}
 		if err != nil {
 			return scheduleSaved{}, err
 		}
-		// The per-remote overrides, and bisync's switches, are set in the app's windows. A change
-		// of the options keeps them.
 		if old != nil {
 			if groups.Remotes == nil {
 				groups.Remotes = old.Remotes
@@ -435,16 +406,13 @@ func (s *Server) resumeScheduleTool() {
 	})
 }
 
-// scheduleRun is what run_schedule_now returns.
 type scheduleRun struct {
 	TransferID string `json:"transfer_id,omitempty" jsonschema:"the run's transfer: follow it with wait_for_transfer or get_transfer"`
 	Running    bool   `json:"running" jsonschema:"the run is in progress"`
-	// Result and Error are set when the run ended before the tool returned.
-	Result string `json:"result,omitempty" jsonschema:"how the run ended, when it ended at once: completed, nothing (nothing to do), failed, stopped or interrupted"`
-	Error  string `json:"error,omitempty"`
+	Result     string `json:"result,omitempty" jsonschema:"how the run ended, when it ended at once: completed, nothing (nothing to do), failed, stopped or interrupted"`
+	Error      string `json:"error,omitempty"`
 }
 
-// runStartWait is how long run_schedule_now waits for the run's transfer to start.
 const runStartWait = 10 * time.Second
 
 func (s *Server) runScheduleNowTool() {
@@ -462,7 +430,6 @@ func (s *Server) runScheduleNowTool() {
 		if err := s.o.APIs.Schedules.RunNow(ctx, in.ScheduleID); err != nil {
 			return scheduleRun{}, err
 		}
-		// The run's transfer starts in the background, and the schedule names it once it has.
 		ctx, cancel := context.WithTimeout(ctx, runStartWait)
 		defer cancel()
 		tick := time.NewTicker(50 * time.Millisecond)
@@ -471,7 +438,7 @@ func (s *Server) runScheduleNowTool() {
 			sc, err := s.o.APIs.Schedules.Get(ctx, in.ScheduleID)
 			switch {
 			case err != nil:
-				return scheduleRun{Running: true}, nil // it started, and ctx ended
+				return scheduleRun{Running: true}, nil
 			case sc.RunningID != "":
 				return scheduleRun{TransferID: sc.RunningID, Running: true}, nil
 			case !sc.Running:
@@ -490,15 +457,13 @@ func (s *Server) runScheduleNowTool() {
 	})
 }
 
-// watcherItem is a watcher, as the watcher tools return it.
 type watcherItem struct {
-	ID      string `json:"id" jsonschema:"the watcher's id, for the other watcher tools"`
-	Name    string `json:"name"`
-	FolderA string `json:"folder_a"`
-	FolderB string `json:"folder_b"`
-	Paused  bool   `json:"paused"`
-	State   string `json:"state" jsonschema:"initializing (its first merge of the two folders hasn't succeeded yet), active, paused, failing (its runs fail, and it tries again every minute) or needs_attention"`
-	// Attention says why the watcher stopped until the user acts.
+	ID             string `json:"id" jsonschema:"the watcher's id, for the other watcher tools"`
+	Name           string `json:"name"`
+	FolderA        string `json:"folder_a"`
+	FolderB        string `json:"folder_b"`
+	Paused         bool   `json:"paused"`
+	State          string `json:"state" jsonschema:"initializing (its first merge of the two folders hasn't succeeded yet), active, paused, failing (its runs fail, and it tries again every minute) or needs_attention"`
 	Attention      string `json:"attention,omitempty" jsonschema:"why it stopped and what the user can do, when it needs attention"`
 	LastError      string `json:"last_error,omitempty"`
 	LastRunAt      string `json:"last_run_at,omitempty" jsonschema:"when its last run ended"`
@@ -506,8 +471,6 @@ type watcherItem struct {
 	LastTransferID string `json:"last_transfer_id,omitempty" jsonschema:"its last run that changed something or failed, for get_transfer and History"`
 }
 
-// watcherItemOf converts a watcher. Its state is the one that the Watchers window shows
-// (src/pages/Watchers/status.ts).
 func watcherItemOf(w watchers.Watcher) watcherItem {
 	out := watcherItem{
 		ID: w.ID, Name: w.Name, FolderA: w.PathA, FolderB: w.PathB, Paused: w.Paused, LastError: w.LastError,
@@ -551,10 +514,9 @@ type watchersIn struct {
 }
 
 type watcherList struct {
-	Watchers []watcherItem `json:"watchers"`
-	Total    int           `json:"total"`
-	// Truncated is set when there are more watchers than were returned.
-	Truncated bool `json:"truncated,omitempty" jsonschema:"there are more: call again with a higher limit"`
+	Watchers  []watcherItem `json:"watchers"`
+	Total     int           `json:"total"`
+	Truncated bool          `json:"truncated,omitempty" jsonschema:"there are more: call again with a higher limit"`
 }
 
 func (s *Server) listWatchersTool() {

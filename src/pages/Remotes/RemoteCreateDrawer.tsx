@@ -29,10 +29,8 @@ import RemoteFields, { shownValues, useRemoteForm, valuesAsText } from './Remote
 
 const LOOK = WINDOWS.remotes
 
-/** The backends that are offered as cards, before the user picks a type. */
 export const POPULAR = ['drive', 'dropbox', 'onedrive', 's3', 'b2', 'iclouddrive', 'sftp', 'webdav']
 
-/** The sheet that creates a remote. `type` opens it with that type already picked. */
 export default function RemoteCreateDrawer({
     isOpen,
     type,
@@ -53,32 +51,22 @@ export default function RemoteCreateDrawer({
     } = form
 
     // rclone's config/create overwrites a section with the same name before it runs any login,
-    // so a name clash is caught while typing. The core checks again on create.
+    // so a name clash is caught while typing.
     const nameError = useNameProblem(config.name ?? '', !!config.name)
 
-    // What the core refused when the create started, shown on the name and type fields. Typing
-    // in a field clears its error.
     const [refused, setRefused] = useState<{ name?: string; type?: string }>({})
 
-    // "More Options" stays open across a change of type and Reset.
     const [showMore, setShowMore] = useState(false)
 
-    // Choosing another type clears the options below, so the type field says so once one is
-    // filled in.
     const optionsFilled = Object.entries(config).some(
         ([k, v]) => k !== 'name' && k !== 'type' && v !== undefined && v !== null && v !== ''
     )
 
-    // The config session that this drawer started. Closing the drawer cancels it, so a login
-    // approved later creates nothing.
     const session = useRef<string | null>(null)
 
-    // Anything typed or picked counts as a change, until the remote is created.
     const edited = Object.values(config).some((v) => v !== undefined && v !== null && v !== '')
     const unsaved = useUnsavedChanges(isOpen && edited)
 
-    // The remote is created in the core as a config session. The session's questions are asked
-    // here, and its sign-in opens the browser.
     const createRemoteMutation = useMutation({
         mutationFn: async ({
             name,
@@ -123,16 +111,12 @@ export default function RemoteCreateDrawer({
     }, [setConfig, createRemoteMutation])
 
     const close = () => {
-        // There is no need to check the session's state first. The core doesn't cancel a session
-        // that is already completing, and it forgets sessions that have ended.
         if (session.current) cancelSession(session.current)
         session.current = null
         startTransition(reset)
         onClose()
     }
 
-    // Every way of closing the drawer comes here (Cancel, Escape), and asks first when something
-    // was entered.
     const requestClose = async () => {
         if (await unsaved.confirm()) close()
     }
@@ -146,7 +130,6 @@ export default function RemoteCreateDrawer({
         [setConfig]
     )
 
-    // A type picked before the sheet opened (in the empty Remotes window) starts the form.
     useEffect(() => {
         if (isOpen && type) handleTypeChange(type)
     }, [isOpen, type, handleTypeChange])

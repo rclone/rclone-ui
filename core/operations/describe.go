@@ -13,15 +13,7 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// describeSources asks rclone whether each source is a file or a folder. It runs one stat
-// (operations.StatJSON) per distinct path, in a job of its own, with the settings the plan will
-// run with: the main options and the per-remote overrides from the remotes group.
-//
-// A trailing slash doesn't change the result. A root is always a folder. Only its first page is
-// read, because rclone's stat of a root lists all of it, and one page is enough to detect an
-// unplugged disk or a missing bucket. When the remote can't be reached, that error is returned
-// rather than "does not exist". Empty paths are skipped, because the builders report them as
-// missing.
+// rclone's stat of a root lists all of it, so only the root's first page is read.
 func describeSources(ctx context.Context, paths []string, s settings) (Kinds, error) {
 	group := rclone.UIGroup("describe", ids.New())
 	defer rclone.DeleteGroup(context.WithoutCancel(ctx), group)
@@ -75,14 +67,10 @@ func describeSources(ctx context.Context, paths []string, s settings) (Kinds, er
 	return kinds, nil
 }
 
-// SourceMissingError is the refusal of a start whose source doesn't exist. Path is the source as
-// the form gave it. A schedule reads it to drop the sources that a Move, Delete or Purge has
-// already removed.
 type SourceMissingError struct{ Path string }
 
 func (e *SourceMissingError) Error() string { return e.Unwrap().Error() }
 
-// Unwrap returns the refusal that the user sees. errs.Is finds it, and the shell translates it.
 func (e *SourceMissingError) Unwrap() error {
 	return errs.Errorf("Source does not exist, %s is missing", e.Path)
 }

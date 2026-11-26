@@ -4,15 +4,10 @@ import { useTelemetryInfo } from '../../../lib/telemetry'
 import { SettingRow, SettingsGroup, SwitchRow } from './SettingsGroup'
 import { SECTIONS } from './sections'
 
-/**
- * The switch for what the app sends about how it is used (core/telemetry). It starts on, except
- * on Linux.
- */
 export default function PrivacyGroup() {
     const { settings } = useSettings()
     const info = useTelemetryInfo()
     const choice = settings?.telemetry
-    // DO_NOT_TRACK in the environment turns sharing off whatever the switch says.
     const refused = !!info?.doNotTrack
 
     return (

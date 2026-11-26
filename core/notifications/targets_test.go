@@ -31,7 +31,6 @@ func TestTargetsCRUD(t *testing.T) {
 		t.Fatalf("added = %+v", added)
 	}
 
-	// The url is stored as entered, and its key is the hash of the lower-cased url.
 	var stored, key string
 	if err := f.db.Read(context.Background(), func(tx *sql.Tx) error {
 		return tx.QueryRow(`SELECT url, url_key FROM notification_targets WHERE id = ?`, added.ID).Scan(&stored, &key)
@@ -49,7 +48,6 @@ func TestTargetsCRUD(t *testing.T) {
 		t.Fatalf("list = %+v, %v", list, err)
 	}
 
-	// An update keeps the provider and replaces the rest.
 	upd, err := f.s.Update(f.ctx, added.ID, TargetInput{Name: "Renamed", URL: "https://example.com/other",
 		Events: []NotificationEvent{NotificationEventServeFailed}})
 	if err != nil || upd.Name != "Renamed" || upd.Provider != NotificationProviderWebhook || upd.IsEnabled ||
@@ -67,7 +65,6 @@ func TestTargetsCRUD(t *testing.T) {
 		t.Errorf("update of a missing target: %v", err)
 	}
 
-	// Turning it on.
 	if err := f.s.SetEnabled(f.ctx, added.ID, true); err != nil || !f.get(added.ID).IsEnabled {
 		t.Fatalf("enable: %v", err)
 	}
@@ -79,7 +76,6 @@ func TestTargetsCRUD(t *testing.T) {
 		t.Errorf("a missing target: %v", err)
 	}
 
-	// Delete, twice.
 	if err := f.s.Delete(f.ctx, added.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -95,8 +91,6 @@ func TestTargetsCRUD(t *testing.T) {
 	}
 }
 
-// TestTargetsSameMillisecondKeepCreationOrder checks that targets created in the same millisecond
-// still list in the order they were created. The ids are random, so they can't break the tie.
 func TestTargetsSameMillisecondKeepCreationOrder(t *testing.T) {
 	f := newFixture(t)
 	var want []string
@@ -184,7 +178,6 @@ func TestTargetRefusals(t *testing.T) {
 			t.Errorf("%s: %v, want %s: %s", c.name, err, c.field, c.msg)
 		}
 	}
-	// A target's own url doesn't count as a duplicate.
 	if _, err := f.s.Update(f.ctx, mail.ID, TargetInput{Name: "Ops!", URL: "OPS@example.com, alice@example.com",
 		Events: []NotificationEvent{NotificationEventJobFailed}}); err != nil {
 		t.Errorf("an update keeping its url: %v", err)

@@ -1,6 +1,3 @@
-// Package bus is the core's in-process event bus. Services publish what changed, and the shell
-// passes each event on to the windows so the pages know what to refetch. Events are not stored.
-// A subscriber that falls behind is told to read again what it shows (Resync).
 package bus
 
 import "sync"
@@ -10,15 +7,13 @@ type Event struct {
 	Data any
 }
 
-// buffer is how many events a subscriber can fall behind before it is dropped.
 const buffer = 256
 
 // Bus sends each event to all of its subscribers. Publish never blocks. A subscriber that cannot
 // keep up is closed instead, and Core.Subscribe then subscribes again and sends Resync.
 type Bus struct {
-	mu   sync.Mutex
-	subs map[*Sub]struct{}
-	// heard is closed by the first call to Subscribe.
+	mu        sync.Mutex
+	subs      map[*Sub]struct{}
 	heard     chan struct{}
 	heardOnce sync.Once
 }
@@ -40,7 +35,6 @@ type Sub struct {
 	bus *Bus
 }
 
-// Subscribe adds a subscriber. The app has one user, so every subscriber gets every event.
 func (b *Bus) Subscribe() *Sub {
 	c := make(chan Event, buffer)
 	s := &Sub{C: c, c: c, bus: b}
@@ -58,7 +52,6 @@ func (s *Sub) Close() {
 	s.bus.drop(s)
 }
 
-// drop removes s and closes its channel. The caller must hold b.mu.
 func (b *Bus) drop(s *Sub) {
 	if _, ok := b.subs[s]; ok {
 		delete(b.subs, s)

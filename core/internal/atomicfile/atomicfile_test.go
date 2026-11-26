@@ -40,7 +40,6 @@ func TestWriteFileFailureLeavesTheOldFile(t *testing.T) {
 	if err := WriteFile(path, []byte("old"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	// When a folder blocks the rename, the write fails and leaves no temporary file behind.
 	blocked := filepath.Join(dir, "blocked")
 	if err := os.MkdirAll(filepath.Join(blocked, "x"), 0o700); err != nil {
 		t.Fatal(err)

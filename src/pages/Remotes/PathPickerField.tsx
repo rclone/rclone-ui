@@ -13,11 +13,6 @@ const BROWSE_LABEL = {
     remote: t`Pick a remote or folder`,
 }
 
-// A text RemoteField with a browse button, for options that hold a path. rclone doesn't mark these
-// options, so the core's catalog lists them and sets `option.path`.
-// - `file` and `folder` are local paths, picked in the native dialog.
-// - `remote` is the `remote` option of a backend that wraps another (alias, crypt, …). It is
-//   picked in the file panel, as `remote:path` or a local folder.
 export default function PathPickerField({
     option,
     config,

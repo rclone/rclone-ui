@@ -20,7 +20,6 @@ func (a *API) Unlock(ctx context.Context, password string, remember bool) (Confi
 	return late.CallValue(ctx, a.s, func(s *Service) (*ConfigFile, error) { return shown(s.Unlock(ctx, password, remember)) })
 }
 
-// SetPassword encrypts the config, or changes its password.
 func (a *API) SetPassword(ctx context.Context, password string, remember bool) (ConfigFile, error) {
 	return late.CallValue(ctx, a.s, func(s *Service) (*ConfigFile, error) { return shown(s.SetPassword(ctx, password, remember)) })
 }
@@ -29,7 +28,6 @@ func (a *API) RemovePassword(ctx context.Context) (ConfigFile, error) {
 	return late.CallValue(ctx, a.s, func(s *Service) (*ConfigFile, error) { return shown(s.RemovePassword(ctx)) })
 }
 
-// ForgetPassword takes the config's password out of the keychain.
 func (a *API) ForgetPassword(ctx context.Context) (ConfigFile, error) {
 	return late.CallValue(ctx, a.s, func(s *Service) (*ConfigFile, error) { return shown(s.ForgetPassword(ctx)) })
 }

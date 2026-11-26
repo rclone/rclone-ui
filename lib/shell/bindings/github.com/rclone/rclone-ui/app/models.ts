@@ -11,10 +11,6 @@ import * as application$0 from "../../../wailsapp/wails/v3/pkg/application/model
 
 export class AgentsInfo {
     "running": boolean;
-
-    /**
-     * URL is where the server answers while it runs.
-     */
     "url": string;
 
     /**
@@ -56,8 +52,7 @@ export class AgentsInfo {
 }
 
 /**
- * CoreState is the state of the core that the windows see. It is a named type, so the bindings
- * give the pages an enum to compare with.
+ * A named type, so that the bindings give the pages an enum.
  */
 export enum CoreState {
     /**
@@ -104,10 +99,6 @@ export class CoreStatus {
     }
 }
 
-/**
- * SaveOptions describes a save dialog. Filters use the runtime's own shape, so a page passes the
- * same filters as to its Open panel.
- */
 export class SaveOptions {
     "title": string;
 
@@ -205,8 +196,7 @@ export class UpdateAvailability {
 
     /**
      * Manual means the install can't update itself, but still checks for updates, as a portable
-     * copy does. The user downloads a release that a check finds from its page
-     * (UpdateRelease.Page).
+     * copy does.
      */
     "manual": boolean;
 
@@ -266,8 +256,7 @@ export class UpdateRelease {
     "recommended": boolean;
 
     /**
-     * Page is the release's page on GitHub, with its downloads. A portable copy, which doesn't
-     * update itself, sends the user there.
+     * Page is the release's page on GitHub, with its downloads.
      */
     "page": string;
 

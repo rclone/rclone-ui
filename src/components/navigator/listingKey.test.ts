@@ -8,10 +8,6 @@ import {
     parentListingOf,
 } from './listingKey'
 
-// These keys identify every folder listing the panels show. A key that differs by a slash would
-// be a second listing of the same folder, and a key that matches too widely would refresh a
-// sibling folder after an unrelated change.
-
 test('a directory is one key whatever slash it came with, and a root stays a root', () => {
     const cases: [string, string, typeof POSIX][] = [
         ['', '', POSIX],
@@ -34,7 +30,6 @@ test('a directory is one key whatever slash it came with, and a root stays a roo
 
 test('a full path names the listing it is, and the listing that holds it', () => {
     const cases: [string, [string, string], [string, string], typeof POSIX][] = [
-        // path, the listing it is, and the listing that contains it
         ['r:a/b', ['r', 'a/b'], ['r', 'a'], POSIX],
         ['r:a', ['r', 'a'], ['r', ''], POSIX],
         ['r:', ['r', ''], ['r', ''], POSIX],
@@ -93,7 +88,6 @@ test('a folder covers its own listing and those below it, never a neighbour with
 })
 
 test('a backslash is a separator on a Windows host only', () => {
-    // On macOS and Linux, a backslash is part of a name (`odd\name` is one folder), as in rclone.
     expect(normalizeListingDir('/tmp/odd\\', POSIX)).toBe('/tmp/odd\\')
     expect(parentListingOf('/tmp/odd\\name', POSIX)).toEqual({ remote: 'UI_LOCAL_FS', dir: '/tmp' })
     expect(isListingUnder(['listing', 'r', 'odd\\name'], 'r', 'odd', POSIX)).toBe(false)
@@ -120,7 +114,6 @@ test('a share is a root as a drive is, and a remote is keyed with its parameters
         remote: 'UI_LOCAL_FS',
         dir: '\\\\nas\\share\\',
     })
-    // `gdrive,shared_with_me:` lists a different place than `gdrive:`.
     expect(listingOf('gdrive,shared_with_me:dir/a', POSIX)).toEqual({
         remote: 'gdrive,shared_with_me',
         dir: 'dir/a',

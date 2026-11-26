@@ -26,9 +26,6 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// TestMain initialises rclone once for the package, over an empty config. The tests use local
-// folders. rclone's log goes through the app's handler, as in the app, so a bisync's log lines
-// can be heard (operations.hearBisync).
 func TestMain(m *testing.M) {
 	slog.SetDefault(slog.New(slog.DiscardHandler))
 	testutil.Main(m, func(dir string) error {
@@ -46,25 +43,19 @@ func TestMain(m *testing.M) {
 	})
 }
 
-// fixture is a Service over a fresh app.db, with a scheduler that ticks every tick.
 type fixture struct {
 	t     *testing.T
 	s     *Service
 	db    *db.DB
 	bus   *bus.Bus
 	notes *notes
-	// ts is the real transfer service, when the runs go to one.
-	ts *transfers.Service
-	// run starts the scheduler.
-	run func()
+	ts    *transfers.Service
+	run   func()
 
 	evMu   sync.Mutex
 	events []bus.Event
 }
 
-// newFixture returns a Service whose runs go to runner. Its scheduler is not started: a test
-// starts it with run. A nil runner is a real transfer service (f.ts), which tells the same
-// notification targets.
 func newFixture(t *testing.T, runner runs.Transfers, tick time.Duration) *fixture {
 	t.Helper()
 	d := testdb.Open(t)
@@ -103,13 +94,11 @@ func newFixture(t *testing.T, runner runs.Transfers, tick time.Duration) *fixtur
 	})
 	f.run = func() { goes.Go(func() { f.s.Run(ctx) }) }
 	if f.ts != nil {
-		// Registered last, so that it runs first: the transfers stop before the watchers do.
 		t.Cleanup(func() { f.ts.Shutdown(context.Background(), false) })
 	}
 	return f
 }
 
-// published returns the events with that name so far.
 func (f *fixture) published(name string) []bus.Event {
 	f.evMu.Lock()
 	defer f.evMu.Unlock()
@@ -140,11 +129,9 @@ func (f *fixture) get(id string) *Watcher {
 	return w
 }
 
-// notes records the notifications sent to the targets and to the desktop.
 type notes struct {
-	mu  sync.Mutex
-	got []notifications.WatcherFailed
-	// others are the other events sent, such as a transfer's.
+	mu     sync.Mutex
+	got    []notifications.WatcherFailed
 	others []notifications.NotificationEvent
 	toasts []bus.NotifyOSData
 }
@@ -159,8 +146,6 @@ func (n *notes) Notify(_ context.Context, event notifications.NotificationEvent,
 	n.got = append(n.got, p.(notifications.WatcherFailed))
 }
 
-// Desktop records a desktop notification as the notification service would publish it. It records
-// it at once, rather than through the bus, whose subscriber records events a moment later.
 func (n *notes) Desktop(_ context.Context, e notifications.NotificationEvent, p notifications.Payload, d notifications.Desktop) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -173,7 +158,6 @@ func (n *notes) desktop() []bus.NotifyOSData {
 	return append([]bus.NotifyOSData(nil), n.toasts...)
 }
 
-// sentOthers returns the other events sent to the targets.
 func (n *notes) sentOthers() []notifications.NotificationEvent {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -186,14 +170,11 @@ func (n *notes) count() int {
 	return len(n.got)
 }
 
-// fakeRunner records the starts and stops, and ends a run when the test says so.
 type fakeRunner struct {
 	mu     sync.Mutex
 	starts []transfers.Spec
 	stops  []string
-	// closed holds the runs that ended, reported or not.
 	closed map[string]bool
-	// refuse makes the next start fail without recording anything.
 	refuse error
 }
 
@@ -227,7 +208,6 @@ func (r *fakeRunner) Open(_ context.Context, id string) (bool, error) {
 	return !r.closed[id], nil
 }
 
-// vanish ends start i (from 0) without reporting its end, as when its row can't be read.
 func (r *fakeRunner) vanish(i int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -243,7 +223,6 @@ func (r *fakeRunner) count() int {
 	return len(r.starts)
 }
 
-// params returns the bisync parameters of start i (from 0).
 func (r *fakeRunner) params(t *testing.T, i int) map[string]any {
 	t.Helper()
 	r.mu.Lock()
@@ -263,7 +242,6 @@ func (r *fakeRunner) params(t *testing.T, i int) map[string]any {
 	return out
 }
 
-// end ends start i (from 0) as its transfer would.
 func (r *fakeRunner) end(i int, state transfers.State, errText string, stats *transfers.Summary) {
 	r.vanish(i)
 	r.mu.Lock()

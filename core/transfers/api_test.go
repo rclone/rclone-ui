@@ -16,8 +16,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// templatesOf runs templates as the templates service does, from a map of id to
-// operations.TemplateArgs's arguments.
 type templatesOf map[string]struct {
 	tags             []operations.Operation
 	sources          []string
@@ -37,8 +35,6 @@ func (ts templatesOf) Run(_ context.Context, id string, tag operations.Operation
 	return f, "Template " + id, err
 }
 
-// A template runs as one of its tags, with the template as its origin and a preset that reopens
-// the operation's page.
 func TestStartTemplate(t *testing.T) {
 	f := newFixture(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -91,9 +87,6 @@ func TestStartTemplate(t *testing.T) {
 	}
 }
 
-// A start that failed after its transfer was recorded carries the transfer. A first bisync that
-// rclone refused, because the folders have no baseline yet, is a precondition that names the
-// baseline, so that the Bisync page can offer a resync.
 func TestStartedFirstBisync(t *testing.T) {
 	st := Started{ID: "t1", Seq: 4}
 	for _, c := range []struct {
@@ -105,9 +98,7 @@ func TestStartedFirstBisync(t *testing.T) {
 	}{
 		{"cannot find prior Path1 or Path2 listings: bisync aborted", errs.CodePrecondition, operations.WhatBisyncBaseline, true, st},
 		{"directory not found", errs.CodeFailed, "", true, st},
-		// Only the start of the error counts, as for the watchers and the schedules.
 		{"sync: cannot find prior Path1 or Path2 listings", errs.CodeFailed, "", true, st},
-		// A start that recorded nothing carries no transfer.
 		{"cannot find prior Path1 or Path2 listings: bisync aborted", errs.CodeFailed, "", false, Started{}},
 	} {
 		_, err := started(c.recordedAs, errors.New(c.err))
@@ -120,7 +111,6 @@ func TestStartedFirstBisync(t *testing.T) {
 		}
 	}
 
-	// The same through the API, with rclone's own refusal of a first bisync.
 	f := newFixture(t)
 	one, two := t.TempDir(), t.TempDir()
 	writeFile(t, filepath.Join(one, "a.txt"), 1)
@@ -135,8 +125,6 @@ func TestStartedFirstBisync(t *testing.T) {
 	}
 }
 
-// Start takes a page's form. The Commander's renames and folder deletes, the launcher's cleanup,
-// and the forms that only presets hold don't start through it, and nothing is recorded for them.
 func TestStartRefusesWhatNoPageStarts(t *testing.T) {
 	f := newFixture(t)
 	api := NewAPI(late.Of(f.s), late.Of[Templates](templatesOf{}))
@@ -155,8 +143,6 @@ func TestStartRefusesWhatNoPageStarts(t *testing.T) {
 			t.Errorf("%s's check: %v", form.Operation, err)
 		}
 	}
-	// A page starts its transfer as a page's or the Commander's. Templates, watchers and schedules
-	// start their own runs, so a page can't pass for one of them.
 	copied := operations.CopyArgs{Sources: []string{dir}, Destination: t.TempDir()}.Form()
 	for _, origin := range []OriginKind{OriginWatcher, OriginSchedule, OriginTemplate, "", "operation"} {
 		_, err := api.Start(f.ctx, copied, StartOptions{Origin: origin})
@@ -164,7 +150,6 @@ func TestStartRefusesWhatNoPageStarts(t *testing.T) {
 			t.Errorf("origin %q: %+v", origin, e)
 		}
 	}
-	// A page's form is checked as Start would check it.
 	if err := api.Check(f.ctx, operations.DeleteArgs{Sources: []string{dir, "/"}}.Form()); err == nil {
 		t.Error("a delete of a root passed")
 	}

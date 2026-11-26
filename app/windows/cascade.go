@@ -3,12 +3,8 @@ package windows
 // Area is a screen's work area in logical pixels.
 type Area struct{ X, Y, Width, Height int }
 
-// cascadeStep is the offset between each window and the previous one.
 const cascadeStep = 20
 
-// Cascade places a w×h window in the centre of area, then moves it by cascadeStep for each open
-// window, so that it doesn't cover them exactly. The direction alternates between down-right and
-// up-left, so a stack of windows stays near the middle. The window always stays inside the area.
 func Cascade(area Area, w, h, open int) (x, y int) {
 	x = area.X + (area.Width-w)/2
 	y = area.Y + (area.Height-h)/2

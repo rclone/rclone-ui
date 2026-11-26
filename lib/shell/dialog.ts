@@ -1,8 +1,3 @@
-// The pages' own dialogs: a queue of requests that DialogHost (src/components/DialogHost.tsx)
-// shows one at a time, in order. message, ask, prompt and askOption in lib/shell add to it. Each
-// window is its own page, so each window has its own queue and its own host. There is no React
-// here, so any code can ask before the host has mounted.
-
 import type { Option } from './bindings/github.com/rclone/rclone-ui/core/catalog/models'
 
 export type DialogKind = 'info' | 'warning' | 'error'
@@ -36,7 +31,6 @@ export type DialogRequest =
           message: string
           /** rclone's reason for asking again, or "". */
           notice: string
-          /** The backend option that rclone asks for, drawn as the remote forms draw it. */
           option: Option
           resolve: (value: string | null) => void
       }

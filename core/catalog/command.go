@@ -16,8 +16,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// The reasons why a flag from a pasted command, or an option of a template, was not put into any
-// group. A page shows them next to the flag, in the app's language (LocalSkipped).
 var (
 	reasonUnknown = i18n.M("Rclone has no such flag.")
 	// i18n: The flag is one of a storage backend's options, such as --drive-chunk-size.
@@ -28,15 +26,10 @@ var (
 	reasonCLI      = i18n.M("Only rclone's command line reads it.")
 )
 
-// ErrCommand is the start of the error for a command line that can't be read, such as one with an
-// unclosed quote or a flag without its value. ParseCommand refuses such a line on the command
-// field, with a message that starts with ErrCommand's.
 var ErrCommand = errors.New("The command line cannot be read")
 
 var errUnclosed = fmt.Errorf("%w: a quote is not closed.", ErrCommand)
 
-// flagOf records what one flag in the temporary flag set stands for: an option of a block, or
-// an option of a backend, whose flags carry the backend's prefix.
 type flagOf struct {
 	block   string
 	backend bool
@@ -44,18 +37,17 @@ type flagOf struct {
 }
 
 // ParseCommand reads a pasted command line with rclone's own flag definitions. Each flag's value
-// is a copy of its option (fs.Option is a pflag.Value), in a flag set made for this call, so
-// neither rclone's global flags nor its config are affected. The options that the command sets
-// are sorted into the catalog's groups (SortOptions). Flags that no group takes are skipped, with
-// the reason. A line that can't be read is refused on the command field.
+// is a copy of its option, in a flag set made for this call, so neither rclone's global flags nor
+// its config are affected. The options that the command sets are sorted into the catalog's
+// groups. Flags that no group takes are skipped, with the reason. A line that can't be read is
+// refused on the command field.
 //
 // When metadata_mapper runs the app's own mapper, the executable path that the Copy command put
 // in front of it is removed. The value is then what the mapping panel writes
-// (`["metadata-map", …]`), so it works whichever binary the app runs as later.
+// (`["metadata-map", …]`).
 func (s *Service) ParseCommand(line string) (*ParsedCommand, error) {
 	words, err := splitCommand(line)
 	if err != nil {
-		// splitCommand fails only on a quote that isn't closed (errUnclosed).
 		return nil, errs.Field("command", "The command line cannot be read: a quote is not closed.")
 	}
 	if len(words) > 0 && isRclone(words[0]) {
@@ -67,11 +59,10 @@ func (s *Service) ParseCommand(line string) (*ParsedCommand, error) {
 	for _, name := range unknownFlags(set, words) {
 		out.Skipped = append(out.Skipped, Skip(name, reasonUnknown))
 	}
-	var order []string             // the flags that were set, in the order they first appear
-	written := map[string]string{} // the last text given for each flag
+	var order []string
+	written := map[string]string{}
 	err = set.ParseAll(words, func(f *pflag.Flag, value string) error {
 		if err := f.Value.Set(value); err != nil {
-			// rclone's own reason, such as an invalid size, keeps rclone's words.
 			out.Skipped = append(out.Skipped, SkippedFlag{Flag: "--" + f.Name, Reason: err.Error()})
 			return nil
 		}
@@ -87,18 +78,15 @@ func (s *Service) ParseCommand(line string) (*ParsedCommand, error) {
 	}
 	out.Args = set.Args()
 
-	// The options of the blocks that the pages set are sorted into groups by SortOptions. A
-	// serve's own block counts only in that serve's command, because rclone's other commands
-	// have no such flags.
 	flat := Group{}
-	flagOf := map[string]string{} // the flag of each option in flat
+	flagOf := map[string]string{}
 	reasons := map[string]i18n.Text{}
 	for _, name := range order {
 		fo, known := flags[name]
 		switch {
 		case known && !fo.opt.IsSet():
-			continue // every value given for it was refused
-		case !known: // one of cliOnly
+			continue
+		case !known:
 			reasons[name] = reasonCLI
 		case fo.backend:
 			reasons[name] = reasonBackend
@@ -128,8 +116,6 @@ func (s *Service) ParseCommand(line string) (*ParsedCommand, error) {
 	return out, nil
 }
 
-// pageBlock reports whether the pages take a block's options from a command. They take the
-// global blocks and the mount block, and a serve's own block only from that serve's command.
 func pageBlock(block, serve string) bool {
 	switch block {
 	case "main", "filter", "vfs", "mount":
@@ -138,13 +124,6 @@ func pageBlock(block, serve string) bool {
 	return block == serve && serve != ""
 }
 
-// flagSet defines every rclone option as a flag. Each flag is a copy of the option, named as
-// rclone names its flag (fs.Option.FlagName). The blocks that the pages set come first (main,
-// filter, vfs, mount, and the serve's own block when the command is a serve). They are added
-// without a prefix, as rclone adds them (flags.AddFlagsFromOptions sets NoPrefix). Then come the
-// other blocks, and the backends' options with their prefix, so that their flags are recognized
-// and their values aren't mistaken for paths. When a name or a shorthand is already defined, the
-// first definition wins, because rclone's own command line has one flag per name.
 func flagSet(serve string) (*pflag.FlagSet, map[string]flagOf) {
 	set := pflag.NewFlagSet("rclone", pflag.ContinueOnError)
 	set.SetOutput(discard{})
@@ -154,6 +133,7 @@ func flagSet(serve string) (*pflag.FlagSet, map[string]flagOf) {
 		c := o.Copy()
 		c.Value = nil
 		c.MarkUnset()
+		// fs.Option.FlagName gives "-name" for an empty prefix unless NoPrefix is set.
 		if prefix == "" {
 			c.NoPrefix = true
 		}
@@ -228,13 +208,12 @@ const (
 )
 
 // cliOnly lists the flags on rclone's command line that aren't options: the flags that
-// configflags.AddFlags defines itself (fs/config/configflags/configflags.go:44-60), the ones of
-// the command package (cmd/cmd.go:47-49), and cobra's help. rclone keeps them in package
-// variables that only its CLI reads, so no page sets them. They are defined here so that their
-// values aren't mistaken for paths and -h doesn't end the parse. The list is kept by hand,
-// because calling rclone's AddFlags on our own flag set would change rclone's globals: it reads
-// RCLONE_* into the global options, can end the process with fs.Fatalf, and sets NoPrefix on the
-// registry's options. TestCLIOnlyFlags checks the list against rclone's command line.
+// configflags.AddFlags defines itself, the ones of the command package, and cobra's help. rclone
+// keeps them in package variables that only its CLI reads, so no page sets them. They are defined
+// here so that their values aren't mistaken for paths and -h doesn't end the parse. The list is
+// kept by hand, because calling rclone's AddFlags on our own flag set would change rclone's
+// globals: it reads RCLONE_* into the global options, can end the process with fs.Fatalf, and
+// sets NoPrefix on the registry's options.
 var cliOnly = []struct {
 	name, short string
 	kind        cliKind
@@ -258,20 +237,14 @@ var cliOnly = []struct {
 	{"dscp", "", cliString},
 	{"cpuprofile", "", cliString},
 	{"memprofile", "", cliString},
-	{"stats", "", cliString}, // a duration
+	{"stats", "", cliString},
 	{"help", "h", cliBool},
 }
 
-// discard swallows pflag's usage output.
 type discard struct{}
 
 func (discard) Write(p []byte) (int, error) { return len(p), nil }
 
-// pageValue returns an option's value in the form that the pages' option editors write in a
-// group's JSON. A switch, a tristate or a number is a JSON value. The elements of a repeated
-// flag or an argv become a list. Anything else is the last text given for the flag. rclone has
-// already parsed that text, so it will parse the same way again, whereas rclone's own rendering
-// would round a size of 1234567 bytes to 1.177Mi.
 func pageValue(o *fs.Option, text string) any {
 	switch v := o.GetValue().(type) {
 	case bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
@@ -286,11 +259,10 @@ func pageValue(o *fs.Option, text string) any {
 	case fs.SpaceSepList:
 		return append([]string{}, v...)
 	}
+	// rclone's own rendering would round a size of 1234567 bytes to 1.177Mi.
 	return text
 }
 
-// serveType returns the serve type that a command starts (`serve webdav …`) when its block is
-// registered in this build, and "" otherwise.
 func serveType(words []string) string {
 	var args []string
 	for _, w := range words {
@@ -310,8 +282,6 @@ func serveType(words []string) string {
 	return args[1]
 }
 
-// isRclone reports whether a command's first word runs rclone, meaning rclone or this app, at
-// any path.
 func isRclone(word string) bool {
 	base := strings.ToLower(filepath.Base(strings.ReplaceAll(word, `\`, "/")))
 	base = strings.TrimSuffix(base, ".exe")
@@ -339,7 +309,7 @@ func unknownFlags(set *pflag.FlagSet, words []string) []string {
 			case f == nil:
 				out = append(out, "--"+name)
 			case !hasValue && f.NoOptDefVal == "":
-				i++ // the next word is its value
+				i++
 			}
 		case strings.HasPrefix(w, "-") && len(w) > 1:
 			shorts := w[1:]
@@ -354,9 +324,9 @@ func unknownFlags(set *pflag.FlagSet, words []string) []string {
 				}
 				if f.NoOptDefVal == "" {
 					if j == len(shorts)-1 {
-						i++ // the next word is its value
+						i++
 					}
-					break // the rest of the word is its value
+					break
 				}
 			}
 		}
@@ -374,7 +344,7 @@ func splitCommand(line string) ([]string, error) {
 	var (
 		words []string
 		cur   strings.Builder
-		in    bool // a word has started (a pair of quotes starts an empty one)
+		in    bool
 	)
 	flush := func() {
 		if in {
@@ -420,12 +390,12 @@ func splitCommand(line string) ([]string, error) {
 			next := r[i+1]
 			switch {
 			case next == '\n':
-				i++ // a continued line
+				i++
 			case next == '\r' && i+2 < len(r) && r[i+2] == '\n':
 				i += 2
 			case isWordRune(next):
 				in = true
-				cur.WriteRune(c) // a path's separator
+				cur.WriteRune(c)
 			default:
 				in = true
 				cur.WriteRune(next)

@@ -11,12 +11,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// rename renames a remote, as the last step of an edit session. It refuses an invalid name or a
-// name that is already taken. It then renames the section in the config file in one save, which
-// rclone sees because it reads the same store. Next it moves the app's row for the remote
-// (carry). Then it runs the change handling, and finally the followers (favorites, templates and
-// the others), whose failures are listed in the result. Transfer history is left unchanged,
-// because it records what actually ran.
 func (s *Service) rename(ctx context.Context, old, new string) (*StepResult, error) {
 	if !s.exists(old) {
 		return nil, ErrNotFound
@@ -33,7 +27,6 @@ func (s *Service) rename(ctx context.Context, old, new string) (*StepResult, err
 	if err == nil {
 		err = s.carry(ctx, old, new)
 		if err != nil {
-			// The app's data couldn't be moved, so put the old name back rather than lose the data.
 			if back := s.renameSection(new, old); back != nil {
 				s.log.ErrorContext(ctx, "remotes: undoing a rename", "old", old, "new", new, "error", back)
 			}
@@ -58,9 +51,6 @@ func (s *Service) rename(ctx context.Context, old, new string) (*StepResult, err
 	return res, nil
 }
 
-// renameSection moves a section's keys to a new name in one save of the config file. If the
-// save fails, or the store refuses it (saveError), the store is restored, because the file still
-// has the old name and what rclone and the pages read must match it.
 func (s *Service) renameSection(old, new string) error {
 	if s.st.HasSection(new) {
 		return errs.Field("name", "A remote called %s already exists.", new)
@@ -85,7 +75,6 @@ func (s *Service) renameSection(old, new string) error {
 	return nil
 }
 
-// carry moves the remote's row (its fsinfo) to the new name, in one transaction.
 func (s *Service) carry(ctx context.Context, old, new string) error {
 	err := s.db.Write(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM remote_fsinfo WHERE remote = ?`, new); err != nil {

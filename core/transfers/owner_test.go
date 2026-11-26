@@ -13,8 +13,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// fakeOwner owns transfers as a watcher does: an end that changed nothing is quiet. It hands
-// each end it hears to ended.
 type fakeOwner struct {
 	ended chan Transfer
 }
@@ -25,10 +23,6 @@ func (o *fakeOwner) Quiet(state State, _ string, s *Summary) bool {
 
 func (o *fakeOwner) Ended(t Transfer) { o.ended <- t }
 
-// An owned transfer tells neither the desktop nor the notification targets. When its owner finds
-// its end quiet, it is dropped from the record before the pages hear about its end. Any other end
-// stays. The owner hears each end. A retry of an owned transfer is the user's own run: its owner
-// hears nothing, and the targets are told.
 func TestOwnedRuns(t *testing.T) {
 	f := newFixture(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -36,7 +30,6 @@ func TestOwnedRuns(t *testing.T) {
 	owner := &fakeOwner{ended: make(chan Transfer, 4)}
 	run := func(source, retryOf string) Started {
 		t.Helper()
-		// A prebuilt plan, so that a missing source is recorded and fails as it runs.
 		started, err := f.s.Start(f.ctx, Spec{
 			Form: operations.Form{Operation: "sync"}, Sources: []string{source}, Destination: dst, Plan: syncOf(source, dst),
 			Origin: Origin{Kind: OriginWatcher, ID: "w1", Name: "Photos"}, RetryOf: retryOf, Owner: owner,
@@ -47,7 +40,6 @@ func TestOwnedRuns(t *testing.T) {
 		return started
 	}
 
-	// f.wait reads the row, which a quiet run no longer has, so wait for the owner to hear it.
 	next := func() Transfer {
 		t.Helper()
 		select {
@@ -68,8 +60,6 @@ func TestOwnedRuns(t *testing.T) {
 		t.Errorf("a run that copied a file was dropped: %v", err)
 	}
 
-	// The quiet run is never seen as ended: each read of it while it runs finds it running or
-	// gone.
 	stopReads := make(chan struct{})
 	readsDone := make(chan struct{})
 	var seenEnded []string

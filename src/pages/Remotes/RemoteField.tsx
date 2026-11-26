@@ -28,8 +28,6 @@ function startsWithIgnoringCase(textValue: string, inputValue: string) {
     return foldCase(textValue).startsWith(foldCase(inputValue))
 }
 
-// The drawer's body scrolls, and a list that opens near its bottom would close on the first
-// scroll, so the lists stay open while it scrolls.
 const STAY_OPEN = { shouldCloseOnScroll: false }
 
 const PICKS = {
@@ -48,15 +46,6 @@ const NO_VALUE = t({
     comment: "An empty choice in a list of an option's values.",
 })
 
-// The field for one backend option. The kind of input depends on the option's kind in the core's
-// catalog:
-// - a checkbox for bools
-// - a select for a closed set of values (a Tristate, an enum, or rclone's Exclusive)
-// - a multi-select for a set of flags (encodings, bit sets)
-// - a number input for numbers
-// - suggestions where rclone or the catalog offer values (sizes, durations, examples)
-// - a text input for everything else
-// Every value is sent back as text, and rclone parses it in the same way as its CLI wizard.
 export default function RemoteField({
     option,
     config,
@@ -66,7 +55,6 @@ export default function RemoteField({
 }: {
     option: Option
     config: RemoteValues
-    /** When editing, the values that rclone stores. */
     saved?: RemoteValues
     setConfig: Dispatch<SetStateAction<RemoteValues>>
     isDisabled?: boolean
@@ -90,8 +78,6 @@ export default function RemoteField({
 
     if (option.hidden) return null
 
-    // Filen's api_key can be generated from the account's email and password, as the
-    // `filen export-api-key` CLI command does, so it gets a "Generate" button.
     if (config?.type === 'filen' && option.name === 'api_key') {
         return (
             <FilenApiKeyField
@@ -139,7 +125,6 @@ export default function RemoteField({
         )
     }
 
-    // A set of flags. Any number of them can be picked, and they are written comma-separated.
     if (option.kind === Kind.KindFlags) {
         const selected = initialFieldValue
             .split(',')
@@ -170,7 +155,6 @@ export default function RemoteField({
         )
     }
 
-    // A closed set of values uses a Select, so there is no text to mistype.
     if (
         option.kind === Kind.KindChoice ||
         option.kind === Kind.KindTristate ||
@@ -181,7 +165,6 @@ export default function RemoteField({
                 id={fieldId}
                 name={option.name}
                 label={option.name}
-                // "outside-top" for the same reason as the flags Select above.
                 labelPlacement="outside-top"
                 placeholder={helpTitle}
                 description={helpDescription}
@@ -226,8 +209,6 @@ export default function RemoteField({
                     isRequired={option.required}
                     allowsCustomValue={true}
                     popoverProps={STAY_OPEN}
-                    // The list opens while typing and matches by prefix, so a typed value is never
-                    // replaced by a similar item (`6M` must not complete to `16M`).
                     menuTrigger="input"
                     defaultFilter={startsWithIgnoringCase}
                     onSelectionChange={(value) => {
@@ -273,7 +254,6 @@ export default function RemoteField({
     const isNumber = option.kind === Kind.KindInt || option.kind === Kind.KindFloat
     const inputType = isNumber ? 'number' : option.password && !isRevealed ? 'password' : 'text'
 
-    // The guide button takes priority over the reveal toggle when both could apply.
     const endContent = requiresOwnCredentials ? (
         <Button
             size="sm"

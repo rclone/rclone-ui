@@ -6,15 +6,10 @@ import { type OperationSubset, operationOf } from './operations'
 
 export type Template = Templates.Template
 
-/** The operations that a template can be for. The core sends the same list with the templates. */
 export type TemplateTag = OperationSubset<
     'copy' | 'move' | 'sync' | 'bisync' | 'delete' | 'purge' | 'mount' | 'serve'
 >
 
-/**
- * A template's tags by name. The core keeps only the tags that it lists in List.tags, which are
- * all TemplateTags.
- */
 export function tagNames(tags: readonly Operations.Operation[]): TemplateTag[] {
     return tags as readonly string[] as TemplateTag[]
 }
@@ -22,11 +17,6 @@ export function tagNames(tags: readonly Operations.Operation[]): TemplateTag[] {
 const NONE: Template[] = []
 const NO_TAGS: Operations.Operation[] = []
 
-/**
- * Returns every template in list order, and every tag that a template can have, along with the
- * list's query, so that callers can tell a list that didn't load from an empty one.
- * templates.changed keeps it fresh.
- */
 export function useTemplateList() {
     const query = useQuery({ queryKey: coreKey('templates', 'List'), queryFn: () => api.List() })
     return {

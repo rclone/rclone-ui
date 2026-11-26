@@ -15,7 +15,7 @@ import * as $models from "./models.js";
 
 /**
  * Check returns the refusal of the page's form that Start would give before it serves anything,
- * or nil. The page calls it as the user types.
+ * or nil.
  */
 export function Check(args: operations$0.ServeArgs): $CancellablePromise<void> {
     return $Call.ByID(1564715745, args);
@@ -46,9 +46,8 @@ export function Start(args: operations$0.ServeArgs): $CancellablePromise<$models
 
 /**
  * StartReady starts a serve from a form, as Start does, and returns once its address accepts
- * connections, or with why its first start failed. A page learns both from serves.changed. An
- * agent's tool gets no events, so it waits here instead. A serve that is still starting when ctx
- * ends comes back as it is.
+ * connections, or with why its first start failed. A serve that is still starting when ctx ends
+ * comes back as it is.
  */
 export function StartReady(args: operations$0.ServeArgs): $CancellablePromise<$models.ServeRow> {
     return $Call.ByID(4260514516, args).then(($result: any) => {

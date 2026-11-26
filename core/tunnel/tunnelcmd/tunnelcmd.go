@@ -1,12 +1,3 @@
-// Package tunnelcmd implements `rclone tunnel`, which rcui adds to rclone's command line (as it
-// does with update). It runs rclone's rc server on a loopback port with random credentials, with
-// the built-in cloudflared in front of it on a trycloudflare.com address. The pairing QR code
-// holds {url, user, pass}, which the Rclone UI mobile app reads. It exposes rclone's full rc API
-// on purpose. Whatever the phone starts runs in this process and ends with it.
-//
-// The Mobile & Remote Control window runs it as a child process of the app, with the config file.
-// Anyone can also run it in a terminal, where it prints the QR code. rclone's rcd is left as
-// rclone ships it.
 package tunnelcmd
 
 import (
@@ -30,13 +21,10 @@ import (
 	"github.com/rclone/rclone-ui/core/tunnel/cloudflared"
 )
 
-// Edge puts the rc server on the internet. It is cloudflared.Start, or a stand-in in tests.
 type Edge func(ctx context.Context, origin string, o cloudflared.Options) (*cloudflared.Tunnel, error)
 
-// startWait limits how long to wait for cloudflared to be served.
 const startWait = 90 * time.Second
 
-// Install adds `tunnel` to rclone's root command.
 func Install(root *cobra.Command, edge Edge) {
 	root.AddCommand(&cobra.Command{
 		Use:   "tunnel",
@@ -51,9 +39,7 @@ Anyone who has them can use every remote in your config, as the app can.
 
 The mobile app's downloads and thumbnails run rclone commands through the rc's
 core/command; they use this command's config, its password included.`,
-		Annotations: map[string]string{"groups": "RC"},
-		// Not childenv.Ready: loadConfig reads the key file itself, and PrivateRC runs once the
-		// rc is up.
+		Annotations:      map[string]string{"groups": "RC"},
 		PersistentPreRun: func(*cobra.Command, []string) {},
 		Run: func(command *cobra.Command, args []string) {
 			cmd.CheckArgs(0, 0, command, args)
@@ -64,8 +50,6 @@ core/command; they use this command's config, its password included.`,
 	})
 }
 
-// servedLine is the notice that the command logs once the tunnel is served. The app reads the
-// address from it.
 const servedLine = "The tunnel is on at "
 
 var servedRe = regexp.MustCompile(regexp.QuoteMeta(servedLine) + `(https://[^\s"\\]+)`)
@@ -97,13 +81,11 @@ func run(command *cobra.Command, edge Edge) error {
 		return err
 	}
 	origin := free.String()
-	// Keep the app's own socket (a child's --rc-addr), but replace rclone's default address.
 	if command.Flags().Changed("rc-addr") {
 		rc.Opt.HTTP.ListenAddr = append(rc.Opt.HTTP.ListenAddr, origin)
 	} else {
 		rc.Opt.HTTP.ListenAddr = []string{origin}
 	}
-	// The phone downloads objects over the rc, and reads a job's result after it finishes.
 	rc.Opt.Serve = true
 	if !command.Flags().Changed("rc-job-expire-duration") {
 		rc.Opt.JobExpireDuration = fs.Duration(24 * time.Hour)
@@ -112,8 +94,6 @@ func run(command *cobra.Command, edge Edge) error {
 		rc.Opt.JobExpireInterval = fs.Duration(time.Hour)
 	}
 
-	// Load the config now, so an encrypted one asks for its password here rather than at the
-	// phone's first request. Its key is kept for core/command's subprocesses.
 	if err := loadConfig(); err != nil {
 		return err
 	}

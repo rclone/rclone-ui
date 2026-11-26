@@ -15,23 +15,20 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// withoutRcloneEnv unsets every RCLONE_* variable for the test. flags.AddFlagsFromOptions reads
-// them into the flags that it adds, and it ends the process with fs.Fatalf on a value it refuses.
+// flags.AddFlagsFromOptions reads RCLONE_* variables into the flags that it adds, and it ends the
+// process with fs.Fatalf on a value it refuses.
 func withoutRcloneEnv(t *testing.T) {
 	t.Helper()
 	for _, kv := range os.Environ() {
 		name, value, _ := strings.Cut(kv, "=")
 		if strings.HasPrefix(name, "RCLONE_") {
-			t.Setenv(name, value) // restored after the test
+			t.Setenv(name, value)
 			_ = os.Unsetenv(name)
 		}
 	}
 }
 
-// childFlagSet builds a child's command line flags the way rclone does. It adds the global
-// blocks (the configflags, filterflags, rcflags and logflags of cmd.Main) and the command's own
-// blocks, each without a prefix, using flags.AddFlagsFromOptions. That function sets NoPrefix on
-// the options it is given, so it gets copies (slices.Clone) and the registry stays unchanged.
+// flags.AddFlagsFromOptions sets NoPrefix on the options it is given, so it gets copies.
 func childFlagSet(t *testing.T, blocks ...string) *pflag.FlagSet {
 	t.Helper()
 	set := pflag.NewFlagSet("child", pflag.ContinueOnError)
@@ -45,9 +42,6 @@ func childFlagSet(t *testing.T, blocks ...string) *pflag.FlagSet {
 	return set
 }
 
-// sampleValue returns a value to render an option's flag with. It uses the default's text when
-// there is one, or else one of the examples or bit names, or else the first of a few texts that
-// rclone accepts.
 func sampleValue(o *fs.Option) []any {
 	c := o.Copy()
 	c.Value = nil
@@ -66,9 +60,6 @@ func sampleValue(o *fs.Option) []any {
 	return append(out, "1", "true", "x", []any{"x"}, "1s", "off")
 }
 
-// Every option that the Mount and Serve pages offer renders to a flag that the child's command
-// line accepts. This covers the mount, vfs and filter blocks, the main options, the block of each
-// serve type, and the auth proxy's block.
 func TestFlagNames(t *testing.T) {
 	withoutRcloneEnv(t)
 	children := map[string][]string{"mount": {"mount", "vfs"}}
@@ -101,15 +92,11 @@ func TestFlagNames(t *testing.T) {
 			}
 		}
 	}
-	// The registry is unchanged, so a bare FlagName("") on the main block is still not a flag.
 	if o := fs.OptionsRegistry["main"].Options.Get("fast_list"); o.NoPrefix || flagName(o) != "fast-list" {
 		t.Errorf("fast_list: NoPrefix %v, flag %s", o.NoPrefix, flagName(o))
 	}
 }
 
-// Every option that a page can put on a command line parses back from its flag to the same
-// value. The test renders the default's text and parses it the way the child's flag does
-// (fs.Option.Set).
 func TestFlagRoundTripText(t *testing.T) {
 	for _, block := range []string{"main", "filter", "vfs", "mount", "proxy"} {
 		for i := range fs.OptionsRegistry[block].Options {
@@ -143,8 +130,6 @@ func TestFlagRoundTripText(t *testing.T) {
 	}
 }
 
-// A flag carries the page's text unchanged. A repeated flag gets one flag per element. A comma
-// list or an argv given as elements is written the way rclone writes the list.
 func TestRenderFlagTexts(t *testing.T) {
 	opt := func(block, name string) *fs.Option { return fs.OptionsRegistry[block].Options.Get(name) }
 	for _, c := range []struct {

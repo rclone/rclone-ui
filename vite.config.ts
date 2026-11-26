@@ -6,29 +6,14 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 
-/**
- * The chunk size that triggers a warning, in kB as Vite counts them. It is above the app's own
- * chunks (the largest, the entry, is ~660 kB), so a chunk that grows past it gets noticed.
- */
 const CHUNK_WARNING_KB = 1024
 
-/**
- * Chunks known to be larger than CHUNK_WARNING_KB. They load only when a matching file is
- * previewed:
- * - the presentation viewer's map atlas (region-map-atlas, ~1.5 MB, for slides with a map chart);
- * - the Office fonts that the document viewers draw text with (carlito-data, intos-narrow-data
- *   and others, ~0.6 to 1.2 MB each);
- * - the spreadsheet viewer's drawing engine (payload, ~1.7 MB).
- * Vite's own warning limit is set above them (`chunkSizeWarningLimit`).
- */
 const KNOWN_LARGE_CHUNKS = /^(?:region-map-atlas|[a-z-]+-data|payload)\b/
 
-/** Warns, as Vite would, about any chunk over CHUNK_WARNING_KB that isn't a known large one. */
 function chunkSizeWarning(): Plugin {
     return {
         name: 'chunk-size-warning',
         apply: 'build',
-        // Measure the chunks as they are written, which is what Vite's own report measures.
         writeBundle(_, bundle) {
             for (const chunk of Object.values(bundle)) {
                 if (chunk.type !== 'chunk' || KNOWN_LARGE_CHUNKS.test(chunk.name)) continue
@@ -44,7 +29,6 @@ function chunkSizeWarning(): Plugin {
 }
 
 const OFFICE_VIEWERS = 'node_modules/@extend-ai'
-/** Matches the name of a font file in a viewer's dist folder, or an import of one. */
 const OFFICE_FONT_FILE = /^(?:\.\/)?([a-z-]+)-data-[A-Z0-9]+\.js$/
 
 /**
@@ -94,8 +78,6 @@ function dedupeOfficeFonts(): Plugin {
 export default defineConfig({
     plugins: [
         react(),
-        // The windows' translations (lingui.config.ts): it compiles a catalog (.po) when a window
-        // imports it, and turns the macros in the code (t, Trans, plural) into lookups.
         lingui({ macroTransform: true }),
         tailwindcss(),
         dedupeOfficeFonts(),
@@ -135,16 +117,11 @@ export default defineConfig({
     },
 
     test: {
-        // Makes English the language before any test runs (lib/i18n.ts).
         setupFiles: ['./src/testSetup.ts'],
     },
 
     build: {
-        // In kB. This is above the known large chunks (KNOWN_LARGE_CHUNKS). Every other chunk is
-        // held to CHUNK_WARNING_KB by `chunkSizeWarning`.
         chunkSizeWarningLimit: 2560,
-        // The gzip column costs about a second per build, and it doesn't match what ships,
-        // because the pages are embedded with zstd compression (tools/zstdassets).
         reportCompressedSize: false,
     },
 

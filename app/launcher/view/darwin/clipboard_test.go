@@ -12,8 +12,6 @@ import (
 	"github.com/ebitengine/purego/objc"
 )
 
-// TestLateDetectionIsItsOwn checks that a detection which replies after its peek gave up isn't
-// taken as the reply to the next peek.
 func TestLateDetectionIsItsOwn(t *testing.T) {
 	clipOnce.Do(clipSetup)
 	if webURL == 0 {
@@ -30,7 +28,7 @@ func TestLateDetectionIsItsOwn(t *testing.T) {
 			t.Fatal("a link answered isn't found")
 		}
 		got := detect(func(done objc.Block) {
-			late.Invoke(link, objc.ID(0)) // the first peek's late reply, which found a link
+			late.Invoke(link, objc.ID(0))
 			done.Invoke(objc.ID(0), objc.ID(0))
 		})
 		if got {
@@ -39,8 +37,6 @@ func TestLateDetectionIsItsOwn(t *testing.T) {
 	})
 }
 
-// TestAutoreleasedStaysOnOneThread checks that a goroutine which blocks inside the pool, while
-// other goroutines keep the scheduler busy, pops the pool on the thread that pushed it.
 func TestAutoreleasedStaysOnOneThread(t *testing.T) {
 	lib, err := purego.Dlopen("/usr/lib/libSystem.B.dylib", purego.RTLD_NOW|purego.RTLD_GLOBAL)
 	if err != nil {

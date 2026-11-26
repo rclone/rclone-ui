@@ -4,15 +4,11 @@ import { POSIX, WINDOWS } from './paths'
 
 test('a path names its remote, and only its remote', () => {
     expect(getRemoteName('gdrive:photos')).toBe('gdrive')
-    // A colon inside a remote file name stays part of the path.
     expect(getRemoteName('gdrive:notes/meeting 10:30.txt')).toBe('gdrive')
-    // The slash after the colon belongs to the path, not to the name.
     expect(getRemoteName('sftp:/var/www/')).toBe('sftp')
     expect(getRemoteName('gdrive,chunk_size="64M":photos')).toBe('gdrive')
     expect(getRemoteName(':sftp,host="a:b":/srv')).toBe(':sftp')
-    // The `:local:` spelling, which a panel may write, is the local backend written as a remote.
     expect(getRemoteName(':local:/x')).toBe(':local')
-    // A name that rclone would refuse is not a remote.
     expect(getRemoteName('-bad:x')).toBeNull()
 })
 
@@ -32,17 +28,13 @@ test('a local path containing a colon is not mistaken for a remote', () => {
 
 test('remote roots and windows drives still resolve', () => {
     expect(getRemoteName('gdrive:')).toBe('gdrive')
-    // On a Windows host, a drive letter is a drive. On other hosts rclone reads it as a remote
-    // called C, which `pathProblem` reports before the path is sent.
     expect(getRemoteName('C:\\Users\\me', WINDOWS)).toBeNull()
     expect(getRemoteName('C:', WINDOWS)).toBeNull()
     expect(getRemoteName('C:\\Users\\me', POSIX)).toBe('C')
-    // A one-letter name is a remote everywhere except Windows, where it is a drive.
     expect(getRemoteName('c:photos', POSIX)).toBe('c')
     expect(getRemoteName('c:photos', WINDOWS)).toBeNull()
 })
 
-// Without the third argument, one unit, rounded. With it, two units, cut.
 test('how long ago a moment is', () => {
     const now = Date.parse('2026-09-23T19:42:39Z')
     const before = (ms: number) => new Date(now - ms).toISOString()
@@ -50,7 +42,6 @@ test('how long ago a moment is', () => {
     expect(timeAgo(now + 20_000, now)).toBe('in less than a minute')
     expect(timeAgo(now - 40_000, now)).toBe('1 minute ago')
     expect(timeAgo(now - 5 * 60_000, now)).toBe('5 minutes ago')
-    // A time 5 minutes ahead, read a second later, is still in 5 minutes.
     expect(timeAgo(now + 5 * 60_000 - 1000, now)).toBe('in 5 minutes')
     expect(timeAgo(now - 59 * 60_000 - 50_000, now)).toBe('1 hour ago')
     expect(timeAgo(now + 3 * 3_600_000, now)).toBe('in 3 hours')

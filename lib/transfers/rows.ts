@@ -1,14 +1,6 @@
-// How the transfer pages show a transfer's state and numbers. The rows themselves (the record,
-// the live numbers and the totals) come from the core (`core/transfers`), so this file has only
-// display logic.
-
 import { t } from '@lingui/core/macro'
 import type { Bus, Transfers } from '../core/types'
 
-/**
- * The label and color for a transfer that has ended, shown in the list, in its drawer and in the
- * Commander's bar. States that are not an end (queued, running) have no entry.
- */
 export const ENDED: Partial<
     Record<Transfers.State, { label: string; color: 'primary' | 'danger' | 'warning' | 'default' }>
 > = {
@@ -28,26 +20,16 @@ export const ENDED: Partial<
     },
 }
 
-/**
- * Whole percent of `totalBytes`, rounded down so that 100 means that every byte moved, or 0 while
- * the total is unknown.
- */
 export function percent(bytes: number, totalBytes: number) {
     return totalBytes > 0 ? Math.min(100, Math.floor((bytes * 100) / totalBytes)) : 0
 }
 
-/** Whether live numbers (`transfers.progress`) arrive for a transfer. That is only while it runs. */
 export function isLive(state: string) {
     return state === 'running'
 }
 
 export type TransferPhase = 'preparing' | 'checking' | 'transferring'
 
-/**
- * Returns the phase of a running transfer from its live numbers: moving bytes, checking files, or
- * still preparing. Returns null when it isn't running. `progress` is missing until the first
- * `transfers.progress` event for the transfer.
- */
 export function phaseOf(
     state: string,
     progress: Bus.TransferProgress | null | undefined

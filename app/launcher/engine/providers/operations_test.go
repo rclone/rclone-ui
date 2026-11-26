@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// TestCleanupAsks: Cleanup, as a row or in a panel, asks before it deletes anything. No Cleanup
-// row is kept in the history, so a typed remote still offers Browse first.
 func TestCleanupAsks(t *testing.T) {
 	const want = "Clean up gdrive? Trash and old file versions will be removed for good."
 	for _, text := range []string{"c", "cl", "clean", "trash", "gdrive", "gdrive:", "cleanup gdrive:"} {

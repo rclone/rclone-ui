@@ -1,28 +1,14 @@
 import { selectOrdinal, t } from '@lingui/core/macro'
 import { formatDate, timeAgo } from '../../../lib/format'
 
-// A schedule's "when" is a cron expression, which the core reads (core/schedules/cron.go). The
-// drawer offers a few common choices that write the expression for the user, and "Custom" for
-// any other. A saved expression that one of the choices writes opens as that choice. Times and the
-// names of days are written in the app's language, and the expression itself stays as it is.
-
 export type WhenKind = 'hour' | 'day' | 'weekday' | 'week' | 'month' | 'custom'
 
-/**
- * The drawer's "When" fields. Each choice reads only the fields it shows, and the others keep
- * their values, so switching between choices doesn't lose them.
- */
 export interface WhenForm {
     kind: WhenKind
-    /** 0–59. "Every hour" uses it alone. */
     minute: number
-    /** 0–23. */
     hour: number
-    /** 0 (Sunday) to 6 (Saturday), for "Every week". */
     weekday: number
-    /** 1–28, for "Every month". Later days are missing from some months. */
     monthDay: number
-    /** The cron expression, for "Custom". */
     expression: string
 }
 
@@ -41,7 +27,6 @@ export const WHEN_CHOICES: { kind: WhenKind; label: string }[] = [
     },
 ]
 
-/** `day` is from 0 (Sunday) to 6 (Saturday). The 7th of January 2024 was a Sunday. */
 function weekdayName(day: number): string {
     return formatDate(new Date(2024, 0, 7 + day), { weekday: 'long' })
 }
@@ -50,7 +35,6 @@ export const WEEKDAYS = [1, 2, 3, 4, 5, 6, 0].map((day) => ({ day, name: weekday
 
 export const CUSTOM_PLACEHOLDER = '0 2 * * *'
 
-/** A new schedule runs every day at 02:00. */
 export const DEFAULT_WHEN: WhenForm = {
     kind: 'day',
     minute: 0,
@@ -62,7 +46,6 @@ export const DEFAULT_WHEN: WhenForm = {
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-/** The 24-hour clock, which the drawer's fields use too, in the app's language's digits. */
 const CLOCK: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }
 
 export function clock(hour: number, minute: number): string {
@@ -98,7 +81,6 @@ function number(field: string, min: number, max: number): number | null {
 
 const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
-/** One day of the week, as a number (0–7, where 7 is Sunday too) or a name ("MON"), or null. */
 function dayOfWeek(field: string): number | null {
     const name = DAY_NAMES.indexOf(field.toLowerCase())
     if (name >= 0) return name
@@ -113,10 +95,6 @@ const ALIASES: Record<string, Partial<WhenForm>> = {
     '@monthly': { kind: 'month', minute: 0, hour: 0, monthDay: 1 },
 }
 
-/**
- * The fields for a saved expression: the choice that writes it, or Custom with the expression as
- * it is. The fields that the choice doesn't use keep the defaults.
- */
 export function fromCron(expression: string): WhenForm {
     const text = expression.trim()
     const custom: WhenForm = { ...DEFAULT_WHEN, kind: 'custom', expression: text }
@@ -145,10 +123,6 @@ export function fromCron(expression: string): WhenForm {
     return custom
 }
 
-/**
- * The time of an expression in words, as the list shows it: "Every day at 02:00". It is null for
- * an expression that none of the choices writes, which the list shows as it is.
- */
 export function whenInWords(expression: string): string | null {
     const form = fromCron(expression)
     const time = clock(form.hour, form.minute)
@@ -236,27 +210,19 @@ export function runsSentence(name: string, expression: string): string {
     }
 }
 
-/** A time as "Mon, Nov 9, 02:00", in the app's language and this computer's time zone. */
 export function shortTime(ms: number): string {
     return formatDate(ms, { weekday: 'short', day: 'numeric', month: 'short', ...CLOCK })
 }
 
-/**
- * The line under "When": "Next runs: Mon, Nov 9, 02:00 · Tue, Nov 10, 02:00 (EET)". The times are
- * separated by a dot, because a time can have commas in it.
- */
 export function nextRunsLine(next: readonly number[], zone: string): string {
     const times = next.map(shortTime).join(' · ')
     return zone ? t`Next runs: ${times} (${zone})` : t`Next runs: ${times}`
 }
 
-/** A day, in milliseconds. */
 const DAY = 86_400_000
 
-/** "Next run in 3 hours" or "Next run Mon 9 Nov 09:00". Empty while paused (no next run). */
 export function nextRunText(nextRun: number | null, now: number): string {
     if (nextRun === null) return ''
-    // A run that is due waits for the scheduler's next tick, or for the catch-up after a start.
     if (nextRun <= now) return t`Next run soon`
     if (nextRun - now < DAY) {
         const relative = timeAgo(nextRun, now)

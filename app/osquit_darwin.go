@@ -34,8 +34,7 @@ static void rcuiCurrentQuit(unsigned int *cls, unsigned int *evt, unsigned int *
 */
 import "C"
 
-// osEndingSession reports whether loginwindow asked the app to quit for a logout, a restart or a
-// shutdown. It must run on the main thread, because it reads the Apple event that the
+// Runs only on the main thread, because it reads the Apple event that the
 // applicationShouldTerminate: handler is answering.
 func osEndingSession() bool {
 	var cls, evt, why C.uint

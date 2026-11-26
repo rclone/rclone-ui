@@ -13,8 +13,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// openShortcutAck is the acknowledgement that is recorded once the user has read the tip about the
-// shortcut. It is stored in the pages' "acknowledgements" pref.
 const openShortcutAck = "openShortcut"
 
 func (u *ui) trayOpen(ctx context.Context) {
@@ -34,7 +32,6 @@ func (u *ui) trayOpen(ctx context.Context) {
 	u.launcher.Show()
 }
 
-// shortcutLabel formats a shortcut the way the tip shows it, such as "Command + Shift + /".
 func shortcutLabel(shortcut, goos string) string {
 	keys := strings.Split(shortcut, "+")
 	for i, k := range keys {
@@ -58,8 +55,6 @@ func shortcutLabel(shortcut, goos string) string {
 	return strings.Join(keys, " + ")
 }
 
-// acknowledgements returns the pages' list of hints that the user dismissed. It returns false
-// when the list can't be read.
 func (u *ui) acknowledgements(ctx context.Context) ([]string, bool) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -75,8 +70,6 @@ func (u *ui) acknowledgements(ctx context.Context) ([]string, bool) {
 	return list, true
 }
 
-// acknowledged reports whether the hint was dismissed. If the list can't be read, the hint counts
-// as dismissed, so that it doesn't come back on every Open.
 func (u *ui) acknowledged(ctx context.Context, key string) bool {
 	list, ok := u.acknowledgements(ctx)
 	return !ok || slices.Contains(list, key)

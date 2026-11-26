@@ -18,8 +18,6 @@ func TestRecordsRoundTrip(t *testing.T) {
 	}
 }
 
-// TestRecordsOfAnotherVersionAreRefused checks that a children.json in a version that this build
-// doesn't know is an error, so leftovers are not killed on a guess.
 func TestRecordsOfAnotherVersionAreRefused(t *testing.T) {
 	dir := t.TempDir()
 	doc := `{"version": 2, "children": [{"id": "0000abcd", "kind": "mount", "pid": 1}]}`

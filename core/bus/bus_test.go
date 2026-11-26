@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-// drain reads the events buffered for s without waiting, and reports whether C is closed.
 func drain(s *Sub) (events []Event, closed bool) {
 	for {
 		select {
@@ -55,7 +54,6 @@ func TestFanOut(t *testing.T) {
 	}
 }
 
-// Heard is closed by the first subscription, and stays closed.
 func TestHeard(t *testing.T) {
 	b := New()
 	select {
@@ -64,7 +62,7 @@ func TestHeard(t *testing.T) {
 	default:
 	}
 	b.Subscribe().Close()
-	b.Subscribe().Close() // a second subscription doesn't close it again
+	b.Subscribe().Close()
 	select {
 	case <-b.Heard():
 	default:
@@ -76,7 +74,7 @@ func TestClose(t *testing.T) {
 	b := New()
 	s, other := b.Subscribe(), b.Subscribe()
 	s.Close()
-	s.Close() // closing again is harmless
+	s.Close()
 	if _, closed := drain(s); !closed {
 		t.Error("Close did not close C")
 	}
@@ -85,7 +83,7 @@ func TestClose(t *testing.T) {
 		t.Errorf("another subscriber: %v, closed %v", names(events), closed)
 	}
 	other.Close()
-	b.Publish(TemplatesChanged, nil) // nobody left
+	b.Publish(TemplatesChanged, nil)
 }
 
 func TestASlowSubscriberIsClosedNotWaitedFor(t *testing.T) {
@@ -101,9 +99,6 @@ func TestASlowSubscriberIsClosedNotWaitedFor(t *testing.T) {
 		}
 	}()
 
-	// The fast reader gets time to catch up before the last ten events. Otherwise, under load,
-	// it could fall a whole buffer behind and be closed too, which would be correct behavior but
-	// would fail the test.
 	published := make(chan struct{})
 	go func() {
 		for range buffer {

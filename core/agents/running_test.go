@@ -13,14 +13,10 @@ import (
 	"strings"
 	"testing"
 
-	// The mount commands that a mount child of this test binary runs: nfsmount on macOS, and FUSE
-	// on Linux. Each builds everywhere, as a stub where it doesn't run.
 	_ "github.com/rclone/rclone/cmd/mount"
 	_ "github.com/rclone/rclone/cmd/nfsmount"
 )
 
-// A remote's folder is mounted, read through the mount point, listed, and unmounted. The
-// refusals come first, since they need no mount.
 func TestMountTools(t *testing.T) {
 	cs := connect(t)
 	if _, failed := call[unmounted](t, cs, "unmount", map[string]any{"mount_id": "no-such-mount"}); !strings.Contains(failed, "not running") {
@@ -124,9 +120,6 @@ func TestSuggestedMountPoint(t *testing.T) {
 	}
 }
 
-// A folder is served over http on a free port of this computer, a file is fetched from it, and
-// the serve is stopped. A serve without a sign-in warns, and one with a user and password asks
-// for them.
 func TestServeTools(t *testing.T) {
 	cs := connect(t)
 	dir := t.TempDir()
@@ -158,7 +151,6 @@ func TestServeTools(t *testing.T) {
 		t.Errorf("a.txt over http: %d %q", code, body)
 	}
 
-	// With a user and a password, a client must sign in, and there is no warning.
 	locked := fmt.Sprintf("127.0.0.1:%d", freePort(t))
 	w := must[serveItem](t, cs, "serve", map[string]any{
 		"source": dir, "protocol": "http", "address": locked, "options": map[string]any{"user": "me", "pass": "s3cret"},
@@ -232,9 +224,6 @@ func TestOpenWarning(t *testing.T) {
 	}
 }
 
-// open_window opens the window of a route, with what it starts with in its query, as the
-// launcher opens it. It refuses a window that doesn't exist, and an argument that the window
-// doesn't take.
 func TestOpenWindow(t *testing.T) {
 	cs := connect(t)
 	for _, c := range []struct {

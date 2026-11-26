@@ -33,8 +33,6 @@ func TestCloudflaredLevel(t *testing.T) {
 	}
 }
 
-// TestPairing checks that the QR code holds the same data as the one in the Mobile & Remote
-// Control window, and draws as a square with its margin, with two rows of modules per line.
 func TestPairing(t *testing.T) {
 	b, _ := json.Marshal(Pairing{URL: "https://abc.trycloudflare.com", User: "u", Pass: "p"})
 	if string(b) != `{"url":"https://abc.trycloudflare.com","user":"u","pass":"p"}` {
@@ -49,7 +47,6 @@ func TestPairing(t *testing.T) {
 	if len(lines) != (n+1)/2 {
 		t.Fatalf("%d lines for %d rows", len(lines), n)
 	}
-	// Every module read back from the blocks matches the code.
 	for row, l := range lines {
 		cells := []rune(strings.TrimSuffix(strings.TrimPrefix(l, "\x1b[30m\x1b[107m"), "\x1b[0m"))
 		if len(cells) != n {
@@ -64,7 +61,6 @@ func TestPairing(t *testing.T) {
 			}
 		}
 	}
-	// The margin is light, and the corner of the finder pattern is dark.
 	if code.Black(-1, 0) || !code.Black(0, 0) {
 		t.Fatal("the code's corner")
 	}

@@ -8,7 +8,6 @@ describe('missOf', () => {
 
     it("says that a site's page held no file", () => {
         expect(missOf({ found: false, miss: 'nothing', filename: '' })).toBe('nothing')
-        // A file without a name can't be saved as one.
         expect(missOf({ found: true, miss: '', filename: '' })).toBe('nothing')
     })
 

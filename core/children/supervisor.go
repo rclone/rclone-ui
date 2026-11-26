@@ -1,19 +1,3 @@
-// Package children supervises the core's child processes. These are rclone children
-// (`rcui mount|nfsmount|cmount|serve|tunnel …`): one per mount or serve, plus the remote tunnel.
-// A Unit is one child. The supervisor waits for it to be ready (Spec.Ready), and starts it again
-// with backoff when it exits on its own, unless it was stopped on purpose. A stop sends SIGTERM
-// to the child's process group, waits 10 s, then sends SIGKILL. On Windows a stop is a kill, and
-// every child is in one kill-on-close Job Object. Every process is waited for (Wait) before its
-// unit reports it gone.
-//
-// Each running process, and each mount or serve to start again after a restart, is recorded in
-// <run>/children.json. ClearLeftovers reads that file at the next start.
-//
-// A rclone child runs on its own config file (--config). When that file is encrypted, the child
-// gets its key through a one-time key file (see childenv). It also gets the flags that every child
-// gets, and an rc server on <sockets>/c-<id>.sock with random basic-auth credentials (RC). The
-// child ends when the core's end of its stdin closes (see childenv), so if the app dies it never
-// leaves a child behind.
 package children
 
 import (
@@ -32,35 +16,19 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// stopGrace is how long a child has to end after SIGTERM before it is killed.
 const stopGrace = 10 * time.Second
 
-// ErrClosed is returned by Start once the supervisor is stopping every child. No new child
-// starts after that.
 var ErrClosed = errors.New("children: the supervisor is stopping")
 
-// errNotBegun is returned by Start before Begin. The core calls Begin before anything can start a
-// child, so only a mistake returns it.
 var errNotBegun = errors.New("children: the supervisor hasn't begun")
 
 type Options struct {
-	RunDir string // holds children.json and the children's one-time key files
-	// SocketDir is the folder for the children's rc sockets (datadir.SocketDir). It is short,
-	// because socket paths have a length limit. "" means RunDir.
-	SocketDir string
-	// Exe is this binary, which runs the rclone children (`rcui mount …` takes rclone's own
-	// command line).
-	Exe string
-	// CacheDir is rclone's cache folder (<data>/cache). It is passed as a child's --cache-dir
-	// unless the child's own arguments already set one (the stable folder of a mount or serve).
-	CacheDir string
-	// Emit receives every line that a child prints, after parsing (the log's Append). nil logs
-	// the lines through slog.
-	Emit func(logs.Record)
-	// Limits returns the options that each rclone child starts with. nil means ParentLimits.
-	Limits func() Limits
-	// LibraryPath is the AppImage's LD_LIBRARY_PATH (AppImageLibraryPath). Every child runs this
-	// executable, so it needs that path back to load its libraries. It is "" outside an AppImage.
+	RunDir      string
+	SocketDir   string
+	Exe         string
+	CacheDir    string
+	Emit        func(logs.Record)
+	Limits      func() Limits
 	LibraryPath string
 }
 
@@ -72,18 +40,15 @@ type Supervisor struct {
 
 	mu      sync.Mutex
 	closing bool
-	// begun is set by Begin. Until then, no child starts and children.json is left alone.
 	begun   bool
 	units   map[*Unit]struct{}
-	ids     map[string]bool   // ids of the units that are still supervised
-	live    map[string]Record // running processes, by child id
-	pending map[string]Record // records to start again after a restart, by id
+	ids     map[string]bool
+	live    map[string]Record
+	pending map[string]Record
 
-	fileMu sync.Mutex // allows one children.json write at a time, in snapshot order
+	fileMu sync.Mutex
 }
 
-// New creates the supervisor. It writes nothing: children.json keeps the previous run's records
-// until Begin.
 func New(o Options) (*Supervisor, error) {
 	if o.RunDir == "" {
 		return nil, errors.New("children: no run dir")
@@ -112,11 +77,6 @@ func New(o Options) (*Supervisor, error) {
 	return s, nil
 }
 
-// Begin lets children start, once ClearLeftovers has dealt with the previous run's. pending are
-// the records that ClearLeftovers returned to start again (Leftovers.Restore). They stay in
-// children.json until they are started again (by a Spec with the same ID) or dropped
-// (DropPending). Begin then writes children.json. Before Begin, the file holds the previous run's
-// records, which the next start needs if this one fails first.
 func (s *Supervisor) Begin(pending []Record) error {
 	s.mu.Lock()
 	for _, r := range pending {
@@ -130,8 +90,6 @@ func (s *Supervisor) Begin(pending []Record) error {
 	return s.save()
 }
 
-// Start supervises the child described by spec until the unit is stopped (Unit.Stop, StopAll)
-// or its OnDown declines a restart. The first start happens on the unit's own goroutine.
 func (s *Supervisor) Start(spec Spec) (*Unit, error) {
 	if err := s.check(spec); err != nil {
 		return nil, err
@@ -153,7 +111,7 @@ func (s *Supervisor) Start(spec Spec) (*Unit, error) {
 		return nil, fmt.Errorf("children: a child with id %s is already supervised", id)
 	}
 	s.ids[id] = true
-	delete(s.pending, id) // a pending record that is now started again
+	delete(s.pending, id)
 	u := newUnit(s, spec, id)
 	s.units[u] = struct{}{}
 	s.mu.Unlock()
@@ -180,12 +138,6 @@ func (s *Supervisor) check(spec Spec) error {
 	return nil
 }
 
-// StopAll stops every unit in parallel and waits for every process, because a relaunch must not
-// exec while a process is left unwaited. restore picks the mounts and serves to start again
-// after a planned restart. Those, and the pending records that restore keeps, stay in
-// children.json as Restore records. A nil restore (a plain shutdown) keeps none. Every running
-// record is marked Stopping first, so a child that is still stopping when ctx ends doesn't come
-// back at the next start the way a crashed one would. No unit starts after StopAll.
 func (s *Supervisor) StopAll(ctx context.Context, restore func(Record) bool) error {
 	s.mu.Lock()
 	s.closing = true
@@ -196,7 +148,6 @@ func (s *Supervisor) StopAll(ctx context.Context, restore func(Record) bool) err
 	candidates := sortedRecords(s.pending)
 	s.mu.Unlock()
 	for _, u := range units {
-		// A unit that its OnDown ended, or that a user is stopping, doesn't come back.
 		if u.State() == StateStopped || u.left() {
 			continue
 		}
@@ -238,17 +189,12 @@ func (s *Supervisor) StopAll(ctx context.Context, restore func(Record) bool) err
 
 func (s *Supervisor) CacheDir() string { return s.o.CacheDir }
 
-// Pending returns the mounts and serves from before a restart that have not been started
-// again yet.
 func (s *Supervisor) Pending() []Record {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return sortedRecords(s.pending)
 }
 
-// DropPending forgets pending records that the app decided not to start again. Once StopAll has
-// begun, it does nothing, because StopAll chooses which records to keep. A Boot that is still
-// running must not drop a record it couldn't start only because of the stop.
 func (s *Supervisor) DropPending(ids ...string) {
 	s.mu.Lock()
 	if s.closing {
@@ -264,7 +210,6 @@ func (s *Supervisor) DropPending(ids ...string) {
 	}
 }
 
-// ended removes a unit whose goroutine has returned.
 func (s *Supervisor) ended(u *Unit) {
 	s.mu.Lock()
 	delete(s.units, u)
@@ -274,7 +219,7 @@ func (s *Supervisor) ended(u *Unit) {
 
 func (s *Supervisor) started(r Record) {
 	s.mu.Lock()
-	r.Stopping = s.closing // the process was spawned just as StopAll began
+	r.Stopping = s.closing
 	s.live[r.ID] = r
 	s.mu.Unlock()
 	if err := s.save(); err != nil {
@@ -291,8 +236,6 @@ func (s *Supervisor) exited(id string) {
 	}
 }
 
-// save writes the running processes and the pending records to children.json. Before Begin it
-// writes nothing, so a stop after a failed start keeps the previous run's records.
 func (s *Supervisor) save() error {
 	s.fileMu.Lock()
 	defer s.fileMu.Unlock()
@@ -317,7 +260,7 @@ func sortedRecords(m map[string]Record) []Record {
 
 func (s *Supervisor) newIDLocked() string {
 	for {
-		id := ids.Hex(4) // 8 hex digits, as validID expects
+		id := ids.Hex(4)
 		if !s.ids[id] {
 			if _, ok := s.pending[id]; !ok {
 				return id
@@ -342,7 +285,6 @@ func maxSocketPath() int {
 	return 107
 }
 
-// logEntry is the default Emit. It logs a child's line through slog.
 func logEntry(e logs.Record) {
 	logs.Logger(e.Component, e.Subcomponent).Log(context.Background(), e.Level, e.Message)
 }

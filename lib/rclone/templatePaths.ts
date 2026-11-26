@@ -1,14 +1,6 @@
 import { plural } from '@lingui/core/macro'
 import type { Templates } from '../core/types'
 
-// How a template's paths are applied on a page: added to the page's paths, or replacing them.
-// Every page uses these functions, so that the pages can't drift from each other.
-
-/**
- * A page's paths, as a template keeps them. A single-source page uses the first source, and the
- * core refuses a template with several sources for one (templates.Check). A saved template's
- * paths (Templates.Paths) have the same fields.
- */
 export interface TemplatePaths {
     sources?: string[]
     destination?: string
@@ -18,11 +10,6 @@ export function hasTemplatePaths(paths: TemplatePaths | null | undefined): boole
     return !!paths && ((paths.sources?.length ?? 0) > 0 || !!paths.destination)
 }
 
-/**
- * The page's paths after a template is applied. Merge adds the template's sources that the page
- * doesn't have, and fills an empty destination. Replace swaps both. A template without paths
- * leaves the page's paths as they are, so Replace All doesn't clear them.
- */
 export function applyTemplatePaths(
     current: TemplatePaths,
     incoming: TemplatePaths | null | undefined,
@@ -42,7 +29,6 @@ export function applyTemplatePaths(
     return next
 }
 
-/** The paths as a card shows them: "a:x and 2 more → b:y". */
 export function describeTemplatePaths(paths: TemplatePaths | null | undefined): string | undefined {
     if (!hasTemplatePaths(paths)) return undefined
     const sources = paths?.sources ?? []
@@ -57,7 +43,6 @@ export function describeTemplatePaths(paths: TemplatePaths | null | undefined): 
     return [from, paths?.destination].filter(Boolean).join(' → ')
 }
 
-/** The paths of a page's form, as a template keeps them. */
 export function pathsFromArgs(args: {
     sources?: string[]
     source?: string
@@ -70,7 +55,6 @@ export function pathsFromArgs(args: {
     }
 }
 
-/** A page's paths as a saved template holds them, or null when there are none. */
 export function savedPaths(paths: TemplatePaths | undefined): Templates.Paths | null {
     if (!paths || !hasTemplatePaths(paths)) return null
     return { sources: paths.sources ?? [], destination: paths.destination ?? '' }

@@ -1,6 +1,3 @@
-// Package prefs stores the pages' UI preferences, such as the app's theme, the notices the user
-// acknowledged, and panel layouts. They are JSON values by key, which the core stores but never
-// reads.
 package prefs
 
 import (
@@ -15,7 +12,6 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// maxValue is the largest size of one value. Preferences are small.
 const maxValue = 64 << 10
 
 var keyRE = regexp.MustCompile(`^[a-zA-Z0-9_.:-]{1,128}$`)
@@ -27,8 +23,6 @@ type Service struct {
 
 func New(d *db.DB, b *bus.Bus) *Service { return &Service{db: d, bus: b} }
 
-// Get returns the values of keys, or of all keys when keys is empty. A key that was never set is
-// left out.
 func (s *Service) Get(ctx context.Context, keys []string) (map[string]string, error) {
 	out := map[string]string{}
 	err := s.db.Read(ctx, func(tx *sql.Tx) error {
@@ -56,7 +50,6 @@ func (s *Service) Get(ctx context.Context, keys []string) (map[string]string, er
 	return out, err
 }
 
-// Set writes key's JSON value. An empty value deletes the key.
 func (s *Service) Set(ctx context.Context, key, value string) error {
 	if !keyRE.MatchString(key) {
 		return errs.Field("key", "A preference's key is 1 to 128 letters, digits and ._:-")

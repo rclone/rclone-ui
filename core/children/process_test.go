@@ -12,7 +12,6 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// masked reads text the way a rclone child's output is read, and masks the given secrets.
 func masked(t *testing.T, text string, secrets ...string) []logs.Record {
 	t.Helper()
 	var got []logs.Record
@@ -23,8 +22,6 @@ func masked(t *testing.T, text string, secrets ...string) []logs.Record {
 	return got
 }
 
-// TestMaskingAList covers list options. rclone prints each item of a list option quoted, and
-// also the variable's quoted CSV record (fs/config/flags/flags.go). None of them may show.
 func TestMaskingAList(t *testing.T) {
 	const record = `"ak1,sk1","ak2,sk2"`
 	var text strings.Builder
@@ -46,11 +43,6 @@ func TestMaskingAList(t *testing.T) {
 	}
 }
 
-// TestMaskingEveryForm covers the forms a secret can take. When rclone prints a password with a
-// quote or a backslash using %q inside a JSON line, it is escaped twice. The line is decoded
-// before masking, and the escaped forms used in URLs are masked too. A line that can't be
-// decoded (because it was cut short) is still masked, and so are a panic's text and the tunnel's
-// basic auth as cloudflared logs its header. A short password is masked as well.
 func TestMaskingEveryForm(t *testing.T) {
 	for _, pass := range []string{`p"ss`, `back\slash`, `a&b<c>`, "Zq"} {
 		var line bytes.Buffer

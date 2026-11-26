@@ -47,7 +47,6 @@ func TestCheckText(t *testing.T) {
 	}
 }
 
-// WriteText refuses text that CheckText refuses, and leaves the file as it was.
 func TestWriteTextChecks(t *testing.T) {
 	ctx := context.Background()
 	s := newService(t, writeConfig(t, "[aa]\ntype = memory\n", ""), nil)

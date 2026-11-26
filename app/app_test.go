@@ -46,7 +46,6 @@ func TestUniqueID(t *testing.T) {
 			t.Fatalf("%q isn't a D-Bus name", a)
 		}
 	}
-	// A portable copy shares its lock with no other copy, even on its default data dir.
 	portable := filepath.Join(scratch, "Rclone UI", "data")
 	if got := uniqueID(portable, ""); !strings.HasPrefix(got, "org.rclone.ui.d") {
 		t.Errorf("a portable copy: %q", got)
@@ -83,8 +82,6 @@ func TestFlatpakNeeds(t *testing.T) {
 	}
 }
 
-// TestLinksWaitForTheScreens also checks that a link seen twice is handled once, and that a link
-// whose window failed to open is tried again.
 func TestLinksWaitForTheScreens(t *testing.T) {
 	var l links
 	var opened []string

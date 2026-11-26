@@ -36,13 +36,7 @@ const LOOK = WINDOWS.notifications
 
 const EMPTY: NotificationTarget[] = []
 
-/**
- * The Notifications window: the places that the app sends its notifications to, and the mail
- * server. With no place yet, it shows what notifications are for and the providers to start with.
- */
 export default function Notifications() {
-    // The core stores the targets and records the result of each delivery on its target.
-    // notifications.changed brings the new lastSentAt and lastError here.
     const targetsQuery = useNotificationTargets()
     const catalogQuery = useNotificationsCatalog()
     const smtpQuery = useSmtp()
@@ -61,13 +55,10 @@ export default function Notifications() {
         [notificationTargets]
     )
 
-    // Email goes out through the mail server. Without one, the email targets say so.
     const mailMissing = !smtpQuery.isLoading && !smtpQuery.data?.host
 
     const drawerProvider = editingTarget?.provider ?? addingProvider
 
-    // The form of a target is built from the catalog. If the catalog failed to load, pressing a
-    // card shows an error, rather than opening nothing (or opening late, after a Retry).
     const whenCatalogLoaded = async (open: () => void) => {
         if (catalogQuery.isError) {
             const reason = formatErrorMessage(catalogQuery.error)
@@ -272,7 +263,6 @@ const CARD = cn(
     'motion-reduce:transition-none motion-reduce:hover:translate-y-0'
 )
 
-/** A provider in "Add another". */
 function ProviderButton({
     provider,
     onPress,
@@ -295,7 +285,6 @@ function ProviderButton({
     )
 }
 
-/** A provider in the first-run state. */
 function ProviderCard({
     provider,
     onPress,
@@ -330,7 +319,6 @@ const SEVERITY_DOT: Record<string, StatusKind> = {
     info: 'idle',
 }
 
-/** The window's content before any target is added. */
 function FirstRun({
     catalog,
     onAdd,
@@ -354,7 +342,6 @@ function FirstRun({
                             key={provider}
                             provider={provider}
                             onPress={() => onAdd(provider)}
-                            // Three chat apps on the first row, a webhook and email on the second.
                             className={i < 3 ? '@lg:col-span-2' : '@lg:col-span-3'}
                         />
                     ))}

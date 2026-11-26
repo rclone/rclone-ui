@@ -27,12 +27,9 @@ func (e *Engine) install(ctx context.Context, a *Artifact) (func() error, error)
 	return nil, fmt.Errorf("a %s download can't be installed on Linux", a.Kind)
 }
 
-// packagedExecutable is the path where the deb and rpm install rcui.
 const packagedExecutable = "/usr/bin/rcui"
 
-// replaceFile moves src to dst with a single rename, through a temporary file next to dst, and
-// keeps dst's permissions. A running AppImage keeps using its mounted image, which the rename
-// doesn't affect.
+// A running AppImage keeps using its mounted image, which the rename doesn't affect.
 func replaceFile(src, dst string) error {
 	mode := os.FileMode(0o755)
 	if info, err := os.Stat(dst); err == nil {
@@ -56,9 +53,6 @@ func replaceFile(src, dst string) error {
 	return nil
 }
 
-// installPackage runs dpkg or rpm as root. It runs them directly when already root, through sudo
-// from a terminal, or else through pkexec (the desktop's password prompt). rpm gets --oldpackage
-// and --replacepkgs, because downgrades and reinstalls are allowed.
 func (e *Engine) installPackage(ctx context.Context, a *Artifact) error {
 	args := []string{"dpkg", "-i", a.Path}
 	if a.Kind == KindRPM {

@@ -7,13 +7,8 @@ import { updateSettings, useSettings } from '../../../lib/settings'
 import { toastSuccess } from '../../components/toast'
 import { SettingRow } from './SettingsGroup'
 
-/** The field that the core names when it refuses a limit. */
 const FIELD = 'transfers.bw_limit'
 
-/**
- * rclone's bandwidth limit (--bwlimit), for every transfer, mount and serve together. A change
- * applies at once, to what is running too.
- */
 export default function BandwidthRow() {
     const inputId = useId()
     const { settings } = useSettings()
@@ -32,7 +27,6 @@ export default function BandwidthRow() {
         try {
             await updateSettings({ bwLimit: limit })
             setProblem('')
-            // The limit is shown as rclone reads it (10M), in every language.
             const shown = limit.trim()
             setValue(shown)
             toastSuccess(shown ? t`Bandwidth limited to ${shown}` : t`Bandwidth limit removed`)
@@ -84,7 +78,6 @@ export default function BandwidthRow() {
                 <div className="flex flex-row gap-2">
                     <Button
                         color="primary"
-                        // As wide as the proxy's "Test and save", so the two fields end together.
                         className="min-w-32"
                         onPress={() => save(value)}
                         isDisabled={!changed || isSaving}

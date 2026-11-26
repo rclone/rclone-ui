@@ -7,7 +7,6 @@ import type { Entry } from './types'
 
 type Action = 'rename' | 'delete'
 
-/** The message for a folder's transfer that ended in `state` without completing. */
 function endMessage(action: Action, state: string, name: string): string {
     if (action === 'rename') {
         switch (state) {
@@ -37,11 +36,6 @@ function endMessage(action: Action, state: string, name: string): string {
     }
 }
 
-/**
- * Reports a folder rename or delete, run as a recorded transfer, that doesn't complete. This is
- * used everywhere except where the Commander's bar shows the transfer. The message links to the
- * transfer. If the core has no record of the transfer, the message says so, without a link.
- */
 function reportUnlessCompleted(transferId: string, action: Action, entry: Entry) {
     onTransferEnd(transferId, async (state) => {
         if (state === 'completed') return
@@ -62,13 +56,6 @@ function reportUnlessCompleted(transferId: string, action: Action, entry: Entry)
     })
 }
 
-/**
- * Rename and delete for the rows of a file panel, in both the Commander and the picker. Each
- * action shows a name prompt or a confirmation, makes one call to the core (`fsActions.ts`), and
- * lists the folder again. A picker uses `afterChange` to remove the entry from its selection. A
- * page that shows the transfers it starts (the Commander's bar) passes `onTransfer`. It then
- * receives each folder's transfer with its entry, and this hook doesn't report a failed one.
- */
 export default function useEntryActions(
     afterChange?: (entry: Entry) => void,
     { onTransfer }: { onTransfer?: (transferId: string, entry: Entry) => void } = {}
@@ -108,8 +95,6 @@ export default function useEntryActions(
 
     const remove = useCallback(
         async (entry: Entry) => {
-            // A search result is named by its path below the folder searched, which tells the
-            // matches of one name apart.
             const shown = entry.displayName ?? entry.name
             const confirmed = await ask(
                 entry.isDir

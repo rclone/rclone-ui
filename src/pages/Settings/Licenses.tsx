@@ -12,18 +12,12 @@ const WINFSP_REPOSITORY = 'https://github.com/winfsp/winfsp'
 /** WinFsp's notice, which its license asks for in these exact words, in every language. */
 const WINFSP_NOTICE = 'WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos'
 
-/**
- * The app's license, and the licenses of the software that it is built from. They come from
- * public/THIRD_PARTY_NOTICES.txt, which `go run ./build/notices` writes. The file is only
- * loaded when the user asks for it, because it is a megabyte of text.
- */
 export default function Licenses() {
     const [isOpen, setIsOpen] = useState(false)
     const notices = useQuery({
         queryKey: ['about', 'notices'],
         queryFn: async () => {
             const res = await fetch('/THIRD_PARTY_NOTICES.txt')
-            // The window shows this error in place of the licenses.
             const status = res.status
             if (!res.ok) throw new Error(t`The licenses did not load (${status}).`)
             return await res.text()
@@ -72,10 +66,6 @@ export default function Licenses() {
     )
 }
 
-/**
- * WinFsp's license asks for its notice and a link wherever the app uses it. The notice and the
- * link go into the sentence as they are. Only the words around them are translated.
- */
 function WinFspNotice() {
     const notice = WINFSP_NOTICE
     const link = (

@@ -11,7 +11,6 @@ export function WindowHeader({
     className,
 }: {
     look: WindowLook
-    /** The title, when it isn't the window's own (look.title). */
     title?: ReactNode
     description?: ReactNode
     actions?: ReactNode

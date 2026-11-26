@@ -39,10 +39,6 @@ export interface RowActions {
 
 const LOOK = WINDOWS.watchers
 
-/**
- * One watcher, as a row of the list. Sync now and Edit show while the pointer or the focus is on
- * the row. When the watcher needs the user, or is failing, what happened shows under the row.
- */
 export default function WatcherRow({
     watcher: w,
     now,
@@ -212,9 +208,7 @@ function lastChange(ago: string): string {
     })
 }
 
-/** What shows under a watcher that needs the user, or that is failing. */
 function Trouble({ watcher: w, actions }: { watcher: Watchers.Watcher; actions: RowActions }) {
-    // While a Resync runs, the watcher is initializing, and what it needed waits for the result.
     if (w.resyncing) return null
     if (w.attention === 'deletes' || w.attention === 'emptied') {
         const copy = deletesCopy(w)
@@ -274,10 +268,6 @@ function Trouble({ watcher: w, actions }: { watcher: Watchers.Watcher; actions: 
 
 const TRAILING_SLASHES = /[\\/]+$/
 
-/**
- * A folder of a watcher, on one line. When it is too long, the middle is cut: the start keeps the
- * remote and the end keeps the folder's own name ("/Users/me/Docu…/Contracts").
- */
 function FolderPath({ path }: { path: string }) {
     const trimmed = path.replace(TRAILING_SLASHES, '')
     const at = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
@@ -285,8 +275,6 @@ function FolderPath({ path }: { path: string }) {
     return (
         <span className="flex min-w-0">
             <span className="truncate min-w-8">{path.slice(0, at)}</span>
-            {/* The name doesn't shrink, so it isn't cut by a fraction of a pixel. A very long
-            name still leaves the start a few letters. */}
             <span className="truncate shrink-0 max-w-[calc(100%-2rem)]">{path.slice(at)}</span>
         </span>
     )

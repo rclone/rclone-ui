@@ -23,12 +23,8 @@ import (
 // ErrNoStopped is returned for a folder that doesn't belong to any stopped mount.
 var ErrNoStopped = errs.NotFound("stopped mount", "These uploads are no longer pending.")
 
-// maxMetaFile limits how much of one vfsMeta file is read. Each file is a few hundred bytes.
 const maxMetaFile = 1 << 20
 
-// settle decides what happens to a mount's cache folder once its child has exited. When uploads
-// are waiting there, the folder is kept and listed in stopped_mounts (keepWaiting). Otherwise it
-// is deleted, unless it belongs to an automount. A folder that couldn't be read is kept.
 func (s *Service) settle(ctx context.Context, c *child, queued int) {
 	n, known := s.keepWaiting(ctx, c.Log, waitingOf(c), queued)
 	folder := c.Own.folder
@@ -40,10 +36,8 @@ func (s *Service) settle(ctx context.Context, c *child, queued int) {
 	}
 }
 
-// waiting is a stopped mount whose cache folder may hold uploads that rclone hadn't sent, as
-// stored in stopped_mounts.
 type waiting struct {
-	folder     string // the cache folder, <CacheRoot>/vfs/<16 hex>
+	folder     string
 	args       operations.MountArgs
 	mountPoint string
 }
@@ -52,13 +46,6 @@ func waitingOf(c *child) waiting {
 	return waiting{folder: c.Own.folder, args: c.Own.args, mountPoint: c.Own.mountPoint}
 }
 
-// keepWaiting counts the uploads waiting in w's cache folder, and records w in stopped_mounts
-// when there are any, so that the folder is kept. The count is the larger of two numbers. The
-// first is queued, which is vfs/queue as read before the stop, or < 0 when it couldn't be read.
-// The second is the number of items that rclone marks dirty in the folder. That number also
-// includes a file that was still open for writing at the stop, which stays out of the queue
-// until it is closed, and a file closed after the queue was read. known reports whether n can
-// be trusted, which is when the folder could be read or the queue had uploads.
 func (s *Service) keepWaiting(ctx context.Context, log *slog.Logger, w waiting, queued int) (n int, known bool) {
 	dirty, err := dirtyItems(w.folder)
 	known = err == nil || queued > 0
@@ -77,9 +64,7 @@ func (s *Service) keepWaiting(ctx context.Context, log *slog.Logger, w waiting, 
 }
 
 // dirtyItems counts the files in a VFS cache folder that rclone hasn't uploaded yet. These are
-// the vfsMeta entries with "Dirty": true (vfs/vfscache/item.go Info). An entry that doesn't
-// decode, for example because rclone was killed while writing it, is counted too, so that
-// nothing is deleted when in doubt. A missing folder counts as zero.
+// the vfsMeta entries with "Dirty": true (vfs/vfscache/item.go Info).
 func dirtyItems(folder string) (int, error) {
 	n := 0
 	err := filepath.WalkDir(filepath.Join(folder, "vfsMeta"), func(path string, d fs.DirEntry, err error) error {
@@ -107,8 +92,6 @@ func dirtyItems(folder string) (int, error) {
 	return n, err
 }
 
-// recordStopped stores a stopped mount that has uploads waiting, and sends mounts.changed. A
-// later stop with the same folder replaces the row.
 func (s *Service) recordStopped(ctx context.Context, folder string, a operations.MountArgs, mountPoint string, pending int) error {
 	args, err := json.Marshal(a)
 	if err != nil {
@@ -128,8 +111,6 @@ func (s *Service) recordStopped(ctx context.Context, folder string, a operations
 	return err
 }
 
-// deleteStopped removes a stopped mount that was mounted again or discarded, and sends
-// mounts.changed.
 func (s *Service) deleteStopped(ctx context.Context, folder string) error {
 	var n int64
 	err := s.o.DB.Write(ctx, func(tx *sql.Tx) error {
@@ -145,8 +126,7 @@ func (s *Service) deleteStopped(ctx context.Context, folder string) error {
 	return err
 }
 
-// Stopped returns the stopped mounts that have uploads waiting, newest first, for the Mount
-// page's list.
+// Stopped returns the stopped mounts that have uploads waiting, newest first.
 func (s *Service) Stopped(ctx context.Context) ([]StoppedMount, error) {
 	out := []StoppedMount{}
 	err := s.o.DB.Read(ctx, func(tx *sql.Tx) error {
@@ -226,14 +206,10 @@ func (s *Service) Discard(ctx context.Context, folder string) error {
 	return s.deleteStopped(ctx, folder)
 }
 
-// cacheFolder reports whether path is a mount's cache folder, <CacheRoot>/vfs/<16 hex>. Only
-// such a folder is ever deleted.
 func cacheFolder(path string) bool {
 	return filepath.IsAbs(path) && validFolder(filepath.Base(path)) && filepath.Base(filepath.Dir(path)) == "vfs"
 }
 
-// validFolder reports whether folder is a valid cache folder name: 16 hex characters, never a
-// path.
 func validFolder(folder string) bool {
 	if len(folder) != 16 {
 		return false

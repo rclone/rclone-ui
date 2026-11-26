@@ -22,8 +22,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// newBinder returns Wails' global shortcuts on X11 (a key grab), and the launcher's own portal
-// session on Wayland.
 func newBinder(app *application.App, log *slog.Logger) binder {
 	if waylandSession(os.Getenv) {
 		return &portalBinder{log: log, want: make(chan *binding, 1)}
@@ -41,38 +39,25 @@ const (
 	// portalWait is how long a portal request may take. Binding may wait for the user to answer
 	// a dialog shown by the desktop.
 	portalWait = 5 * time.Minute
-	// answerWait is how long register waits for the portal's answer. A portal without global
-	// shortcuts, or one that refuses outright, answers well within this time. A desktop that asks
-	// the user may not, and startup shouldn't wait for the user.
 	answerWait = 2 * time.Second
 )
 
-// portalBinder binds the launcher's shortcut through xdg-desktop-portal's GlobalShortcuts. The
-// portal answers asynchronously and may ask the user, so register queues the binding (the latest
-// request wins) and waits up to answerWait for the portal's answer. A refusal within that time
-// is returned as register's error, so Settings never saves a shortcut that the desktop refused.
-// A later refusal is only logged. The trigger is only a preference, because the desktop and the
-// user decide the actual keys.
 type portalBinder struct {
 	log  *slog.Logger
-	want chan *binding // holds at most one binding: the latest one requested
+	want chan *binding
 	once sync.Once
 
 	mu sync.Mutex
 	fn func(token string)
 }
 
-// binding is an accelerator to bind ("" for none) and the channel that receives the portal's
-// answer.
 type binding struct {
 	accel string
-	done  chan error // buffered, and answered once
+	done  chan error
 }
 
 func newBinding(accel string) *binding { return &binding{accel: accel, done: make(chan error, 1)} }
 
-// answer sends the binding's outcome. It does nothing for a nil binding or one that was already
-// answered.
 func (r *binding) answer(err error) {
 	if r == nil || r.done == nil {
 		return
@@ -102,8 +87,6 @@ func (b *portalBinder) unregister(string) error {
 	return nil
 }
 
-// queue replaces the binding that is waiting with r. The replaced binding is no longer wanted,
-// so it is answered with nil rather than a refusal.
 func (b *portalBinder) queue(r *binding) {
 	b.once.Do(func() { go b.run() })
 	for {
@@ -120,8 +103,6 @@ func (b *portalBinder) queue(r *binding) {
 	}
 }
 
-// fire handles a key press by calling the shortcut's function, with the activation token when the
-// portal sends one.
 func (b *portalBinder) fire(options map[string]dbus.Variant) {
 	token := ""
 	if v, ok := options["activation_token"]; ok {
@@ -135,9 +116,6 @@ func (b *portalBinder) fire(options map[string]dbus.Variant) {
 	}
 }
 
-// run owns the D-Bus connection and the portal session for the life of the process, and answers
-// each binding. Bindings requested in quick succession (a release, then the new shortcut) are
-// combined into one.
 func (b *portalBinder) run() {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
@@ -157,8 +135,6 @@ func (b *portalBinder) run() {
 	if names := conn.Names(); len(names) > 0 {
 		p.sender = strings.ReplaceAll(strings.TrimPrefix(names[0], ":"), ".", "_")
 	}
-	// Responses and key presses arrive on one channel. It is read on its own goroutine, separate
-	// from the calls that wait for responses.
 	sigs := make(chan *dbus.Signal, 32)
 	conn.Signal(sigs)
 	_ = conn.AddMatchSignal(dbus.WithMatchInterface(portalRequest), dbus.WithMatchMember("Response"))
@@ -176,7 +152,7 @@ func (b *portalBinder) run() {
 	for {
 		select {
 		case r := <-b.want:
-			next.answer(nil) // replaced before it was bound
+			next.answer(nil)
 			next = r
 			debounce.Reset(150 * time.Millisecond)
 		case <-debounce.C:
@@ -209,14 +185,13 @@ func (b *portalBinder) run() {
 }
 
 type portalResponse struct {
-	code    uint32 // 0 granted, 1 cancelled by the user, 2 ended
+	code    uint32
 	results map[string]dbus.Variant
 }
 
-// portal makes the GlobalShortcuts calls, which follow the portal's Request/Response pattern.
 type portal struct {
 	conn   *dbus.Conn
-	sender string // the connection's unique name, in the form used in request paths
+	sender string
 	seq    int
 
 	mu      sync.Mutex
@@ -284,7 +259,6 @@ func (p *portal) createSession() (dbus.ObjectPath, error) {
 	return "", fmt.Errorf("CreateSession gave no session")
 }
 
-// bind requests the launcher's shortcut in session, with trigger as its preferred keys.
 func (p *portal) bind(session dbus.ObjectPath, trigger string) error {
 	type shortcut struct {
 		ID    string
@@ -305,7 +279,6 @@ func (p *portal) bind(session dbus.ObjectPath, trigger string) error {
 	return nil
 }
 
-// close ends session, which also removes its binding.
 func (p *portal) close(session dbus.ObjectPath) {
 	_ = p.conn.Object(portalService, session).Call(portalSession+".Close", 0).Err
 }

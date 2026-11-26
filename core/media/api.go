@@ -10,7 +10,6 @@ import (
 
 // SignedURL is a URL that a page can load a file from without any other credential.
 type SignedURL struct {
-	// URL is on the media server's port: http://127.0.0.1:port/media?…
 	URL string `json:"url"`
 	// ExpiresAt is when the URL stops working, in ms since the epoch.
 	ExpiresAt int64 `json:"expiresAt"`

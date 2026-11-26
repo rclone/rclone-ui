@@ -26,19 +26,13 @@ import { useOptionItems } from './useOptionItems'
 
 type Operation = OperationSubset<'copy' | 'move' | 'sync'>
 
-// The differences between Copy, Move and Sync: their text, and whether they accept several
-// sources. Each line that names the operation is a whole message of its own.
 const OPERATIONS: Record<
     Operation,
     {
         title: string
-        /** The sentence under the page's title. */
         intro: string
-        /** The action bar's line after the start. */
         started: string
-        /** The button that gets the page ready for another run. */
         newLabel: string
-        /** What the error dialog says when the failure has no message of its own. */
         failed: string
         many: boolean
     }
@@ -82,7 +76,6 @@ function sourceOptions(operation: Operation): PathOptions {
     }
 }
 
-/** It has no description: where the sources land is said under the route (routeNote). */
 function destOptions(operation: Operation): PathOptions {
     const picker = pickerFor(operation, 'destination')
     return {
@@ -96,11 +89,6 @@ function destOptions(operation: Operation): PathOptions {
     }
 }
 
-/**
- * The line under the route. Copy's and Move's says where the sources land, because each one goes
- * inside the destination under its own name (see landings.ts). Sync's says that the source's
- * contents go straight in, and keeps the deletions in view.
- */
 function routeNote(operation: Operation, landing: string | undefined): RouteNote | undefined {
     if (operation === 'sync') {
         return {
@@ -114,22 +102,16 @@ function routeNote(operation: Operation, landing: string | undefined): RouteNote
 export default function TransferOperationPage({ operation }: { operation: Operation }) {
     const { title, intro, started, newLabel, failed, many } = OPERATIONS[operation]
     const start = usePageStart(operation)
-    // The preset's arguments. Sync's form has a source, and Copy's and Move's have sources.
     const presetArgs: OperationArgs | undefined = start.preset?.[operation] ?? undefined
 
-    // Sync's single source is stored as a list with one item. An empty string is kept as it is,
-    // and the page asks the user to select a source.
     const [sources, setSources] = useState<string[] | undefined>(() => {
         if (many) return start.sources
         const source = start.sources?.[0]
         return source === undefined ? undefined : [source]
     })
     const [dest, setDest] = useState<string | undefined>(start.destination)
-    // The paths the page opened with. If they change, the form counts as edited.
     const [opened] = useState({ sources, dest })
     const source = sources?.[0]
-    // Setting the same path keeps the same list, so React skips the re-render as it would for a
-    // string.
     const setSource = useCallback(
         (path: string | undefined) =>
             setSources((prev) =>
@@ -138,8 +120,6 @@ export default function TransferOperationPage({ operation }: { operation: Operat
         []
     )
 
-    // The remotes named by the paths. Their tabs are parsed and sent. Text in other remotes' tabs
-    // is kept but not sent.
     const remoteNames = useMemo(() => remoteNamesOf([...(sources ?? []), dest]), [sources, dest])
 
     const optionState = useOptionGroups({
@@ -159,7 +139,6 @@ export default function TransferOperationPage({ operation }: { operation: Operat
         resetJson,
     } = optionState
     const ownGroup = optionGroups[operation]
-    // Sync has no landings: its source's contents always go straight into the destination.
     const landings = useLandings(
         operation === 'move' ? 'move' : 'copy',
         operation === 'sync' ? undefined : sources,
@@ -171,7 +150,6 @@ export default function TransferOperationPage({ operation }: { operation: Operat
     const configGroup = optionGroups.config
     const metadataGroup = optionGroups.metadata
 
-    // buildArgs only runs after `problem` has passed, so the paths are set.
     const buildArgs = () => {
         const options = {
             config: configGroup.sent,
@@ -185,7 +163,6 @@ export default function TransferOperationPage({ operation }: { operation: Operat
             : { source: source ?? '', destination: dest ?? '', options }
     }
 
-    // Copy and Move need a non-empty list. Sync needs a source that isn't ''.
     const noSource = many ? !sources || sources.length === 0 : !source
 
     const submission = useOperationSubmission({
@@ -201,7 +178,6 @@ export default function TransferOperationPage({ operation }: { operation: Operat
         jsonError,
         buildArgs,
         dryRun: true,
-        // Sync deletes files that are only in the destination, so ask before it starts.
         confirm:
             operation === 'sync'
                 ? (args) =>

@@ -29,25 +29,15 @@ import { deleteQuestion, searchFields, summaryOf } from './status'
 
 type Automount = Mounts.AutomountRow
 
-/** What the drawer opens on: an automount to edit, or for a new one, where to start. */
 type Opened = { automount?: Automount; start?: { remote: string; remotePath: string } }
 
 const LOOK = WINDOWS.automounts
 
-/**
- * The drawer that the window opens with. The launcher opens `?action=create&source=gdrive:photos`
- * to add an automount of that folder.
- */
 function openedOf(params: URLSearchParams): { item?: Opened; open?: boolean } | undefined {
     if (params.get('action') !== 'create') return undefined
     return { open: true, item: { start: splitSource(params.get('source') ?? '') } }
 }
 
-/**
- * The Automounts window. An automount mounts a folder of a remote each time the app starts, and a
- * remote can have several. The list follows the core's automounts.changed and mounts.changed
- * events.
- */
 export default function Automounts() {
     const params = usePageQuery()
     const setParams = useSetPageQuery()
@@ -56,8 +46,6 @@ export default function Automounts() {
     const defaults = useOperationDefaults('mount')
     const [mounting, setMounting] = useState<ReadonlySet<string>>(new Set())
 
-    // The query is read once, when the window opens, so it is cleared from the address. The page
-    // stays mounted, with its drawer open.
     useEffect(() => {
         setParams({ action: null, source: null })
     }, [setParams])
@@ -67,7 +55,6 @@ export default function Automounts() {
         try {
             await mountAutomount(a.id)
         } catch (error) {
-            // On a computer that can't mount, the dialog explains how to set it up.
             if (cannotMount(error) && (await explainMountSupport().catch(() => false))) return
             await reportError(error, {
                 title: t`Automount not mounted`,
@@ -115,9 +102,6 @@ export default function Automounts() {
                     })}
                 />
             )}
-            // The drawer shows a mount's defaults, which arrive with the catalog, so it waits for
-            // them. Its fields are set once, when it opens, from the defaults that
-            // useOptionGroups reads.
             drawers={
                 defaults && (
                     <AutomountDrawer
@@ -139,7 +123,6 @@ const STEPS = [
     t`Each time Rclone UI starts, it mounts there.`,
 ]
 
-/** The fields of an automount that the core saves, without what the row shows about it now. */
 function saved(a: Automount): Mounts.Automount {
     return {
         id: a.id,

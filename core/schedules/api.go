@@ -53,7 +53,6 @@ func (a *API) Delete(ctx context.Context, id string) error {
 	return a.s.Do(ctx, func(s *Service) error { return s.Delete(ctx, id) })
 }
 
-// Pause stops a schedule's future runs.
 func (a *API) Pause(ctx context.Context, id string) error {
 	return a.s.Do(ctx, func(s *Service) error { return s.Pause(ctx, id) })
 }
@@ -95,7 +94,6 @@ func (a *API) LeftOff(_ context.Context, f operations.Form) ([]string, error) {
 	return names, err
 }
 
-// optionLabel returns the label of an option that LeftOff names, in the app's language.
 func optionLabel(name string) string {
 	switch name {
 	case "Dry run":

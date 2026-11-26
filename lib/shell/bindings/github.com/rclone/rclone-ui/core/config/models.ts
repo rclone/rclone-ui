@@ -18,10 +18,6 @@ export class ConfigFile {
      * Message says what's wrong, when Status is an error.
      */
     "message": string;
-
-    /**
-     * PasswordSaved says its password is in the keychain.
-     */
     "passwordSaved": boolean;
     "passwordCommand": string;
 
@@ -67,9 +63,6 @@ export class ConfigFile {
     }
 }
 
-/**
- * Status is whether a config file can be used.
- */
 export enum Status {
     /**
      * The Go zero value for the underlying type of the enum.

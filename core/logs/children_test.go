@@ -44,7 +44,6 @@ func TestReadLines(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			got := readAll(t, strings.NewReader(c.input))
-			// Byte by byte, as a pipe may deliver it.
 			slow := readAll(t, iotest.OneByteReader(strings.NewReader(c.input)))
 			if !reflect.DeepEqual(got, c.want) || !reflect.DeepEqual(slow, c.want) {
 				short := func(ls []readLine) []readLine {
@@ -154,8 +153,6 @@ func TestACutLineIsMarked(t *testing.T) {
 		t.Fatalf("%d records", len(got))
 	}
 	r := got[0]
-	// Cut JSON is no longer valid JSON, so it becomes an error line that reports the cut.
-	// There are 23 bytes before the x's and 2 after, so 25 bytes are past MaxLine.
 	if r.Level != slog.LevelError || !strings.HasSuffix(r.Message, " … [line cut: 25 more bytes]") || r.Extra["cut"] != 25 {
 		t.Errorf("record level %v extra %v message …%s", r.Level, r.Extra, r.Message[len(r.Message)-40:])
 	}

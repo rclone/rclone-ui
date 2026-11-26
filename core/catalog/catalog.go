@@ -1,6 +1,3 @@
-// Package catalog provides rclone's reference data for the pages: the backends and their
-// options, the global option blocks, and the option groups that the pages offer. Each option
-// carries its kind, so that no page has to work out from a Go type name what a value is.
 package catalog
 
 import (
@@ -26,15 +23,11 @@ import (
 	"github.com/rclone/rclone-ui/core/version"
 )
 
-// Service builds the catalog once, because rclone's registry doesn't change while the process
-// runs.
 type Service struct {
 	once    sync.Once
 	cat     *Catalog
 	summary *Catalog
-	// exe is the running executable, which a pasted Copy command puts in front of the app's own
-	// metadata mapper. ParseCommand removes it.
-	exe string
+	exe     string
 }
 
 func New(exe string) *Service { return &Service{exe: exe} }
@@ -53,15 +46,13 @@ func (s *Service) Catalog() *Catalog {
 	return s.cat
 }
 
-// Summary returns the catalog that API.Get sends, with the backends but without their options.
-// The options make up four fifths of the catalog's size, and the pages request them through
-// Backend, one backend and provider at a time. Callers must not change it.
+// Summary returns the catalog with the backends but without their options. Callers must not
+// change it.
 func (s *Service) Summary() *Catalog {
 	s.load()
 	return s.summary
 }
 
-// summarize returns a copy of cat without the backends' options.
 func summarize(cat *Catalog) *Catalog {
 	out := *cat
 	out.Backends = make([]Backend, len(cat.Backends))
@@ -84,10 +75,6 @@ func (s *Service) Values(ctx context.Context) *Values {
 	return out
 }
 
-// lists returns the elements of the list options among a block's values, where text maps option
-// names to their text. The elements are read from rclone's value itself (a []string,
-// fs.CommaSepList or fs.SpaceSepList), because a list's text is a CSV record or an argv, and only
-// rclone's parser splits it exactly.
 func lists(block string, text map[string]string) map[string]*List {
 	oi, ok := fs.OptionsRegistry[block]
 	if !ok || oi.Opt == nil {
@@ -128,25 +115,19 @@ func build() *Catalog {
 	out.Groups = sections()
 	out.Defaults = Defaults()
 
-	// The version identifies the content. It is rclone's version plus a hash, which covers a
-	// build that changed an option without a new version number, such as a development build.
-	raw, _ := json.Marshal(out) // plain fields and sorted maps, so it can't fail and is stable
+	raw, _ := json.Marshal(out)
 	sum := sha256.Sum256(raw)
 	out.Version = version.Rclone() + "-" + hex.EncodeToString(sum[:6])
 	return out
 }
 
-// backendOf describes one of rclone's backends with the given options, which are either all of
-// its own or those that apply to one provider. Its text is in t's language, or in English when t
-// is nil.
 func backendOf(ri *fs.RegInfo, options []fs.Option, t *texts) Backend {
 	prefix := backendPrefix(ri.Name)
 	b := Backend{
-		Name:        ri.Name,
-		Description: t.text(key(prefix, "description"), ri.Description),
-		Prefix:      ri.Prefix,
-		Aliases:     slices.Clone(ri.Aliases),
-		// fs.Register itself hides an alias, such as tardigrade for storj.
+		Name:         ri.Name,
+		Description:  t.text(key(prefix, "description"), ri.Description),
+		Prefix:       ri.Prefix,
+		Aliases:      slices.Clone(ri.Aliases),
 		Hidden:       ri.Hide,
 		MetadataInfo: t.metadataInfo(ri.Name, ri.MetadataInfo),
 	}
@@ -161,17 +142,14 @@ func backendOf(ri *fs.RegInfo, options []fs.Option, t *texts) Backend {
 }
 
 // Backend returns the backend typ (a remote's type, looked up with fs.Find) with the options that
-// rclone's config asks for when the remote has the given provider (configAll in
-// fs/backend_config.go). An option or an example is kept when its provider filter matches the
-// provider (fs.MatchProvider). An empty provider means the provider option's default. When that
-// is empty too, no provider is chosen yet: the result has only the options that apply to every
-// provider, with all their examples. The text is rclone's English (BackendIn gives it in another
-// language).
+// rclone's config asks for when the remote has the given provider. An option or an example is
+// kept when its provider filter matches the provider. An empty provider means the provider
+// option's default. When that is empty too, no provider is chosen yet: the result has only the
+// options that apply to every provider, with all their examples. The text is rclone's English.
 func (s *Service) Backend(typ, provider string) (*BackendOptions, error) {
 	return s.backend(typ, provider, nil)
 }
 
-// backend is Backend, with its text in t's language, or in English when t is nil.
 func (s *Service) backend(typ, provider string, t *texts) (*BackendOptions, error) {
 	ri, err := fs.Find(typ)
 	if err != nil {
@@ -184,7 +162,7 @@ func (s *Service) backend(typ, provider string, t *texts) (*BackendOptions, erro
 	var options []fs.Option
 	for _, o := range ri.Options {
 		if provider == "" && providerOption != nil && o.Provider != "" {
-			continue // asked only once a provider is chosen
+			continue
 		}
 		if !fs.MatchProvider(o.Provider, provider) {
 			continue
@@ -203,9 +181,6 @@ func (s *Service) backend(typ, provider string, t *texts) (*BackendOptions, erro
 	return &BackendOptions{Backend: backendOf(ri, options, t), Provider: provider}, nil
 }
 
-// FromOption describes one of rclone's options the way the catalog does, with its kind, its
-// default as text, and its choices. It is also used for a config session's question (the Option
-// in fs.ConfigOut).
 func FromOption(o *fs.Option) *Option { return convert(o) }
 
 func convert(o *fs.Option) *Option {
@@ -227,8 +202,6 @@ func convert(o *fs.Option) *Option {
 	}
 	out.Kind, out.Choices, out.Separator = kindOf(o.GetValue())
 
-	// rclone's examples add help to the values of a closed set, and act as suggestions for any
-	// other option.
 	if len(o.Examples) > 0 {
 		if out.Kind == KindChoice || out.Kind == KindFlags {
 			for i := range out.Choices {
@@ -280,7 +253,6 @@ var (
 	tristateChoices = []string{"unset", "true", "false"}
 )
 
-// namePresets lists common values for options whose type doesn't suggest any, keyed by name.
 var namePresets = map[string][]string{
 	"order_by": {
 		"name,ascending", "name,descending",
@@ -289,8 +261,6 @@ var namePresets = map[string][]string{
 	},
 }
 
-// kindOf returns the kind of v's type, its choices, and a list's separator. The choices are
-// either the only values allowed (a closed set) or common ones.
 func kindOf(v any) (Kind, []Choice, string) {
 	switch x := v.(type) {
 	case bool:
@@ -341,8 +311,6 @@ func choices(values []string) []Choice {
 	return out
 }
 
-// unique keeps the first choice for each value. A value that several providers offer, such as
-// s3's region us-east-1, becomes one choice with the help text of the first.
 func unique(in []Choice) []Choice {
 	seen := map[string]bool{}
 	out := in[:0]
@@ -359,28 +327,23 @@ func unique(in []Choice) []Choice {
 // backendPaths lists the backend options that name a local file or folder. rclone doesn't mark
 // them, so they are listed here by name.
 var backendPaths = map[string]Path{
-	"service_account_file":    PathFile, // drive, google cloud storage
-	"box_config_file":         PathFile, // box
-	"client_certificate_path": PathFile, // azureblob, azurefiles
-	"service_principal_file":  PathFile, // azureblob, azurefiles
-	"config_file":             PathFile, // oracleobjectstorage
-	"sse_customer_key_file":   PathFile, // oracleobjectstorage
-	"shared_credentials_file": PathFile, // s3
-	"key_file":                PathFile, // sftp
-	"known_hosts_file":        PathFile, // sftp
-	"pubkey_file":             PathFile, // sftp
-	"kerberos_ccache":         PathFile, // smb
-	"unix_socket":             PathFile, // webdav
-	"chunk_path":              PathDir,  // cache
-	"db_path":                 PathDir,  // cache
-	"tmp_upload_path":         PathDir,  // cache
+	"service_account_file":    PathFile,
+	"box_config_file":         PathFile,
+	"client_certificate_path": PathFile,
+	"service_principal_file":  PathFile,
+	"config_file":             PathFile,
+	"sse_customer_key_file":   PathFile,
+	"shared_credentials_file": PathFile,
+	"key_file":                PathFile,
+	"known_hosts_file":        PathFile,
+	"pubkey_file":             PathFile,
+	"kerberos_ccache":         PathFile,
+	"unix_socket":             PathFile,
+	"chunk_path":              PathDir,
+	"db_path":                 PathDir,
+	"tmp_upload_path":         PathDir,
 }
 
-// wrappedRemotes lists the backend options whose value rclone opens as one path: the remote that
-// the backend wraps. rclone Cloud lists the same options among those that open an Fs
-// (internal/rclone/names/paths.go). cache's tmp_upload_path opens an Fs too, but it is a local
-// folder (backendPaths), so it keeps the folder picker. TestWrappedRemotes checks the list
-// against rclone.
 var wrappedRemotes = map[string]string{
 	"alias":    "remote",
 	"archive":  "remote",
@@ -398,13 +361,8 @@ func backendPath(backend, option string) Path {
 	return backendPaths[option]
 }
 
-// blockOptions returns the options of each of rclone's option blocks, keyed by the block's name,
-// in English. rclone registers its blocks at init and never changes them, so they are read once.
-// Callers must not change them.
 var blockOptions = sync.OnceValue(func() map[string][]Option { return convertBlocks(nil) })
 
-// convertBlocks describes the options of each of rclone's option blocks, keyed by the block's
-// name, with their text in t's language, or in English when t is nil.
 func convertBlocks(t *texts) map[string][]Option {
 	blocks := map[string][]Option{}
 	for name, info := range fs.OptionsRegistry {
@@ -421,12 +379,8 @@ func convertBlocks(t *texts) map[string][]Option {
 	return blocks
 }
 
-// sections returns the sections of options that the pages offer (groups), built once. Callers
-// must not change them.
 var sections = sync.OnceValue(func() []Section { return groups(blockOptions()) })
 
-// groups returns the sections of options that the pages offer. Each section picks options from
-// rclone's option blocks by their group tags, sorted by name.
 func groups(blocks map[string][]Option) []Section {
 	in := func(o *Option, g string) bool { return strings.Contains(o.Groups, g) }
 	pick := func(name string, from []string, keep func(*Option) bool) Section {
@@ -463,13 +417,10 @@ func groups(blocks map[string][]Option) []Section {
 		pick("sync", []string{"main"}, func(o *Option) bool {
 			return (in(o, "Copy") || in(o, "Sync")) && !in(o, "Metadata")
 		}),
-		// Everything tagged Metadata (metadata, metadata_mapper and the metadata filter rules) has
-		// its own section, and the other groups leave it out.
 		pick("metadata", []string{"main", "filter"}, func(o *Option) bool { return in(o, "Metadata") }),
 	}
 	for _, t := range rclone.ServeTypes() {
-		// Only include the serve types built for this platform (nfs is Unix only). A serve's
-		// block is registered only when the serve is built in.
+		// A serve's block is registered only when the serve is built in.
 		if _, ok := blocks[t]; ok {
 			out = append(out, pick("serve."+t, []string{t}, func(*Option) bool { return true }))
 		}

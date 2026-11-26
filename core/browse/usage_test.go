@@ -22,7 +22,6 @@ import (
 	"github.com/rclone/rclone-ui/core/location"
 )
 
-// file is a listed file: only its path and size are read.
 type file struct {
 	fs.Object
 	remote string
@@ -32,8 +31,6 @@ type file struct {
 func (f file) Remote() string { return f.remote }
 func (f file) Size() int64    { return f.size }
 
-// entries makes a listing: a name ending in / is a folder, and any other gets its size from
-// sizes, or 1.
 func entries(sizes map[string]int64, names ...string) fs.DirEntries {
 	var out fs.DirEntries
 	for _, n := range names {
@@ -52,7 +49,6 @@ func entries(sizes map[string]int64, names ...string) fs.DirEntries {
 
 var memRoot = location.Fs{Name: "mem", Config: "mem", Folder: true}
 
-// names returns the rows' names in order, with their bytes.
 func names(level UsageLevel) []string {
 	var out []string
 	for _, r := range level.Rows {
@@ -70,8 +66,6 @@ func level(t *testing.T, tree *UsageTree, rel string, by UsageSort) UsageLevel {
 	return l
 }
 
-// TestUsageTreeAddsUp checks the totals of a tree built from entries in any order, where some
-// files arrive before their folders and some folders never arrive at all, as on a bucket.
 func TestUsageTreeAddsUp(t *testing.T) {
 	tree := NewUsageTree()
 	tree.add(entries(map[string]int64{"a/b/c.txt": 10, "a/d.txt": 5, "a/b/doc": -1}, "a/b/c.txt", "e", "f/", "a/d.txt"))
@@ -125,8 +119,6 @@ func TestUsageTreeSorts(t *testing.T) {
 	}
 }
 
-// TestUsageTreeFirstRows checks that the first rows of a folder with many entries are the same as
-// the start of all its rows, in each order.
 func TestUsageTreeFirstRows(t *testing.T) {
 	tree := NewUsageTree()
 	sizes := map[string]int64{}
@@ -159,8 +151,6 @@ func TestUsageTreeFirstRows(t *testing.T) {
 	}
 }
 
-// TestUsageTreeKeepsTheLargestFiles checks that a folder keeps its largest files by name, and
-// counts the others as its smaller files, with the totals exact.
 func TestUsageTreeKeepsTheLargestFiles(t *testing.T) {
 	tree := NewUsageTree()
 	tree.keep = 3
@@ -171,7 +161,7 @@ func TestUsageTreeKeepsTheLargestFiles(t *testing.T) {
 		sizes[n] = int64(i + 1)
 		all = append(all, n)
 	}
-	rand := []int{4, 9, 0, 7, 2, 5, 8, 1, 6, 3} // a fixed order that isn't sorted
+	rand := []int{4, 9, 0, 7, 2, 5, 8, 1, 6, 3}
 	for _, i := range rand {
 		tree.add(entries(sizes, all[i]))
 	}
@@ -184,8 +174,6 @@ func TestUsageTreeKeepsTheLargestFiles(t *testing.T) {
 	}
 }
 
-// TestUsageTreeStaysInItsBudget checks that a scan past its budget lets go of the smallest files
-// of every folder, and keeps counting them.
 func TestUsageTreeStaysInItsBudget(t *testing.T) {
 	tree := NewUsageTree()
 	tree.budget = 4
@@ -224,14 +212,12 @@ func TestUsageTreeForgets(t *testing.T) {
 	if c := tree.Count(); c.Bytes != 1 || c.Files != 1 {
 		t.Fatalf("count after forgetting a/f: %+v", c)
 	}
-	// New entries still go to the right place after the folder remembered last went away.
 	tree.add(entries(nil, "a/b/new"))
 	if c := tree.Count(); c.Files != 2 || c.Folders != 2 {
 		t.Fatalf("count after a new entry: %+v", c)
 	}
 }
 
-// A bucket can hold a file and a folder of the same name. Forgetting one leaves the other.
 func TestUsageTreeForgetsAFileOrAFolderOfTheSameName(t *testing.T) {
 	tree := NewUsageTree()
 	tree.add(entries(map[string]int64{"logs": 10, "logs/a": 20, "logs/b": 30}, "logs", "logs/a", "logs/b"))
@@ -278,8 +264,6 @@ func TestUsageTreeStopsAtItsMostFolders(t *testing.T) {
 	}
 }
 
-// TestScanUsageWalksFolderByFolder scans a local tree through a backend without ListR. A folder
-// that can't be listed is marked, a skipped folder isn't listed at all, and dot-files count.
 func TestScanUsageWalksFolderByFolder(t *testing.T) {
 	var mu sync.Mutex
 	var listed []string
@@ -354,9 +338,6 @@ func TestScanUsageThroughTheBackendsListR(t *testing.T) {
 	}
 }
 
-// TestScanUsageAfterAFailedTreeListing scans through a backend that lists the whole tree at once,
-// where one folder can't be listed. The scan walks the tree again, marks that folder, and counts
-// the rest once.
 func TestScanUsageAfterAFailedTreeListing(t *testing.T) {
 	fx := &Fixture{ListR: true, Inner: MakeTree(t, map[string]string{
 		"a/one": "0123456789", "bad/two": "01", "c/three": "012", "four": "0123",
@@ -382,8 +363,6 @@ func TestScanUsageAfterAFailedTreeListing(t *testing.T) {
 	}
 }
 
-// TestScanUsageWhenAWorkerDies checks that a scan ends when a listing panics, as a fatal rclone
-// error does. That folder is marked unread, and the others are counted.
 func TestScanUsageWhenAWorkerDies(t *testing.T) {
 	fx := &Fixture{Inner: MakeTree(t, map[string]string{
 		"a/one": "0123456789", "bad/two": "01", "c/three": "012", "c/d/five": "01234", "four": "0123",
@@ -412,7 +391,6 @@ func TestScanUsageWhenAWorkerDies(t *testing.T) {
 		t.Fatalf("count %+v", c)
 	}
 
-	// With one worker, nobody reads the folders left: the scan ends with the panic's error.
 	ctx, ci := fs.AddConfig(context.Background())
 	ci.Checkers = 1
 	fx.Hook = func(ctx context.Context, dir string) error {
@@ -430,8 +408,6 @@ func TestScanUsageWhenAWorkerDies(t *testing.T) {
 	}
 }
 
-// TestScanUsageStops checks that a scan stops promptly when its context ends, and keeps what
-// it found.
 func TestScanUsageStops(t *testing.T) {
 	entered := make(chan struct{})
 	var once sync.Once
@@ -526,8 +502,6 @@ func TestUsageRootOf(t *testing.T) {
 	}
 }
 
-// TestWalkQueueTakesTurns checks that the walk takes one folder from each top folder in turn, and
-// reads the folders below each one in the order they were found.
 func TestWalkQueueTakesTurns(t *testing.T) {
 	q := newWalkQueue()
 	if q.pop() != "" || q.len() != 0 {
@@ -540,7 +514,6 @@ func TestWalkQueueTakesTurns(t *testing.T) {
 	pop := func() {
 		dir := q.pop()
 		got = append(got, dir)
-		// Each top folder holds two folders, and a/1 one more.
 		switch dir {
 		case "a", "b", "c":
 			q.push(dir + "/1")

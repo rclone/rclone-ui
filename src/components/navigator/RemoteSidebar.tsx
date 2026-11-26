@@ -16,10 +16,6 @@ import type { AllowedKey, RemoteString } from './types'
 import useDisks from './useDisks'
 import { getDiskIcon, getDiskLabel, isInLocalFolder, shouldShowDisk } from './utils'
 
-/**
- * A place in the sidebar: its tile, in a square that lights up when the panel is there. A bar on
- * the side of the panel marks the place shown, so the two sidebars read as two separate panels.
- */
 function Place({
     label,
     hint,
@@ -31,11 +27,8 @@ function Place({
     children,
 }: {
     label: string
-    /** A second line in the tooltip, such as a remote that stopped working. */
     hint?: ReactNode
-    /** A line shown only while the peek key is held, such as the space left on a remote. */
     peekHint?: ReactNode
-    /** Whether the place shows its name while the peek key is held. The star doesn't need it. */
     peeks?: boolean
     position: 'left' | 'right'
     isSelected: boolean
@@ -44,8 +37,6 @@ function Place({
 }) {
     const button = useRef<HTMLButtonElement>(null)
     const [hovered, setHovered] = useState(false)
-    // While the peek key is held, every place shows its name. A place that is scrolled out of the
-    // sidebar doesn't, because its name would float over the rest of the window.
     const peek = usePeek()
     const [peeked, setPeeked] = useState(false)
     useEffect(() => {
@@ -62,7 +53,6 @@ function Place({
             onOpenChange={setHovered}
             content={
                 peeked && (hint || peekHint) ? (
-                    // One line: a second one would cover the name of the place below.
                     <span className="flex items-baseline gap-2">
                         <span className="font-medium">{label}</span>
                         {hint}
@@ -112,7 +102,6 @@ function Place({
     )
 }
 
-/** The space left on a remote, when its backend reports it: "120 GB free of 2 TB". */
 function spaceWords(health: HealthResult | undefined): string | undefined {
     const about = health?.state === 'ok' ? health.about : undefined
     if (typeof about?.free !== 'number') return undefined
@@ -137,7 +126,6 @@ function spaceWords(health: HealthResult | undefined): string | undefined {
     })
 }
 
-/** A short line between the groups of places. */
 function GroupRule() {
     return <span aria-hidden={true} className="w-5 h-px my-1 shrink-0 bg-divider" />
 }
@@ -157,12 +145,9 @@ function RemotePlace({
     isFaulty: boolean
     space?: string
 }) {
-    // The backend's type is already in the shared remotes list, so there is nothing to fetch.
     const type = useRemotes().remotes.find((candidate) => candidate.name === remote)?.type
 
     return (
-        // The icon shows the backend and the label shows the remote. Without the label, screen
-        // readers announce the button as "drive", and every Google Drive remote sounds the same.
         <Place
             label={remote}
             hint={
@@ -190,10 +175,6 @@ function RemotePlace({
     )
 }
 
-/**
- * A panel's places: the favorites, the disks and folders of this computer, and the remotes, each
- * as a tile. It sits on the window beside its panel, on the panel's outer side.
- */
 export default function RemoteSidebar({
     position,
     selectedRemote,
@@ -215,7 +196,6 @@ export default function RemoteSidebar({
 
     const allDisks = useDisks(canShowLocal)
 
-    // The Commander's bar (its shortcuts cog) lets the user hide disks and folders.
     const [hiddenLocalPaths] = usePref('hiddenLocalPaths')
     const disks = useMemo(
         () =>
@@ -231,7 +211,6 @@ export default function RemoteSidebar({
         return sorted.find((disk) => isInLocalFolder(cwd, disk)) ?? null
     }, [selectedRemote, cwd, disks])
 
-    // A remote that stopped answering is marked, so a failing listing has an explanation in view.
     const health = useRemoteHealth().data
     const showsDisks = canShowLocal && disks.length > 0
     const showsRemotes = canShowRemotes && remotes.length > 0
@@ -248,7 +227,6 @@ export default function RemoteSidebar({
                 data-peek-clip={true}
                 className={cn(
                     'flex flex-col items-center w-full h-full gap-1 pb-3 overflow-y-auto',
-                    // On macOS the window's buttons sit in the top left corner, over the content.
                     platform() === 'macos' ? 'pt-9' : 'pt-0.5'
                 )}
                 size={40}

@@ -16,10 +16,6 @@ import {
 export type { Backend }
 export { Kind, Option, Path }
 
-// rclone's reference data comes from the core's catalog: the backends, the global option blocks,
-// and the groups of options that the pages offer. The data only changes with the version of
-// rclone, so it is fetched once.
-
 export function useCatalog() {
     return useQuery({
         queryKey: coreKey('catalog', 'Get'),
@@ -29,7 +25,6 @@ export function useCatalog() {
     })
 }
 
-/** The app's default options for an operation, by option group. A group without defaults is missing. */
 export type GroupDefaults = Readonly<Partial<Record<string, Readonly<Record<string, FlagValue>>>>>
 
 const NO_DEFAULTS: GroupDefaults = {}
@@ -92,10 +87,6 @@ export function useProviderOptions(
     return { options: backend?.options, current: !!backend && !isPlaceholderData }
 }
 
-/**
- * The query for a backend's options for a provider. It stays idle without a type. It is exported
- * so that useQueries can run it for several remotes at once.
- */
 export function backendQuery(type: string | undefined, provider: string | undefined) {
     const input = { type: type ?? '', provider: provider ?? '' }
     return {
@@ -103,17 +94,14 @@ export function backendQuery(type: string | undefined, provider: string | undefi
         queryFn: () => api.Backend(input.type, input.provider),
         enabled: !!type,
         staleTime: Number.POSITIVE_INFINITY,
-        // A backend that rclone doesn't have won't appear on a second try.
         retry: false,
     }
 }
 
-/** Whether b is the backend that a remote's `type` names, by its name or one of its aliases. */
 function isBackend(b: Backend | null | undefined, type: string | undefined): boolean {
     return !!b && !!type && (b.name === type || b.aliases.includes(type))
 }
 
-/** An option's value as the core returns it: rclone's text, or the elements of a list option. */
 export type OptionValue = string | string[]
 
 /**
@@ -148,7 +136,6 @@ export function useOptionValues(): Record<string, Record<string, OptionValue>> |
 
 const SERVE = 'serve.'
 
-/** The serve types on this machine (nfs is Unix only). The catalog has a group for each one. */
 function serveTypesOf(groups: Section[] | undefined): string[] {
     return (groups ?? [])
         .filter((g) => g.name.startsWith(SERVE))
@@ -196,7 +183,6 @@ export function useFlags() {
     }, [groups, lists, globalFlags])
 }
 
-/** Option values, grouped by catalog group (filter, config, copy, serve.http…). */
 export type GroupedOptions = Record<string, Record<string, FlagValue>>
 
 /**
@@ -213,7 +199,6 @@ export function useSortedOptions(options: Record<string, FlagValue> | undefined)
     })
 }
 
-/** Every serve's options in one object, because the template drawers edit them in one section. */
 export function serveOptions(grouped: GroupedOptions): Record<string, FlagValue> {
     return Object.assign(
         {},
@@ -234,7 +219,6 @@ export function useParsedCommand(command: string) {
         queryFn: () => api.ParseCommand(command),
         enabled: !!command,
         staleTime: Number.POSITIVE_INFINITY,
-        // If rclone can't read the line, it won't on a second try either.
         retry: false,
         select: (res) => ({
             groups: Object.fromEntries(

@@ -2,37 +2,23 @@ import { plural, t } from '@lingui/core/macro'
 import { buildReadablePath } from '../../../lib/format'
 import type { OperationSubset } from '../../../lib/operations'
 
-// The sentence at the left of an operation page's action bar, which says what pressing its button
-// will do ("Copy Photos to gdrive:Backup"), with a line under it about what that means for the
-// files. The places in it are stressed.
-//
-// Each sentence is one message, so that a language can put its words in its own order. A stressed
-// part goes into the message as a value that is marked (`stressed`), and `segments` finds the
-// marks in the translated sentence:
-//
-//     segments(t`Mount ${stressed(source)} at ${stressed(mountPoint)}`)
-
 export interface Segment {
     text: string
     strong?: boolean
 }
 
-/** What the action bar says: a sentence in segments, and a line under it. */
 export interface BarLine {
     title: Segment[]
     detail?: string
 }
 
-// Two characters from Unicode's private use area, which no path or translation contains.
 const OPEN = ''
 const CLOSE = ''
 
-/** Marks a value of a sentence as stressed. `segments` shows it strong, without the marks. */
 export function stressed(text: string): string {
     return `${OPEN}${text}${CLOSE}`
 }
 
-/** Splits a translated sentence into its segments, at the marks around its stressed values. */
 export function segments(sentence: string): Segment[] {
     const out: Segment[] = []
     for (const part of sentence.split(OPEN)) {
@@ -43,7 +29,6 @@ export function segments(sentence: string): Segment[] {
     return out
 }
 
-/** A source, or several: one is named by its last name ("Photos"), several are counted. */
 export function sourcesWords(paths: readonly (string | undefined)[]): string {
     const shown = paths.map((path) => path?.trim() ?? '').filter(Boolean)
     if (shown.length === 1) return stressed(buildReadablePath(shown[0], 'short'))
@@ -51,7 +36,6 @@ export function sourcesWords(paths: readonly (string | undefined)[]): string {
     return stressed(plural(count, { one: '# item', other: '# items' }))
 }
 
-/** A destination, named in full, shortened in the middle when it is long. */
 export function placeWords(path: string | undefined): string {
     return stressed(buildReadablePath(path?.trim() ?? ''))
 }
@@ -132,7 +116,6 @@ export function downloadLine(filename: string, destination: string | undefined):
     return { title: segments(t`Download ${file} to ${place}`) }
 }
 
-/** A line with no places, such as "Copy started". The caller translates its text. */
 export function plainLine(title: string, detail?: string): BarLine {
     return { title: [{ text: title }], detail }
 }

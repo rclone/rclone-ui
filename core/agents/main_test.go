@@ -1,7 +1,3 @@
-// Tests for the agents' server. They run in this process on a real core, whose one remote, "box",
-// is the local disk, and reach the tools the way an agent does: through an MCP client. When this
-// binary is started as an rclone child (marked by childenv), it runs rclone's command line, as
-// main.go does, so a test can mount or serve.
 package agents
 
 import (
@@ -48,17 +44,15 @@ func TestMain(m *testing.M) {
 	})
 }
 
-// The package's tests share one core, because rclone is set up once per process.
 var (
-	home    string // the tests' home folder
+	home    string
 	once    sync.Once
 	apis    *core.APIs
 	dataDir string
-	opened  []string // the routes that tools asked to open
+	opened  []string
 	startup error
 )
 
-// server returns a server on the shared core. Its OpenWindow records the route in opened.
 func server(t *testing.T) *Server {
 	t.Helper()
 	once.Do(func() {
@@ -80,8 +74,6 @@ func server(t *testing.T) *Server {
 	})
 }
 
-// connect returns an agent's session with a server on the shared core, over a connection in
-// memory. The agent calls itself "Test Agent".
 func connect(t *testing.T) *mcp.ClientSession {
 	t.Helper()
 	return connectTo(t, server(t))
@@ -110,8 +102,6 @@ func session(t *testing.T, transport mcp.Transport) *mcp.ClientSession {
 	return cs
 }
 
-// call calls a tool and returns its output, decoded into Out, or the tool's error as text. It
-// fails the test when the call itself fails, which is a protocol error rather than a tool's.
 func call[Out any](t *testing.T, cs *mcp.ClientSession, tool string, args any) (Out, string) {
 	t.Helper()
 	var out Out
@@ -141,7 +131,6 @@ func call[Out any](t *testing.T, cs *mcp.ClientSession, tool string, args any) (
 	return out, ""
 }
 
-// must is call for a tool that is expected to succeed.
 func must[Out any](t *testing.T, cs *mcp.ClientSession, tool string, args any) Out {
 	t.Helper()
 	out, failed := call[Out](t, cs, tool, args)

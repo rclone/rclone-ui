@@ -1,7 +1,3 @@
-// The core's APIs, as Wails binds them from core/<domain>/api.go. Pages call the core through
-// these exports and never import the generated bindings directly. The types for each domain are
-// exported under its name in lib/core/types.ts.
-
 export { API as app } from '../shell/bindings/github.com/rclone/rclone-ui/core/app'
 export { API as browse } from '../shell/bindings/github.com/rclone/rclone-ui/core/browse'
 export { API as catalog } from '../shell/bindings/github.com/rclone/rclone-ui/core/catalog'

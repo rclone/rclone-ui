@@ -17,9 +17,6 @@ import { Panel } from '../look/Panel'
 import { SectionTitle } from '../look/SectionTitle'
 import type { Tone } from '../look/tones'
 
-// The tile, title and purpose of each option group. An operation's own group has the look of its
-// window (WINDOWS in src/routes.ts), so Sync's options are green like the Sync window, and the
-// shared groups have tones of their own.
 export const CATEGORY_META: Record<
     | 'copy'
     | 'sync'
@@ -34,7 +31,6 @@ export const CATEGORY_META: Record<
     | 'remotes',
     {
         title: string
-        // Any Zappicon icon. They all share one type, which includes the variants.
         icon: typeof PageIcon
         tone: Tone
         purpose: string
@@ -89,15 +85,10 @@ export type OptionCategory = keyof typeof CATEGORY_META
 export interface OptionsAccordionItemDef {
     key: string
     category: OptionCategory
-    /**
-     * The group's options as set, which its title counts. The remotes group holds an object of
-     * options for each remote.
-     */
     options?: Record<string, unknown>
     children: ReactNode
 }
 
-/** How many options are set. With `nested` (the remotes group), the options inside each remote. */
 function setCount(options: Record<string, unknown>, nested = false): number {
     let count = 0
     for (const value of Object.values(options)) {
@@ -110,11 +101,6 @@ function setCount(options: Record<string, unknown>, nested = false): number {
     return count
 }
 
-/**
- * The option groups shared by the operation pages, in one panel with a row for each group. A row
- * shows what its group is for, with how many of its options are set beside its title. Opening it
- * shows the group's editor, which useOptionItems builds (OptionGroupEditor or RemoteOptionsEditor).
- */
 export default function OptionsAccordion({
     items,
     defaultExpandedKeys,
@@ -122,7 +108,6 @@ export default function OptionsAccordion({
 }: {
     items: OptionsAccordionItemDef[]
     defaultExpandedKeys?: string[]
-    /** Opens every item at once, and lets several stay open (the template drawer). */
     all?: boolean
 }) {
     const accordionItems = useMemo(

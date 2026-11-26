@@ -2,10 +2,6 @@ package pathlink
 
 import "strings"
 
-// These functions work on a Windows PATH value as stored in HKCU\Environment. Folders are
-// separated by ';' and compared ignoring case and a trailing backslash. They are plain string
-// functions, so their tests run on every OS.
-
 func pathHas(value, dir string) bool {
 	for seg := range strings.SplitSeq(value, ";") {
 		if samePathSegment(seg, dir) {
@@ -15,7 +11,6 @@ func pathHas(value, dir string) bool {
 	return false
 }
 
-// pathWith returns the value with dir appended, unless it already lists dir.
 func pathWith(value, dir string) string {
 	if pathHas(value, dir) {
 		return value
@@ -24,7 +19,6 @@ func pathWith(value, dir string) string {
 	return strings.Join(append(segs, dir), ";")
 }
 
-// pathWithout returns the value with every occurrence of dir removed.
 func pathWithout(value, dir string) string {
 	var out []string
 	for _, seg := range nonEmpty(strings.Split(value, ";")) {

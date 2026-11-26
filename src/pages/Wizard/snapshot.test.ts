@@ -26,7 +26,7 @@ describe('readState', () => {
             readState({
                 answers: {
                     goal: 'transfer',
-                    refine: 'webdav', // not one of the transfer's choices
+                    refine: 'webdav',
                     sources: ['/tmp/a', 3],
                     destination: '/tmp/b',
                     when: 'schedule',

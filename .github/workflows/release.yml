@@ -1,15 +1,5 @@
 name: release
 
-# Releases a stable version of Rclone UI. It builds and packages the six targets under the
-# release's file names (Rclone-UI-<version>-*), and writes the release's feed
-# (rclone-ui-update.json, app/update's Feed). Betas come from the release-beta workflow.
-#
-# The release is a draft. You publish it on the release page and set it as the latest release
-# there. The app's stable channel reads the latest release's feed, so that is what offers the
-# update. Then run release-winget.
-#
-# A dry run does all of it except the tag and the release. Its files are the run's
-# release-dry-run artifact.
 on:
   workflow_dispatch:
     inputs:
@@ -60,7 +50,6 @@ jobs:
   build:
     name: Build
     needs: prepare
-    # Each target built, signed and packaged (build.yml), as dist-<goos>-<goarch>.
     uses: ./.github/workflows/build.yml
     with:
       release: true
@@ -125,12 +114,10 @@ jobs:
         run: |
           version=$(node -p "require('./package.json').version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          # The policy (which running versions must or should update) is build/release/policy.json.
           go run ./build/release manifest -version "$version" \
             -base-url "https://github.com/${{ github.repository }}/releases/download/v$version" \
             -rclone "$(go list -m -f '{{.Version}}' github.com/rclone/rclone)" \
             -notes "See https://github.com/${{ github.repository }}/releases/tag/v$version" dist
-          # Exactly the files a release publishes: no file under another app's names.
           go run ./build/release check -version "$version" dist
 
       - name: The dry run's files

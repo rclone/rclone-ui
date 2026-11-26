@@ -5,9 +5,6 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
-/**
- * VFS is one running VFS, which belongs to a mount or a serve.
- */
 export class VFS {
     "id": string;
 

@@ -1,23 +1,3 @@
-// The single parser for path strings, following rclone's own rules (`Parse` in
-// `fs/fspath/path.go`). It is stateless: no list of remotes and no I/O. Whether a string is a
-// remote path depends only on its shape:
-//   - With no `:` anywhere, it is local.
-//   - With a `/` or `\` before the first `:` or `,`, it is local (`/tmp/10:30.txt`).
-//   - Otherwise the prefix before that `:` or `,` is the remote name, and it must follow rclone's
-//     rule for names (letters, digits, `_ . + @`, and spaces and dashes inside the name). A `,`
-//     starts connection-string parameters, which run to the next unquoted `:`.
-//   - On a Windows host only, a single-letter name is a drive, so the path is local (`C:`,
-//     `c:photos`).
-//   - On a Windows host only, `\` in a path is a separator (rclone's `filepath.ToSlash`).
-//     Elsewhere it is part of a name, so `/tmp/a\b.txt` is one file in /tmp.
-//   - The path after the colon is kept exactly as typed. A leading slash is kept, because on sftp
-//     and on the local backend it makes the path absolute, and the backends where it means nothing
-//     trim it themselves. Nothing here adds a slash that the user didn't type, or removes one.
-//   - A local path that isn't full (`tmp`, `~/x`, `:local:x`) is rejected (`pathProblem`),
-//     because rclone would resolve it from the core's working directory.
-// The only context needed is whether the host is Windows, which the app knows without I/O
-// (`isWindows` in lib/shell). `:/` has no special meaning.
-
 import { t } from '@lingui/core/macro'
 import { isWindows } from './shell'
 
@@ -25,7 +5,6 @@ export type Host = { windows: boolean }
 export const POSIX: Host = { windows: false }
 export const WINDOWS: Host = { windows: true }
 
-/** The host that the core runs on, which is this machine. Pure code and tests pass a host. */
 export const currentHost = (): Host => (isWindows() ? WINDOWS : POSIX)
 
 type InvalidCode = 'empty' | 'name' | 'on-the-fly' | 'params'
@@ -56,29 +35,17 @@ export const leadingSeparatorOf = (host: Host) => (host.windows ? LEADING_SEPARA
 const TRAILING_SEPARATORS = /[/\\]+$/
 const TRAILING_SLASHES = /\/+$/
 
-/** The separators at the end of a path. A backslash is one on a Windows host only. */
 export const trailingSeparatorsOf = (host: Host) =>
     host.windows ? TRAILING_SEPARATORS : TRAILING_SLASHES
 
 // Drives only exist on a Windows host. Callers that test these have already checked the host.
-/** A drive on its own: `C:`, `C:\`, `C:/`. */
 export const DRIVE_ROOT = /^[a-zA-Z]:[/\\]?$/
-/** A path from a drive's root: `C:\…`, `C:/…`. */
 export const DRIVE_PREFIX = /^[a-zA-Z]:[/\\]/
-/** A share on its own: `\\server\share`, with or without a separator after it. */
 export const SHARE_ROOT = /^[/\\]{2}[^/\\]+[/\\][^/\\]+[/\\]?$/
-/**
- * A path from a share's root. It captures the server and the share, which together are the volume
- * in rclone's local backend.
- */
 const SHARE_PREFIX = /^[/\\]{2}([^/\\]+)[/\\]([^/\\]+)/
 
 const invalid = (code: InvalidCode, reason: string): Parsed => ({ kind: 'invalid', code, reason })
 
-/**
- * Finds where the connection-string parameters that start at `from` (a `,`) end, and returns the
- * index of the `:`. Returns an invalid result when the parameters are malformed.
- */
 function scanParams(input: string, from: number): number | Parsed {
     let state: 'param' | 'value' | 'quoted' | 'afterQuote' = 'param'
     let prev = from + 1
@@ -163,7 +130,6 @@ export function parsePath(input: string, host: Host = currentHost()): Parsed {
     return invalid('name', 'config name needs a trailing `:`')
 }
 
-/** A drive path (`C:\…`) on a host without drives, which rclone would read as the remote `C`. */
 function driveOnOtherHost(parsed: Parsed, host: Host) {
     return (
         !host.windows &&
@@ -185,7 +151,6 @@ function isFullLocal(path: string, host: Host): boolean {
         : path.startsWith('/')
 }
 
-/** The local path that a parsed path names, including the local backend's form (`:local:x`). */
 function localPathOf(parsed: Parsed): string | undefined {
     if (parsed.kind === 'local') return parsed.path
     if (parsed.kind === 'remote' && parsed.name === ':local') return parsed.path
@@ -308,12 +273,6 @@ export function readablePath(input: string, host: Host = currentHost()): string 
     return `${prefix}${body}`
 }
 
-// --- Local paths ----------------------------------------------------------------------------
-// Path arithmetic for local paths, by host, following how rclone's local backend reads them. On a
-// Windows host, a drive (`C:\`) or a share (`\\nas\share\`, filepath.VolumeName) is a root, just
-// like `/`. A root keeps its separator, and nothing goes above a root.
-
-/** Splits a local path into its root, written with the host's separator, and the names after it. */
 function splitLocal(path: string, host: Host): { root: string; names: string[] } {
     let root = ''
     let rest = path
@@ -368,7 +327,6 @@ export function localSegments(path: string, host: Host = currentHost()): string[
     return volume ? [volume, ...names] : names
 }
 
-/** Whether a breadcrumb's first segment is a volume, meaning a drive or share on a Windows host. */
 function isVolume(segment: string | undefined, host: Host): segment is string {
     return !!segment && host.windows && (DRIVE_ROOT.test(segment) || SHARE_ROOT.test(segment))
 }

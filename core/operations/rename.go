@@ -18,23 +18,15 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// CaseOnly reports whether a and b are the same name to a store that ignores case. That means
-// the strings differ, but they are equal after NFC normalization and case folding. It is rclone's
-// needsMoveCaseInsensitive without the check of the backend's CaseInsensitive flag, because a
-// store may report that flag wrongly. Examples are local on a volume whose case handling the OS
-// can't predict, sftp, ftp or webdav to a Mac or Windows machine, and smb with
+// This is rclone's needsMoveCaseInsensitive without the check of the backend's CaseInsensitive
+// flag, because a store may report that flag wrongly. Examples are local on a volume whose case
+// handling the OS can't predict, sftp, ftp or webdav to a Mac or Windows machine, and smb with
 // case_insensitive=false. On such a store, a plain move finds the source as its own destination
 // and deletes it.
 func CaseOnly(a, b string) bool {
 	return a != b && strings.EqualFold(norm.NFC.String(a), norm.NFC.String(b))
 }
 
-// MoveFileCaseSafe moves the file src in fsrc to dst in fdst, as operations.MoveFile does. The
-// exception is a move between two spellings of the same name on the same remote (CaseOnly of the
-// full paths), whatever the backend reports about case. That move goes through a temporary name
-// (operations.MoveCaseInsensitive), and it is accounted the same way MoveFile accounts it. If
-// both spellings exist in a store that keeps them apart, the caller must refuse the move, because
-// the second move would replace dst.
 func MoveFileCaseSafe(ctx context.Context, fdst, fsrc fs.Fs, dst, src string) (err error) {
 	if fdst.Name() != fsrc.Name() || !CaseOnly(path.Join(fsrc.Root(), src), path.Join(fdst.Root(), dst)) {
 		return rcops.MoveFile(ctx, fdst, fsrc, dst, src)
@@ -57,21 +49,17 @@ func MoveFileCaseSafe(ctx context.Context, fdst, fsrc fs.Fs, dst, src string) (e
 	return err
 }
 
-// removeEmptied removes the root of f when it is an empty folder, which rclone's move file by file
-// leaves behind. It does nothing in a dry run. It calls the backend directly: operations.Rmdir
-// would count a folder that a server-side move already took away, or one that isn't empty, as an
-// error of the transfer.
+// operations.Rmdir would count a folder that a server-side move already took away, or one that
+// isn't empty, as an error of the transfer.
 func removeEmptied(ctx context.Context, f fs.Fs) {
 	if !fs.GetConfig(ctx).DryRun {
 		_ = f.Rmdir(ctx, "")
 	}
 }
 
-// renameFile runs a rename's file step (Step.Rename). It moves the file as MoveFileCaseSafe does,
-// under the plan's ignore_existing. When a file appeared at the new name after the rename's
-// checks, rclone keeps that file and leaves the source where it was, without an error. The step
-// then fails, so the transfer never reports a rename that didn't happen, and Retry offers it. A
-// change of case alone isn't checked, because the old spelling may find the renamed file.
+// When a file appeared at the new name after the rename's checks, rclone keeps that file and
+// leaves the source where it was, without an error. A change of case alone isn't checked, because
+// the old spelling may find the renamed file.
 func renameFile(ctx context.Context, fdst, fsrc fs.Fs, dst, src string) error {
 	if err := MoveFileCaseSafe(ctx, fdst, fsrc, dst, src); err != nil {
 		return err
@@ -85,34 +73,17 @@ func renameFile(ctx context.Context, fdst, fsrc fs.Fs, dst, src string) error {
 	return nil
 }
 
-// caseOnlyDirs reports whether the source and destination of a folder step are two spellings
-// of the same folder on the same remote.
 func caseOnlyDirs(src, dst fs.Fs) bool {
 	return src.Name() == dst.Name() && CaseOnly(src.Root(), dst.Root())
 }
 
-// moveDir is sync.MoveDir, used for both moves of a case-only step. A test replaces it to make
-// one of the moves fail.
 var moveDir = rcsync.MoveDir
 
-// caseOnlyTemp returns the temporary folder of a case-only step, next to its destination. The
-// name is derived from both the source and the destination, so a retry of the step finds the
-// folder that its first run used.
 func caseOnlyTemp(s Step) string {
 	sum := sha256.Sum256([]byte(s.Src + "\x00" + s.Dst))
 	return strings.TrimSuffix(s.Dst, "/") + ".rclone-ui-" + hex.EncodeToString(sum[:4])
 }
 
-// moveDirCaseOnly runs step s, which moves a folder between two spellings of its path
-// (caseOnlyDirs). It does this with two moves through a temporary name next to it. On a store
-// that ignores case, a direct move to dst would find src as its destination and each file as its
-// own copy, and delete them. Both moves belong to this one step, because the drawer matches a
-// failure to a row by its step. If both spellings exist in a store that keeps them apart, the
-// caller must refuse the move, because the second move would merge into dst.
-//
-// A retry of a step that failed during or between its moves finds the folder, or part of it,
-// under the temporary name. If nothing is left at src, only the second move remains. If there is
-// something at both, the first move is finished first.
 func moveDirCaseOnly(ctx context.Context, s Step, src, dst fs.Fs) error {
 	tmp, err := cache.Get(ctx, caseOnlyTemp(s))
 	if err != nil {
@@ -145,9 +116,7 @@ func moveDirCaseOnly(ctx context.Context, s Step, src, dst fs.Fs) error {
 	return nil
 }
 
-// holdsAFolder reports whether the root of f lists as a folder, by reading its first page (as
-// rclone.FirstPage does). A bucket backend lists any prefix, so there only a page with an entry
-// counts. A missing folder is not an error.
+// A bucket backend lists any prefix, so there only a page with an entry counts.
 func holdsAFolder(ctx context.Context, f fs.Fs) (bool, error) {
 	var (
 		entries int
@@ -175,5 +144,4 @@ func holdsAFolder(ctx context.Context, f fs.Fs) (bool, error) {
 	return entries > 0 || !f.Features().BucketBased, nil
 }
 
-// errFirstPage stops a listing after its first page.
 var errFirstPage = errors.New("operations: the first page is enough")

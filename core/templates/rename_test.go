@@ -12,7 +12,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// A rename rewrites the templates that name the remote, and publishes the change.
 func TestRenameRemote(t *testing.T) {
 	ctx := context.Background()
 	b := bus.New()
@@ -45,7 +44,6 @@ func TestRenameRemote(t *testing.T) {
 	default:
 		t.Error("the change wasn't published")
 	}
-	// Nothing names the remote now, so a second rename changes nothing and publishes nothing.
 	if err := s.RenameRemote(ctx, "old", "new"); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +54,6 @@ func TestRenameRemote(t *testing.T) {
 	}
 }
 
-// A rename rewrites the template's paths too, and leaves other remotes and local paths alone.
 func TestRenameRemoteInPaths(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New(), "")
@@ -87,7 +84,6 @@ func TestRenameRemoteInPaths(t *testing.T) {
 	}
 }
 
-// opts returns a template's options from their JSON.
 func opts(raw string) catalog.Group {
 	var g catalog.Group
 	if err := json.Unmarshal([]byte(raw), &g); err != nil {
@@ -96,7 +92,6 @@ func opts(raw string) catalog.Group {
 	return g
 }
 
-// text returns a template's options as they are stored.
 func text(g catalog.Group) string {
 	s, err := marshal(g)
 	if err != nil {

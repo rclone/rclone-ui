@@ -13,11 +13,8 @@ import (
 
 const badProxyURL = "must be an http://, https:// or socks5:// URL with a host"
 
-// proxyProbe is the address TestProxy requests. It returns a small response quickly from
-// anywhere. TestProxy requests only this one address, so a dead proxy costs a single timeout.
 const proxyProbe = "https://www.cloudflare.com/cdn-cgi/trace"
 
-// TestProxy makes one request through proxyURL and describes the response.
 func TestProxy(ctx context.Context, proxyURL string) (string, error) {
 	u, err := url.Parse(proxyURL)
 	if err != nil || u.Host == "" {

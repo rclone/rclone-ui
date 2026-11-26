@@ -42,7 +42,6 @@ func (a *API) Delete(ctx context.Context, id string) error {
 	return a.s.Do(ctx, func(s *Service) error { return s.Delete(ctx, id) })
 }
 
-// Pause stops a watcher from running every minute.
 func (a *API) Pause(ctx context.Context, id string) error {
 	return a.s.Do(ctx, func(s *Service) error { return s.Pause(ctx, id) })
 }

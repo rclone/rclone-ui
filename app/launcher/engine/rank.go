@@ -9,16 +9,13 @@ import (
 	"github.com/rclone/rclone-ui/app/launcher/match"
 )
 
-// How much the history counts. Each past pick adds a little, a recent pick adds more, and a pick
-// made after the same query adds more again. Recent results are listed first for an empty
-// query.
 const (
 	usePerPick      = 2
 	usePicksCounted = 10
 	recentMinPicks  = 2
 	recentWithin    = 30 * 24 * time.Hour
 	recentMax       = 5
-	recentBoost     = 1_000_000 // puts a recent result before every default one
+	recentBoost     = 1_000_000
 	sameQueryBoost  = 20
 	maxResults      = 50
 )
@@ -54,7 +51,6 @@ func boost(u Use, query string, now time.Time) int {
 
 func normalizeQuery(q string) string { return strings.Join(strings.Fields(strings.ToLower(q)), " ") }
 
-// of returns no history for a result with no key (Quit), even if something is stored under "".
 func (u Usage) of(key string) Use {
 	if key == "" {
 		return Use{}
@@ -66,12 +62,6 @@ func isRecent(u Use, now time.Time) bool {
 	return u.Count >= recentMinPicks && now.Sub(u.Last) < recentWithin
 }
 
-// Rank filters and orders results for q. When words are typed, each result must match them in
-// its title or a keyword (unless Always is set). The match counts most, and a match in the title
-// beats one in a keyword. The user's history comes next, then how much of the title the match
-// covers. The provider's score only breaks ties, except when paths are typed, where it ranks
-// what can be done with them. An empty query keeps the providers' defaults in their order and
-// moves up to five recent results above them.
 func Rank(q Query, results []Result, usage Usage, now time.Time) []Result {
 	pattern := strings.Join(q.Terms, " ")
 	var out []Result
@@ -116,10 +106,6 @@ func Rank(q Query, results []Result, usage Usage, now time.Time) []Result {
 	return grouped(q, out)
 }
 
-// grouped lists ranked results group by group, keeping the ranked order within each group. For
-// the empty query, the groups follow groupOrder, then any other group, then results with no
-// group. For a typed query, the groups are ordered by their best result, so the first row is
-// still the best match.
 func grouped(q Query, rs []Result) []Result {
 	place := map[string]int{}
 	if q.Empty() {
@@ -132,7 +118,7 @@ func grouped(q Query, rs []Result) []Result {
 			place[r.Group] = len(place)
 		}
 	}
-	last := len(place) // where the empty query puts results with no group
+	last := len(place)
 	at := func(g string) int {
 		if i, ok := place[g]; ok {
 			return i
@@ -149,9 +135,6 @@ const (
 	weightBase  = 10
 )
 
-// matchResult matches pattern against r's title (whose matched positions are drawn bold), its
-// keywords, and their English (which is never drawn). A keyword match counts for less, and never
-// as exact, so a result whose title also matches comes first.
 func matchResult(r *Result, pattern string) (int, bool) {
 	best, ok := match.Match(pattern, r.Title)
 	score := best.Score
@@ -175,8 +158,6 @@ func matchResult(r *Result, pattern string) (int, bool) {
 	return score, ok
 }
 
-// coverage returns how much of the title the match covers, from 0 to 100. For example, "c" covers
-// more of "Copy" than of "Cleanup gdrive".
 func coverage(r Result) int {
 	n := len([]rune(r.Title))
 	if n == 0 {
@@ -185,7 +166,6 @@ func coverage(r Result) int {
 	return len(r.match) * 100 / n
 }
 
-// liftRecents puts the five most used recent results first.
 func liftRecents(rs []Result, usage Usage, now time.Time) []Result {
 	type pick struct {
 		i     int

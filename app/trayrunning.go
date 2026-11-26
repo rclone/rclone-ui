@@ -16,14 +16,8 @@ import (
 	"github.com/rclone/rclone-ui/core/serves"
 )
 
-// This file builds the tray's Mounts and Serves submenus, which list what the core is running
-// (see showInTray). The UI owns these menus rather than a page, because the tray must stay up to
-// date when no window is open.
-
 type runningAction func(ctx context.Context, c runningClients) error
 
-// runningItems builds the Mounts and Serves submenus, when any are running. Each item's action
-// captures its row. do runs the action under a name that is used in the log.
 func runningItems(ms []mounts.MountRow, ss []serves.ServeRow, do func(name string, a runningAction)) []tray.Item {
 	var items []tray.Item
 	if len(ms) > 0 {
@@ -88,8 +82,6 @@ type runningClients struct {
 	copy   func(text string)
 }
 
-// runningAction runs a running item's action in the background, with a one-minute timeout, and
-// shows any error.
 func (u *ui) runningAction(name string, a runningAction) {
 	go func() {
 		err := func() error {

@@ -5,9 +5,6 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
-/**
- * Files holds the paths of the log file and its folder.
- */
 export class Files {
     "core": string;
     "folder": string;
@@ -33,9 +30,6 @@ export class Files {
     }
 }
 
-/**
- * LogRecord is one line of the log, in the form the About page shows.
- */
 export class LogRecord {
     "n": number;
 

@@ -1,12 +1,7 @@
-// Commander as it was left, kept in localStorage for each data folder, because a closed window
-// loses its sessionStorage. It holds each panel's place, sort, selection and scroll position, the
-// transfers that the activity bar follows, and whether the bar is open.
-
 import type { PanelRestore } from '../../components/navigator/FilePanel'
 import type { SelectItem, Sort } from '../../components/navigator/types'
 import { BY_NAME } from '../../components/navigator/utils'
 
-/** Where a panel is: a remote with its parameters, `UI_LOCAL_FS` or `UI_FAVORITES`, and a path. */
 export interface Place {
     remote: string
     path: string
@@ -26,14 +21,8 @@ export interface CommanderSnapshot {
     barOpen: boolean
 }
 
-/** The most transfers that the bar follows. */
 export const TRACKED_MAX = 20
 
-/**
- * The most items of a panel's selection that are kept. Selecting everything in a large folder
- * would fill the storage, so a larger selection is left out, and the panel comes back with
- * nothing selected.
- */
 export const SELECTION_MAX = 1_000
 
 const EMPTY: CommanderSnapshot = { tracked: [], barOpen: false }
@@ -66,7 +55,6 @@ function readSelection(value: unknown): SelectItem[] {
 function readPlace(value: unknown): Place | undefined {
     if (!isObject(value) || typeof value.remote !== 'string' || value.remote === '') return
     if (typeof value.path !== 'string') return
-    // Favorites have no path.
     if (value.remote === 'UI_FAVORITES') return { remote: value.remote, path: '' }
     return { remote: value.remote, path: value.path }
 }
@@ -84,7 +72,6 @@ function readPanel(value: unknown): PanelSnapshot | undefined {
     }
 }
 
-/** Reads what was stored. Anything that isn't valid is dropped or set to its default. */
 export function readSnapshot(stored: unknown): CommanderSnapshot {
     if (!isObject(stored)) return EMPTY
     const tracked = Array.isArray(stored.tracked)
@@ -124,16 +111,13 @@ export function saveSnapshot(
     }
     try {
         storage?.setItem(key, JSON.stringify(kept))
-    } catch {
-        // A full or unavailable storage only means that the window starts fresh next time.
-    }
+    } catch {}
 }
 
 function keptPanel(panel: PanelSnapshot | undefined): PanelSnapshot | undefined {
     return panel && panel.selection.length > SELECTION_MAX ? { ...panel, selection: [] } : panel
 }
 
-/** Where a panel opens (none for its default), and what it takes back: sort, selection, scroll. */
 export interface PanelOpening {
     place?: Place
     restore?: PanelRestore
@@ -141,19 +125,10 @@ export interface PanelOpening {
 
 export const samePlace = (a: Place, b: Place) => a.remote === b.remote && a.path === b.path
 
-/**
- * The scroll position to keep after a panel reports its place. Another folder starts at its top.
- * The first report (`was` undefined) keeps the scroll that was restored.
- */
 export function scrollAfterMove(was: Place | undefined, now: Place, scrollTop: number): number {
     return !was || samePlace(was, now) ? scrollTop : 0
 }
 
-/**
- * The route's place wins (a link, or the launcher), and the snapshot applies only if it was
- * taken there. Without a route place, the panel opens where it was left, including Favorites and
- * the list of local disks. Without either, it opens at its default place.
- */
 export function openingOf(
     route: Place | undefined,
     snapshot: PanelSnapshot | undefined

@@ -1,10 +1,5 @@
 package children
 
-// End-to-end tests with real rclone children. Each child is this test binary running rclone's
-// command line, as main.go dispatches it. The tests check that the children read their config
-// file (an encrypted one through a one-time key file), start with the core's limits, and end
-// when the core's end of their stdin closes (the watchdog).
-
 import (
 	"context"
 	"errors"
@@ -25,14 +20,13 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// app holds what a test's core needs: a supervisor, and a config file with a remote `photos`.
 type app struct {
 	s      *Supervisor
 	got    *entries
 	run    string
 	data   string
 	config string
-	photos string // the folder that the photos: alias points to
+	photos string
 }
 
 func newApp(t *testing.T, limits Limits) *app {
@@ -50,8 +44,6 @@ func newApp(t *testing.T, limits Limits) *app {
 	return a
 }
 
-// once runs a rclone child until it ends and returns its plain output lines. The rclone child
-// parser turns a line that is not JSON into an error record.
 func (a *app) once(t *testing.T, name, password string, args ...string) (Down, []string) {
 	t.Helper()
 	d := newDowns(1)
@@ -73,7 +65,6 @@ func (a *app) once(t *testing.T, name, password string, args ...string) (Down, [
 	return d.get()[0], lines
 }
 
-// serve starts `serve http <dir>` on a free port. The serve is ready once its address answers.
 func (a *app) serve(t *testing.T, name, dir string, onDown func(*Unit, Down) bool) (*Unit, string) {
 	t.Helper()
 	addr := freeAddr(t)
@@ -99,7 +90,6 @@ func (a *app) serve(t *testing.T, name, dir string, onDown func(*Unit, Down) boo
 	return u, addr
 }
 
-// ended reports whether a child ran to its end on its own, with status 0.
 func ended(d Down) bool { return d.Err != nil && d.Err.Error() == "exited with status 0" }
 
 func freeAddr(t *testing.T) string {
@@ -112,7 +102,6 @@ func freeAddr(t *testing.T) string {
 	return ln.Addr().String()
 }
 
-// tcpReady waits until a serve's address accepts a connection.
 func tcpReady(ctx context.Context, addr string) error {
 	for {
 		var d net.Dialer
@@ -173,9 +162,6 @@ func TestChildrenReadTheirConfig(t *testing.T) {
 	}
 }
 
-// TestEncryptedConfigThroughTheKeyFile checks that a child opens an encrypted config with the
-// key that the core wrote for it, and that the key file is gone afterwards. A wrong password
-// makes the child fail.
 func TestEncryptedConfigThroughTheKeyFile(t *testing.T) {
 	a := newApp(t, Limits{LogLevel: "INFO"})
 	writeFile(t, filepath.Join(a.photos, "b.txt"), "b")
@@ -216,7 +202,6 @@ func TestLimitsReachChildren(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	// The child's vfs/queue works over the same socket, but only with the child's credentials.
 	if q, err := u.RC().VFSQueue(ctx); err != nil || len(q) != 0 {
 		t.Fatalf("vfs/queue = %v, %v", q, err)
 	}
@@ -227,7 +212,6 @@ func TestLimitsReachChildren(t *testing.T) {
 	}
 }
 
-// TestWatchdog checks that a child exits when its stdin closes, as it does when the app dies.
 func TestWatchdog(t *testing.T) {
 	a := newApp(t, Limits{LogLevel: "INFO"})
 	d := newDowns(1)
@@ -243,12 +227,9 @@ func TestWatchdog(t *testing.T) {
 	}
 }
 
-// TestChildSecretsStayOutOfTheLogs checks that secrets are masked in a child's logs. At DEBUG
-// level, before its logging is set up, rclone prints the flags it read from the environment with
-// their values quoted. These include its rc password and a serve's password (SecretEnv).
 func TestChildSecretsStayOutOfTheLogs(t *testing.T) {
 	a := newApp(t, Limits{LogLevel: "DEBUG"})
-	const servePass = `pa"ss\word` // %q escapes both
+	const servePass = `pa"ss\word`
 	u, err := a.s.Start(Spec{Name: "lsf", Kind: "test", Rclone: []string{"lsf", "photos:"}, ConfigPath: a.config,
 		SecretEnv: []string{"RCLONE_PASS=" + servePass},
 		OnDown:    func(*Unit, Down) bool { return false }})
@@ -271,8 +252,6 @@ func TestChildSecretsStayOutOfTheLogs(t *testing.T) {
 	}
 }
 
-// TestSocketGoesWithTheChild checks that a killed rclone child's rc socket is removed once its
-// unit has ended. rclone never removes its rc socket itself.
 func TestSocketGoesWithTheChild(t *testing.T) {
 	a := newApp(t, Limits{LogLevel: "INFO"})
 	u, _ := a.serve(t, "killed", t.TempDir(), func(*Unit, Down) bool { return false })

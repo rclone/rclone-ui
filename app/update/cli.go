@@ -21,7 +21,6 @@ import (
 //go:embed update.md
 var updateHelp string
 
-// Exit codes, the same as rclone's: 1 for a failure and 2 for a usage error.
 const (
 	exitError = 1
 	exitUsage = 2
@@ -45,20 +44,13 @@ func Install(root *cobra.Command) {
 
 type cli struct {
 	out, errOut io.Writer
-	// engine holds the base options for every Engine the commands create. Tests use it to set
-	// the feeds and keys.
-	engine Options
-	// appRunning reports whether the app is running, and handOff passes the update to it.
-	appRunning func() bool
-	handOff    func(ctx context.Context, version string, ch Channel) error
-	// name is the command the user typed ("rcui" or "rclone"), used in the hints.
-	name string
-	// terminal means stdout is a terminal, so progress redraws a single line.
-	terminal bool
+	engine      Options
+	appRunning  func() bool
+	handOff     func(ctx context.Context, version string, ch Channel) error
+	name        string
+	terminal    bool
 }
 
-// install replaces any selfupdate command, and any update command that an earlier install added.
-// (rclone has no update command of its own, which main_test.go checks.)
 func (c *cli) install(root *cobra.Command) {
 	for _, cmd := range root.Commands() {
 		if cmd.Name() == "selfupdate" || cmd.Name() == "update" {
@@ -80,7 +72,6 @@ func invokedAs(argv0 string) string {
 	return name
 }
 
-// updateFlags are the same flags as rclone's selfupdate, with the same names and meanings.
 type updateFlags struct {
 	check   bool
 	output  string
@@ -115,8 +106,6 @@ func (c *cli) updateCommand() *cobra.Command {
 
 const selfUpdateNote = "rclone is part of Rclone UI here, so it is updated with the whole app: run `rcui update`, or `rclone update` through the rclone link on your PATH."
 
-// selfUpdateCommand replaces rclone's `selfupdate` for users who type it. It explains how to
-// update and does nothing else, whatever flags it is given.
 func (c *cli) selfUpdateCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:                "selfupdate",
@@ -174,8 +163,6 @@ func (c *cli) update(ctx context.Context, f updateFlags) int {
 	if err != nil {
 		return c.fail(err)
 	}
-	// A portable copy doesn't update itself, and neither does the app that runs from it, so the
-	// command shows where to download the release instead. --output still downloads.
 	portable := e.InstallType() == TypePortable && f.output == ""
 	if f.check && portable {
 		c.downloadPage(c.out, rel)
@@ -211,9 +198,6 @@ func (c *cli) update(ctx context.Context, f updateFlags) int {
 		return exitError
 	}
 
-	// A running app updates itself, because it stops its transfers, mounts and serves first, and
-	// on Windows nothing may keep rcui.exe open. It is passed the release announced here, rather
-	// than its own channel's latest, which may be a different one.
 	if c.appRunning() {
 		if err := c.handOff(ctx, rel.Version, ch); err == nil {
 			fmt.Fprintf(c.out, "Rclone UI is running; it will ask you to confirm the update to %s, then restart.\n", rel.Describe())
@@ -247,7 +231,6 @@ func (c *cli) update(ctx context.Context, f updateFlags) int {
 		return c.fail(err)
 	}
 	if art.Kind == KindNSIS {
-		// Keep the file, because the installer reads it after this process exits.
 		fmt.Fprintf(c.out, "The Rclone UI %s installer is running; it finishes once this command exits.\n", rel.Version)
 		return 0
 	}
@@ -256,8 +239,6 @@ func (c *cli) update(ctx context.Context, f updateFlags) int {
 	return 0
 }
 
-// download fetches the artifact and shows progress on stdout: one redrawn line on a terminal, or
-// a summary otherwise. The engine throttles the progress calls.
 func (c *cli) download(ctx context.Context, e *Engine, rel *Release) (*Artifact, error) {
 	var size int64
 	progress := func(done, total int64) {
@@ -289,9 +270,6 @@ func (c *cli) downloadPage(w io.Writer, rel *Release) {
 	fmt.Fprintf(w, "Rclone UI %s is on its release page: %s\n", rel.Describe(), ReleasePage(rel.Version))
 }
 
-// printVersions runs `update --check` and `version --check`. It prints this version and the
-// latest on each channel, in the layout of rclone's `version --check`. A portable copy is marked
-// on the first line.
 func (c *cli) printVersions(ctx context.Context) {
 	e := New(c.engine)
 	current := e.CurrentVersion()
@@ -308,9 +286,6 @@ func (c *cli) printVersions(ctx context.Context) {
 	}
 }
 
-// printLatest prints printVersions' line for one channel. Each channel gets its own checkTimeout.
-// A newer release gets a line on how to upgrade: the command, or the release's page for a portable
-// copy, as rclone's own `version --check` gives a URL.
 func (c *cli) printLatest(ctx context.Context, e *Engine, ch Channel, current string) {
 	label, flag := "latest", ""
 	if ch == Beta {
@@ -341,8 +316,6 @@ func (c *cli) printLatest(ctx context.Context, e *Engine, ch Channel, current st
 	}
 }
 
-// wrapVersionCheck makes `version --check` print Rclone UI's versions. `version` alone and
-// `version --deps` still run rclone's code.
 func (c *cli) wrapVersionCheck(root *cobra.Command) {
 	for _, cmd := range root.Commands() {
 		if cmd.Name() != "version" || cmd.Annotations["rcui-check"] != "" {

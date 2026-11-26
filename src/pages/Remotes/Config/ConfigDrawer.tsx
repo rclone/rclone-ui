@@ -27,11 +27,6 @@ import { useUnsavedChanges } from '../../../components/unsaved'
 import { WINDOWS } from '../../../routes'
 import ConfigPanel from './ConfigPanel'
 
-/**
- * The sheet for the config file: its encryption and export (ConfigPanel), and an editor for its
- * text. The editor is the only place where the app writes the config file itself. The core checks
- * the text first, and rclone then reloads the file.
- */
 export default function ConfigDrawer({
     onClose,
     isOpen,
@@ -41,7 +36,6 @@ export default function ConfigDrawer({
     isOpen: boolean
     config: ConfigFile | null
 }) {
-    // The form reports whether it holds changes. Closing the drawer or the window asks first.
     const [edited, setEdited] = useState(false)
     const unsaved = useUnsavedChanges(isOpen && edited)
     const requestClose = async () => {
@@ -87,17 +81,13 @@ function EditForm({
     forget: () => void
 }) {
     const [text, setText] = useState<string | null>(null)
-    // The text that the first edit started from. The query refetches on focus, so a save checks
-    // the file against this text, not against what the query holds by then.
     const [base, setBase] = useState('')
 
-    // The text of a locked config is encrypted, so it can only be edited once it is unlocked.
     const readable =
         config.status !== ConfigStatus.StatusNeedsPassword &&
         config.status !== ConfigStatus.StatusMissing
     const textQuery = useConfigText(readable)
     const shownText = text ?? textQuery.data ?? ''
-    // Why the core refused the text. It shows under the editor until the text changes.
     const [textError, setTextError] = useState<string>()
 
     const onTextChange = (value: string) => {
@@ -114,7 +104,6 @@ function EditForm({
 
     const saveMutation = useMutation({
         mutationFn: async () => {
-            // If the text couldn't be read, there is nothing to write.
             if (!textQuery.isSuccess || text === null || text === base) return
             const current = await readConfigText()
             if (current !== base) {

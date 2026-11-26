@@ -276,6 +276,7 @@ msgstr "此处不能使用 %s：Rclone UI 会自行运行并监控服务"
 msgid "%s copied to clipboard"
 msgstr "%s 已复制到剪贴板"
 
+#. The name of a duplicated schedule. "copy" means a duplicate here, not the operation.
 #: core/schedules/service.go
 msgid "%s copy"
 msgstr "%s 副本"

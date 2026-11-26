@@ -23,7 +23,6 @@ func (s streamer) QueryStream(ctx context.Context, _ Query, _ *Data, partial fun
 	return append(one, Result{ID: "s:2", Title: "two"})
 }
 
-// TestRunStreams: a Streamer's partial results are sent in a snapshot before its final ones.
 func TestRunStreams(t *testing.T) {
 	s := streamer{release: make(chan struct{})}
 	var early, last []string
@@ -63,8 +62,6 @@ func (brokenStreamer) QueryStream(_ context.Context, _ Query, _ *Data, partial f
 	panic("a listing broke")
 }
 
-// TestAProviderThatPanics: a provider's panic is reported and it returns no results. The other
-// providers still answer the query, up to its final snapshot.
 func TestAProviderThatPanics(t *testing.T) {
 	e := New(fixed{{ID: "ok", Title: "ok"}}, broken{}, brokenStreamer{})
 	var reported []string

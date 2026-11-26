@@ -40,7 +40,7 @@ func TestCompressedHandler(t *testing.T) {
 		{"/missing.js", "", "", 404},
 	}
 	for _, c := range cases {
-		for range 2 { // each request decompresses the file again
+		for range 2 {
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, c.path, nil))
 			body, _ := io.ReadAll(rec.Body)

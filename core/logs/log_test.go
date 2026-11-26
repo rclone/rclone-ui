@@ -19,7 +19,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/testutil"
 )
 
-// syncBuffer stands in for stderr in the tests. Append may write to it from any goroutine.
 type syncBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
@@ -42,7 +41,6 @@ func tuningFor(t *testing.T) tuning {
 	return tuning{stderr: &syncBuffer{}, queue: queueSize, fold: folding(), maxSize: maxFileSize, ring: ringSize}
 }
 
-// openTest opens a log in a new folder, with stderr lines copied to the buffer it returns.
 func openTest(t *testing.T, level string, tu tuning) (*Log, *syncBuffer) {
 	t.Helper()
 	stderr := &syncBuffer{}
@@ -249,7 +247,6 @@ func TestLevelsAndStderr(t *testing.T) {
 		}
 	}
 
-	// A level changed while running applies to the next line.
 	l2, _ := openTest(t, "warning", tuningFor(t))
 	slog.New(l2.Handler()).Info("hidden")
 	if err := l2.SetLevel("debug"); err != nil {
@@ -288,7 +285,7 @@ func TestStartAndStopMarksAndTheFileGoesOn(t *testing.T) {
 	if err := l.Close(); err != nil {
 		t.Errorf("a second Close: %v", err)
 	}
-	slog.New(l.Handler()).Info("after Close") // stderr only
+	slog.New(l.Handler()).Info("after Close")
 	records := fileRecords(t, l.Path())
 	if len(records) != 3 {
 		t.Fatalf("%d records: %+v", len(records), records)
@@ -302,7 +299,6 @@ func TestStartAndStopMarksAndTheFileGoesOn(t *testing.T) {
 		t.Errorf("file mode: %v %v", info, err)
 	}
 
-	// The next run appends, numbering from 1 again after its own start mark.
 	l2, err := Open(Options{Path: l.Path()})
 	if err != nil {
 		t.Fatal(err)
@@ -335,7 +331,6 @@ func TestTheFileStartsOverKeepingThePreviousOne(t *testing.T) {
 	if len(current) == 0 || len(previous) == 0 {
 		t.Fatalf("current %d, previous %d records", len(current), len(previous))
 	}
-	// The two files are the newest lines, in order, with none missing between them.
 	all := append(previous, current...)
 	last := all[len(all)-1]
 	if last.Mark != MarkStop {
@@ -372,7 +367,6 @@ func TestTail(t *testing.T) {
 		}
 		return out
 	}
-	// The ring keeps the newest 10, oldest first.
 	all := l.Tail(0)
 	if len(all) != 10 || all[0].Message != "line 10" || all[9].Message != "line 19" {
 		t.Errorf("tail %q", msgs(all))
@@ -389,7 +383,6 @@ func TestTail(t *testing.T) {
 		t.Errorf("Tail(100) has %d records", len(got))
 	}
 
-	// Tail still works after Close, and the stop mark is the newest record.
 	closeTest(t, l)
 	if got := l.Tail(1); len(got) != 1 || got[0].Mark != MarkStop {
 		t.Errorf("tail after Close: %+v", got)
@@ -403,7 +396,6 @@ func TestRedact(t *testing.T) {
 	slog.New(l.Handler()).Info("Opened "+conn,
 		"object", conn+"/file", "source", conn, "nested", map[string]any{"k": conn},
 		slog.Group("g", "v", "x "+conn), "list", []string{"a", conn},
-		// The unquoted value runs to the comma, which is past the closing quote of its JSON string.
 		"broken", []string{":sftp,pass=hunter22", "next"})
 	child, ok := RcloneChild(CompMounts, "/mnt/x")(
 		`{"level":"error","msg":"Failed to create file system for \"`+conn+`\"","source":"`+conn+`","remotes":["`+conn+`"]}`,
@@ -442,7 +434,7 @@ func TestRedact(t *testing.T) {
 }
 
 func TestLoggerFollowsTheDefault(t *testing.T) {
-	early := Logger(CompDB, SubOpen) // made before the log is the default, like a package variable
+	early := Logger(CompDB, SubOpen)
 	l, _ := openTest(t, "info", tuningFor(t))
 	old := slog.Default()
 	slog.SetDefault(slog.New(l.Handler()))
@@ -473,7 +465,7 @@ func TestConcurrentLogging(t *testing.T) {
 		wg.Go(func() {
 			ctx := With(context.Background(), Transfer(fmt.Sprint(g)))
 			for i := range 300 {
-				log.InfoContext(ctx, fmt.Sprintf("line %d", i)) // each line is its own kind: none folded
+				log.InfoContext(ctx, fmt.Sprintf("line %d", i))
 			}
 		})
 	}

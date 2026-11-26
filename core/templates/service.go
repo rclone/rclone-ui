@@ -1,6 +1,5 @@
 // Package templates stores the option templates. A template is a set of flat rclone flags saved
-// under a name, and maybe the paths that its operation runs on. The operation, Mount and Serve
-// pages offer the templates that carry their tag, and the Templates page runs them.
+// under a name, and maybe the paths that its operation runs on.
 package templates
 
 import (
@@ -31,22 +30,17 @@ var Tags = []operations.Operation{
 	operations.OperationMount, operations.OperationServe,
 }
 
-// maxIDLen is the longest id a template can have. Pages may create the id (with
-// crypto.randomUUID), so the core only checks that it is a plain token.
 const maxIDLen = 64
 
 // Service reads and writes the templates table. Every change publishes templates.changed.
 type Service struct {
 	db  *db.DB
 	bus *bus.Bus
-	// exe is the running executable, which an export puts in front of the app's own metadata
-	// mapper.
 	exe string
 }
 
 func New(d *db.DB, b *bus.Bus, exe string) *Service { return &Service{db: d, bus: b, exe: exe} }
 
-// columns are the columns that scan reads. paths is NULL for a template without paths.
 const columns = `id, name, tags, options, paths`
 
 func scan(row db.Scanner) (*Template, error) {
@@ -114,7 +108,7 @@ var ErrNotFound = errs.NotFound("template", "This template no longer exists.")
 func Check(t *Template) (*Template, error) {
 	out := &Template{ID: t.ID, Name: strings.TrimSpace(t.Name)}
 	if out.ID == "" {
-		out.ID = uuid.NewString() // the same kind of id that pages create
+		out.ID = uuid.NewString()
 	}
 	if !validID(out.ID) {
 		return nil, errs.Field("id", "A template's ID is a short token of letters, digits and dashes.")
@@ -152,15 +146,10 @@ func Check(t *Template) (*Template, error) {
 	return out, nil
 }
 
-// oneSourceTags are the operations that take exactly one source. rclone's sync and bisync take
-// one source and one destination, and a mount or a serve shares one folder. A template for one of
-// them can't run its other sources, and syncing several sources into one destination would let
-// each sync delete what the one before it copied.
 var oneSourceTags = []operations.Operation{
 	operations.OperationSync, operations.OperationBisync, operations.OperationMount, operations.OperationServe,
 }
 
-// oneSource refuses several sources when one of tags takes exactly one (oneSourceTags).
 func oneSource(tags []operations.Operation, p *Paths) error {
 	if len(p.Sources) < 2 {
 		return nil
@@ -180,8 +169,6 @@ func oneSource(tags []operations.Operation, p *Paths) error {
 	return nil
 }
 
-// normalizePaths drops blank sources and trims the destination. It returns nil when no path is
-// left.
 func normalizePaths(p *Paths) *Paths {
 	if p == nil {
 		return nil
@@ -198,8 +185,6 @@ func normalizePaths(p *Paths) *Paths {
 	return out
 }
 
-// checkPaths refuses a path that rclone would refuse or misread (location.Problem). A mount
-// point on Windows can be a drive letter or `*`, which are not paths.
 func checkPaths(p *Paths) error {
 	paths := slices.Clone(p.Sources)
 	if !isDrive(p.Destination) {
@@ -251,7 +236,6 @@ func (s *Service) Save(ctx context.Context, t *Template) (*Template, error) {
 	if err := checkOptions(t.Tags, t.Options); err != nil {
 		return nil, err
 	}
-	// The options are copied, so the caller's template doesn't change.
 	t.Options = maps.Clone(t.Options)
 	mapper := operations.Groups{Config: t.Options}
 	if err := operations.StoreMapper(&mapper); err != nil {
@@ -264,11 +248,6 @@ func (s *Service) Save(ctx context.Context, t *Template) (*Template, error) {
 	return t, nil
 }
 
-// checkOptions refuses an option that none of the operations of tags takes, as their starts
-// would (operations.CheckOption). An option that only some of them take is kept: copy and mount
-// can share a template whose vfs options only the mount uses, and a run leaves out what its
-// operation doesn't take. A blank value is left out, as a start leaves it out. The error names
-// the first operation that refused it.
 func checkOptions(tags []operations.Operation, options catalog.Group) error {
 	for _, key := range slices.Sorted(maps.Keys(options)) {
 		if isBlank(options[key]) || len(tags) == 0 {
@@ -294,8 +273,6 @@ func checkOptions(tags []operations.Operation, options catalog.Group) error {
 	return nil
 }
 
-// optionRefusal returns the refusal of an option that the operation tag doesn't take, with the
-// operation as the pages name it, such as Copy, and why.
 func optionRefusal(tag operations.Operation, why error) error {
 	switch tag {
 	case operations.OperationCopy:
@@ -321,8 +298,6 @@ func optionRefusal(tag operations.Operation, why error) error {
 	return errs.Field("options", "%s: %s", tag, why)
 }
 
-// isBlank reports whether an option's value is cleared, which a start leaves out: null, or text
-// that is only spaces.
 func isBlank(raw json.RawMessage) bool {
 	var v any
 	if json.Unmarshal(raw, &v) != nil {
@@ -332,7 +307,6 @@ func isBlank(raw json.RawMessage) bool {
 	return v == nil || ok && strings.TrimSpace(s) == ""
 }
 
-// put stores a checked template in tx.
 func put(ctx context.Context, tx *sql.Tx, t *Template) error {
 	tags, err := json.Marshal(t.Tags)
 	if err != nil {
@@ -342,7 +316,7 @@ func put(ctx context.Context, tx *sql.Tx, t *Template) error {
 	if err != nil {
 		return err
 	}
-	var paths any // NULL without paths
+	var paths any
 	if t.Paths != nil {
 		raw, err := json.Marshal(t.Paths)
 		if err != nil {
@@ -359,7 +333,6 @@ func put(ctx context.Context, tx *sql.Tx, t *Template) error {
 	return err
 }
 
-// marshal writes v as JSON without escaping <, > and &, which can appear in paths and filters.
 func marshal(v any) (string, error) {
 	var b bytes.Buffer
 	enc := json.NewEncoder(&b)
@@ -429,7 +402,6 @@ func (s *Service) Groups(ctx context.Context, id string, op operations.Operation
 	if err != nil {
 		return Applied{}, err
 	}
-	// The page shows the reasons, so they are in the app's language.
 	return Applied{Groups: g, Skipped: catalog.LocalSkipped(skipped)}, nil
 }
 

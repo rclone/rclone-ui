@@ -10,7 +10,6 @@ describe('parseOptions', () => {
             exclude: ['*.tmp'],
         })
         expect(parseOptions('{}')).toEqual({})
-        // A typed `null`, a list or a number isn't a set of options, just like invalid JSON.
         for (const text of ['null', '[]', '[1]', '5', '"x"', 'true', '', '{"a":']) {
             expect(parseOptions(text)).toBeUndefined()
         }
@@ -61,7 +60,6 @@ describe('defaultValue', () => {
 })
 
 describe('buildSelectorPresets', () => {
-    // Builds an option as the core sends it. Fields that aren't given get their zero value.
     const tokens = (o: Record<string, unknown>) =>
         buildSelectorPresets(Option.createFrom(o)).map((p) => [p.label, p.token, p.isDefault])
 

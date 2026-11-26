@@ -10,8 +10,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/testdb"
 )
 
-// BwLimit reads one speed, or an upload and a download speed, as --bwlimit does. No limit is ""
-// or "off". A timetable or a value rclone can't read is refused, as a field error.
 func TestBwLimit(t *testing.T) {
 	for in, want := range map[string]string{"10M": "10Mi", " 1M:512k ": "1Mi:512Ki", "": "off", "off": "off", "OFF": "off"} {
 		got, err := BwLimit(in)
@@ -26,8 +24,6 @@ func TestBwLimit(t *testing.T) {
 	}
 }
 
-// Update saves the limit trimmed, refuses a bad one, and tells the OnBwLimit functions about a
-// change only.
 func TestUpdateBwLimit(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New())

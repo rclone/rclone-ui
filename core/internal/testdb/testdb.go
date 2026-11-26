@@ -1,4 +1,3 @@
-// Package testdb opens a new app.db at this build's schema for a test.
 package testdb
 
 import (

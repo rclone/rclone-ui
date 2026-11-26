@@ -26,11 +26,6 @@ import { useHiddenFiles } from './hiddenFiles'
 import useDisks from './useDisks'
 import { getDiskIcon, getDiskLabel, shouldShowDisk } from './utils'
 
-// The settings of the file panels: whether they measure folder sizes (`folderSizes.ts`), whether
-// they read the slow file dates (`fileDates.ts`), whether they show hidden files (`hiddenFiles.ts`),
-// and which shortcuts both sidebars show. The shortcuts are the local disks and folders that the
-// core reports (`useDisks`), minus the ones turned off here. Those are stored in the
-// `hiddenLocalPaths` preference.
 export default function PlacesMenu() {
     const [hiddenLocalPaths, setHiddenLocalPaths] = usePref('hiddenLocalPaths')
     const setLocalPathHidden = (disk: string, hidden: boolean) =>
@@ -53,8 +48,6 @@ export default function PlacesMenu() {
     return (
         <Popover placement="top-start" offset={10}>
             <Tooltip content={t`Panel settings`} {...TIP} closeDelay={0}>
-                {/* Clicking the bar's row toggles it open, so stop a click on the cog from
-                    reaching the row. */}
                 <div onClick={(event) => event.stopPropagation()}>
                     <PopoverTrigger>
                         <Button

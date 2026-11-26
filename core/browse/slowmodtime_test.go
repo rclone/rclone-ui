@@ -17,7 +17,6 @@ import (
 	"github.com/rclone/rclone/fs/object"
 )
 
-// countingS3 is an S3 server in the test process that counts the requests it gets by method.
 type countingS3 struct {
 	mu     sync.Mutex
 	counts map[string]int
@@ -45,7 +44,6 @@ func newCountingS3(t *testing.T, buckets ...string) *countingS3 {
 	return c
 }
 
-// remote returns an on-the-fly remote for a bucket, as a connection string.
 func (c *countingS3) remote(bucket string) string {
 	return fmt.Sprintf(":s3,provider=Other,endpoint=%q,access_key_id=k,secret_access_key=s,force_path_style=true:%s", c.url, bucket)
 }
@@ -62,7 +60,6 @@ func (c *countingS3) heads() int {
 	return c.counts[http.MethodHead]
 }
 
-// put uploads files through rclone's s3 backend, which keeps each one's mod time in its metadata.
 func (c *countingS3) put(t *testing.T, bucket string, names ...string) {
 	t.Helper()
 	ctx := context.Background()
@@ -80,10 +77,6 @@ func (c *countingS3) put(t *testing.T, bucket string, names ...string) {
 	}
 }
 
-// TestNoRequestPerFileForModTimes: s3 keeps a file's mod time in metadata that a listing doesn't
-// return, so reading it costs a HEAD request per file (rclone's SlowModTime). A listing, a search
-// and a comparison leave those times out instead, which keeps a large folder fast, unless File
-// dates is on. Folders keep theirs, and so do the files of other backends.
 func TestNoRequestPerFileForModTimes(t *testing.T) {
 	s3 := newCountingS3(t, "left", "right")
 	var names []string
@@ -91,7 +84,6 @@ func TestNoRequestPerFileForModTimes(t *testing.T) {
 		names = append(names, fmt.Sprintf("dir/file%02d.txt", i))
 	}
 	s3.put(t, "left", names...)
-	// No name in common: a name on both sides is compared by hash, which may need a request.
 	s3.put(t, "right", "dir/other.txt")
 	ctx := context.Background()
 
@@ -134,8 +126,6 @@ func TestNoRequestPerFileForModTimes(t *testing.T) {
 		t.Errorf("compare: %d pairs, %d HEAD requests", len(cmp.Pairs), s3.heads())
 	}
 
-	// With File dates on, the times are read, one request per file. A cached listing made
-	// without them isn't served.
 	l := NewLister()
 	if _, err := l.List(ctx, s3.remote("left"), "dir", false, false, 1000, func([]Entry) {}); err != nil {
 		t.Fatal(err)
@@ -148,13 +138,11 @@ func TestNoRequestPerFileForModTimes(t *testing.T) {
 	if len(rows) != 30 || s3.heads() != 30 || rows[0].ModTime == "" {
 		t.Errorf("with dates: %d rows, %d HEAD requests, first time %q", len(rows), s3.heads(), rows[0].ModTime)
 	}
-	// Asked again the same way, it comes from the cache.
 	s3.reset()
 	if _, err := l.List(ctx, s3.remote("left"), "dir", false, true, 1000, func([]Entry) {}); err != nil || s3.counts[http.MethodGet] != 0 || s3.heads() != 0 {
 		t.Errorf("cached listing with dates: %v, %v", s3.counts, err)
 	}
 
-	// A local file's time is in its listing, so it stays.
 	local := MakeTree(t, map[string]string{"a.txt": "a"})
 	rows, _, err = fetch(ctx, local, "", 10, false, func([]Entry) {})
 	if err != nil || len(rows) != 1 || rows[0].ModTime == "" {
@@ -162,8 +150,6 @@ func TestNoRequestPerFileForModTimes(t *testing.T) {
 	}
 }
 
-// TestServerModTimesAreShown: with --use-server-modtime, a file's time is the one in the listing,
-// which costs nothing, so it is shown.
 func TestServerModTimesAreShown(t *testing.T) {
 	s3 := newCountingS3(t, "bucket")
 	s3.put(t, "bucket", "a.txt", "b.txt")

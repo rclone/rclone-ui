@@ -60,8 +60,6 @@ func TestInitRefusesABadLogLevelFirst(t *testing.T) {
 	if _, err := logLevelOf("LOUD"); err == nil || !strings.Contains(err.Error(), "log_level") {
 		t.Errorf("a bad level: %v", err)
 	}
-	// The level is checked before the run-once flag, so even though Init has already run, the
-	// error is about the level.
 	if _, err := Init(context.Background(), InitOptions{ConfigPath: "x", CacheDir: "y", LogLevel: "LOUD"}); err == nil || !strings.Contains(err.Error(), "log_level") {
 		t.Errorf("Init with a bad level: %v", err)
 	}
@@ -94,16 +92,12 @@ func TestProxyEnv(t *testing.T) {
 		t.Errorf("no ignored hosts: %v", got)
 	}
 
-	// Init set these in the process, replacing the environment's values.
 	if os.Getenv("HTTPS_PROXY") != testProxy.URL || os.Getenv("HTTP_PROXY") != testProxy.URL || os.Getenv("NO_PROXY") != "localhost,10.0.0.0/8" {
 		t.Errorf("process environment: HTTPS_PROXY %q NO_PROXY %q (before Init HTTP_PROXY %q, %v)",
 			os.Getenv("HTTPS_PROXY"), os.Getenv("NO_PROXY"), operatorHTTP, operatorHas)
 	}
 }
 
-// Init finishes setting up http.DefaultTransport. Its first use later, such as an httptest
-// server's Close or a library cloning it, then writes nothing that could race with a new Fs
-// client copying its fields (go test -race).
 func TestInitSetsUpTheDefaultTransport(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Go(func() { fshttp.NewClient(context.Background()) })

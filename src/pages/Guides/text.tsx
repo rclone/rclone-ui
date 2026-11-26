@@ -1,11 +1,5 @@
 import { createContext, Fragment, type ReactNode, useContext } from 'react'
 
-// The guides' text is plain strings with a little markup, so the content reads like prose:
-//   **Schedule**    a label the user sees in the app (a button, a menu item, a field)
-//   `gdrive:Photos` a path, a command or anything typed
-//   [[shortcut]]    the launcher's shortcut, as the user's own keycaps
-//   [[key:K]]       a shortcut with the OS's main modifier: ⌘ K on macOS, Ctrl K elsewhere
-//
 // Each text is one translated message with its markup inside, so the keys are written in square
 // brackets: a message is ICU MessageFormat, where braces start a placeholder.
 
@@ -16,9 +10,8 @@ const RE_MARKER = /\[\[([^\]]+)\]\]/g
 const RE_ACCENT = /\p{M}/gu
 
 /**
- * The text with the keys' markers as they are written. The test language accents every letter of
- * a message, those of a marker too ("[[śĥōŕţćũţ]]"), so the accents are taken off inside them.
- * A real translation keeps the markers as they are, and this changes nothing there.
+ * The test language accents every letter of a message, those of a marker too ("[[śĥōŕţćũţ]]"),
+ * so the accents are taken off inside them.
  */
 function withMarkers(text: string): string {
     return text.replace(
@@ -27,7 +20,6 @@ function withMarkers(text: string): string {
     )
 }
 
-/** What the keys in the text are drawn with: the launcher's shortcut and whether this is a Mac. */
 export interface Keyboard {
     shortcut: readonly string[]
     mac: boolean
@@ -35,7 +27,6 @@ export interface Keyboard {
 
 export const KeyboardContext = createContext<Keyboard>({ shortcut: [], mac: false })
 
-/** The keycaps of a [[key:…]] token on this OS: the main modifier, then the keys. */
 export function keyCaps(keys: string, mac: boolean): string[] {
     return [mac ? '⌘' : 'Ctrl', ...keys.split('+')]
 }
@@ -95,7 +86,6 @@ const RE_LABEL = /\*\*([^*]+)\*\*/g
 const RE_TYPED = /`([^`]+)`/g
 const RE_KEYS = /\[\[(?:shortcut|key:[^\]]+)\]\]/g
 
-/** The guide's text with its markup removed, for search. Keys have no words to find. */
 export function plainText(text: string): string {
     return withMarkers(text).replace(RE_LABEL, '$1').replace(RE_TYPED, '$1').replace(RE_KEYS, '')
 }

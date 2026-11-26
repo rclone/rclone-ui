@@ -41,12 +41,9 @@ export default function Mount() {
     const { globalFlags } = useFlags()
 
     const [source, setSource] = useState<string | undefined>(start.sources?.[0])
-    // The mount point that the user typed or picked. While it is undefined, the suggestion is used.
     const [dest, setDest] = useState<string | undefined>(start.destination)
     const [opened] = useState({ source, dest })
 
-    // The remote's name, for the suggested mount point. An on-the-fly remote such as ":s3" is
-    // named after its type.
     const remote = useMemo(() => {
         const name = getRemoteName(source)
         return name?.startsWith(':') ? name.slice(1) : (name ?? undefined)
@@ -68,7 +65,6 @@ export default function Mount() {
         resetJson,
     } = optionState
 
-    // buildArgs runs only after `problem` passes, so the source and the mount point are set.
     const buildArgs = () => ({
         source: source ?? '',
         destination: mountPoint ?? '',
@@ -91,8 +87,6 @@ export default function Mount() {
             if (source === mountPoint) return t`Source and destination cannot be the same`
             return undefined
         },
-        // On Windows, a drive (M:, or * for the next free one) is not a path, so it isn't sent
-        // as the destination path.
         paths: (args) => ({
             source: args.source,
             destination: isDrive(args.destination ?? '', windows) ? undefined : args.destination,
@@ -100,7 +94,6 @@ export default function Mount() {
         jsonError,
         buildArgs,
         error: async (failure) => {
-            // On a computer that can't mount, the can't-mount dialog explains how to set it up.
             if (cannotMount(failure) && (await explainMountSupport().catch(() => false))) return
             if (!cannotMount(failure)) {
                 await message(formatErrorMessage(failure), {
@@ -123,15 +116,11 @@ export default function Mount() {
         },
         groups: { resetJson },
     })
-    // The started mount. On Windows, a `*` mount point is replaced by the drive the core picked.
     const mounted = submission.startMutation.data
     const resetStart = submission.startMutation.reset
 
     useReportEdited(!mounted && (optionsEdited || source !== opened.source || dest !== opened.dest))
 
-    // When the started mount is unmounted elsewhere (in the list below, the launcher or the tray),
-    // the page gets ready to mount again. The mount counts as gone only after it has appeared in
-    // the list and then left it.
     const { mounts } = useMounts()
     const startedId = mounted?.id
     const listed = !!startedId && mounts.some((m) => m.id === startedId)
@@ -181,7 +170,6 @@ export default function Mount() {
 
     const accordionItems = useOptionItems(optionState, {
         refusals: submission.refusals,
-        // The mounted source is where the mapper's fields come from and go to.
         mapperPaths: { destination: source },
     })
 
@@ -207,7 +195,6 @@ export default function Mount() {
                         onSelect: applyTemplate,
                         getOptions: getMergedOptions,
                         paths: {
-                            // The mount point as typed or picked, not the suggestion.
                             get: () => pathsFromArgs({ source, destination: dest }),
                             set: (paths) => {
                                 setSource(paths.sources?.[0] || undefined)

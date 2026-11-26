@@ -38,7 +38,7 @@ func TestValidateURL(t *testing.T) {
 		{NotificationProviderTelegram, "https://api.telegram.org/bot123:AA/sendMessage?chat_id=12a", chatBad},
 		{NotificationProviderTelegram, "https://api.telegram.org/bot123:AA", telegramBad},
 		{NotificationProviderTelegram, "https://api.telegram.org/botabc:AA/sendMessage?chat_id=1", telegramBad},
-		{NotificationProviderTelegram, "https://api.telegram.org/bot1:AA/sendMessage?chat_id=1\r\n", ""}, // trimmed
+		{NotificationProviderTelegram, "https://api.telegram.org/bot1:AA/sendMessage?chat_id=1\r\n", ""},
 		{NotificationProviderTelegram, "https://api.telegram.org/bot1:AA/sendMessage?chat_id=1\rx", telegramBad},
 		{NotificationProviderWebhook, "https://example.com/hooks/rclone", ""},
 		{NotificationProviderWebhook, "HTTP://example.com:8080/x?y=1", ""},
@@ -52,8 +52,6 @@ func TestValidateURL(t *testing.T) {
 		{NotificationProviderEmail, " ops@example.com, alice@example.co.uk ,", ""},
 		{NotificationProviderEmail, "", mailBad},
 		{NotificationProviderEmail, " , ", mailBad},
-		// Addresses are read the same way the send reads them. A host without a dot is
-		// accepted, and an address that is refused is named in the error.
 		{NotificationProviderEmail, "ops@mailhost", ""},
 		{NotificationProviderEmail, "Ops <ops@example.com>", "‘Ops <ops@example.com>’ is not an email address."},
 		{NotificationProviderEmail, "ops@example.com; alice@example.com", "‘ops@example.com; alice@example.com’ is not an email address."},
@@ -91,8 +89,6 @@ func TestTargetProblems(t *testing.T) {
 			"events": "Select at least one event. To keep these addresses without notifications, use the Enabled switch instead.",
 		}},
 		{"bad url", func(in *TargetInput) { in.URL = "nope" }, map[string]string{"url": "This is not a valid URL"}},
-		// The bot token is checked as url and the chat ID as chatId, because the form has a field
-		// for each.
 		{"telegram: bad token and chat ID", func(in *TargetInput) {
 			in.Provider, in.URL = NotificationProviderTelegram, "https://api.telegram.org/botx/sendMessage?chat_id=12a"
 		}, map[string]string{

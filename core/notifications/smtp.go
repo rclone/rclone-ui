@@ -18,21 +18,16 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// errNotSetUp is the error for delivering to an email target when no mail server is saved. It is
-// the one failure that the user can fix from the page.
 var errNotSetUp = errs.New("SMTP is not set up. Save the mail server in the Notifications window first.")
 
-// smtpTimeout bounds the connection and each exchange with the mail server.
 const smtpTimeout = 15 * time.Second
 
-// smtpAccount is the keychain account that stores the mail server's password.
 const smtpAccount = "smtp"
 
-// SMTP is the saved mail server, with its password read from the keychain.
 type SMTP struct {
 	Host        string
 	Port        int
-	Encryption  string // starttls | tls | none
+	Encryption  string
 	Username    string
 	Password    string
 	FromAddress string
@@ -51,7 +46,6 @@ func view(c SMTP) SMTPView {
 	}
 }
 
-// savedSMTP returns the saved mail server, or nil when none is saved.
 func (s *Service) savedSMTP(ctx context.Context) (*SMTP, error) {
 	var c SMTP
 	err := s.db.Read(ctx, func(tx *sql.Tx) error {
@@ -65,15 +59,11 @@ func (s *Service) savedSMTP(ctx context.Context) (*SMTP, error) {
 		return nil, err
 	}
 	if c.Username != "" {
-		// A missing password is left empty, because the server may accept the user without
-		// one.
 		c.Password, _ = s.secrets.Get(smtpAccount)
 	}
 	return &c, nil
 }
 
-// SMTP returns the saved mail server as the Notifications window shows it. It is empty when no
-// server is saved.
 func (s *Service) SMTP(ctx context.Context) (SMTPView, error) {
 	c, err := s.savedSMTP(ctx)
 	if err != nil || c == nil {
@@ -82,9 +72,6 @@ func (s *Service) SMTP(ctx context.Context) (SMTPView, error) {
 	return view(*c), nil
 }
 
-// SetSMTP saves the mail server. An empty host clears it, an empty password keeps the saved one,
-// and an empty username removes the password too. Settings that couldn't be used to send are
-// rejected before they are saved.
 func (s *Service) SetSMTP(ctx context.Context, in SMTPInput) (SMTPView, error) {
 	host := strings.TrimSpace(in.Host)
 	if host == "" {
@@ -95,7 +82,7 @@ func (s *Service) SetSMTP(ctx context.Context, in SMTPInput) (SMTPView, error) {
 		if err != nil {
 			return SMTPView{}, err
 		}
-		_ = s.secrets.Delete(smtpAccount) // fine if no password was saved
+		_ = s.secrets.Delete(smtpAccount)
 		s.changed()
 		return SMTPView{}, nil
 	}
@@ -122,10 +109,6 @@ func (s *Service) SetSMTP(ctx context.Context, in SMTPInput) (SMTPView, error) {
 			}
 		}
 	}
-	// Save the password before the server, because a server saved without the password it needs
-	// fails every email. If the server then can't be saved, the old password is put back. With a
-	// username, a blank password here means the keychain couldn't be read, so the stored one is
-	// left alone.
 	restore := func() {}
 	if c.Password != "" {
 		old, oldErr := s.secrets.Get(smtpAccount)
@@ -152,14 +135,12 @@ func (s *Service) SetSMTP(ctx context.Context, in SMTPInput) (SMTPView, error) {
 		return SMTPView{}, err
 	}
 	if c.Password == "" && c.Username == "" {
-		_ = s.secrets.Delete(smtpAccount) // fine if no password was saved
+		_ = s.secrets.Delete(smtpAccount)
 	}
 	s.changed()
 	return view(c), nil
 }
 
-// TestSMTP sends a test email to `to` through the saved server. It never uses the unsaved form,
-// because the test should check the server that email targets will use.
 func (s *Service) TestSMTP(ctx context.Context, to string) (Outcome, error) {
 	c, err := s.savedSMTP(ctx)
 	if err != nil {
@@ -174,14 +155,10 @@ func (s *Service) TestSMTP(ctx context.Context, to string) (Outcome, error) {
 	return outcome(err, i18n.T("A test email went to %s.", strings.TrimSpace(to))), nil
 }
 
-// mailText returns an email's text: the body, and a line that says Rclone UI sent it.
 func (s *Service) mailText(body string) string {
 	return fmt.Sprintf("%s\n\n— Rclone UI v%s", body, s.version)
 }
 
-// mail sends one plain-text message to every address in to. It retries once after retryDelay,
-// unless the server refused permanently with a 5xx. A greylisting 4xx or a dropped connection is
-// worth a second try, but a bad password or an unknown recipient is not.
 func (s *Service) mail(ctx context.Context, c SMTP, to []string, subject, text string) error {
 	if err := checkRecipients(to); err != nil {
 		return err
@@ -222,8 +199,6 @@ func (s *Service) smtpOptions(c SMTP) []mail.Option {
 	case SMTPEncryptionTLS:
 		opts = append(opts, mail.WithSSL(), mail.WithTLSPolicy(mail.NoTLS))
 	case SMTPEncryptionNone:
-		// The admin chose a plain connection, such as a relay on the same host or a tunnel. The
-		// credentials are sent the same way they would be over TLS.
 		opts = append(opts, mail.WithTLSPolicy(mail.NoTLS))
 		plain, login = mail.SMTPAuthPlainNoEnc, mail.SMTPAuthLoginNoEnc
 	default:
@@ -236,7 +211,6 @@ func (s *Service) smtpOptions(c SMTP) []mail.Option {
 	return opts
 }
 
-// permanent reports whether the server refused permanently, with a 5xx reply.
 func permanent(err error) bool {
 	var se *mail.SendError
 	if errors.As(err, &se) {

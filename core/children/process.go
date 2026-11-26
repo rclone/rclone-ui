@@ -27,35 +27,27 @@ import (
 // The pipes can stay open when a grandchild that escaped the process group still holds them.
 const drainWait = 2 * time.Second
 
-// Process is one run of a unit's child process.
 type Process struct {
 	cmd       *exec.Cmd
 	pid       int
 	started   time.Time
 	startTime int64
-	// stdin is the core's end of the child's stdin. The child ends when it closes (see
-	// childenv), so the child never outlives the app.
-	stdin io.WriteCloser
+	stdin     io.WriteCloser
 
-	planned atomic.Bool // stopped on purpose, so its exit is not a failure
-	killed  atomic.Bool // the stop ran out of time and killed it
+	planned atomic.Bool
+	killed  atomic.Bool
 	exited  chan struct{}
-	err     error // returned by Wait; read it only after exited is closed
+	err     error
 }
 
 func (p *Process) PID() int { return p.pid }
 
 func (p *Process) Started() time.Time { return p.started }
 
-// Killed reports whether a stop had to kill the process, either because it didn't end within
-// 10 s of SIGTERM or because it runs on Windows. A mount stopped that way still needs its
-// cleanup (Unmount).
 func (p *Process) Killed() bool { return p.killed.Load() }
 
-// Err is the error from Wait, or nil for exit status 0. It is valid once the process has exited.
 func (p *Process) Err() error { return p.err }
 
-// exitError describes how the process ended, for a Down.
 func (p *Process) exitError() error {
 	if p.err == nil {
 		// i18n: How the process of a mount or a serve ended, when it ended without an error.
@@ -64,7 +56,6 @@ func (p *Process) exitError() error {
 	return p.err
 }
 
-// spawn starts one run of the child. It runs on the unit's goroutine.
 func (u *Unit) spawn() (*Process, error) {
 	s := u.s
 	// A killed child leaves its socket file behind, and rclone can't listen on a path that
@@ -85,7 +76,7 @@ func (u *Unit) spawn() (*Process, error) {
 	if u.spec.Kind == KindMount && u.spec.MountPoint != "" {
 		env = append(env, childenv.MountEnv+"="+u.spec.MountPoint)
 	}
-	var key string // the one-time key file, when the config is encrypted
+	var key string
 	if u.spec.ConfigPassword != "" {
 		var err error
 		if key, err = rclone.ChildKeyFile(s.o.RunDir, u.spec.ConfigPassword); err != nil {
@@ -93,7 +84,6 @@ func (u *Unit) spawn() (*Process, error) {
 		}
 		env = append(env, childenv.KeyFileEnv+"="+key)
 	}
-	// If the child fails before it reads its key file, the file is removed here.
 	removeKey := func() {
 		if key != "" {
 			_ = os.Remove(key)
@@ -117,7 +107,6 @@ func (u *Unit) spawn() (*Process, error) {
 	// child exits, even if a grandchild keeps the pipes open.
 	cmd.Stdout, cmd.Stderr = outW, errW
 	cmd.SysProcAttr = sysProcAttr()
-	// The core holds the child's stdin open (see childenv).
 	stdin, err := childenv.Mark(cmd)
 	if err != nil {
 		_, _, _, _ = outR.Close(), outW.Close(), errR.Close(), errW.Close()
@@ -161,15 +150,14 @@ func (u *Unit) spawn() (*Process, error) {
 	}()
 	go func() {
 		p.err = cmd.Wait()
-		killGroup(pid) // whatever the child started and left behind
+		killGroup(pid)
 		if !syncx.Wait(context.Background(), &readers, drainWait) {
 			s.log.Warn("a child's output stayed open after it exited; no longer reading it", "child", u.spec.Name, "pid", pid)
 		}
 		_, _ = outR.Close(), errR.Close()
 		_ = stdin.Close()
 		removeKey()
-		// rclone never closes its rc server, so the socket file outlives the child. It is safe to
-		// remove here, because the next spawn of this id only happens after exited.
+		// rclone never closes its rc server, so the socket file outlives the child.
 		if err := removeSocket(rcSock(s.o.SocketDir, u.id)); err != nil {
 			s.log.Warn("could not remove an exited child's rc socket", "child", u.spec.Name, "error", err)
 		}
@@ -183,8 +171,6 @@ func (u *Unit) spawn() (*Process, error) {
 	return p, nil
 }
 
-// lines returns the child's line parser and the function that receives its records. The
-// child's rc password and secrets are masked out of the records.
 func (u *Unit) lines(p *Process) (logs.LineParser, func(logs.Record)) {
 	comp, sub := u.spec.Component, u.spec.Subcomponent
 	if comp == "" {
@@ -231,7 +217,6 @@ func masking(emit func(logs.Record), secrets ...string) func(logs.Record) {
 	}
 }
 
-// basicAuth returns the credentials as they appear in an Authorization: Basic header.
 func basicAuth(user, pass string) string {
 	return base64.StdEncoding.EncodeToString([]byte(user + ":" + pass))
 }

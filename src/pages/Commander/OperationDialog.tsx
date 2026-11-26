@@ -33,10 +33,6 @@ import { WINDOWS } from '../../routes'
 
 type DropOperation = OperationSubset<'copy' | 'move'>
 
-/**
- * The arguments for the copy or move that a drop between the panels starts. The items are sent as
- * they were dropped, and the core asks rclone whether each one is a file or a folder.
- */
 function startArgs(
     operation: DropOperation,
     items: SelectItem[],
@@ -89,7 +85,6 @@ export default function OperationDialog({
     destination: string | null
     onClose: () => void
     onJobStarted?: (id: string) => void
-    /** Called when a move starts, with the items that are moving away from their folder. */
     onMoved?: (items: SelectItem[]) => void
 }) {
     const [operation, setOperation] = useState<DropOperation>('copy')
@@ -98,7 +93,6 @@ export default function OperationDialog({
     const [error, setError] = useState<string | null>(null)
 
     const isOpen = !!items && items.length > 0
-    // Each new drop starts as a copy that overwrites nothing, with no error from the last one.
     useEffect(() => {
         if (!isOpen) return
         setOperation('copy')
@@ -117,8 +111,6 @@ export default function OperationDialog({
             if (operation === 'move') onMoved?.(items)
             onClose()
         } catch (failure) {
-            // If the transfer was recorded before it failed, it is shown in the bar too. The error
-            // is shown here, and the dialog stays open so the user can try again.
             const recorded = coreError(failure)?.transfer
             if (recorded) onJobStarted?.(recorded.id)
             setError(
@@ -134,8 +126,6 @@ export default function OperationDialog({
 
     const itemCount = items?.length ?? 0
 
-    // Splits the name the same way the core does, so on Windows a backslash also separates path
-    // parts. A root has no name, so a local root is shown as itself (`C:\`).
     const formatPath = (path: string) => {
         const parsed = parsePath(path)
         const fileName = baseName(path)
@@ -158,7 +148,6 @@ export default function OperationDialog({
             onClose={onClose}
             size="lg"
             hideCloseButton={isLoading}
-            // While the transfer starts, the dialog stays open, so that a failed start shows here.
             isDismissable={!isLoading}
             isKeyboardDismissDisabled={isLoading}
         >

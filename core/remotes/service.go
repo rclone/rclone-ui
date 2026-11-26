@@ -1,13 +1,3 @@
-// Package remotes manages the app's view of the rclone remotes in the config. It covers:
-//   - the list of remotes, with the fsinfo cache
-//   - health checks
-//   - the work that every config change needs
-//   - delete, and rename along with the app's own data
-//   - config sessions (create, edit, reconnect, OAuth)
-//   - the claims that the reconnect dialogs make
-//
-// The remotes themselves belong to rclone and live in rclone's own config file (the Store in
-// core/rclone). Only what the app knows about them is stored in SQLite.
 package remotes
 
 import (
@@ -35,7 +25,6 @@ import (
 
 var ErrNotFound = errs.NotFound("remote", "That remote doesn’t exist.")
 
-// FSInfo holds the parts of rclone's fsinfo for an Fs (operations.GetFsInfo) that the pages read.
 type FSInfo struct {
 	Features     map[string]bool  `json:"features"`
 	MetadataInfo *fs.MetadataInfo `json:"metadataInfo,omitempty"`
@@ -52,14 +41,14 @@ type FSInfo struct {
 //     result
 //
 // Error is the problem's message in the app's language. It is filled in when the result leaves
-// for a page (shown), because a result is kept for a while and the language may change.
+// for a page (shown).
 type HealthResult struct {
 	State        string `json:"state"`
 	About        *Quota `json:"about,omitempty"`
 	Error        string `json:"error,omitempty"`
 	CanReconnect bool   `json:"canReconnect,omitempty"`
 
-	problem error // what Error says, for a faulty or unknown result
+	problem error
 }
 
 func (r HealthResult) shown() HealthResult {
@@ -74,32 +63,21 @@ const (
 	HealthUnknown  = "unknown"
 )
 
-// Quota is a backend's response to about (fs.Usage). Values are in bytes, except objects, which
-// is a count. Each value is set only when the backend reports it.
 type Quota = fs.Usage
 
-// Step is a config session as the pages see it.
 type Step struct {
-	ID     string
-	Remote string
-	Kind   string // create | update | reconnect
-	// Type is the remote's backend, whose text the API translates rclone's questions with.
-	Type  string
-	State string // question | authorize | working | done | failed | cancelled
-	// Question is rclone's question, while State is question.
+	ID       string
+	Remote   string
+	Kind     string
+	Type     string
+	State    string
 	Question *fs.Option
-	// Notice is a soft error that rclone gave before asking the question again.
-	Notice string
-	// AuthURL is rclone's own sign-in link (served by its listener), while it waits for a sign-in.
-	AuthURL string
-	// Error is why the session failed. The API sends it in the app's language.
-	Error error
-	// Field is the form field that Error is about: newName for a rename that failed.
-	Field string
-	// Busy explains why a session failed when another program holds the port of rclone's sign-in
-	// listener. It holds the listener's address.
-	Busy   string
-	Result *StepResult
+	Notice   string
+	AuthURL  string
+	Error    error
+	Field    string
+	Busy     string
+	Result   *StepResult
 }
 
 const (
@@ -115,55 +93,42 @@ const (
 	StateCancelled = "cancelled"
 )
 
-// StepResult is the remote of a finished session, under its new name after a rename. It lists
-// the saved items that the rename couldn't update, each as an error that says "<what>: <why>".
 type StepResult struct {
 	Name         string
 	NotRewritten []error
 }
 
 type StartRequest struct {
-	Kind    string
-	Name    string
-	NewName string         // for update: the edit form's Name field
-	Type    string         // for create
-	Values  map[string]any // for create, every value; for update, the changed ones
-	// NonInteractive asks rclone's questions one at a time. The providers in interactiveTypes
-	// always do this.
+	Kind           string
+	Name           string
+	NewName        string
+	Type           string
+	Values         map[string]any
 	NonInteractive bool
 }
 
-// Claim is the result of a reconnect dialog's claim: either granted, or the current holder.
 type Claim struct {
 	Granted bool
 	Holder  string
 }
 
-// Invalidator drops cached listings. The browse service implements it.
 type Invalidator interface{ InvalidateRemotes(names []string) }
 
-// Follower keeps what names a remote in step with a rename: favorites, templates, watchers,
-// schedules and automounts. RenameRemote reports the items it couldn't rewrite with a
-// *location.NotRewrittenError. Any other error is listed unchanged.
+// Follower keeps what names a remote in step with a rename. RenameRemote reports the items it
+// couldn't rewrite with a *location.NotRewrittenError. Any other error is listed unchanged.
 type Follower interface {
 	RenameRemote(ctx context.Context, old, new string) error
 }
 
-// Unlocks reports when a locked config file is unlocked (core/config). Its remotes can't be read
-// before that.
 type Unlocks interface{ OnUnlocked(fn func()) }
 
 // Options configure the service. Every field is required.
 type Options struct {
-	DB    *db.DB
-	Store *rclone.Store
-	Bus   *bus.Bus
-	// Run runs the background work (health checks, fsinfo refreshes, the config session's watch)
-	// on the core's goroutines, which stop with the core.
-	Run syncx.Runner
-	// Config tells about an unlock. Start subscribes to it.
-	Config Unlocks
-	// Invalidator drops the cached listings of the remotes that changed (the browse service).
+	DB          *db.DB
+	Store       *rclone.Store
+	Bus         *bus.Bus
+	Run         syncx.Runner
+	Config      Unlocks
 	Invalidator Invalidator
 	// Followers follow a rename, in this order, after the config file and the remote's row.
 	Followers []Follower
@@ -191,9 +156,6 @@ type Service struct {
 	sessions *Sessions
 	claims   *Claims
 
-	// While a rename runs, the change handling triggered by its own storage write waits until
-	// the rename finishes, so the old name's row is moved instead of pruned. held collects the
-	// sections in the meantime.
 	holdMu  sync.Mutex
 	holding int
 	held    []string
@@ -217,7 +179,7 @@ func New(o Options) *Service {
 
 // Start adds a row for each remote that has none and drops the rows of the remotes that are
 // gone. Then it handles the changes that come from outside the app: an edit of the file, and the
-// unlock of a locked file. A failed sync is only logged, because the next change syncs again.
+// unlock of a locked file. A failed sync is only logged.
 func (s *Service) Start(ctx context.Context) {
 	if err := s.syncSettings(ctx, nil); err != nil {
 		s.log.ErrorContext(ctx, "remotes: adding the rows at start", "error", err)
@@ -230,12 +192,8 @@ func (s *Service) Sessions() *Sessions { return s.sessions }
 
 func (s *Service) Claims() *Claims { return s.claims }
 
-// loaded reports whether the store has the file's remotes. It doesn't while the file needs a
-// password.
 func (s *Service) loaded() bool { return s.st.State().Status == rclone.StatusOK }
 
-// names returns every remote in config order. These are the sections with a type, as rclone
-// lists them.
 func (s *Service) names() []string {
 	var out []string
 	for _, name := range s.st.GetSectionList() {
@@ -251,7 +209,6 @@ func (s *Service) exists(name string) bool {
 	return ok && t != ""
 }
 
-// section returns a remote's config as stored, with password fields obscured.
 func (s *Service) section(name string) map[string]string {
 	keys := s.st.GetKeyList(name)
 	if keys == nil {
@@ -347,7 +304,6 @@ func (s *Service) readSettings(ctx context.Context) (map[string]settingsRow, err
 	return rows, nil
 }
 
-// addRows adds a row for each name that doesn't have one, for the fsinfo cache to fill.
 func (s *Service) addRows(ctx context.Context, names []string) error {
 	now := s.now().UnixMilli()
 	err := s.db.Write(ctx, func(tx *sql.Tx) error {
@@ -365,12 +321,8 @@ func (s *Service) addRows(ctx context.Context, names []string) error {
 	return nil
 }
 
-// syncSettings brings the rows in line with the config's remotes. It adds a row for each name
-// without one, and deletes the rows of names that are gone. It also clears the cached fsinfo for
-// the names in refresh, because their config changed.
 func (s *Service) syncSettings(ctx context.Context, refresh []string) error {
 	if !s.loaded() {
-		// The remotes can't be read because a password is needed. That doesn't mean they are gone.
 		return nil
 	}
 	names := s.names()
@@ -380,7 +332,6 @@ func (s *Service) syncSettings(ctx context.Context, refresh []string) error {
 		if err != nil {
 			return err
 		}
-		// Read all rows and close them before writing in the same transaction.
 		stored, err := db.Collect(r, func(row db.Scanner) (string, error) {
 			var n string
 			err := row.Scan(&n)
@@ -424,10 +375,7 @@ func (s *Service) syncSettings(ctx context.Context, refresh []string) error {
 
 // Changed handles a config change for the sections that changed. For those remotes, and for every
 // wrapper over them, it drops rclone's cached Fs, the health results, the listings and the
-// fsinfo. It then adds and prunes rows and publishes remotes.changed. It runs for the store's
-// changes, such as an edit from outside, and after an unlock (Start subscribes to both). The
-// service calls it itself after changes that rclone's own saves make, such as config sessions and
-// delete.
+// fsinfo. It then adds and prunes rows and publishes remotes.changed.
 func (s *Service) Changed(sections []string) {
 	s.holdMu.Lock()
 	if s.holding > 0 {
@@ -439,14 +387,12 @@ func (s *Service) Changed(sections []string) {
 	s.edited(s.changed(sections))
 }
 
-// edited tells Options.Edited about the remotes that changed.
 func (s *Service) edited(affected []string) {
 	if len(affected) > 0 {
 		s.edits(affected)
 	}
 }
 
-// changed handles a change of the sections and returns them with the remotes that wrap them.
 func (s *Service) changed(sections []string) []string {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -470,8 +416,6 @@ func (s *Service) changed(sections []string) []string {
 	return affected
 }
 
-// hold defers change handling until release. release then runs it once for everything that
-// was held, plus the given sections.
 func (s *Service) hold() {
 	s.holdMu.Lock()
 	s.holding++
@@ -502,8 +446,6 @@ func (s *Service) Values(name string) (typ string, values map[string]string, err
 	return sec["type"], sec, nil
 }
 
-// askFSInfo opens the Fs and reads rclone's fsinfo for it, in its own stats group. It returns
-// rclone's errors.
 func askFSInfo(ctx context.Context, fsName, group string) (FSInfo, error) {
 	defer rclone.DeleteGroup(context.WithoutCancel(ctx), group)
 	var fi FSInfo
@@ -518,8 +460,6 @@ func askFSInfo(ctx context.Context, fsName, group string) (FSInfo, error) {
 	return fi, err
 }
 
-// fsinfoFrom extracts the parts of rclone's fsinfo that the pages read. The metadata help is
-// rclone's own type, so it is stored as the same JSON that operations/fsinfo returns.
 func fsinfoFrom(info *operations.FsInfo) FSInfo {
 	return FSInfo{
 		Features: info.Features, MetadataInfo: info.MetadataInfo, Hashes: info.Hashes,
@@ -532,13 +472,10 @@ func (s *Service) Delete(ctx context.Context, name string) error {
 		return ErrNotFound
 	}
 	err := s.deleteSection(name)
-	// rclone no longer sees the remote, whether or not the save worked. The store's own saves
-	// don't call OnChange, so call Changed here.
 	s.Changed([]string{name})
 	return err
 }
 
-// deleteSection removes a remote's section from the config file, as rclone's DeleteRemote does.
 // Unlike rclone's SaveConfig, which only logs a failed save, it returns the error.
 func (s *Service) deleteSection(name string) error {
 	s.st.DeleteSection(name)
@@ -549,9 +486,7 @@ func (s *Service) deleteSection(name string) error {
 }
 
 // saveError returns why the config file couldn't be saved, or nil. rclone's SaveConfig only logs
-// a failed save, so the file is saved once more here. A save that the store refuses (the file
-// isn't loaded, or changed outside the app and doesn't read) returns nil, and the store's state
-// says why.
+// a failed save, so the file is saved once more here.
 func (s *Service) saveError() error {
 	if err := s.st.Save(); err != nil {
 		return err

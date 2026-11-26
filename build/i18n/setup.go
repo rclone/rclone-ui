@@ -15,37 +15,12 @@ import (
 	"strings"
 )
 
-// The questions that rclone asks while a remote is set up are in no registry. Each backend that
-// asks its own builds them in its Config function, with fs's helpers (fs.ConfigConfirm,
-// fs.ConfigInput…), from string literals and fmt.Sprintf formats. So -rclone reads them from
-// rclone's source, in the module cache, and writes them to locales/en/rclone.json under these
-// keys (core/catalog/texts.go reads them):
-//
-//	setup.backend.<backend>.question.<name>.help
-//	setup.backend.<backend>.question.<name>.example.<value>.help
-//	setup.backend.<backend>.error.help
-//	setup.question.<name>.help
-//	setup.error.help
-//
-// setup.question and setup.error hold the questions and errors of rclone's common config
-// (lib/oauthutil and fs), which any backend may show. A question's help and an error are fmt
-// formats: a text that rclone builds with fmt.Sprintf keeps its verbs, and a literal text has its
-// "%" doubled. When one backend asks the same question with several texts, or shows several
-// errors, the second text is help_2, the third help_3, in the order of the source. The help of a
-// fixed choice (a ConfigChooseFixed item) is plain text.
-
 const rcloneModule = "github.com/rclone/rclone"
 
-// commonSetup are the folders of rclone's common config that ask questions, relative to the
-// module. Every folder in backend/ is read too.
 var commonSetup = []string{"fs", "lib/oauthutil"}
 
-// setupCall gives the positions of the arguments of one of fs's helpers: the question's name, its
-// help and its fixed choices (-1 when the helper has none).
 type setupCall struct{ name, help, items int }
 
-// setupCalls lists fs's helpers that ask a question or show an error. ConfigResult and ConfigGoto
-// show nothing.
 var setupCalls = map[string]setupCall{
 	"ConfigConfirm":              {2, 3, -1},
 	"ConfigInput":                {1, 2, -1},
@@ -58,27 +33,18 @@ var setupCalls = map[string]setupCall{
 	"ConfigError":                {-1, 1, -1},
 }
 
-// setupTexts are the texts of one backend's setup, or of the common config's.
 type setupTexts struct {
-	// questions holds each question's helps, by its name, in the order of the source.
-	questions map[string][]string
-	// choices holds the help of each fixed choice, by question and value.
-	choices map[string]map[string]string
-	// errors are the errors that are shown before a question, in the order of the source.
-	errors []string
-	// asked counts the calls that ask a question, and shown those that show an error.
+	questions    map[string][]string
+	choices      map[string]map[string]string
+	errors       []string
 	asked, shown int
 }
 
-// setupSource is what collectSetup read: the texts of each backend ("" for the common config),
-// and what it couldn't read, with where it is.
 type setupSource struct {
 	scopes map[string]*setupTexts
 	unread []string
 }
 
-// rcloneSource returns the folder of the rclone module that the app links, in the module cache.
-// It never downloads anything: the module is there once build/i18n/rclonetext has been built.
 func rcloneSource(dir string) (string, error) {
 	cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", rcloneModule)
 	cmd.Dir = dir
@@ -95,9 +61,6 @@ func rcloneSource(dir string) (string, error) {
 	return src, nil
 }
 
-// collectSetup reads the setup's questions and errors from the rclone source in root: the common
-// config's folders, and each backend's folder (not its subfolders). A backend is named as it
-// registers itself (fs.RegInfo's Name).
 func collectSetup(root string) (*setupSource, error) {
 	r := &sourceReader{root: root, fset: token.NewFileSet(), pkgs: map[string]*sourcePkg{}}
 	out := &setupSource{scopes: map[string]*setupTexts{}}
@@ -142,7 +105,6 @@ func collectSetup(root string) (*setupSource, error) {
 	return out, nil
 }
 
-// keys returns the source's texts by key, with the parts of each key joined by sep.
 func (s *setupSource) keys() map[string]string {
 	out := map[string]string{}
 	for scope, st := range s.scopes {
@@ -187,8 +149,6 @@ func (s *setupSource) report() string {
 		questions, texts, choices, errors, backends, len(s.unread))
 }
 
-// variant returns the last part of the key of a question's or an error's i-th text: help, help_2,
-// help_3.
 func variant(i int) string {
 	if i == 0 {
 		return "help"
@@ -196,7 +156,6 @@ func variant(i int) string {
 	return fmt.Sprintf("help_%d", i+1)
 }
 
-// valueKey returns the part of a key that names a choice's value: an empty value is __empty__.
 func valueKey(v string) string {
 	if v == "" {
 		return "__empty__"
@@ -204,21 +163,19 @@ func valueKey(v string) string {
 	return v
 }
 
-// sourceReader reads rclone's packages, each once.
 type sourceReader struct {
 	root string
 	fset *token.FileSet
-	pkgs map[string]*sourcePkg // by folder, relative to the module
+	pkgs map[string]*sourcePkg
 }
 
 type sourcePkg struct {
 	folder string
 	files  []*ast.File
-	paths  []string                // each file's path, relative to the module
-	consts map[string]*sourceConst // its top-level constants
+	paths  []string
+	consts map[string]*sourceConst
 }
 
-// sourceConst is a top-level constant, with its value once it has been read.
 type sourceConst struct {
 	expr    ast.Expr
 	file    *ast.File
@@ -228,7 +185,6 @@ type sourceConst struct {
 	read    bool
 }
 
-// pkg reads the package in folder, or returns nil when the folder has no Go files.
 func (r *sourceReader) pkg(folder string) (*sourcePkg, error) {
 	if p, ok := r.pkgs[folder]; ok {
 		return p, nil
@@ -275,7 +231,6 @@ func (r *sourceReader) pkg(folder string) (*sourcePkg, error) {
 	return p, nil
 }
 
-// imports returns the names that a file gives its imports, with their paths.
 func imports(f *ast.File) map[string]string {
 	out := map[string]string{}
 	for _, imp := range f.Imports {
@@ -289,9 +244,6 @@ func imports(f *ast.File) map[string]string {
 	return out
 }
 
-// helper returns the name of the fs helper that c calls, when it calls one. fsName is the name
-// that the file gives package fs. inFs is true in package fs itself, which calls them by their
-// names.
 func helper(c *ast.CallExpr, fsName string, inFs bool) (string, bool) {
 	var name string
 	switch fun := c.Fun.(type) {
@@ -313,8 +265,6 @@ func helper(c *ast.CallExpr, fsName string, inFs bool) (string, bool) {
 	return name, ok
 }
 
-// registered returns the names of the backends that the package registers (the Name of each
-// fs.RegInfo literal), when they can be read.
 func (p *sourcePkg) registered(r *sourceReader) []string {
 	var names []string
 	for _, f := range p.files {
@@ -349,7 +299,6 @@ func (p *sourcePkg) registered(r *sourceReader) []string {
 	return names
 }
 
-// asks reports whether the package calls one of fs's helpers.
 func (p *sourcePkg) asks() bool {
 	found := false
 	for _, f := range p.files {
@@ -366,7 +315,6 @@ func (p *sourcePkg) asks() bool {
 	return found
 }
 
-// fsImport returns the name that a file gives package fs, or "".
 func fsImport(f *ast.File) string {
 	for name, path := range imports(f) {
 		if path == rcloneModule+"/fs" {
@@ -376,7 +324,6 @@ func fsImport(f *ast.File) string {
 	return ""
 }
 
-// collect adds the package's questions and errors to st, and returns what it couldn't read.
 func (p *sourcePkg) collect(r *sourceReader, st *setupTexts) []string {
 	var unread []string
 	for i, f := range p.files {
@@ -410,14 +357,11 @@ func (p *sourcePkg) collect(r *sourceReader, st *setupTexts) []string {
 	return unread
 }
 
-// call adds what one call of an fs helper asks or shows, and returns what can't be read, or "".
 func (p *sourcePkg) call(r *sourceReader, st *setupTexts, at *site, fn string, c *ast.CallExpr) string {
 	spec := setupCalls[fn]
 	if len(c.Args) <= max(spec.name, spec.help, spec.items) {
 		return ""
 	}
-	// A helper that is given its question's name or help by its caller only passes it on, as
-	// fs's own helpers do.
 	if spec.name >= 0 && at.param(c.Args[spec.name]) || at.param(c.Args[spec.help]) {
 		return ""
 	}
@@ -442,7 +386,7 @@ func (p *sourcePkg) call(r *sourceReader, st *setupTexts, at *site, fn string, c
 		format = strings.ReplaceAll(v.text, "%", "%%")
 	}
 	if strings.TrimSpace(format) == "" {
-		return "" // nothing to translate
+		return ""
 	}
 	if bad := unmatchable(format); bad != "" {
 		return what + " can't be matched: " + bad
@@ -464,7 +408,6 @@ func (p *sourcePkg) call(r *sourceReader, st *setupTexts, at *site, fn string, c
 	return ""
 }
 
-// choices adds the fixed choices of the question name, and returns what can't be read, or "".
 func (p *sourcePkg) choices(r *sourceReader, st *setupTexts, at *site, name string, items ast.Expr) string {
 	lit, ok := items.(*ast.CompositeLit)
 	if !ok {
@@ -509,15 +452,11 @@ func (p *sourcePkg) choices(r *sourceReader, st *setupTexts, at *site, name stri
 	return ""
 }
 
-// The verbs that core/catalog matches rclone's text with: %q is a quoted string, %s and %v any
-// text, and %d a number. A verb with an index, flags or a width is not matched.
 var (
 	anyVerb   = regexp.MustCompile(`%[^%a-zA-Z]*[a-zA-Z%]`)
 	plainVerb = regexp.MustCompile(`^%[qsvd%]$`)
 )
 
-// unmatchable returns the first verb of format that core/catalog can't match, or what else stops
-// it from being matched, or "".
 func unmatchable(format string) string {
 	for _, v := range anyVerb.FindAllString(format, -1) {
 		if !plainVerb.MatchString(v) {
@@ -530,21 +469,17 @@ func unmatchable(format string) string {
 	return ""
 }
 
-// setupValue is a text read from the source: plain text, or a fmt.Sprintf format.
 type setupValue struct {
 	text   string
 	format bool
 }
 
-// site is where an expression is read: its file, and for a call in a function, the nodes from
-// the file down to the call, and the call's position.
 type site struct {
 	file  *ast.File
 	stack []ast.Node
 	pos   token.Pos
 }
 
-// fn returns the index in the stack of the innermost function around the site, or -1.
 func (s *site) fn() int {
 	for i := len(s.stack) - 1; i >= 0; i-- {
 		switch s.stack[i].(type) {
@@ -565,7 +500,6 @@ func funcParts(n ast.Node) (*ast.FuncType, *ast.BlockStmt) {
 	return nil, nil
 }
 
-// param reports whether e is a parameter of the function around the site.
 func (s *site) param(e ast.Expr) bool {
 	id, ok := e.(*ast.Ident)
 	i := s.fn()
@@ -586,10 +520,6 @@ func (s *site) param(e ast.Expr) bool {
 	return false
 }
 
-// assigned returns the last value that the function around the site assigns to the variable name
-// before the site, and the site of that assignment. It reads an assignment only when the
-// assignment's block also holds the site, because an assignment in another branch may or may not
-// have run.
 func (s *site) assigned(name string) (ast.Expr, *site, bool) {
 	fi := s.fn()
 	if fi < 0 {
@@ -611,7 +541,7 @@ func (s *site) assigned(name string) (ast.Expr, *site, bool) {
 			return false
 		}
 		if _, ok := n.(*ast.FuncLit); ok {
-			return false // a function literal runs at another time
+			return false
 		}
 		stack = append(stack, n)
 		var lhs, rhs []ast.Expr
@@ -647,8 +577,6 @@ func (s *site) assigned(name string) (ast.Expr, *site, bool) {
 	return value, from, value != nil
 }
 
-// inBlockOf reports whether the site is in the innermost block of stack, the nodes down to an
-// assignment.
 func (s *site) inBlockOf(stack []ast.Node) bool {
 	for i := len(stack) - 1; i >= 0; i-- {
 		switch b := stack[i].(type) {
@@ -659,14 +587,10 @@ func (s *site) inBlockOf(stack []ast.Node) bool {
 	return true
 }
 
-// read returns the text of e: a string literal, a constant, a variable that is given one, a
-// concatenation of them, or fmt.Sprintf of one, which is read as its format.
 func (r *sourceReader) read(p *sourcePkg, at *site, e ast.Expr) (setupValue, bool) {
 	return r.readDepth(p, at, e, 0)
 }
 
-// readDepth does the work of read. depth counts the expressions that led to e, so that a chain of
-// variables that never ends in a text stops.
 func (r *sourceReader) readDepth(p *sourcePkg, at *site, e ast.Expr, depth int) (setupValue, bool) {
 	if depth > 20 {
 		return setupValue{}, false
@@ -732,8 +656,6 @@ func (r *sourceReader) readDepth(p *sourcePkg, at *site, e ast.Expr, depth int) 
 	return setupValue{}, false
 }
 
-// constant returns the value of the package's top-level constant name, when it is a text. A
-// constant is read once. One that is made of itself can't be read.
 func (r *sourceReader) constant(p *sourcePkg, name string) (setupValue, bool) {
 	c := p.consts[name]
 	if c == nil || c.reading {

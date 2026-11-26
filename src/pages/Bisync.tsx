@@ -28,10 +28,6 @@ import {
 } from '../components/PathFinder'
 import { usePageStart, useReportEdited } from '../route'
 
-// rclone refuses to bisync two folders when it has no listings from an earlier run, and asks for a
-// resync instead. A resync copies files both ways so the folders match, and it sets the baseline
-// that later runs compare against. The core reports the refusal as a precondition
-// (`bisync_baseline`), and the page offers to run a resync.
 const FIRST_RUN_QUESTION = t`Folder A and Folder B haven't been synced together yet. The first run sets a baseline: it copies files both ways so the two match, and deletes nothing.`
 
 function withResync(args: OperationArgs): OperationArgs {
@@ -41,7 +37,6 @@ function withResync(args: OperationArgs): OperationArgs {
     }
 }
 
-/** A switch that the Bisync section shows: one of bisync's own options that is on or off. */
 type BisyncSwitch = {
     [K in keyof Operations.BisyncSwitches]-?: Operations.BisyncSwitches[K] extends
         | boolean
@@ -79,7 +74,6 @@ const BISYNC_SWITCHES = [
     { name: 'noCleanup', help: t`Keeps the working files, to look into a problem.` },
 ] as const satisfies readonly { name: BisyncSwitch; help: string }[]
 
-// Bisync has no source and destination, because changes go both ways between its two folders.
 const FOLDER_A: PathOptions = {
     label: t`Folder A`,
     placeholder: PICK_PLACEHOLDER,
@@ -104,8 +98,6 @@ export default function Bisync() {
     const [dest, setDest] = useState<string | undefined>(start.destination)
     const [opened] = useState({ source, dest })
 
-    // The remotes named in the two paths. Their option tabs are shown and their options are sent.
-    // Text typed for other remotes is kept but not sent.
     const remoteNames = useMemo(() => remoteNamesOf([source, dest]), [source, dest])
 
     const optionState = useOptionGroups({
@@ -129,8 +121,7 @@ export default function Bisync() {
     const configGroup = optionGroups.config
     const metadataGroup = optionGroups.metadata
 
-    // The switches from a reused run, without resync. A reused run is usually meant to run again
-    // as normal, and resync stops deletions from syncing, so files deleted on one side come back.
+    // Resync stops deletions from syncing, so files deleted on one side come back.
     const [outerBisyncOptions, setOuterBisyncOptions] = useState<Operations.BisyncSwitches>(() => {
         const { resync: _, ...outer } = presetArgs?.options?.outer ?? {}
         return outer
@@ -163,7 +154,6 @@ export default function Bisync() {
         jsonError,
         buildArgs: buildStartArgs,
         dryRun: false,
-        // Bisync changes both sides, so ask before it starts, and say what resync and force do.
         confirm: async (args) =>
             (await confirmBisync(
                 args.source ?? '',
@@ -209,8 +199,6 @@ export default function Bisync() {
                 JSON.stringify(outerBisyncOptions) !== JSON.stringify(openedSwitches))
     )
 
-    // The switches sit above the Bisync group's editor, and the ones that are on count as set,
-    // with the group's options.
     const switches = useMemo(
         () => ({
             bisync: (

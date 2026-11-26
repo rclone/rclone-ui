@@ -25,7 +25,6 @@ export default function HelpGroup() {
         queryFn: () => lastLogLines(30),
     })
     const jsonStringified = useMemo(() => (debug ? JSON.stringify(debug, null, 2) : ''), [debug])
-    // "Request a feature" first shows what Rclone UI leaves out on purpose, then goes to GitHub.
     const [noticeOpen, setNoticeOpen] = useState(false)
 
     return (
@@ -48,7 +47,6 @@ export default function HelpGroup() {
                 description={t`Opens a GitHub issue with your debug info and recent logs.`}
                 isDisabled={!debug}
                 onPress={() => {
-                    // The report stays in English, because the maintainers read it.
                     const body = `ENTER YOUR DESCRIPTION OF THE ISSUE HERE
 
 

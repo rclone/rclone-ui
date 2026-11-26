@@ -7,16 +7,12 @@ import (
 )
 
 const (
-	// trackedMax is how many of a page's transfers Tracked reads, starting with the newest.
-	trackedMax = 50
-	// trackedFiles is how many files of each outcome a tracked transfer includes.
+	trackedMax   = 50
 	trackedFiles = 50
 )
 
 // TrackedTransfer is the current state of one transfer that a page started (a drop, a folder
-// rename or delete, or a batch rename). A running transfer has no Files yet, because the page
-// shows its numbers from transfers.progress. Retryable returns what can be retried in an ended
-// one, step by step.
+// rename or delete, or a batch rename). A running transfer has no Files yet.
 type TrackedTransfer struct {
 	Transfer `json:"transfer"`
 	// Files are the files that the transfer has finished with, newest first: at most 50
@@ -24,9 +20,6 @@ type TrackedTransfer struct {
 	Files []File `json:"files"`
 }
 
-// Tracked reads the current state of the given transfers. ids has the newest last, as a page
-// keeps them. Only the last trackedMax are read, and transfers that are no longer recorded are
-// left out.
 func (s *Service) Tracked(ctx context.Context, ids []string) ([]TrackedTransfer, error) {
 	var list []string
 	for _, id := range ids {

@@ -12,11 +12,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// detectInstall finds a portable copy first (datadir.Portable). A data folder next to rcui.exe
-// makes any copy portable, even one in an install folder, because the app then keeps its data
-// there (datadir.Default). Otherwise detectInstall matches the executable's folder against the
-// uninstall entry's InstallLocation. A folder that holds the installer's uninstall.exe counts
-// too, in case a cleanup tool removed the entry.
 func detectInstall() (InstallType, string, i18n.Text) {
 	if root, ok := datadir.Portable(); ok {
 		return TypePortable, root, i18n.Text{}
@@ -37,8 +32,6 @@ func detectInstall() (InstallType, string, i18n.Text) {
 	return TypeUnmanaged, exe, i18n.Text{}
 }
 
-// perUser reports whether dir is a per-user install: the folder that the uninstall entry under
-// HKCU names. A per-machine install's entry is under HKLM.
 func perUser(dir string) bool {
 	loc := installLocation(registry.CURRENT_USER)
 	return dir != "" && loc != "" && strings.EqualFold(filepath.Clean(loc), filepath.Clean(dir))

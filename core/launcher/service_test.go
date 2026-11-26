@@ -15,7 +15,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// clock is a test clock that the test moves forward by hand.
 type clock struct{ t time.Time }
 
 func (c *clock) now() time.Time { return c.t }
@@ -73,8 +72,6 @@ func TestRecordAndUsage(t *testing.T) {
 	if cp == nil || cp.Count != 8 {
 		t.Fatalf("action:copy %v", cp)
 	}
-	// The queries are trimmed, the empty one is not kept, a repeated query moves to the front,
-	// and only the last five are kept, newest first.
 	if want := []string{"sync", "copy to", "cop", "c", "co"}; !slices.Equal(cp.Queries, want) {
 		t.Errorf("queries %q, want %q", cp.Queries, want)
 	}
@@ -84,12 +81,10 @@ func TestRecordAndUsage(t *testing.T) {
 	if gd := u["remote:local:gdrive"]; gd == nil || gd.Count != 1 || !slices.Equal(gd.Queries, []string{"gd"}) {
 		t.Errorf("remote:local:gdrive %v", gd)
 	}
-	// The most recently used key comes first.
 	if got := keys(t, s); !slices.Equal(got, []string{"remote:local:gdrive", "action:copy"}) {
 		t.Errorf("order %v", got)
 	}
 
-	// With only the empty query, the use is counted but no query is kept.
 	if err := s.Record(ctx, "action:mount", ""); err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +101,6 @@ func TestRecordRefusesNoKey(t *testing.T) {
 			t.Errorf("Record(%q) = %v, want a refusal of key", key, err)
 		}
 	}
-	// The pages get the error with the Invalid code.
 	err := NewAPI(late.Of(s)).Record(context.Background(), "", "x")
 	if rclone.ErrorOf(err).Code != errs.CodeInvalid {
 		t.Errorf("API: %v", err)
@@ -160,7 +154,6 @@ func TestPrune(t *testing.T) {
 		t.Errorf("after 90 days: %v", got)
 	}
 
-	// Beyond maxKeys, the oldest keys are deleted.
 	if err := s.db.Write(ctx, func(tx *sql.Tx) error {
 		for i := range maxKeys + 10 {
 			if _, err := tx.ExecContext(ctx, `INSERT INTO launcher_usage (key, count, last_used) VALUES (?, 1, ?)`,
@@ -181,7 +174,6 @@ func TestPrune(t *testing.T) {
 	}
 }
 
-// A queries column that isn't a JSON array is read as no queries, and the next Record rewrites it.
 func TestBadQueries(t *testing.T) {
 	ctx := context.Background()
 	s, _ := newService(t)

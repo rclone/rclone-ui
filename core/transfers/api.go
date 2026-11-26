@@ -14,10 +14,9 @@ import (
 // StartOptions are the options that every start accepts, besides the operation's own form.
 type StartOptions struct {
 	DryRun bool `json:"dryRun"`
-	// Origin is where the transfer was started from: OriginPage or OriginCommander. A template's
-	// run starts with StartTemplate, and only watchers and schedules start their own runs.
+	// Origin is where the transfer was started from: OriginPage or OriginCommander.
 	Origin OriginKind `json:"origin"`
-	// Preset is the page's form as the page saved it. Duplicate uses it.
+	// Preset is the page's form as the page saved it.
 	Preset *operations.Form `json:"preset,omitempty"`
 }
 
@@ -26,8 +25,6 @@ type API struct {
 	templates *late.Value[Templates]
 }
 
-// Templates gives the form that runs a saved template as one of its tags, and the template's
-// name (templates.Service).
 type Templates interface {
 	Run(ctx context.Context, id string, tag operations.Operation) (form operations.Form, name string, err error)
 }
@@ -36,10 +33,6 @@ func NewAPI(s *late.Value[*Service], t *late.Value[Templates]) *API {
 	return &API{s: s, templates: t}
 }
 
-// started builds the result of a start. When the transfer was recorded before the start failed,
-// the error carries the recorded transfer. A first bisync that rclone refused, because the two
-// folders have no baseline yet, is a precondition (operations.WhatBisyncBaseline), which the
-// Bisync page answers by offering a resync.
 func started(st Started, err error) (Started, error) {
 	if err != nil {
 		if st.ID != "" {
@@ -70,8 +63,8 @@ func (a *API) Start(ctx context.Context, f operations.Form, o StartOptions) (Sta
 }
 
 // Check returns Start's refusal of a page's form, as far as it can be told without asking rclone
-// about the paths (operations.CheckForm), or nil. The pages call it as the user types. A refused
-// option comes back on its group's field (options.config…).
+// about the paths (operations.CheckForm), or nil. A refused option comes back on its group's
+// field (options.config…).
 func (a *API) Check(_ context.Context, f operations.Form) error {
 	if !startsFromPage(f.Operation) {
 		return errs.Field("operation", "This operation doesn’t start from a page.")
@@ -172,14 +165,11 @@ func (a *API) Get(ctx context.Context, id string) (Detail, error) {
 	})
 }
 
-// IDOf returns the id of the transfer whose number is seq, the "#12" that the pages show. The
-// agents' server calls it, so that an agent can name a transfer by its number.
+// IDOf returns the id of the transfer whose number is seq, the "#12" that the pages show.
 func (a *API) IDOf(ctx context.Context, seq int64) (string, error) {
 	return late.Call(ctx, a.s, func(s *Service) (string, error) { return s.IDOf(ctx, seq) })
 }
 
-// localAll returns transfers as a page sees them, with their errors in the app's language. A nil
-// list stays nil.
 func localAll(ts []Transfer) []Transfer {
 	if ts == nil {
 		return nil
@@ -229,7 +219,7 @@ func (a *API) Retry(ctx context.Context, id string, keys [][2]string) (Started, 
 }
 
 // Tracked returns the current state of the transfers that a page started, each with its most
-// recent files. The Commander's bar uses it.
+// recent files.
 func (a *API) Tracked(ctx context.Context, ids []string) ([]TrackedTransfer, error) {
 	return late.Call(ctx, a.s, func(s *Service) ([]TrackedTransfer, error) {
 		ts, err := s.Tracked(ctx, ids)

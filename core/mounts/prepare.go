@@ -13,10 +13,7 @@ var (
 	errLink          = errs.New("This mount point is a link. A mount needs a folder, not a link to one.")
 	errNotEmpty      = errs.New("The selected directory must be empty to mount a remote.")
 	errMkdir         = errs.New("The mount point’s folder couldn’t be made. Try making it yourself first.")
-	// errNotRemoved is for a Windows mount point that exists and can't be removed, because of an
-	// open handle or an ACL. WinFsp would refuse to mount on it, and the mount would just keep
-	// restarting.
-	errNotRemoved = errs.New("The selected directory could not be removed. On Windows the mount point must not exist yet: remove it, or choose another one.")
+	errNotRemoved    = errs.New("The selected directory could not be removed. On Windows the mount point must not exist yet: remove it, or choose another one.")
 )
 
 // prepareMountPoint gets the mount point ready. It refuses a link, which would carry the mount
@@ -37,7 +34,7 @@ func prepareMountPoint(mountPoint string, windows bool) error {
 			return errNotADirectory
 		}
 		entries, err := os.ReadDir(path)
-		if err != nil || len(entries) > 0 { // unreadable counts as not empty
+		if err != nil || len(entries) > 0 {
 			return errNotEmpty
 		}
 		if windows {
@@ -47,7 +44,6 @@ func prepareMountPoint(mountPoint string, windows bool) error {
 		}
 		return nil
 	}
-	// The folder is missing or can't be read. Create it, except on Windows.
 	if windows {
 		return nil
 	}

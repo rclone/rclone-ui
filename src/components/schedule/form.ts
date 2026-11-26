@@ -6,9 +6,6 @@ import { endsOf, groupsOf, type OperationName } from '../../../lib/operations'
 import { baseName } from '../../../lib/paths'
 import { hasFilters } from '../operation/confirmations'
 
-// What the drawer and the list say about a schedule's form: the operation's form (core/operations)
-// that each run starts from, as the operation's page builds it.
-
 export const SCHEDULE_OPERATIONS = [
     'copy',
     'move',
@@ -40,7 +37,6 @@ export function editOperationLabel(): string {
     })
 }
 
-/** The core saves only the six operations, so any other one reads as Copy. */
 export function scheduleOperation(form: Operations.Form): ScheduleOperation {
     const operation: string = form.operation
     return isScheduleOperation(operation) ? operation : 'copy'
@@ -50,7 +46,6 @@ export function pathName(path: string): string {
     return baseName(path) || getRemoteName(path) || path
 }
 
-/** "Photos", or "Photos and 2 more" when there are several. */
 function namesOf(paths: readonly string[]): string {
     const first = paths[0] ? pathName(paths[0]) : ''
     if (paths.length <= 1) return first
@@ -58,10 +53,6 @@ function namesOf(paths: readonly string[]): string {
     return plural(more, { one: `${first} and # more`, other: `${first} and # more` })
 }
 
-/**
- * The name a new schedule gets: "Copy Photos to Backup", "Bisync Docs and Docs", "Delete Old and
- * 2 more".
- */
 export function defaultName(form: Operations.Form): string {
     const ends = endsOf(form)
     const sources = ends.sources
@@ -89,9 +80,6 @@ export function defaultName(form: Operations.Form): string {
     return name.trim()
 }
 
-/**
- * The paths as a row shows them: "a, b → c", "A ↔ B", or the paths alone for Delete and Purge.
- */
 export function pathsLine(form: Operations.Form): string {
     const { sources, destination } = endsOf(form)
     const operation: string = form.operation
@@ -100,10 +88,6 @@ export function pathsLine(form: Operations.Form): string {
     return `${sources.join(', ')} ${arrow} ${destination}`
 }
 
-/**
- * The line that the drawer shows for an operation, in place of the question that Start would
- * ask. Copy has none.
- */
 export function operationLine(form: Operations.Form): string | null {
     const { sources, destination } = endsOf(form)
     const paths = sources.join(', ')
@@ -133,11 +117,6 @@ function listed(names: readonly string[]): string {
     return new Intl.ListFormat(locale(), { style: 'long', type: 'conjunction' }).format(names)
 }
 
-/**
- * The line that says what the schedule leaves off, from the names that the core gives
- * (schedules.LeftOff): "Dry run, Resync, and Force are for a single run, so the schedule leaves
- * them off." It is null when there are none.
- */
 export function singleRunLine(names: readonly string[] | undefined): string | null {
     if (!names || names.length === 0) return null
     const list = listed(names)

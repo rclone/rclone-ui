@@ -8,10 +8,6 @@ import TransferRetry from './TransferRetry'
 
 type View = { kind: 'list' } | { kind: 'details'; id: string } | { kind: 'retry'; id: string }
 
-/**
- * The History window. Another window's "Show transfer" opens it with `?id=`, which starts it on
- * that transfer's details.
- */
 export default function History() {
     const query = usePageQuery()
     const [view, setView] = useState<View>(() => {
@@ -22,7 +18,6 @@ export default function History() {
     const toDetails = (id: string) => setView({ kind: 'details', id })
     return (
         <div className={cn('relative flex flex-col h-screen', platform() === 'macos' && 'pt-7')}>
-            {/* The list stays mounted under the other views, so Back finds it as it was. */}
             <div className={cn('flex flex-col flex-1 min-h-0', view.kind !== 'list' && 'hidden')}>
                 <HistoryList
                     onSelect={toDetails}

@@ -2,9 +2,6 @@ import { plural, t } from '@lingui/core/macro'
 import type { Watchers } from '../../../lib/core/types'
 import type { StatusKind } from '../../components/look/Status'
 
-// What a watcher's row says about it. A watcher is always syncing in the background, so a run in
-// progress changes nothing here: the status says how its runs went.
-
 type Watcher = Watchers.Watcher
 
 export interface Status {
@@ -12,17 +9,11 @@ export interface Status {
     kind: StatusKind
 }
 
-/** Reports whether statusOf shows the watcher as Initializing. */
 export function isInitializing(w: Watcher): boolean {
     if (w.resyncing) return true
     return !w.attention && !w.paused && w.lastResult !== 'failed' && !w.baselined
 }
 
-/**
- * The status of a watcher. A Resync that hasn't ended shows Initializing, whatever the watcher
- * needed before. A failure shows Failing, because the next minute retries it. A watcher is
- * Initializing until its first merge of the two folders has succeeded (`baselined`).
- */
 export function statusOf(w: Watcher): Status {
     const initializing = t({
         message: 'Initializing',
@@ -54,10 +45,6 @@ function deletedFolders(w: Watcher): { lost: string; other: string } | null {
     return null
 }
 
-/**
- * What the row says and offers after bisync stopped because many files, or all of them, were
- * deleted in one folder. `deletedSide` is empty when bisync didn't say which folder.
- */
 export function deletesCopy(w: Watcher) {
     const folders = deletedFolders(w)
     if (!folders) {
@@ -90,7 +77,6 @@ export function searchFields(w: Watcher): string[] {
     return [w.name, w.pathA, w.pathB]
 }
 
-/** The line under the window's title. */
 export function summaryOf(watchers: readonly Watcher[]): string {
     const paused = watchers.filter((w) => w.paused).length
     const watching = watchers.length - paused

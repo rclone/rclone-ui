@@ -37,13 +37,8 @@ import { operationIcon, operationTone } from './operations'
 import WhenField from './WhenField'
 import { DEFAULT_WHEN, fromCron, runsSentence, toCron, type WhenForm } from './when'
 
-/** The core's refusal of a save, by field. `form` is a refusal that isn't about one field. */
 type Refused = { name?: string; when?: string; form?: string }
 
-/**
- * Shows that a schedule was saved, with "Open Schedules" outside the Schedules window. When a
- * watcher already keeps a bisync's folders the same, a warning says so.
- */
 export function toastSaved(saved: Schedules.Schedule, title = t`Scheduled`) {
     const elsewhere = windowName() !== 'Schedules'
     toastSuccess(
@@ -61,7 +56,6 @@ export function toastSaved(saved: Schedules.Schedule, title = t`Scheduled`) {
             </Button>
         ) : undefined
     )
-    // The title stays on one line, so the warning goes under it.
     if (saved.warning) toastWarning(t`A watcher has these folders`, saved.warning)
 }
 
@@ -73,12 +67,6 @@ function titleOf(schedule: Schedules.Schedule | undefined): string {
     return t`Edit ${name}`
 }
 
-/**
- * The "Schedule" drawer, which creates a schedule from an operation's form, or edits the name and
- * time of `schedule`. The form is saved as it is: the page that opened the drawer built it as it
- * would for Start. The core checks the form. It refuses the name and the time on their fields,
- * and anything else as one message above the buttons.
- */
 export default function ScheduleDrawer({
     isOpen,
     onClose,
@@ -89,22 +77,15 @@ export default function ScheduleDrawer({
 }: {
     isOpen: boolean
     onClose: () => void
-    /** The schedule to edit. Without it, the drawer creates one. */
     schedule?: Schedules.Schedule
     form: Operations.Form
-    /**
-     * The time a new schedule starts at, as a cron expression (from the Wizard), instead of every
-     * day at 02:00.
-     */
     initialWhen?: string
-    /** Opens the operation's page to edit the form. Offered with a refusal, from the list. */
     onEditOperation?: () => void
 }) {
     const editing = !!schedule
     const operation = scheduleOperation(form)
     const [initialName] = useState(() => schedule?.name ?? defaultName(form))
     const [name, setName] = useState(initialName)
-    // A saved time keeps its expression until the user changes it, so "@daily" stays "@daily".
     const [startWhen] = useState<WhenForm>(() =>
         schedule ? fromCron(schedule.when) : initialWhen ? fromCron(initialWhen) : DEFAULT_WHEN
     )
@@ -249,7 +230,6 @@ export default function ScheduleDrawer({
                                 />
                             </Panel>
                         </section>
-                        {/* Enter in a field saves. */}
                         <button type="submit" hidden={true} />
                     </form>
                 </DrawerBody>

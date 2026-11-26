@@ -2,12 +2,8 @@
 
 package interaction
 
-// The prompt on Linux is a GTK 4 window of the app's own. It calls the GTK that Wails has already
-// loaded into the process, through purego, so there is no C code of our own and the package
-// builds, and can be vetted, on any machine. Each function is declared with its C signature
-// beside it. A gboolean is passed and read as an int32, because it is a C int. Strings are copied
-// to C only for the length of a call, so every function that takes one must copy it, and all of
-// the functions below do.
+// A gboolean is passed and read as an int32, because it is a C int. purego copies strings to C
+// only for the length of a call, so every function here that takes one must copy it.
 
 import (
 	"errors"
@@ -29,7 +25,6 @@ const (
 	keyEscape                = 0xff1b // GDK_KEY_Escape
 )
 
-// gtk4
 var (
 	gtkIsInitialized            func() int32                             // gboolean gtk_is_initialized (void)
 	gtkWindowNew                func() uintptr                           // GtkWidget *gtk_window_new (void)
@@ -64,7 +59,6 @@ var (
 	gtkEventControllerKeyNew    func() uintptr                           // GtkEventController *(void)
 )
 
-// glib and gobject
 var (
 	gMainContextDefault func() uintptr          // GMainContext *g_main_context_default (void)
 	gMainContextIsOwner func(ctx uintptr) int32 // gboolean g_main_context_is_owner (GMainContext*)
@@ -72,8 +66,7 @@ var (
 	gSignalConnectData func(instance uintptr, signal string, handler, data, destroy uintptr, flags int32) uint64
 )
 
-// The signal handlers, as C function pointers from purego.NewCallback. They are made once, in
-// load, because purego never frees a callback. Each one is given the prompt's id as its user data.
+// The signal handlers are made once, because purego never frees a callback.
 var (
 	// void (GtkWidget*, gpointer), for OK's "clicked" and the entry's "activate"
 	onOK uintptr
@@ -91,8 +84,7 @@ var (
 	errLoad  error
 )
 
-// load binds the functions above and makes the signal handlers, once. Wails links GTK 4 into
-// the app, so dlopen returns the GTK that is already loaded rather than a second copy.
+// Wails links GTK 4 into the app, so dlopen returns the GTK that is already loaded.
 func load() error {
 	loadOnce.Do(func() { errLoad = bindGTK() })
 	return errLoad
@@ -161,8 +153,6 @@ func bindGTK() (err error) {
 	bind(glib, &gMainContextIsOwner, "g_main_context_is_owner")
 	bind(gobject, &gSignalConnectData, "g_signal_connect_data")
 
-	// Every handler does its work inside guard, through withPrompt, because a panic can't unwind
-	// through GTK's C frames.
 	onOK = purego.NewCallback(func(_, data uintptr) {
 		withPrompt(data, "ok", func(p *promptWindow) {
 			p.end(answer{value: gtkEditableGetText(p.entry), ok: true}, true)
@@ -191,27 +181,22 @@ type answer struct {
 	err   error
 }
 
-// promptWindow is an open prompt. Apart from its place in prompts, it is only used on the main
-// thread.
 type promptWindow struct {
 	id            uintptr
 	window, entry uintptr
 	answers       chan<- answer
-	done          bool // the answer was sent, so any later signal does nothing
+	done          bool
 }
 
-// prompts holds the open prompts by their id, which their signal handlers are given in place of a
-// Go pointer. A handler that runs after its prompt ended finds nothing.
+// Signal handlers are given a prompt's id in place of a Go pointer.
 var (
 	promptsMu  sync.Mutex
 	prompts    = map[uintptr]*promptWindow{}
 	lastPrompt uintptr
 )
 
-// prompt shows a GTK 4 window on the main thread and waits for its answer here. GTK 4 has no
-// gtk_dialog_run, so the window answers through a channel. Waiting on the main thread would stop
-// the main loop that runs the window, and before the app runs there is no main loop, so both
-// return an error instead of hanging.
+// GTK 4 has no gtk_dialog_run, so the window answers through a channel. Waiting on the main
+// thread would stop the main loop that runs the window.
 func prompt(title, message, def string, sensitive bool) (string, bool, error) {
 	if err := load(); err != nil {
 		return "", false, err
@@ -224,7 +209,7 @@ func prompt(title, message, def string, sensitive bool) (string, bool, error) {
 	if gMainContextIsOwner(gMainContextDefault()) != 0 {
 		return "", false, errors.New("the prompt can't wait on the main thread")
 	}
-	answers := make(chan answer, 1) // room for the one answer, so the main thread never waits
+	answers := make(chan answer, 1)
 	activate()
 	application.InvokeAsync(func() { openPrompt(title, message, def, sensitive, answers) })
 	select {
@@ -235,10 +220,7 @@ func prompt(title, message, def string, sensitive bool) (string, bool, error) {
 	}
 }
 
-// openPrompt builds the prompt and shows it, on the main thread: a modal window with the message,
-// an entry holding def, and Cancel and OK buttons. OK is the default, and Enter in the entry
-// chooses it. Escape and closing the window cancel. GTK 4 can't keep a window above the others or
-// choose where it goes, so the compositor places it.
+// GTK 4 can't keep a window above the others or choose where it goes.
 func openPrompt(title, message, def string, sensitive bool, answers chan<- answer) {
 	promptsMu.Lock()
 	lastPrompt++
@@ -263,7 +245,6 @@ func openPrompt(title, message, def string, sensitive bool, answers chan<- answe
 		gtkLabelSetXalign(label, 0)
 		gtkBoxAppend(box, label)
 
-		// A password entry hides what is typed, and its eye icon shows it again.
 		if sensitive {
 			p.entry = gtkPasswordEntryNew()
 			gtkPasswordEntrySetShowPeek(p.entry, 1)
@@ -309,8 +290,6 @@ func connect(obj uintptr, signal string, handler, id uintptr) {
 	_ = gSignalConnectData(obj, signal, handler, id, 0, 0)
 }
 
-// withPrompt runs body for the prompt with this id, inside guard. It does nothing when the prompt
-// has ended.
 func withPrompt(id uintptr, name string, body func(p *promptWindow)) {
 	promptsMu.Lock()
 	p := prompts[id]
@@ -320,8 +299,7 @@ func withPrompt(id uintptr, name string, body func(p *promptWindow)) {
 	}
 }
 
-// end sends the answer, once, and forgets the prompt. destroy closes the window. It is false when
-// GTK is closing the window already.
+// destroy is false when GTK is closing the window already.
 func (p *promptWindow) end(a answer, destroy bool) {
 	if p.done {
 		return
@@ -336,10 +314,7 @@ func (p *promptWindow) end(a answer, destroy bool) {
 	}
 }
 
-// guard runs body, which builds the prompt or handles one of its signals, on the main thread. A
-// panic can't be allowed to unwind through GTK's C frames, because that would crash the app and
-// stop every mount and transfer with it. So guard recovers the panic, logs it, and ends the prompt
-// with an error, which the waiting caller receives.
+// A panic can't unwind through GTK's C frames, because that would crash the app.
 func (p *promptWindow) guard(name string, body func()) {
 	defer func() {
 		r := recover()
@@ -347,7 +322,6 @@ func (p *promptWindow) guard(name string, body func()) {
 			return
 		}
 		slog.Error("interaction: the prompt panicked", "callback", name, "panic", r, "stack", string(debug.Stack()))
-		// Closing the window can't be allowed to panic again either.
 		defer func() { _ = recover() }()
 		p.end(answer{err: fmt.Errorf("the prompt failed: %v", r)}, true)
 	}()

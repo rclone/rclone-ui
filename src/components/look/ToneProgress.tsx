@@ -1,10 +1,6 @@
 import { cn } from '@heroui/react'
 import { TONE_GRADIENT, type Tone } from './tones'
 
-/**
- * A thin progress bar in a tone's gradient. `value` is from 0 to 1. Without one, for work of
- * unknown length, the bar shows a moving stripe (a half-filled bar with reduced motion).
- */
 export function ToneProgress({
     tone,
     value,
@@ -13,7 +9,6 @@ export function ToneProgress({
 }: {
     tone: Tone
     value?: number
-    /** What the bar measures, for screen readers ("Copying photos"). */
     label: string
     className?: string
 }) {

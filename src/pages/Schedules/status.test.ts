@@ -17,7 +17,6 @@ import {
 const NOW = new Date(2026, 10, 9, 12, 0).getTime()
 const HOUR = 3_600_000
 
-/** Builds a schedule, which copies Photos unless `over` has another form. */
 function schedule(over: Partial<Schedules.Schedule> = {}): Schedules.Schedule {
     return {
         id: 's',

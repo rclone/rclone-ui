@@ -69,7 +69,6 @@ describe('sizesAsk (the file panels ask `sizes:<slot>`)', () => {
             runs.push({ args, signal })
             await new Promise(() => undefined)
         })
-        // Mimics what useJob does with the hook's arguments on each render.
         const render = (on: boolean) => job.start(sizesAsk(on, 'done', done, null, HOME))
 
         render(true)

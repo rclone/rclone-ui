@@ -58,7 +58,6 @@ func TestCheckRemoteName(t *testing.T) {
 	}
 }
 
-// problem returns a refusal's message, or "" for none.
 func problem(err error) string {
 	if err == nil {
 		return ""

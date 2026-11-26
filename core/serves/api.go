@@ -13,7 +13,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// ServeRow is a running serve as the pages see it.
 type ServeRow struct {
 	ID     string `json:"id"`
 	Type   string `json:"type"`
@@ -67,15 +66,13 @@ func (a *API) Start(ctx context.Context, args operations.ServeArgs) (ServeRow, e
 }
 
 // StartReady starts a serve from a form, as Start does, and returns once its address accepts
-// connections, or with why its first start failed. A page learns both from serves.changed. An
-// agent's tool gets no events, so it waits here instead. A serve that is still starting when ctx
-// ends comes back as it is.
+// connections, or with why its first start failed. A serve that is still starting when ctx ends
+// comes back as it is.
 func (a *API) StartReady(ctx context.Context, args operations.ServeArgs) (ServeRow, error) {
 	return late.Call(ctx, a.s, func(s *Service) (ServeRow, error) {
 		if err := operations.StoreMapper(&args.Options); err != nil {
 			return ServeRow{}, err
 		}
-		// The subscription comes before the start, so that none of the serve's events is missed.
 		var events <-chan bus.Event
 		if s.o.Bus != nil {
 			sub := s.o.Bus.Subscribe()
@@ -94,7 +91,7 @@ func (a *API) StartReady(ctx context.Context, args operations.ServeArgs) (ServeR
 				d, mine := ev.Data.(bus.ServesChangedData)
 				switch {
 				case !ok:
-					events = nil // the subscription fell behind, so the list says how the serve is
+					events = nil
 				case !mine || d.ID != v.ID:
 				case d.State == string(children.StatusRunning):
 					events = nil
@@ -110,7 +107,7 @@ func (a *API) StartReady(ctx context.Context, args operations.ServeArgs) (ServeR
 				return Row(now), nil
 			}
 		}
-		return ServeRow{}, ErrNotFound // it failed, and its event was missed
+		return ServeRow{}, ErrNotFound
 	})
 }
 
@@ -127,7 +124,7 @@ func (a *API) Command(ctx context.Context, args operations.ServeArgs) (operation
 }
 
 // Check returns the refusal of the page's form that Start would give before it serves anything,
-// or nil. The page calls it as the user types.
+// or nil.
 func (a *API) Check(ctx context.Context, args operations.ServeArgs) error {
 	return a.s.Do(ctx, func(s *Service) error {
 		if err := operations.StoreMapper(&args.Options); err != nil {

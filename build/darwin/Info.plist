@@ -24,7 +24,6 @@
 	<string>12.0</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
-	<!-- The tray app has no Dock icon from the start (the ui sets the accessory policy too). -->
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHighResolutionCapable</key>

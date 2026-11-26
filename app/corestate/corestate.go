@@ -1,7 +1,3 @@
-// Package corestate keeps the shell's one copy of what the core runs: the remotes, the mounts,
-// serves, VFS caches and tunnel, the transfers with their progress, and the serve types. The tray
-// and the launcher both read it. The core's events trigger a read of the part they changed, and
-// each subscriber is told which parts changed.
 package corestate
 
 import (
@@ -36,7 +32,6 @@ type Reader interface {
 	ServeTypes(ctx context.Context) ([]string, error)
 }
 
-// Part is a set of the parts of the state, which tells a subscriber what changed.
 type Part uint8
 
 const (
@@ -45,9 +40,7 @@ const (
 	Running
 	// Transfers are the open transfers and the recent failed ones.
 	Transfers
-	// Progress is the running transfers' progress, which the core reports every second.
 	Progress
-	// Types are the serve types.
 	Types
 
 	All = Remotes | Running | Transfers | Progress | Types
@@ -62,8 +55,7 @@ type Snapshot struct {
 	Mounts  []mounts.MountRow
 	Serves  []serves.ServeRow
 	Vfs     []vfs.VFS
-	// Tunnel is true while the remote tunnel is on or starting.
-	Tunnel bool
+	Tunnel  bool
 	// Transfers are the queued and running transfers, with their latest progress (Live).
 	Transfers []transfers.Transfer
 	// Failed are the transfers that failed among the last ones to end, newest first.
@@ -78,25 +70,19 @@ type Snapshot struct {
 
 const (
 	callTimeout = 10 * time.Second
-	// endedRead is how many of the last ended transfers are read to find the failed ones.
-	endedRead = 20
+	endedRead   = 20
 )
 
 type Store struct {
 	r   Reader
 	log *slog.Logger
 
-	// Only one read of each kind runs at a time, so an older result never overwrites a newer one.
 	remotesRead, runningRead, transfersRead serial
 
-	mu sync.Mutex
-	// run counts the core's runs, so the result of a read from a run that has ended is
-	// discarded. snap.Ready is true while the core is running.
+	mu   sync.Mutex
 	run  uint64
 	snap Snapshot
 
-	// subs are called in turn on one goroutine (dispatch) with the parts that changed since
-	// their last call. pending gathers those parts, and wake starts the next round.
 	subs     []subscriber
 	nextSub  int
 	pending  Part
@@ -122,9 +108,8 @@ func (s *Store) CoreReady(ctx context.Context) {
 	s.spawn("ready", func() { s.refresh(ctx) })
 }
 
-// CoreDown clears everything read from the core when the core stops or fails. Whatever was
-// running stopped with it, so nothing is listed as running until CoreReady. A read that is still
-// in flight is discarded, because its run is over.
+// CoreDown clears everything read from the core when the core stops or fails. A read that is
+// still in flight is discarded.
 func (s *Store) CoreDown() {
 	s.mu.Lock()
 	s.run++
@@ -184,7 +169,7 @@ func (s *Store) notify(p Part) {
 	s.mu.Unlock()
 	select {
 	case s.wake <- struct{}{}:
-	default: // a round is already due, and it will see p
+	default:
 	}
 }
 
@@ -204,7 +189,6 @@ func (s *Store) dispatchLoop() {
 	}
 }
 
-// call calls a subscriber. A panic there would end the app, so it is logged instead.
 func (s *Store) call(fn func(Part), p Part) {
 	defer func() {
 		if v := recover(); v != nil {
@@ -214,8 +198,6 @@ func (s *Store) call(fn func(Part), p Part) {
 	fn(p)
 }
 
-// spawn runs fn on its own goroutine. An unrecovered panic there would end the app, so spawn
-// logs it instead, and only fn's work is lost.
 func (s *Store) spawn(name string, fn func()) {
 	go func() {
 		defer func() {
@@ -257,9 +239,6 @@ func (s *Store) setProgress(items map[string]bus.TransferProgress) {
 	s.notify(Progress)
 }
 
-// withProgress returns ts with the progress from items added. A queued transfer that has progress
-// is marked as running. Transfers missing from items stay as they are, and the next read of the
-// transfers drops the ones that ended. changed is false when no transfer had progress.
 func withProgress(ts []transfers.Transfer, items map[string]bus.TransferProgress) (out []transfers.Transfer, changed bool) {
 	out = make([]transfers.Transfer, len(ts))
 	for i, t := range ts {
@@ -277,9 +256,6 @@ func withProgress(ts []transfers.Transfer, items map[string]bus.TransferProgress
 	return out, changed
 }
 
-// liveOf returns the progress of the open transfers ts: what the read found, or else the latest
-// progress from before for a transfer that is still open. The entries of the transfers that ended
-// are dropped.
 func liveOf(ts []transfers.Transfer, before map[string]bus.TransferProgress) map[string]bus.TransferProgress {
 	live := make(map[string]bus.TransferProgress, len(ts))
 	for _, t := range ts {
@@ -292,15 +268,12 @@ func liveOf(ts []transfers.Transfer, before map[string]bus.TransferProgress) map
 	return live
 }
 
-// current returns the core's current run, and whether the core is running.
 func (s *Store) current() (run uint64, ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.run, s.snap.Ready
 }
 
-// land stores the result of a read from run, if run is still the current one, and tells the
-// subscribers that part changed.
 func (s *Store) land(run uint64, part Part, set func(d *Snapshot)) {
 	s.mu.Lock()
 	ours := s.snap.Ready && s.run == run
@@ -329,9 +302,6 @@ func (s *Store) refresh(ctx context.Context) {
 	s.mu.Unlock()
 }
 
-// serial runs one read of a kind at a time. A read requested while another runs waits for it. It
-// is skipped if a newer read is requested in the meantime, because the newer read will see every
-// change that the skipped one would have.
 type serial struct {
 	mu  sync.Mutex
 	gen atomic.Uint64
@@ -416,7 +386,6 @@ func (s *Store) readTransfers(ctx context.Context) {
 		s.log.Debug("could not read the transfers", "error", err)
 		return
 	}
-	// if the ended transfers can't be read, keep the failed ones read before
 	var failed []transfers.Transfer
 	ended, endedErr := s.r.EndedTransfers(ctx, endedRead)
 	if endedErr != nil {
@@ -436,7 +405,6 @@ func (s *Store) readTransfers(ctx context.Context) {
 	})
 }
 
-// refreshTypes reads the serve types once in each of the core's runs, because they don't change.
 func (s *Store) refreshTypes(ctx context.Context) {
 	run, ok := s.current()
 	if !ok {

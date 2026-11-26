@@ -47,7 +47,6 @@ describe('keyAction', () => {
 })
 
 test('rowAt finds the row under the pointer, but not a group label or the cut-off part', () => {
-    // A row at 56, then a group label (24) and a row at 128, in a list that ends at 160.
     const tops = [56, 128]
     expect(rowAt(60, tops, 48, 160)).toBe(0)
     expect(rowAt(110, tops, 48, 160)).toBe(-1)

@@ -10,20 +10,12 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// DoneRequest is an operation that the app made at once, with no job of rclone's, such as a
-// single-file delete in the Commander.
 type DoneRequest struct {
-	// Form is the operation's form, as a start of it would take it. Its sources are recorded.
-	Form operations.Form
-	// Origin is where the operation was made: the Commander.
+	Form   operations.Form
 	Origin Origin
-	// Began is when the operation began. It ends now.
-	Began time.Time
+	Began  time.Time
 }
 
-// Done records an operation that was made at once as a completed transfer, so that History lists
-// it like every other. Its end is reported as a transfer's end is, except to the desktop, because
-// the window that made it shows it already.
 func (s *Service) Done(ctx context.Context, r DoneRequest) (Started, error) {
 	operation := operations.RecordedOperation(r.Form.Operation)
 	if !operations.IsRecordedOperation(operation) {
@@ -49,7 +41,6 @@ func (s *Service) Done(ctx context.Context, r DoneRequest) (Started, error) {
 	if err != nil {
 		return Started{}, err
 	}
-	// No job ran, so the plan has no steps, and there is nothing to retry.
 	request, err := json.Marshal(operations.Plan{V: operations.PlanVersion})
 	if err != nil {
 		return Started{}, err

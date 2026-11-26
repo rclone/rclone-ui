@@ -54,14 +54,8 @@ type Transfer = Core.Transfers.Transfer
 
 const LOOK = WINDOWS.history
 
-/** How long the search waits for typing to pause, in ms. */
 const SEARCH_PAUSE = 250
 
-/**
- * Returns the transfers that left the running list but may not be in the ended list yet (see
- * nextHandoff). The ended list is asked again each time transfers leave, so that a dropped
- * transfer, which never comes in it, is released too.
- */
 function useHandoff(
     active: Transfer[],
     ended: Transfer[],
@@ -78,22 +72,16 @@ function useHandoff(
     return useMemo(() => seen.leaving.map((l) => l.item), [seen.leaving])
 }
 
-/**
- * The list of transfers. The running ones follow transfers.changed, and their numbers update
- * every second. The ended ones load in pages, newest first.
- */
 export default function HistoryList({
     onSelect,
     onRetry,
 }: {
     onSelect: (id: string) => void
-    /** Opens the retry view of a failed transfer. */
     onRetry: (id: string) => void
 }) {
     const [initial] = useState(readShown)
     const [status, setStatus] = useState<Status>(initial.status)
     const [search, setSearch] = useState(initial.search)
-    // What the lists are asked for: the search once typing pauses.
     const [asked, setAsked] = useState(initial.search.trim())
     useEffect(() => {
         const timer = setTimeout(() => setAsked(search.trim()), SEARCH_PAUSE)
@@ -102,16 +90,12 @@ export default function HistoryList({
     useEffect(() => saveShown({ status, search }), [status, search])
 
     const { transfers: active, query: activeQuery } = useActiveTransfers()
-    // The Running tab follows the ended list too, so that the All tab is current when it opens.
     const ended = useEndedTransfers({ state: endedStateOf(status), search: asked })
     const leaving = useHandoff(active, ended.items, ended.askedAt, ended.list.newer)
     const progress = useLiveNumbers()
     const now = useNow()
     const runningId = useId()
 
-    // Only the running rows depend on the progress numbers, which change every second. The
-    // ended rows are rebuilt only when a list changes, and their rows are memoized, so they
-    // don't render again every second.
     const runningRows = useMemo(() => {
         if (status !== 'all' && status !== 'running') return []
         return [...active, ...(status === 'all' ? leaving : [])]
@@ -127,8 +111,6 @@ export default function HistoryList({
             .map((transfer) => toRow(transfer, undefined))
     }, [status, active, ended.items])
 
-    // Once the list has shown a transfer, it keeps its toolbar. The running and the ended lists
-    // answer separately, so a transfer that just ended would otherwise flash the empty state.
     const [shown, setShown] = useState(false)
     if (!shown && (active.length > 0 || ended.items.length > 0)) setShown(true)
 
@@ -137,7 +119,6 @@ export default function HistoryList({
     const refresh = useCallback(async () => {
         setRefreshing(true)
         try {
-            // The icon spins until both lists have answered.
             await Promise.all([list.refresh(), activeQuery.refetch()])
         } finally {
             setRefreshing(false)
@@ -185,7 +166,6 @@ export default function HistoryList({
     )
 
     if (!shown && !filtered) {
-        // Don't show a list that failed to load as empty.
         if (nothing && error) {
             return (
                 <EmptyState
@@ -384,7 +364,6 @@ export default function HistoryList({
     )
 }
 
-/** What History is for, under the empty list. */
 const STEPS = [
     t`Start a copy, a sync or another operation.`,
     t`Follow its progress here while it runs.`,
@@ -511,12 +490,8 @@ function ListError({
     )
 }
 
-/** Sits below the ended rows and loads the next older page when it scrolls into view. */
 function LoadOlder({ loading, onLoad }: { loading: boolean; onLoad: () => void }) {
     const sentinel = useRef<HTMLDivElement>(null)
-    // Create one observer for the whole life of the sentinel. A new observer reports the
-    // sentinel as visible right away, so creating one on every render (and the page renders on
-    // every progress update) would request the page again each time.
     const load = useRef(onLoad)
     useLayoutEffect(() => {
         load.current = onLoad

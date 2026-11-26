@@ -82,16 +82,11 @@ export default function Templates() {
     const searchParams = usePageQuery()
 
     const { isOpen, onOpen, onClose: onAddClose } = useDisclosure()
-    // Values that a deep link (rclone://add-template?cmd=…) fills into the add drawer. See
-    // app/deeplink.
     const [addPayload, setAddPayload] = useState<AddTemplatePayload | null>(null)
     const handleAddClose = useCallback(() => {
         onAddClose()
         setAddPayload(null)
     }, [onAddClose])
-    // When the edit drawer closes, its template is cleared after the drawer has slid out.
-    // Opening a template before then cancels the timer. Otherwise the timer would unmount the
-    // drawer that was just opened.
     const clearSelectedTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
     const {
         isOpen: isEditOpen,
@@ -118,8 +113,6 @@ export default function Templates() {
     const [search, setSearch] = useState('')
     const [operation, setOperation] = useState<Group['key'] | 'all'>('all')
 
-    // The Schedule drawer, with the form that a run of the template would start. The schedule
-    // keeps a copy: editing the template later doesn't change it.
     const [scheduling, setScheduling] = useState<{
         isOpen: boolean
         key: number
@@ -195,8 +188,6 @@ export default function Templates() {
         doneSelecting()
     }
 
-    // Exports without asking first. The core gives the file's text, and the app writes it where
-    // the user chose in the save dialog.
     const exportTemplates = async (ids: string[]) => {
         try {
             const text = await exportFile(ids)
@@ -238,8 +229,6 @@ export default function Templates() {
         }
     }, [searchParams, onOpen])
 
-    // When a deep link arrives while this window is already open, the app sends the window the
-    // link's route (window:route), and the add drawer opens with the link's fields.
     useEffect(
         () =>
             currentWindow.onRoute((route) => {
@@ -264,7 +253,6 @@ export default function Templates() {
             <TemplateDrawer isOpen={isOpen} onClose={handleAddClose} initialValues={addPayload} />
             {selectedTemplate && (
                 <TemplateDrawer
-                    // One drawer per template, because a drawer fills its sections only once.
                     key={selectedTemplate.id}
                     isOpen={isEditOpen}
                     onClose={onEditOpenChange}
@@ -285,7 +273,6 @@ export default function Templates() {
 
     const page = pageClass(platform() === 'macos')
 
-    // Don't show a list that failed to load as empty.
     if (templatesQuery.isError) {
         return (
             <div className={page}>
@@ -371,8 +358,6 @@ export default function Templates() {
                         value={search}
                         onValueChange={setSearch}
                     />
-                    {/* Select turns into Done in place, at the same width, so the header never
-                        moves. */}
                     <Button
                         variant={selecting ? 'flat' : 'light'}
                         className="ml-auto min-w-24"
@@ -433,7 +418,6 @@ export default function Templates() {
             <div
                 className={cn(
                     'flex flex-col flex-1 min-h-0 gap-10 px-6 pt-1 overflow-y-auto',
-                    // Room for the selection bar, so the last cards can scroll out from under it.
                     selecting ? 'pb-28' : 'pb-10'
                 )}
             >
@@ -463,7 +447,6 @@ export default function Templates() {
                         ))}
                     </ul>
                 )}
-                {/* The gallery's templates can't be picked, and the selection bar would cover it. */}
                 {!selecting && <GallerySection onOpen={openGallery} />}
             </div>
 
@@ -517,7 +500,6 @@ function SelectionBar({
                     }
                     className="absolute inset-x-0 bottom-0 z-40 px-6 pt-6 pb-4 pointer-events-none"
                 >
-                    {/* The list fades out under the bar, as under an operation page's. */}
                     <div
                         aria-hidden={true}
                         className="absolute inset-0 -z-10 bg-linear-to-t from-background from-40% to-transparent dark:from-[#121212]"
@@ -574,14 +556,12 @@ function lookOf(tag: Tag | undefined): WindowLook {
     return tag && tag in WINDOWS ? WINDOWS[tag] : LOOK
 }
 
-/** A group of the list: the templates whose first operation is `key`. */
 interface Group {
     key: Tag | 'other'
     look: WindowLook
     templates: Template[]
 }
 
-/** The groups are in the order of `tags` (the core's list). Templates with no operation are last. */
 function groupByOperation(templates: readonly Template[], tags: readonly Tag[]): Group[] {
     const groups: Group[] = tags.map((key) => ({ key, look: lookOf(key), templates: [] }))
     const other: Group = {
@@ -797,7 +777,6 @@ function TemplateCard({
     const look = lookOf(tags[0])
     const options = Object.keys(template.options).length
     const paths = describeTemplatePaths(template.paths)
-    // The tags that the card can run, and schedule. Mount and Serve are applied in their forms.
     const runs = paths ? tags.filter(isScheduleOperation) : []
     const also = tags.slice(1)
 
@@ -847,7 +826,6 @@ function TemplateCard({
             </div>
 
             <div className="flex flex-col min-w-0 gap-1">
-                {/* The name covers the card: it opens the template, or picks it while selecting. */}
                 <button
                     type="button"
                     data-card={true}
@@ -911,8 +889,6 @@ function RunButtons({ template, tags }: { template: Template; tags: Tag[] }) {
     const [pending, setPending] = useState(false)
     const name = template.name
 
-    // A run asks what its page asks before it starts. A template has no bisync switches. A
-    // delete's filters are the ones that the core puts in its form.
     const confirmed = async (tag: Tag): Promise<boolean> => {
         const sources = template.paths?.sources ?? []
         if (tag === 'delete') {
@@ -934,7 +910,6 @@ function RunButtons({ template, tags }: { template: Template; tags: Tag[] }) {
             const id = await runTemplate(template.id, tag)
             await openHistory(id)
         } catch (failure) {
-            // The transfer was recorded before it failed, so it is listed with the others.
             const recorded = coreError(failure)?.transfer?.id
             if (recorded) {
                 const show = t`Show transfer`
@@ -978,7 +953,6 @@ function RunButtons({ template, tags }: { template: Template; tags: Tag[] }) {
             </Button>
         )
     }
-    // With several operations, Run asks which one.
     return (
         <Dropdown shadow={platform() === 'windows' ? 'none' : undefined}>
             <DropdownTrigger>

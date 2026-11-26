@@ -7,7 +7,6 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-// fakeWindow is a window for the tests. Only the methods that a test calls are implemented.
 type fakeWindow struct {
 	application.Window
 	events []*application.CustomEvent
@@ -62,7 +61,6 @@ func TestFit(t *testing.T) {
 }
 
 func TestPlacement(t *testing.T) {
-	// A work area below a 30-pixel top panel, on a second monitor to the right of a first one.
 	area := application.Rect{X: 1920, Y: 30, Width: 1920, Height: 1050}
 	for _, c := range []struct {
 		opts application.WebviewWindowOptions

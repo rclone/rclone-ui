@@ -21,10 +21,6 @@ export default function OperationWindowContent({
     )
 }
 
-/**
- * The whole of an operation page. It scrolls, and its action bar (OperationWindowFooter) stays at
- * the bottom of the window while it does.
- */
 export function OperationPage({ children }: { children: React.ReactNode }) {
     return <div className="flex flex-col h-screen overflow-y-auto">{children}</div>
 }

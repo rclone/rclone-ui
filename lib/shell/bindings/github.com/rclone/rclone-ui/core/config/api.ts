@@ -13,9 +13,6 @@ export function Export(path: string): $CancellablePromise<void> {
     return $Call.ByID(2641944179, path);
 }
 
-/**
- * ForgetPassword takes the config's password out of the keychain.
- */
 export function ForgetPassword(): $CancellablePromise<$models.ConfigFile> {
     return $Call.ByID(3688482749).then(($result: any) => {
         return $$createType0($result);
@@ -38,9 +35,6 @@ export function RemovePassword(): $CancellablePromise<$models.ConfigFile> {
     });
 }
 
-/**
- * SetPassword encrypts the config, or changes its password.
- */
 export function SetPassword(password: string, remember: boolean): $CancellablePromise<$models.ConfigFile> {
     return $Call.ByID(3968093266, password, remember).then(($result: any) => {
         return $$createType0($result);

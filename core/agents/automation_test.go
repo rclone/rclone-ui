@@ -11,8 +11,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/testutil"
 )
 
-// A schedule is created from flat fields, listed, changed, paused, resumed, run at once (a copy
-// between two folders, whose file arrives), and deleted. The forms that it can't run are refused.
 func TestScheduleTools(t *testing.T) {
 	cs := connect(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -62,7 +60,6 @@ func TestScheduleTools(t *testing.T) {
 		t.Errorf("ignored options: %+v", saved.IgnoredOptions)
 	}
 
-	// A change keeps what it leaves out.
 	edited := must[scheduleSaved](t, cs, "save_schedule", map[string]any{"schedule_id": sc.ID, "when": "30 18 * * 1-5"}).Schedule
 	if edited.ID != sc.ID || edited.Name != sc.Name || !slices.Equal(edited.Sources, sc.Sources) || edited.Destination != dst ||
 		edited.WhenInWords != "every weekday (Monday to Friday) at 18:30" || edited.Options["max_age"] != "7d" {
@@ -94,7 +91,6 @@ func TestScheduleTools(t *testing.T) {
 	if run.TransferID == "" {
 		t.Fatalf("run_schedule_now: %+v", run)
 	}
-	// A copy puts a folder that it copies inside the destination.
 	testutil.Eventually(t, time.Minute, "the copied file", func() bool {
 		b, err := os.ReadFile(filepath.Join(dst, filepath.Base(src), "a.txt"))
 		return err == nil && string(b) == "scheduled"
@@ -117,7 +113,6 @@ func TestScheduleTools(t *testing.T) {
 	}
 }
 
-// cronInWords says the drawer's shapes in words, and nothing for any other expression.
 func TestCronInWords(t *testing.T) {
 	for expr, want := range map[string]string{
 		"@hourly":       "every hour at :00",
@@ -142,8 +137,6 @@ func TestCronInWords(t *testing.T) {
 	}
 }
 
-// A watcher is created, merges its two folders at once, is listed, renamed, paused, resumed,
-// synced now, and deleted. Folders that can't be kept the same are refused.
 func TestWatcherTools(t *testing.T) {
 	cs := connect(t)
 	a, b := t.TempDir(), t.TempDir()

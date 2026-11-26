@@ -7,14 +7,12 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// CheckForm refuses what BuildPlan would refuse before it asks rclone about the paths, so it never
-// opens a remote: gdrive isn't configured here.
 func TestCheckForm(t *testing.T) {
 	for _, c := range []struct {
 		name  string
 		form  Form
-		field string // the refusal's field, or "" for a refusal without one
-		want  string // the start of the refusal, or "" when the form passes
+		field string
+		want  string
 	}{
 		{"a copy", CopyArgs{Sources: []string{"gdrive:a", "gdrive:b.txt"}, Destination: "/c"}.Form(), "", ""},
 		{"a copy without a destination", CopyArgs{Sources: []string{"gdrive:a"}}.Form(), "",

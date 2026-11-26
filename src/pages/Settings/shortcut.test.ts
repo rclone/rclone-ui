@@ -21,7 +21,6 @@ describe('formatShortcutFromEvent', () => {
     })
 
     it('keeps the letter the layout types', () => {
-        // On AZERTY, the A key is where Q is on QWERTY.
         expect(formatShortcutFromEvent(press('a', 'KeyQ', { ctrlKey: true }))).toBe('Ctrl+A')
     })
 

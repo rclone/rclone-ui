@@ -1,13 +1,7 @@
-// Package menus sets up the macOS menu bar with the App, Edit and Window menus, so that ⌘C, ⌘V,
-// ⌘A, ⌘W and ⌘M work in the pages. It replaces Wails' default menu, whose View › Reload (⌘R)
-// would reload a page while the user is working in it. Quit goes through the app's quit flow.
-//
-// Wails' role menus (application.AppMenu, EditMenu…) have English labels, so the menus are built
-// here from items with the app's own labels, in the app's language. Each item keeps its role,
-// which gives it the same AppKit action as Wails' own item (copy:, performMiniaturize:…), and the
-// same shortcut. Set builds the menus again when the language changes. macOS adds a few items of
-// its own (Edit › AutoFill, Start Dictation…, Emoji & Symbols, and the Services menu's items),
-// which it shows in the system's language.
+// Package menus sets up the macOS menu bar. It replaces Wails' default menu, whose View › Reload
+// (⌘R) would reload a page while the user is working in it. Wails' role menus have English
+// labels, so the items get the app's own labels and keep their roles, which give them the same
+// AppKit action and shortcut as Wails' own items.
 package menus
 
 import (
@@ -18,11 +12,8 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// appName is the name that the App menu's items use, as macOS shows it in the menu bar.
 const appName = "Rclone UI"
 
-// Set installs the menu bar on macOS, in the app's language. On other systems, windows have no
-// menu.
 func Set(app *application.App) {
 	if runtime.GOOS != "darwin" {
 		return
@@ -34,8 +25,6 @@ func bar(app *application.App) *application.Menu {
 	return application.NewMenuFromItems(appMenu(app), editMenu(), windowMenu())
 }
 
-// item returns a menu item with a role, which gives it its AppKit action, and a shortcut ("" for
-// none).
 func item(label string, role application.Role, accelerator string) *application.MenuItem {
 	it := application.NewMenuItem(label).SetRole(role)
 	if accelerator != "" {
@@ -48,8 +37,7 @@ func submenu(label string, items ...*application.MenuItem) *application.MenuItem
 	return application.NewSubmenu(label, application.NewMenuFromItems(items[0], items[1:]...))
 }
 
-// appMenu returns the App menu, as Wails' AppMenu role has it: About, Services, Hide, Hide Others,
-// Show All and Quit. macOS titles the menu with the app's name whatever its label.
+// macOS titles the App menu with the app's name whatever its label.
 func appMenu(app *application.App) *application.MenuItem {
 	// macOS fills the Services menu itself, in the system's language.
 	services := application.NewSubmenu(i18n.T("Services"), application.NewMenu()).SetRole(application.ServicesMenu)
@@ -71,7 +59,6 @@ func appMenu(app *application.App) *application.MenuItem {
 	)
 }
 
-// editMenu returns the Edit menu, as Wails' EditMenu role has it on macOS.
 func editMenu() *application.MenuItem {
 	speech := submenu(i18n.T("Speech"),
 		item(i18n.T("Start Speaking"), application.StartSpeaking, "CmdOrCtrl+OptionOrAlt+Shift+."),

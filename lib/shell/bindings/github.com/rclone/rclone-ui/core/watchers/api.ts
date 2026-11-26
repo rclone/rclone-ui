@@ -39,9 +39,6 @@ export function List(): $CancellablePromise<$models.Watcher[]> {
     });
 }
 
-/**
- * Pause stops a watcher from running every minute.
- */
 export function Pause(id: string): $CancellablePromise<void> {
     return $Call.ByID(675344054, id);
 }

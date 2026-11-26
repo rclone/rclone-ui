@@ -1,6 +1,6 @@
 package linkresolve
 
-// Kind is the type of media at a resolved address. The Download page uses it to pick a preview.
+// Kind is the type of media at a resolved address.
 type Kind string
 
 const (
@@ -18,8 +18,8 @@ type Link struct {
 	Type     Kind   `json:"type"`
 }
 
-// Site is one website whose page addresses are resolved. Name is shown in the Download page's
-// tooltip. A host in Hosts matches itself and its subdomains.
+// Site is one website whose page addresses are resolved. A host in Hosts matches itself and its
+// subdomains.
 type Site struct {
 	Name  string   `json:"name"`
 	Hosts []string `json:"hosts"`

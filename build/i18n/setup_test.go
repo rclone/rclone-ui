@@ -9,8 +9,6 @@ import (
 	"testing"
 )
 
-// setupFixture is a small rclone module: fs with its own helpers and a common question, a
-// constant in fs/config, the sign-in's questions in lib/oauthutil, and a few backends.
 var setupFixture = map[string]string{
 	"fs/backend_config.go": `package fs
 
@@ -163,33 +161,24 @@ func TestCollectSetup(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]string{
-		// rclone's common config, with fs's own question. The helpers that pass a question on
-		// are not questions.
 		k("setup", "question", "config_fs_advanced", "help"):       "Edit advanced config?",
 		k("setup", "question", "config_refresh_token", "help"):     "Token already configured - replace it?",
 		k("setup", "question", "config_verification_code", "help"): "Go to this URL:\n\n%s\n",
 		k("setup", "error", "help"):                                "Couldn't decode response: %v\n",
 
-		// A backend, by the name it registers: a fixed list of choices, a name that is another
-		// package's constant, a help that is a constant made of two literals, and a help that is
-		// a literal with a "%", which is doubled.
 		k("setup", "backend", "foo bar", "question", "config_type", "help"):                         "Type of connection",
 		k("setup", "backend", "foo bar", "question", "config_type", "example", "personal", "help"):  "Personal or Business",
 		k("setup", "backend", "foo bar", "question", "config_type", "example", "__empty__", "help"): "None of these",
 		k("setup", "backend", "foo bar", "question", "client_id", "help"):                           "Client Id",
 		k("setup", "backend", "foo bar", "question", "config_login_token", "help"):                  "Personal login token.",
 		k("setup", "backend", "foo bar", "question", "config_share", "help"):                        "Share 100%% of it?",
-		// The same question with two texts (and one of them twice), in the order of the source:
-		// a format and a literal.
-		k("setup", "backend", "foo bar", "question", "config_ok", "help"):   "Found %q of type %q\n",
-		k("setup", "backend", "foo bar", "question", "config_ok", "help_2"): "Is it OK?",
-		// A help in a variable, from the assignment before each call.
-		k("setup", "backend", "foo bar", "question", "config_device", "help"):   "The other device %s.",
-		k("setup", "backend", "foo bar", "question", "config_device", "help_2"): "The device %s.",
-		// A question whose choices can't be read, and the errors.
-		k("setup", "backend", "foo bar", "question", "config_phone", "help"): "Select a phone",
-		k("setup", "backend", "foo bar", "error", "help"):                    "Failed to list the drives: %v",
-		k("setup", "backend", "foo bar", "error", "help_2"):                  "No drives found",
+		k("setup", "backend", "foo bar", "question", "config_ok", "help"):                           "Found %q of type %q\n",
+		k("setup", "backend", "foo bar", "question", "config_ok", "help_2"):                         "Is it OK?",
+		k("setup", "backend", "foo bar", "question", "config_device", "help"):                       "The other device %s.",
+		k("setup", "backend", "foo bar", "question", "config_device", "help_2"):                     "The device %s.",
+		k("setup", "backend", "foo bar", "question", "config_phone", "help"):                        "Select a phone",
+		k("setup", "backend", "foo bar", "error", "help"):                                           "Failed to list the drives: %v",
+		k("setup", "backend", "foo bar", "error", "help_2"):                                         "No drives found",
 	}
 	if keys := got.keys(); !maps.Equal(keys, want) {
 		for _, key := range slices.Sorted(maps.Keys(keys)) {
@@ -204,11 +193,9 @@ func TestCollectSetup(t *testing.T) {
 		}
 	}
 
-	// Each text that can't be read is named by its file and line.
 	unread := strings.Join(got.unread, "\n")
 	for _, want := range []string{
 		"lib/oauthutil/oauthutil.go:18: the help of config_token can't be read: out.String()",
-		// A variable that a branch may have changed.
 		"backend/foo/foo.go:", ": the help of config_branch can't be read: help",
 		": the help of config_time can't be matched: it uses %5.2f",
 		": the choices of config_phone can't be read, because they are made at run time: items",
@@ -229,8 +216,6 @@ func TestCollectSetup(t *testing.T) {
 	}
 }
 
-// The registry's text of a common question is kept when the source reads it otherwise, and the
-// source adds what the registry lacks.
 func TestAddSetup(t *testing.T) {
 	live := map[string]string{k("setup", "question", "config_is_local", "help"): "Use web browser?"}
 	setup := &setupSource{
@@ -250,8 +235,6 @@ func TestAddSetup(t *testing.T) {
 	}
 }
 
-// When rclone swaps a question's two texts, each translation follows its English text to its
-// new key.
 func TestMergeRcloneMovesATranslationWithItsText(t *testing.T) {
 	first := k("setup", "backend", "drive", "question", "config_change_team_drive", "help")
 	second := k("setup", "backend", "drive", "question", "config_change_team_drive", "help_2")
@@ -263,14 +246,12 @@ func TestMergeRcloneMovesATranslationWithItsText(t *testing.T) {
 	if files["es"][first] != "¿Cambiar la unidad compartida %q?" || files["es"][second] != "¿Configurarlo como unidad compartida?" {
 		t.Errorf("es is %q", files["es"])
 	}
-	// A text that no key had before has no translation.
 	mergeRclone(map[string]string{first: "Change the Shared Drive ID %q?", second: "Configure this as a Shared Drive?"}, files, false)
 	if _, ok := files["es"][first]; ok {
 		t.Errorf("a new text kept a translation: %q", files["es"][first])
 	}
 }
 
-// A setup question's translation must keep its English format's values, in any order.
 func TestReviewRcloneSetupPlaceholders(t *testing.T) {
 	dir := t.TempDir()
 	ok := k("setup", "backend", "onedrive", "question", "config_drive_ok", "help")

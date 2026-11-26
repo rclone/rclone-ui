@@ -19,7 +19,6 @@ describe('mountPointOf', () => {
             '/Users/me/Rclone/gdrive'
         )
         expect(mountPointOf('/Volumes/g', '/Users/me/Rclone/gdrive', false)).toBe('/Volumes/g')
-        // Cleared by the user: no mount point, so the page asks for one.
         expect(mountPointOf('', '/Users/me/Rclone/gdrive', false)).toBe('')
     })
 

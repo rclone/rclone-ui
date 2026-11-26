@@ -1,5 +1,3 @@
-// Package atomicfile replaces a file's contents so that a crash, or a reader at any moment, sees
-// either the whole old file or the whole new one, never a mix or a partial file.
 package atomicfile
 
 import (
@@ -20,7 +18,7 @@ func WriteFile(path string, data []byte, perm os.FileMode) (err error) {
 	}
 	defer func() {
 		if err != nil {
-			_ = tmp.Close() // after a late failure, a second Close only reports that it's closed
+			_ = tmp.Close()
 			_ = os.Remove(tmp.Name())
 		}
 	}()

@@ -38,8 +38,6 @@ type Applied struct {
 	Skipped []catalog.SkippedFlag `json:"skipped"`
 }
 
-// exported is a template as an export file holds it: its name, options and paths, and its options
-// as rclone's flags (operations.TemplateFlags).
 type exported struct {
 	Name    string        `json:"name"`
 	Options catalog.Group `json:"options"`

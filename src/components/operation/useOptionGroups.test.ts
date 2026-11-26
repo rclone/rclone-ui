@@ -109,7 +109,6 @@ describe('textsEdited', () => {
 
     it('is changed when a text is', () => {
         expect(textsEdited({ copy: '{}' }, { copy: '{"checksum": true}' })).toBe(true)
-        // Invalid JSON still counts as an edit.
         expect(textsEdited({ copy: '{}' }, { copy: '{' })).toBe(true)
     })
 

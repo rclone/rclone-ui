@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-// fakeBinder registers every accelerator except those in refuse.
 type fakeBinder struct {
 	refuse map[string]bool
 	held   map[string]bool
@@ -27,8 +26,6 @@ func (b *fakeBinder) unregister(accel string) error {
 	return nil
 }
 
-// TestShortcutRefused: a refused shortcut leaves the previous one in place. When the previous one
-// can't be restored either, none is held and the error says so.
 func TestShortcutRefused(t *testing.T) {
 	b := &fakeBinder{refuse: map[string]bool{}, held: map[string]bool{}}
 	s := &Shortcut{log: slog.New(slog.NewTextHandler(io.Discard, nil)), fn: func(string) {}, bind: b}

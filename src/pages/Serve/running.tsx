@@ -16,9 +16,6 @@ import { WINDOWS } from '../../routes'
 import { protocolIcon, protocolName } from './protocols'
 import { serveLabel, stopServe, useServes } from './serves'
 
-// The Serve page's list of the running serves, each with a button to copy its address and a Stop
-// button.
-
 type State = { label: string; kind: StatusKind }
 
 const STARTING: State = { label: t`Starting`, kind: 'active' }
@@ -32,7 +29,6 @@ const STATE: Record<string, State> = {
     restarting: { label: t`Restarting`, kind: 'warning' },
 }
 
-/** Returns how a serve's state is shown. An unknown state is shown as starting. */
 function stateOf(state: string): State {
     return STATE[state] ?? STARTING
 }

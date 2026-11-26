@@ -15,42 +15,24 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// The scheduler runs each schedule at its times. A schedule that isn't paused is due when its
-// next time after the last time it dealt with (last due) has passed. It is then dealt with once,
-// and last due becomes the latest time that has passed, so many missed times give one run. The
-// scheduler checks at each wall-clock minute. Times are compared with the wall clock, never with
-// how long the scheduler slept, because a computer's timers can pause while it sleeps.
-
-// mode is why a run starts.
 type mode int
 
 const (
-	// modeDue is a scheduled time, or the run that a quit cut short.
 	modeDue mode = iota
-	// modeNow is Run now, which runs even while the schedule is paused.
 	modeNow
-	// modeMerge is a merge of a bisync's two folders, newer wins: its first, or Merge again.
 	modeMerge
 )
 
 type run = runs.Run[mode, runData]
 
-// runData is what the scheduler keeps about a run, from its start.
 type runData struct {
-	// name is the schedule's name, and form the form that the run started with, without the
-	// sources that were gone.
-	name string
-	form operations.Form
-	// bisync is set for a bisync. a and b are then its folders at the start, and baselined
-	// whether the schedule was baselined then.
+	name      string
+	form      operations.Form
 	bisync    bool
 	a, b      string
 	baselined bool
 }
 
-// Run is the scheduler. It deals with the schedules that are due at each wall-clock minute,
-// until ctx ends. The runs that were missed while the app was closed, and those that a quit cut
-// short, wait about a minute first.
 func (s *Service) Run(ctx context.Context) {
 	s.boot(ctx)
 	for {
@@ -63,8 +45,6 @@ func (s *Service) Run(ctx context.Context) {
 	}
 }
 
-// untilNext returns how long to wait for the next tick: until just after the next wall-clock
-// minute, or until the wait after a start or a wake ends, if that comes first.
 func (s *Service) untilNext() time.Duration {
 	now := s.o.Now()
 	next := now.Truncate(time.Minute).Add(time.Minute + 500*time.Millisecond)
@@ -76,10 +56,6 @@ func (s *Service) untilNext() time.Duration {
 	return next.Sub(now)
 }
 
-// boot runs once, before the first tick. It starts the wait after a start, and settles the runs
-// that the last run of the app left without an end: a run whose end wasn't recorded takes its
-// transfer's end. A run that a quit cut short runs once more after the wait, unless the app
-// crashed, so that a run that crashes the app can't crash it at every start.
 func (s *Service) boot(ctx context.Context) {
 	now := s.o.Now()
 	s.mu.Lock()
@@ -133,8 +109,6 @@ func (s *Service) boot(ctx context.Context) {
 	s.mu.Unlock()
 }
 
-// endOf reads how a run's transfer ended, for a run whose end wasn't recorded. A transfer that
-// isn't in the record was dropped because it changed nothing. One still open was cut short.
 func (s *Service) endOf(ctx context.Context, tx *sql.Tx, id string, now time.Time) (result, errText, transfer string, at int64) {
 	var (
 		state string
@@ -157,15 +131,13 @@ func (s *Service) endOf(ctx context.Context, tx *sql.Tx, id string, now time.Tim
 	case transfers.StateCompleted:
 		return ResultCompleted, "", id, at
 	case transfers.StateFailed:
-		return ResultFailed, text.String, id, at // saved as the transfer saved it (i18n.Save)
+		return ResultFailed, text.String, id, at
 	case transfers.StateStopped:
 		return ResultStopped, "", id, at
 	}
 	return ResultInterrupted, "", id, at
 }
 
-// Shutdown stops the scheduler from starting runs. The runs in progress are the transfer
-// service's, which stops them. Their ends are still recorded.
 func (s *Service) Shutdown() {
 	s.mu.Lock()
 	s.stopping = true
@@ -173,20 +145,15 @@ func (s *Service) Shutdown() {
 	s.runs.Shutdown()
 }
 
-// claimed is a run that a tick claimed, which starts after it.
 type claimed struct {
 	id string
 	r  *run
 }
 
-// tick deals with each schedule that is due. While the wait after a start or a wake lasts, or
-// while the config is locked, the due schedules wait. A schedule whose run is still going skips
-// the time, and records it. The others start, one every Spacing.
 func (s *Service) tick(ctx context.Context) {
 	now := s.o.Now()
 	s.mu.Lock()
 	if now.Sub(s.lastTick) > 2*time.Minute || now.Before(s.lastTick) {
-		// The computer slept, or its clock changed: wait as after a start.
 		s.holdUntil = now.Add(s.o.Wait)
 	}
 	s.lastTick = now
@@ -210,7 +177,6 @@ func (s *Service) tick(ctx context.Context) {
 	)
 	for _, sc := range all {
 		if sc.lastDue > now.UnixMilli() {
-			// The clock was set back.
 			s.record(ctx, sc.ID, `last_due = ?`, now.UnixMilli())
 			continue
 		}
@@ -259,13 +225,11 @@ func (s *Service) tick(ctx context.Context) {
 				case <-s.o.After(s.o.Spacing):
 				}
 			}
-			s.runs.Start(ctx, c.id, c.r) // once ctx has ended, it only frees the run
+			s.runs.Start(ctx, c.id, c.r)
 		}
 	})
 }
 
-// kick claims a run of the schedule id and starts it, unless a run is in progress. It reports
-// whether it did.
 func (s *Service) kick(id string, m mode) bool {
 	if !s.runs.Kick(id, m) {
 		return false
@@ -274,14 +238,8 @@ func (s *Service) kick(id string, m mode) bool {
 	return true
 }
 
-// owner is the schedules' side of the run engine (runs.Owner).
 type owner Service
 
-// Start starts r, a run of the schedule id, through the transfer service. A Move, Delete or Purge
-// leaves out the sources that are gone. With none left, the run has nothing to do, doesn't start,
-// and leaves no trace in History. A bisync runs unattended (see unattended). One that was never
-// merged merges its folders when its run finds no listings. The minute's run of a schedule paused
-// meanwhile doesn't start.
 func (o *owner) Start(ctx context.Context, id string, r *run, end transfers.Owner) (transfers.Started, bool, error) {
 	s := (*Service)(o)
 	sc, err := s.read(ctx, id)
@@ -320,9 +278,6 @@ func (o *owner) Start(ctx context.Context, id string, r *run, end transfers.Owne
 	}
 }
 
-// Started records the run's transfer as the one in progress, and clears the time it skipped. A
-// failure in the first second is reported to Ended, like any end, and the engine then doesn't
-// call Started.
 func (o *owner) Started(ctx context.Context, id string, _ *run, transfer string) {
 	s := (*Service)(o)
 	s.record(ctx, id, `running_id = ?, last_skipped_at = NULL`, transfer)
@@ -331,9 +286,6 @@ func (o *owner) Started(ctx context.Context, id string, _ *run, transfer string)
 
 func (o *owner) Changed() { (*Service)(o).changed() }
 
-// Quiet reports whether a run that ended so leaves no trace in History: it completed having
-// changed nothing, or it is a bisync whose failure the scheduler deals with itself (see
-// quietBisync).
 func (o *owner) Quiet(r *run, st transfers.State, errText string, s *transfers.Summary) bool {
 	if st == transfers.StateCompleted && transfers.ChangedNothing(s) {
 		return true
@@ -341,9 +293,6 @@ func (o *owner) Quiet(r *run, st transfers.State, errText string, s *transfers.S
 	return r.Data.bisync && r.Mode != modeMerge && quietBisync(st, errText, s, r.Data.baselined)
 }
 
-// quietBisync reports whether a scheduled bisync's failure leaves no trace, because the scheduler
-// merges the folders at once: the last run left a side empty, which a merge fixes safely, or the
-// schedule was never merged and bisync found no listings.
 func quietBisync(state transfers.State, errText string, summary *transfers.Summary, baselined bool) bool {
 	if state != transfers.StateFailed || !transfers.ChangedNothing(summary) {
 		return false
@@ -352,26 +301,16 @@ func quietBisync(state transfers.State, errText string, summary *transfers.Summa
 	return trouble == operations.TroubleMerge || !baselined && trouble == operations.TroubleResync
 }
 
-// Refused records a run that was refused before it started, such as a source on a remote that
-// is gone. Nothing is in History, so the scheduler tells the notification targets and the
-// desktop itself.
 func (o *owner) Refused(ctx context.Context, id string, r *run, cause error) {
 	s := (*Service)(o)
 	s.log.WarnContext(ctx, "a scheduled run was refused", "schedule", id, "error", cause)
 	t := transfers.Transfer{State: transfers.StateFailed, Operation: r.Data.form.Operation}.WithError(cause)
 	t.Sources, t.Destination = r.Data.form.Ends()
-	// The error is saved so that the page shows it in the app's language of the day.
 	s.record(ctx, id, `last_run_at = ?, last_result = ?, last_error = ?, last_transfer_id = '',
 		last_skipped_at = NULL`, s.o.Now().UnixMilli(), ResultFailed, i18n.Save(cause))
 	s.failed(ctx, r.Data.name, t)
 }
 
-// Ended records how r, a run of the schedule id, ended, from its transfer t, and tells the
-// notification targets and the desktop: the targets about a run that changed something or failed,
-// and the desktop only about a failure. A run that changed nothing records "nothing to do". A
-// merge that succeeded baselines a bisync whose folders are still the same. A baselined bisync
-// never merges on its own: when bisync can't go on, the schedule fails with what to do. A deleted
-// schedule records nothing.
 func (o *owner) Ended(ctx context.Context, id string, r *run, t transfers.Transfer) (mode, bool) {
 	s := (*Service)(o)
 	sc, err := s.read(ctx, id)
@@ -382,7 +321,6 @@ func (o *owner) Ended(ctx context.Context, id string, r *run, t transfers.Transf
 	if t.EndedAt != nil {
 		at = *t.EndedAt
 	}
-	// The run's transfer is no longer the one in progress. The start may not have recorded it yet.
 	const clear = `, running_id = CASE WHEN running_id = ? THEN '' ELSE running_id END`
 	bisync := sc.Form.Operation == operations.OperationBisync
 	_, dest := sc.Form.Ends()
@@ -391,7 +329,7 @@ func (o *owner) Ended(ctx context.Context, id string, r *run, t transfers.Transf
 	case transfers.StateCompleted:
 		result, transfer := ResultCompleted, t.ID
 		if transfers.ChangedNothing(t.Stats) {
-			result, transfer = ResultNothing, "" // dropped from History
+			result, transfer = ResultNothing, ""
 		}
 		set := `last_run_at = ?, last_result = ?, last_error = '', last_transfer_id = ?`
 		if same && r.Mode == modeMerge {
@@ -413,7 +351,6 @@ func (o *owner) Ended(ctx context.Context, id string, r *run, t transfers.Transf
 		if bisync {
 			errText = bisyncError(t.ErrorText(), r.Data.a, r.Data.b)
 		}
-		// The error is saved so that the page shows it in the app's language of the day.
 		t = t.WithErrorText(errText)
 		s.record(ctx, id, `last_run_at = ?, last_result = ?, last_error = ?, last_transfer_id = ?`+clear,
 			at, ResultFailed, t.SavedError(), t.ID, t.ID)
@@ -428,8 +365,6 @@ func (o *owner) Ended(ctx context.Context, id string, r *run, t transfers.Transf
 	return 0, false
 }
 
-// bisyncError words why a baselined bisync can't go on by itself, and what to do. Other errors
-// are kept as they are.
 func bisyncError(errText i18n.Text, a, b string) i18n.Text {
 	trouble, side := operations.BisyncTroubleOf(errText.String())
 	var folder any
@@ -457,9 +392,6 @@ func bisyncError(errText i18n.Text, a, b string) i18n.Text {
 	return errText
 }
 
-// failed tells the notification targets and the desktop that a schedule's run failed. A click on
-// the desktop's notification opens the run in History, or the Schedules window for a run that
-// was refused before it started.
 func (s *Service) failed(ctx context.Context, name string, t transfers.Transfer) {
 	job := jobOf(name, t)
 	s.o.Notifier.Notify(ctx, notifications.NotificationEventJobFailed, job)
@@ -474,8 +406,6 @@ func (s *Service) failed(ctx context.Context, name string, t transfers.Transfer)
 	})
 }
 
-// jobOf returns the payload of a schedule's job.completed or job.failed, with the error in the
-// app's language.
 func jobOf(name string, t transfers.Transfer) notifications.Job {
 	j := notifications.Job{JobID: t.Seq, Operation: string(t.Operation), Sources: t.Sources, Destination: t.Destination,
 		Error: t.ErrorText().Local(), Schedule: name}
@@ -489,8 +419,6 @@ func jobOf(name string, t transfers.Transfer) notifications.Job {
 	return j
 }
 
-// record writes columns of the schedule id, as runs start and end. A deleted schedule is not an
-// error.
 func (s *Service) record(ctx context.Context, id, set string, args ...any) {
 	if err := s.update(ctx, id, set, args...); err != nil && !errors.Is(err, ErrNotFound) {
 		s.log.ErrorContext(ctx, "recording a schedule's run", "schedule", id, "error", err)

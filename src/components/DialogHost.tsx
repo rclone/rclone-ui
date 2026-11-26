@@ -28,25 +28,16 @@ import { IconTile } from './look/IconTile'
 import type { Tone } from './look/tones'
 import { answerOf, initialAnswer } from './optionDialog'
 
-/**
- * Shows the dialogs that message, ask, prompt and askOption in lib/shell queue, one at a time and
- * in order. main.tsx mounts it once in every window, outside the router, so it works even when the
- * page has crashed.
- */
 export default function DialogHost() {
     const [queue, setQueue] = useState<DialogRequest[]>([])
     useEffect(() => subscribe(setQueue), [])
     const head = queue[0]
-    // Answering a request resolves its promise at once, but the dialog stays on screen while it
-    // animates shut. `key` counts the openings, so only a new dialog mounts afresh.
     const [shown, setShown] = useState<{ request: DialogRequest; key: number } | null>(null)
     const openings = useRef(0)
     useEffect(() => {
         if (!head) return
         openings.current += 1
         setShown({ request: head, key: openings.current })
-        // A dialog in a window behind other windows would go unseen, so the window comes to the
-        // front.
         currentWindow
             .isFocused()
             .then((focused) => (focused ? undefined : currentWindow.focus()))
@@ -77,11 +68,6 @@ const LEVEL_LOOK: Record<DialogKind | 'destructive', Look> = {
     destructive: { icon: TrashIcon, tone: 'red' },
 }
 
-/**
- * Whether a warning asks to delete or discard something ("Delete remote", "Discard the waiting
- * uploads?"). Those dialogs are drawn in red. The caller sets `destructive`, because the text is
- * translated and can't be checked here.
- */
 function isDestructive(request: Extract<DialogRequest, { type: 'message' }>): boolean {
     return request.kind === 'warning' && !!request.buttons.cancel && !!request.destructive
 }
@@ -116,14 +102,8 @@ function DialogLayout({
 const MESSAGE =
     'whitespace-pre-wrap text-small leading-relaxed text-default-600 [overflow-wrap:anywhere]'
 
-// Each request asks for its scripted answer once, because each asking takes a line from the
-// answers file. StrictMode runs effects twice in development.
 const scripted = new WeakMap<DialogRequest, Promise<string | null>>()
 
-/**
- * In a development run that a script drives, answers the dialog with the script's next answer
- * (see scriptedAnswer). With no answer, the dialog waits, and a script can press its buttons.
- */
 function useScriptedAnswer(
     request: DialogRequest,
     isOpen: boolean,
@@ -163,8 +143,6 @@ function MessageDialog({
         request.resolve(label)
         done()
     }
-    // OK is the default button: Enter chooses it, as in the OS's dialogs, unless another button
-    // has the focus. The modal focuses itself when it opens, so OK can't simply take the focus.
     const finishRef = useRef(finish)
     finishRef.current = finish
     useEffect(() => {
@@ -310,7 +288,6 @@ function PromptDialog({
     )
 }
 
-/** Asks one of rclone's config questions (askOption) with the field that the remote forms use. */
 function OptionDialog({
     isOpen,
     request,
@@ -321,8 +298,6 @@ function OptionDialog({
     done: () => void
 }) {
     const { option } = request
-    // The help is shown as the question, so the field drops it rather than repeat it. A question
-    // is always shown, even for an option that the remote forms hide.
     const field = useMemo(() => new Option({ ...option, help: '', hidden: false }), [option])
     const [values, setValues] = useState<RemoteValues>(() => ({
         [option.name]: initialAnswer(option),

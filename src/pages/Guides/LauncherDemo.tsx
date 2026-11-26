@@ -11,10 +11,6 @@ import { guideById } from './guides'
 import { KeyboardContext, Keys } from './text'
 import { toneOf } from './tones'
 
-/**
- * What the demo types, and the launcher's top result for it, as the launcher's own entries name
- * them (app/launcher/engine/providers/navigation.go). Each result's look is its guide's.
- */
 const DEMO = [
     {
         query: t({
@@ -57,13 +53,11 @@ const DEMO = [
 
 type Phase = 'type' | 'hold' | 'erase'
 
-/** How long each phase waits before its next step, in ms. */
 const TYPE_MS = 70
 const HOLD_MS = 2200
 const ERASE_MS = 26
 const NEXT_MS = 380
 
-/** Whether the window is on screen. The demo stops typing while it isn't. */
 function useVisible(): boolean {
     return useSyncExternalStore(
         (changed) => {
@@ -74,10 +68,6 @@ function useVisible(): boolean {
     )
 }
 
-/**
- * Types each query of DEMO, holds it, and erases it, in a loop. With reduced motion it shows the
- * first query, typed. The result shows once half the query is in, as the launcher's would.
- */
 function useTyping() {
     const still = useReducedMotion() ?? false
     const visible = useVisible()
@@ -92,7 +82,6 @@ function useTyping() {
         let wait: number
         let step: () => void
         if (phase === 'type' && typed < q.length) {
-            // A little unevenness, so it reads as typing rather than a ticker.
             wait = TYPE_MS + ((typed * 37) % 45)
             step = () => setTyped(typed + 1)
         } else if (phase === 'type') {
@@ -123,10 +112,6 @@ function useTyping() {
     }
 }
 
-/**
- * The launcher, typing what a user would type and showing what it finds. It teaches the one
- * thing to remember: most things start in the launcher. Clicking it opens the real one.
- */
 export function LauncherDemo() {
     const { shortcut } = useContext(KeyboardContext)
     const { item, text, found } = useTyping()
@@ -135,7 +120,6 @@ export function LauncherDemo() {
 
     return (
         <div className="relative isolate">
-            {/* The groups' colors, glowing behind the launcher. */}
             <div
                 aria-hidden={true}
                 className="absolute -z-10 -inset-x-8 -inset-y-10 opacity-60 blur-2xl dark:opacity-90"

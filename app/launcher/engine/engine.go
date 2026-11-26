@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-// The timing of a query's snapshots. The first is sent once the quick providers have answered (or
-// after firstFlush). After that, at most one is sent every flushEvery while slow providers
-// (listings) are still working.
 const (
 	firstFlush = 16 * time.Millisecond
 	flushEvery = 32 * time.Millisecond
@@ -17,23 +14,16 @@ const (
 
 type Engine struct {
 	providers []Provider
-	// Panicked is called when a provider panics. The panic is recovered either way: that provider
-	// returns no results, and the query continues with the others. Panicked runs on the provider's
-	// goroutine before the stack unwinds, so it can record the panic's stack trace. It may be nil.
-	Panicked func(where string, v any)
+	Panicked  func(where string, v any)
 }
 
 func New(providers ...Provider) *Engine {
 	return &Engine{providers: providers}
 }
 
-// Run runs q. emit receives the full ranked list each time, and final is true on the last call.
-// Cancelling ctx (for a newer query) stops Run, and emit is not called after that.
 func (e *Engine) Run(ctx context.Context, q Query, d *Data, usage Usage, emit func(results []Result, final bool)) {
 	var (
-		mu sync.Mutex
-		// Each provider's results go in their own slot, so ties rank in the order the providers are
-		// listed, not in the order they answer.
+		mu        sync.Mutex
 		found     = make([][]Result, len(e.providers))
 		pending   = len(e.providers)
 		quickLeft = 0

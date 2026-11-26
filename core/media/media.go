@@ -4,11 +4,11 @@
 // can't send a credential with those requests, so SignURL signs the path for a limited time and
 // the route checks the signature instead.
 //
-// This is the only route that streams file contents in the app. It supports single and multiple
-// ranges (with 416 for a bad range), and checks If-Modified-Since and If-Range against the
-// modtime. It always sends a Content-Length when the size is known. A file of unknown size is
-// sent whole, even when a range is asked for. The content type comes from rclone, never from the
-// body, and the response can't run anything on the page's origin (nosniff, CSP sandbox).
+// It supports single and multiple ranges (with 416 for a bad range), and checks If-Modified-Since
+// and If-Range against the modtime. It always sends a Content-Length when the size is known. A
+// file of unknown size is sent whole, even when a range is asked for. The content type comes from
+// rclone, never from the body, and the response can't run anything on the page's origin (nosniff,
+// CSP sandbox).
 package media
 
 import (
@@ -42,21 +42,18 @@ import (
 const Pattern = "GET /media"
 
 const (
-	// The chunk sizes for reads. The first chunk is small, so a seek in a video requests little
-	// data, and the size doubles as the read goes on, as in rclone's VFS.
 	chunkSize    = 16 << 20
 	maxChunkSize = 256 << 20
 
-	// Lifetime is how long a signed URL works. It is long enough to watch a film in one go.
+	// Lifetime is how long a signed URL works.
 	Lifetime = 12 * time.Hour
 )
 
 // Signer signs media URLs and serves them (see Listen). The key is made for each process, so a
 // URL stops working when the app quits.
 type Signer struct {
-	key []byte
-	now func() time.Time
-	// base is the address Listen serves on: http://127.0.0.1:port.
+	key  []byte
+	now  func() time.Time
 	base string
 	srv  *http.Server
 }
@@ -86,8 +83,6 @@ func (s *Signer) Sign(p string, inline bool) (string, time.Time) {
 	return s.base + "/media?" + q.Encode(), exp
 }
 
-// verify returns the path and disposition signed in a request's query, or an error that says
-// why the signature isn't valid.
 func (s *Signer) verify(q url.Values) (p string, inline bool, err error) {
 	p, inline = q.Get("p"), q.Get("i") == "1"
 	exp, err := strconv.ParseInt(q.Get("e"), 10, 64)
@@ -115,17 +110,13 @@ func (s *Signer) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	group := rclone.UIGroup("media", ids.New())
 	defer rclone.DeleteGroup(context.WithoutCancel(r.Context()), group)
-	// The whole response runs as one rclone job that lasts as long as the read. This keeps the Fs
-	// pinned in rclone's cache while the data is sent. It also means a fatal rclone error (such as
-	// opening a remote with a bad override) only ends this response, not the app.
 	sw := &startedWriter{ResponseWriter: w}
 	_, err = rclone.Run(r.Context(), rclone.CallOpts{Group: group}, func(ctx context.Context) error {
 		return answer(ctx, sw, r, p, inline)
 	})
 	if errors.Is(err, errPartway) {
 		// The response was sent without a length, so the part that was sent looks whole. Only a
-		// cut connection tells the browser. This runs outside the rclone job, which would
-		// recover the panic.
+		// cut connection tells the browser.
 		logs.Logger(logs.CompApp, "media").WarnContext(r.Context(), "a file's read failed partway", "error", err)
 		panic(http.ErrAbortHandler)
 	}
@@ -134,11 +125,8 @@ func (s *Signer) serve(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// errPartway is a read that failed after part of a file of unknown size was sent.
 var errPartway = errors.New("the read failed partway")
 
-// startedWriter records whether the response has started, so that a later failure isn't
-// written on top of it.
 type startedWriter struct {
 	http.ResponseWriter
 	started bool
@@ -157,16 +145,12 @@ func (w *startedWriter) Write(b []byte) (int, error) {
 // Unwrap lets http.ResponseController reach the connection's writer.
 func (w *startedWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// answer writes the file at p to w. ctx is the context of an rclone job. It returns an error
-// only while nothing was written, or errPartway.
 func answer(ctx context.Context, w http.ResponseWriter, r *http.Request, p string, inline bool) error {
 	o, err := object(ctx, p)
 	if err != nil {
 		return err
 	}
 	h := w.Header()
-	// These are set before anything is written, so nothing is sniffed from the body. The file
-	// (such as a user's HTML or SVG) must never run as a page of the app.
 	contentType := fs.MimeType(ctx, o)
 	h.Set("Content-Type", contentType)
 	h.Set("X-Content-Type-Options", "nosniff")
@@ -192,7 +176,7 @@ func answer(ctx context.Context, w http.ResponseWriter, r *http.Request, p strin
 		case err == nil || r.Context().Err() != nil:
 			return nil
 		case n == 0:
-			return err // nothing was sent, so serve answers with the error
+			return err
 		}
 		return fmt.Errorf("%w: %w", errPartway, err)
 	}
@@ -216,7 +200,6 @@ func (w errorsUnnamed) WriteHeader(status int) {
 // Unwrap lets http.ResponseController reach the connection's writer.
 func (w errorsUnnamed) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// object returns the file at p, which is a full rclone path.
 func object(ctx context.Context, p string) (fs.Object, error) {
 	parent, leaf, err := fspath.Split(p)
 	if err != nil {
@@ -239,7 +222,6 @@ func object(ctx context.Context, p string) (fs.Object, error) {
 	return f.NewObject(ctx, leaf)
 }
 
-// fail writes a plain text error response. Call it only before anything was written.
 func fail(w http.ResponseWriter, r *http.Request, err error) {
 	status := http.StatusBadGateway
 	switch {
@@ -251,14 +233,10 @@ func fail(w http.ResponseWriter, r *http.Request, err error) {
 	default:
 		logs.Logger(logs.CompApp, "media").WarnContext(r.Context(), "reading a file failed", "error", err)
 	}
-	// answer may have set the file's headers already. An error must never be saved under the
-	// file's name.
 	w.Header().Del("Content-Disposition")
 	http.Error(w, err.Error(), status)
 }
 
-// previewType reports whether the preview shows this content type inline: image, video, audio,
-// PDF or plain text. Any other type is always sent as an attachment.
 func previewType(contentType string) bool {
 	mt, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
@@ -268,8 +246,6 @@ func previewType(contentType string) bool {
 	return top == "image" || top == "video" || top == "audio" || mt == "application/pdf" || mt == "text/plain"
 }
 
-// disposition returns the Content-Disposition for a file called name. It is an attachment,
-// unless inline is asked for and the preview can show the type.
 func disposition(name, contentType string, inline bool) string {
 	kind := "attachment"
 	if inline && previewType(contentType) {
@@ -278,8 +254,6 @@ func disposition(name, contentType string, inline bool) string {
 	return fmt.Sprintf("%s; filename*=UTF-8''%s", kind, encodeFilename(name))
 }
 
-// encodeFilename percent-encodes every byte except ASCII letters and digits, as an RFC 8187
-// value.
 func encodeFilename(name string) string {
 	var b strings.Builder
 	for i := range len(name) {

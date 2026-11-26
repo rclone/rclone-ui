@@ -1,14 +1,5 @@
 name: build
 
-# Builds and packages the six targets. The ci workflow and the release workflows both call it, so
-# what ci checks is what a release publishes.
-#
-# With release set, the packages are signed (each OS gets only its own secrets), one failed target
-# stops the rest, and the artifacts are named dist-<goos>-<goarch>, which the release workflows
-# read. Without it, the packages are unsigned and the artifacts are named rcui-<goos>-<goarch>.
-#
-# With a version, the build and its packages take that version in place of package.json's
-# (release-beta uses it for its numbered betas).
 on:
   workflow_call:
     inputs:
@@ -31,8 +22,6 @@ jobs:
       fail-fast: ${{ inputs.release }}
       matrix:
         include:
-          # macOS 15 on Apple silicon, which also builds the Intel app. GitHub retired its macOS 14
-          # runners on November 2, 2026.
           - { runner: macos-15, goos: darwin, goarch: arm64 }
           - { runner: macos-15, goos: darwin, goarch: amd64 }
           - { runner: windows-latest, goos: windows, goarch: amd64 }
@@ -43,19 +32,13 @@ jobs:
           - { runner: ubuntu-24.04, container: 'debian:13', goos: linux, goarch: amd64 }
           - { runner: ubuntu-24.04-arm, container: 'debian:13', goos: linux, goarch: arm64 }
     runs-on: ${{ matrix.runner }}
-    # Empty for macOS and Windows, which build on the runner itself.
     container: ${{ matrix.container }}
     env:
       GOOS: ${{ matrix.goos }}
       GOARCH: ${{ matrix.goarch }}
-      # build.sh and package.sh read it. Empty, they take package.json's version.
       APP_VERSION: ${{ inputs.version }}
     steps:
       - name: Linux build and packaging dependencies
-        # The container is a bare Debian, so this step comes first. It installs git for the
-        # checkout, a C compiler and pkg-config for cgo, GTK 4 and WebKitGTK 6.0 (Wails' default
-        # stack), gtk4-layer-shell, which rcui links, and the tools that packaging uses. Nothing
-        # mounts the AppImage, so FUSE isn't needed.
         if: runner.os == 'Linux'
         run: |
           apt-get update
@@ -96,7 +79,6 @@ jobs:
           security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
           rm certificate.p12
-          # The valid identities only: an expired certificate, or one of another type, has none.
           identities=$(security find-identity -v -p codesigning build.keychain)
           id=$(awk -F'"' '/Developer ID Application/ {print $2; exit}' <<<"$identities")
           if [ -z "$id" ]; then
@@ -144,7 +126,6 @@ jobs:
       - name: Build
         shell: bash
         env:
-          # A repository variable, not a secret, because the key can only add events.
           POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
         run: build/build.sh
       - name: gtk4-layer-shell loads before libwayland-client
@@ -180,8 +161,6 @@ jobs:
         run: build/build.sh --vet
 
       - name: Roles answer
-        # Runs the binary where the runner's CPU can run it, and checks that it has our update
-        # command and not rclone's selfupdate.
         if: matrix.goarch == 'amd64' && runner.arch == 'X64' || matrix.goarch == 'arm64' && runner.arch == 'ARM64'
         shell: bash
         run: |
@@ -199,8 +178,6 @@ jobs:
           expect 'go/tags:.*noselfupdate' version
           # build.sh sets the version through -ldflags -X, which Go ignores when the path is wrong.
           expect "^yours: *Rclone UI [0-9]" update --check
-          # The production feed answers in a format this build reads, or isn't there yet (before
-          # the first stable release). A failed check prints no latest: line.
           expect "^latest: " update --check
           expect "Rclone UI" update --help
 
@@ -209,7 +186,6 @@ jobs:
         # appear in an if, so each is empty unless the release builds for its OS.
         shell: bash
         env:
-          # A release fails without its macOS secrets rather than sign ad hoc (package.sh).
           APP_RELEASE_CHECK: ${{ inputs.release && '1' || '' }}
           APPLE_ID: ${{ inputs.release && matrix.goos == 'darwin' && secrets.APPLE_ID || '' }}
           APPLE_PASSWORD: ${{ inputs.release && matrix.goos == 'darwin' && secrets.APPLE_ID_PASSWORD || '' }}
@@ -217,7 +193,6 @@ jobs:
           AZURE_CLIENT_ID: ${{ inputs.release && matrix.goos == 'windows' && secrets.AZURE_CLIENT_ID || '' }}
           AZURE_CLIENT_SECRET: ${{ inputs.release && matrix.goos == 'windows' && secrets.AZURE_CLIENT_SECRET || '' }}
           AZURE_TENANT_ID: ${{ inputs.release && matrix.goos == 'windows' && secrets.AZURE_TENANT_ID || '' }}
-          # Azure Trusted Signing, with the release's account and certificate profile.
           SIGN_COMMAND: ${{ inputs.release && matrix.goos == 'windows' && 'trusted-signing-cli -e https://eus.codesigning.azure.net -a sign-1 -c Sign1 -d Rclone %1' || '' }}
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: build/package.sh
@@ -255,8 +230,6 @@ jobs:
           grep -q '^yours: .*(portable)$' <<<"$out" || { echo "::error::update --check doesn't say the copy is portable"; exit 1; }
 
       - name: Authenticode signatures
-        # What a release ships signed: the installer (signed inside makensis), and the binaries
-        # package.sh signed before it.
         if: inputs.release && runner.os == 'Windows'
         shell: pwsh
         run: |

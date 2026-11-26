@@ -12,15 +12,9 @@ import (
 	"time"
 )
 
-// pathMarker surrounds the PATH in the shell's output, so that anything a profile prints to
-// stdout isn't mixed into the value.
 const pathMarker = "__RCUI_PATH__"
 
-// FixPath gives a process launched from the GUI the PATH of the user's login shell. Finder and
-// desktop launchers start apps with a minimal PATH, but rclone's password commands and the core's
-// children need the user's PATH. When the app is started from a terminal, PATH is already the
-// shell's, and this changes nothing that matters. FixPath runs before the app is built, because
-// building it reads the environment.
+// Finder and desktop launchers start apps with a minimal PATH.
 func FixPath() {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
@@ -31,19 +25,14 @@ func FixPath() {
 	}
 }
 
-// readLoginPath returns the PATH that shell prints when run as a login shell. A profile may start
-// a background job without redirecting its output, such as an agent or `(sleep 60) &`. That job
-// keeps the output open after the shell has exited. So the wait for the output is cut short, and
-// what the shell printed is used.
+// A profile may start a background job without redirecting its output, which keeps the output
+// open after the shell has exited.
 func readLoginPath(shell string) (string, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	// Use the host's environment, because under an AppImage the shell would load the AppImage's
-	// libraries.
 	cmd := HostCommand(ctx, shell, "-ilc", `printf '`+pathMarker+`%s`+pathMarker+`' "$PATH"`)
-	// Run the shell in its own session. Otherwise, when the app is started from a terminal, the
-	// interactive shell would take over the terminal's foreground for its job control, and keep
-	// it.
+	// Without its own session, an interactive shell started from a terminal would take over the
+	// terminal's foreground for its job control, and keep it.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	cmd.WaitDelay = 500 * time.Millisecond
 	out, err := cmd.Output()

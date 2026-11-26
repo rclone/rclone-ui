@@ -13,10 +13,6 @@ import RcloneGroup, { NetworkGroup } from './RcloneGroup'
 import StartupGroup from './StartupGroup'
 import { SECTION_IDS } from './sections'
 
-/**
- * The Settings window. `?section=network` opens the window at that group (the proxy's restart
- * comes back to it).
- */
 export default function Settings() {
     const asked = usePageQuery().get('section')
     useEffect(() => {

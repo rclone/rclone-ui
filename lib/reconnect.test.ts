@@ -36,7 +36,6 @@ const step = (state: string, extra: Partial<ConfigStep> = {}): ConfigStep => ({
     ...extra,
 })
 
-/** The sign-in dialogs shown so far, each with whether it was closed by the session. */
 function dialogs() {
     return vi.mocked(message).mock.calls.map(([text, options]) => ({
         text,
@@ -48,7 +47,6 @@ beforeEach(() => {
     vi.mocked(message).mockReset()
     vi.mocked(nextStep).mockReset()
     vi.mocked(cancelSession).mockReset()
-    // The dialog stays open until the session closes it, and then answers with Cancel.
     vi.mocked(message).mockImplementation(
         (_text, options) =>
             new Promise((resolve) => {
@@ -72,7 +70,6 @@ test('the sign-in dialog closes itself when the session finishes', async () => {
     await expect(end).resolves.toMatchObject({ state: 'done' })
     await flush()
     expect(dialogs()[0].closed).toBe(true)
-    // The closed dialog's answer doesn't cancel the session.
     expect(cancelSession).not.toHaveBeenCalled()
 })
 

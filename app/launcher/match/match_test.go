@@ -34,7 +34,6 @@ func TestMatchPositions(t *testing.T) {
 	}
 }
 
-// rank orders texts by their score for pattern, best first. Ties keep their order.
 func rank(pattern string, texts []string) []string {
 	type scored struct {
 		text  string
@@ -58,7 +57,7 @@ func TestMatchRanking(t *testing.T) {
 	commands := []string{"Bisync", "Copy", "Download", "Move", "Mount", "New Remote", "Serve", "Settings", "Show Remotes", "Sync"}
 	cases := []struct {
 		pattern string
-		first   []string // the leading results, in order
+		first   []string
 	}{
 		{"copy", []string{"Copy"}},
 		{"mo", []string{"Move", "Mount"}},
@@ -84,8 +83,6 @@ func TestExactBeatsPrefix(t *testing.T) {
 	}
 }
 
-// TestExactAddsExactBonus: a pattern that equals the whole text, ignoring case and spaces, scores
-// ExactBonus more than the same letters matched in a longer text.
 func TestExactAddsExactBonus(t *testing.T) {
 	for _, c := range []struct {
 		pattern, text string

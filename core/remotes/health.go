@@ -13,23 +13,19 @@ import (
 )
 
 const (
-	healthOKFor     = time.Hour        // how long an ok result stays valid
-	healthFaultyFor = time.Minute      // a faulty remote is checked again soon
-	healthTimeout   = 30 * time.Second // counted from when the check starts, not when it was queued
-	healthAtOnce    = 3                // how many checks run at once, across the app
-	// healthRetry is how long to wait before queuing a remote again after a check that got no
-	// result (a timeout).
-	healthRetry = time.Minute
+	healthOKFor     = time.Hour
+	healthFaultyFor = time.Minute
+	healthTimeout   = 30 * time.Second
+	healthAtOnce    = 3
+	healthRetry     = time.Minute
 )
 
 type healthEntry struct {
-	answer  *HealthResult // the last result rclone gave: ok or faulty
-	at      time.Time     // when that result was given
-	triedAt time.Time     // the time of the last check that got no result
+	answer  *HealthResult
+	at      time.Time
+	triedAt time.Time
 }
 
-// healthCache holds each remote's last result and runs the checks. Checks are queued by Health
-// and by config changes. At most healthAtOnce run at a time, and at most one per remote.
 type healthCache struct {
 	s       *Service
 	timeout time.Duration
@@ -39,7 +35,7 @@ type healthCache struct {
 	pending  []string
 	queued   map[string]bool
 	inflight map[string]bool
-	gen      map[string]int // incremented by forget, so the result of an earlier check is dropped
+	gen      map[string]int
 	workers  int
 }
 
@@ -58,12 +54,12 @@ func (s *Service) Health(ctx context.Context) map[string]HealthResult {
 	return s.health.read(s.names())
 }
 
-// Recheck drops every remote's result and queues a check for each one, for the Remotes page's
-// refresh. Health reports checking until each check finishes and publishes its result, which is
-// unknown for a check that got no result.
+// Recheck drops every remote's result and queues a check for each one. Health reports checking
+// until each check finishes and publishes its result, which is unknown for a check that got no
+// result.
 func (s *Service) Recheck() { s.health.forget(s.names()) }
 
-// CheckRemote drops one remote's result and queues a check of it, for its edit form.
+// CheckRemote drops one remote's result and queues a check of it.
 func (s *Service) CheckRemote(name string) { s.health.forget([]string{name}) }
 
 func (h *healthCache) read(names []string) map[string]HealthResult {
@@ -76,9 +72,6 @@ func (h *healthCache) read(names []string) map[string]HealthResult {
 		e := h.entries[n]
 		queued, inflight := h.queued[n], h.inflight[n]
 		triedLately := e != nil && now.Sub(e.triedAt) < healthRetry
-		// The last check got no result and no new check has been queued since. Its call may
-		// still be running, for a backend that ignores its context, but a page shouldn't wait
-		// for it.
 		lost := e != nil && e.triedAt.After(e.at) && !queued
 		switch {
 		case e != nil && e.answer != nil && fresh(e, now):
@@ -96,9 +89,6 @@ func (h *healthCache) read(names []string) map[string]HealthResult {
 	return out
 }
 
-// noAnswerLocked returns what the pages see after a check that got no result: the previous
-// result, or unknown when there was none. This way a page that waits for every remote's result
-// isn't stuck on a remote that never responds.
 func (h *healthCache) noAnswerLocked(e *healthEntry) HealthResult {
 	if e.answer != nil {
 		return *e.answer
@@ -114,8 +104,6 @@ func fresh(e *healthEntry, now time.Time) bool {
 	return now.Sub(e.at) < keep
 }
 
-// forget drops the results for names, after a reconnect or a config change, and queues a check
-// for each name that is still a remote.
 func (h *healthCache) forget(names []string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -143,7 +131,6 @@ func (h *healthCache) enqueueLocked(names []string) {
 	}
 }
 
-// next takes the first queued remote that has no check running.
 func (h *healthCache) next() (name string, gen int, ok bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -160,7 +147,6 @@ func (h *healthCache) next() (name string, gen int, ok bool) {
 	return "", 0, false
 }
 
-// work runs checks until none is due. If it is restarted after a panic, it carries on.
 func (h *healthCache) work(ctx context.Context) {
 	for ctx.Err() == nil {
 		name, gen, ok := h.next()
@@ -174,9 +160,6 @@ func (h *healthCache) work(ctx context.Context) {
 	h.mu.Unlock()
 }
 
-// check checks one remote. At the timeout, the worker slot is freed at once. The remote stays
-// marked as running until rclone returns (for a backend that ignores its context), so a second
-// check of it never runs at the same time.
 func (h *healthCache) check(ctx context.Context, name string, gen int) {
 	if !h.s.exists(name) {
 		h.done(name)
@@ -202,7 +185,6 @@ func (h *healthCache) check(ctx context.Context, name string, gen int) {
 
 	h.mu.Lock()
 	if h.gen[name] != gen {
-		// The config changed during the check, and a new check is queued.
 		h.mu.Unlock()
 		return
 	}
@@ -215,8 +197,6 @@ func (h *healthCache) check(ctx context.Context, name string, gen int) {
 	if r.answered {
 		e.answer, e.at = &r.health, h.s.now()
 	} else {
-		// No result says nothing about the remote. Pages that show checking get the last
-		// result, or unknown.
 		e.triedAt = h.s.now()
 		shown = h.noAnswerLocked(e)
 	}
@@ -224,9 +204,6 @@ func (h *healthCache) check(ctx context.Context, name string, gen int) {
 	h.s.bus.Publish(bus.RemotesHealth, bus.RemotesHealthData{ID: name, State: shown.State, Error: shown.shown().Error})
 }
 
-// done marks name's check as over, so a check of it that was queued in the meantime can run.
-// The workers skipped that check while the first one was running, and they may all have exited
-// since, so a worker is started again for it.
 func (h *healthCache) done(name string) {
 	h.mu.Lock()
 	delete(h.inflight, name)
@@ -237,9 +214,7 @@ func (h *healthCache) done(name string) {
 }
 
 // ask opens the remote and then lists its root. The listing is needed because an alias to a
-// missing folder opens without error. answered is false when there is no result, because of the
-// timeout or the app shutting down, which says nothing about the remote. Any error that rclone
-// returns counts as a result.
+// missing folder opens without error.
 func ask(ctx context.Context, name string) (health HealthResult, answered bool) {
 	group := rclone.UIGroup("health", name)
 	defer rclone.DeleteGroup(context.WithoutCancel(ctx), group)
@@ -248,10 +223,8 @@ func ask(ctx context.Context, name string) (health HealthResult, answered bool) 
 			return HealthResult{}, false
 		}
 		return HealthResult{
-			State:   HealthFaulty,
-			problem: shown,
-			// Only advice for this remote counts, because a wrapper over it fails with the same
-			// text.
+			State:        HealthFaulty,
+			problem:      shown,
 			CanReconnect: rclone.HasReconnectAdvice(err, name),
 		}, true
 	}
@@ -266,8 +239,6 @@ func ask(ctx context.Context, name string) (health HealthResult, answered bool) 
 		}
 		health = HealthResult{State: HealthOK}
 		if about := f.Features().About; about != nil {
-			// The quota is extra information on the card, and a remote that doesn't report it
-			// still works.
 			if u, err := about(ctx); err == nil {
 				health.About = u
 			}

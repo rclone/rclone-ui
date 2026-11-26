@@ -5,9 +5,6 @@ import (
 	"time"
 )
 
-// claimTTL is how long a claim lasts without a release. It is long enough for a sign-in on
-// another device, and short enough that a page which went away doesn't block the prompt until
-// the next restart.
 const claimTTL = 15 * time.Minute
 
 // Claims gives each remote's reconnect dialog to one tab at a time. Claims are kept only in

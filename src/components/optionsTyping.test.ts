@@ -1,7 +1,6 @@
 import { expect, test } from 'vitest'
 import { type Typed, typeEnter, typeQuote } from './optionsTyping'
 
-// The editor's text with `|` where the cursor is. undefined leaves the key to the textarea.
 const marked = (r: Typed | undefined) =>
     r && `${r.text.slice(0, r.cursor)}|${r.text.slice(r.cursor)}`
 const type = (key: typeof typeQuote, text: string) => {

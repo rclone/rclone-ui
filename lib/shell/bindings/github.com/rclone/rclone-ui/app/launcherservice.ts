@@ -7,8 +7,7 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 /**
  * SetShortcut replaces the launcher's global shortcut. It uses the syntax that Settings stores,
- * such as "CmdOrCtrl+Shift+/", and "" removes the shortcut. Settings calls it before saving a
- * shortcut, so a shortcut that the OS refuses is never saved.
+ * such as "CmdOrCtrl+Shift+/", and "" removes the shortcut.
  */
 export function SetShortcut(shortcut: string): $CancellablePromise<void> {
     return $Call.ByID(292919379, shortcut);

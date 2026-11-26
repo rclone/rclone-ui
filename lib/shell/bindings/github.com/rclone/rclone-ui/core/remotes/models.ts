@@ -40,9 +40,6 @@ export class ClaimResult {
     }
 }
 
-/**
- * ConfigStep is a config session as the pages see it.
- */
 export class ConfigStep {
     "id": string;
     "remote": string;
@@ -145,9 +142,6 @@ export class ConfigStep {
     }
 }
 
-/**
- * FsInfoView describes what a remote's backend can do, as the pages read it.
- */
 export class FsInfoView {
     "features": { [_ in string]?: boolean };
 
@@ -211,7 +205,7 @@ export class FsInfoView {
  *     result
  * 
  * Error is the problem's message in the app's language. It is filled in when the result leaves
- * for a page (shown), because a result is kept for a while and the language may change.
+ * for a page (shown).
  */
 export class HealthResult {
     "state": string;
@@ -241,16 +235,7 @@ export class HealthResult {
     }
 }
 
-/**
- * Quota is a backend's response to about (fs.Usage). Values are in bytes, except objects, which
- * is a count. Each value is set only when the backend reports it.
- */
 export const Quota = fs$0.Usage;
-
-/**
- * Quota is a backend's response to about (fs.Usage). Values are in bytes, except objects, which
- * is a count. Each value is set only when the backend reports it.
- */
 export type Quota = fs$0.Usage;
 
 export class Remote {

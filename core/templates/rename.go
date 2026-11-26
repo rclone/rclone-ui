@@ -10,9 +10,7 @@ import (
 )
 
 // RenameRemote rewrites the templates that name the remote from, after the remote is renamed to
-// to. It makes the service one of the remotes' followers (remotes.Follower). Each template is
-// rewritten by renameRemote, which is the place to add more of a template's fields that hold
-// paths.
+// to. It makes the service one of the remotes' followers (remotes.Follower).
 func (s *Service) RenameRemote(ctx context.Context, from, to string) error {
 	changed := false
 	err := s.db.Write(ctx, func(tx *sql.Tx) error {
@@ -45,8 +43,6 @@ func (s *Service) RenameRemote(ctx context.Context, from, to string) error {
 	return nil
 }
 
-// renameRemote rewrites the paths on the remote from to name the remote to, in the options and
-// in the template's paths. It reports whether anything changed.
 func (t *Template) renameRemote(from, to string) bool {
 	moved := t.Options.RenameRemote(from, to)
 	if t.Paths != nil {

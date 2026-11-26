@@ -16,33 +16,24 @@ import (
 
 var errNoCore = errs.New("the core is not ready")
 
-// The completion's limits: how long it waits for typing to stop before listing, and the maximum
-// number of entries it offers.
 const (
 	completionDelay = 120 * time.Millisecond
 	completionMax   = 30
 )
 
-// Completion lists the folder of the path being typed and offers the entries whose names match
-// the name being typed. Tab puts the selected one in the query. A folder's listing is streamed:
-// its first page is offered at once, and the rest as they arrive. One listing per folder serves
-// every query typed in that folder, so further typing lists the folder only once and doesn't
-// restart a slow listing. Typing in another folder stops an unfinished listing. Listings are kept
-// until Reset, which is called when the launcher hides.
 type Completion struct {
 	mu       sync.Mutex
 	listings map[string]*listing
-	ctx      context.Context // the parent context of the listings, cancelled by Reset
+	ctx      context.Context
 	cancel   context.CancelFunc
 	delay    time.Duration
 }
 
-// listing holds one folder's entries as they arrive.
 type listing struct {
 	mu      sync.Mutex
 	entries []engine.Entry
 	done    bool
-	update  chan struct{} // closed at each change, then replaced
+	update  chan struct{}
 	stop    context.CancelFunc
 }
 
@@ -66,9 +57,6 @@ func (c *Completion) Query(ctx context.Context, q engine.Query, d *engine.Data) 
 	return c.QueryStream(ctx, q, d, func([]engine.Result) {})
 }
 
-// QueryStream offers the entries of the folder being typed in. Each time a page arrives, it passes
-// the entries listed so far. ctx belongs to the query, so a newer query stops the waiting but not
-// the listing.
 func (c *Completion) QueryStream(ctx context.Context, q engine.Query, d *engine.Data, partial func([]engine.Result)) []engine.Result {
 	if q.Typing == nil || d.List == nil {
 		return nil
@@ -76,7 +64,6 @@ func (c *Completion) QueryStream(ctx context.Context, q engine.Query, d *engine.
 	dir, prefix := split(q.Typing.Text)
 	l := c.listing(dir)
 	if l == nil {
-		// a new folder is listed once typing in it pauses
 		select {
 		case <-ctx.Done():
 			return nil
@@ -109,9 +96,6 @@ func (c *Completion) listing(dir string) *listing {
 	return c.listings[dir]
 }
 
-// start lists dir, or joins a listing of dir that started in the meantime. It stops unfinished
-// listings of other folders, because the user has moved on from them. A listing that fails is
-// discarded, so the next query tries again.
 func (c *Completion) start(dir string, list func(context.Context, string, func([]engine.Entry)) error) *listing {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -145,8 +129,6 @@ func (c *Completion) start(dir string, list func(context.Context, string, func([
 	return l
 }
 
-// add appends a page, or marks the listing as ended when done is true. Either way it wakes the
-// waiting queries.
 func (l *listing) add(page []engine.Entry, done bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -156,9 +138,6 @@ func (l *listing) add(page []engine.Entry, done bool) {
 	l.update = make(chan struct{})
 }
 
-// results returns the entries of dir (in the path at) whose names match prefix, with folders
-// first and at most completionMax of them. When files are dropped, only folders are returned, as
-// places for the files to go.
 func results(at engine.Path, d *engine.Data, dir, prefix string, entries []engine.Entry, dropped []engine.Path) []engine.Result {
 	type scored struct {
 		e     engine.Entry
@@ -176,7 +155,7 @@ func results(at engine.Path, d *engine.Data, dir, prefix string, entries []engin
 		}
 		s := m.Score
 		if e.Dir {
-			s += 10 // folders first, since a typed path goes through them
+			s += 10
 		}
 		picks = append(picks, scored{e, s, m.Positions})
 	}
@@ -206,7 +185,6 @@ func results(at engine.Path, d *engine.Data, dir, prefix string, entries []engin
 		}
 		entry := engine.Path{Text: full, Local: at.Local, Remote: at.Remote, Features: at.Features}
 		copyPath := copyText("copy-path", i18n.T("Copy Path"), full)
-		// Enter browses a folder, or copies a file's path
 		actions := append([]engine.Action{copyPath}, pathActions(entry, d, false)...)
 		if p.e.Dir {
 			actions = append(pathActions(entry, d, true), copyPath)
@@ -220,8 +198,6 @@ func results(at engine.Path, d *engine.Data, dir, prefix string, entries []engin
 	return out
 }
 
-// split splits a typed path into its folder (with the separator) and the name being typed in it.
-// "gdrive:Pho" → "gdrive:", "Pho"; "gdrive:a/b" → "gdrive:a/", "b"; "/tmp/x" → "/tmp/", "x".
 func split(p string) (dir, name string) {
 	i := strings.LastIndexAny(p, "/\\")
 	if c := strings.Index(p, ":"); c > i && !(c == 1 && len(p) > 2) {

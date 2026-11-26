@@ -1,22 +1,11 @@
 import { useEffect, useSyncExternalStore } from 'react'
 
 /**
- * Peeking: while the user holds the peek key, the Commander shows labels that are normally only
- * seen on hover, such as the names of the places in its sidebars. Anything in the Commander can
- * call usePeek to show more while the key is held.
- */
-
-/**
- * The key to hold. Shift works with a click, so the user can hold it, read the names and click
- * one. Alt doesn't: many Linux desktops use Alt with a click to move the window, and on Windows
- * releasing Alt alone moves the keyboard to the window's menu.
+ * Not Alt: many Linux desktops use Alt with a click to move the window, and on Windows releasing
+ * Alt alone moves the keyboard to the window's menu.
  */
 const PEEK_KEY = 'Shift'
 
-/**
- * How long the key must be held, in ms. A shorter press is the start of a shortcut or of a
- * capital letter, and shows nothing.
- */
 const PEEK_DELAY = 200
 
 let peeking = false
@@ -33,7 +22,6 @@ function subscribe(listener: () => void) {
     return () => listeners.delete(listener)
 }
 
-/** Whether the peek key is held. */
 export function usePeek(): boolean {
     return useSyncExternalStore(subscribe, isPeeking)
 }
@@ -50,7 +38,6 @@ function isTyping(target: EventTarget | null) {
     )
 }
 
-/** Listens for the peek key on a window, until the function it returns is called. */
 export function watchPeekKey(target: Pick<Window, 'addEventListener' | 'removeEventListener'>) {
     let timer: ReturnType<typeof setTimeout> | undefined
     const stop = () => {
@@ -60,7 +47,6 @@ export function watchPeekKey(target: Pick<Window, 'addEventListener' | 'removeEv
     }
     const onKeyDown = (event: KeyboardEvent) => {
         if (event.key !== PEEK_KEY) {
-            // Another key makes it a shortcut.
             stop()
             return
         }
@@ -76,7 +62,6 @@ export function watchPeekKey(target: Pick<Window, 'addEventListener' | 'removeEv
     }
     target.addEventListener('keydown', onKeyDown, true)
     target.addEventListener('keyup', onKeyUp, true)
-    // The key's release goes to another window when this one loses the keyboard.
     target.addEventListener('blur', stop)
     return () => {
         target.removeEventListener('keydown', onKeyDown, true)
@@ -86,7 +71,6 @@ export function watchPeekKey(target: Pick<Window, 'addEventListener' | 'removeEv
     }
 }
 
-/** Listens for the peek key. The Commander's page calls it once. */
 export function usePeekKey() {
     useEffect(() => watchPeekKey(window), [])
 }

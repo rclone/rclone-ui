@@ -46,7 +46,6 @@ func TestHostEnv(t *testing.T) {
 	if !slices.Equal(hostEnv(slices.Clone(env), ""), env) {
 		t.Fatal("outside an AppImage the environment is unchanged")
 	}
-	// A folder whose name only starts like the AppDir's isn't inside it.
 	if got := hostEnv([]string{"PATH=" + testAppDir + "2/bin"}, testAppDir); !slices.Equal(got, []string{"PATH=" + testAppDir + "2/bin"}) {
 		t.Fatalf("a sibling folder: %q", got)
 	}

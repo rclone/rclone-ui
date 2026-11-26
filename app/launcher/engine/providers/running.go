@@ -21,24 +21,15 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// Running offers what the core is running: its transfers, mounts and serves, listed in the Active
-// group (also on the empty query) with the actions for each, plus the transfers that failed in
-// the last day and the VFS caches. The rows that stop them show when a word asks for them
-// ("stop", "unmount") or when the history says they are used.
 type Running struct{}
 
-// activeMax is the maximum number of running items that the empty query lists. Any more are
-// shown in a drill-in ("active ").
 const activeMax = 4
 
-// A failed transfer is listed for failedFor after it ended. The empty query lists only the
-// failedMax newest ones.
 const (
 	failedFor = 24 * time.Hour
 	failedMax = 3
 )
 
-// activeWords list every running item. The first is the drill-in that lists all of them.
 var (
 	// i18n: Words that, typed in the launcher, list everything that is running, separated by commas. The launcher types the first one itself, so it must be one word.
 	activeWords = i18n.M("active, running")
@@ -65,15 +56,10 @@ func (Running) Query(_ context.Context, q engine.Query, d *engine.Data) []engine
 	return append(out, vfsResults(q, d)...)
 }
 
-// watcherRun reports whether t is a watcher's own run. A watcher runs every minute and has its own
-// window, so its runs are left out of the launcher's rows, as they are of the tray's. A retry
-// from History is the user's own run, so it is shown, as the transfer service treats it.
 func watcherRun(t transfers.Transfer) bool {
 	return t.Origin.Kind == transfers.OriginWatcher && t.RetryOf == ""
 }
 
-// failedResults returns the transfers that failed in the last day, newest first. Each one opens
-// its details in the History window: "Sync failed: Photos → gdrive:Photos".
 func failedResults(q engine.Query, d *engine.Data, now time.Time) []engine.Result {
 	var out []engine.Result
 	for _, t := range d.Failed {
@@ -114,8 +100,6 @@ func failedResults(q engine.Query, d *engine.Data, now time.Time) []engine.Resul
 	return out
 }
 
-// capActive limits the empty query's running items to activeMax rows. When there are more, it
-// keeps the first few and adds a row that shows all of them.
 func capActive(rs []engine.Result) []engine.Result {
 	n := 0
 	for _, r := range rs {
@@ -150,8 +134,6 @@ func capActive(rs []engine.Result) []engine.Result {
 	})
 }
 
-// transferRunResults returns the queued and running transfers as one row that opens the History
-// window, and a row that stops them, shown when asked for.
 func transferRunResults(q engine.Query, d *engine.Data) []engine.Result {
 	var ts []transfers.Transfer
 	for _, t := range d.Transfers {
@@ -177,7 +159,6 @@ func transferRunResults(q engine.Query, d *engine.Data) []engine.Result {
 			live = append(live, t.Live)
 		}
 	}
-	// their progress, once the core reports it: "42% · 12 MB/s · 3 min left"
 	progress := progressLine(corestate.SumProgress(live))
 	queued := len(ts) - running
 	title := i18n.MN("%d Transfer", "%d Transfers", len(ts), len(ts))
@@ -199,8 +180,6 @@ func transferRunResults(q engine.Query, d *engine.Data) []engine.Result {
 		// i18n: How many transfers run, and how many wait for their turn.
 		subtitle = i18n.T("%[1]d running, %[2]d queued", running, queued)
 	}
-	// The state is a label, with no period, so that a language's own punctuation isn't mixed
-	// with ours.
 	switch {
 	case progress == "":
 	case len(ts) == 1:
@@ -224,7 +203,6 @@ func transferRunResults(q engine.Query, d *engine.Data) []engine.Result {
 	}
 }
 
-// transferTitle describes what a transfer does: "Copy gdrive:Photos → /Users/me/Photos".
 func transferTitle(t transfers.Transfer) i18n.Text {
 	paths := transferPaths(t)
 	if paths == "" {
@@ -247,7 +225,6 @@ func transferTitle(t transfers.Transfer) i18n.Text {
 	return i18n.M("Transfer %s", paths)
 }
 
-// operationName names a transfer's operation: "Copy", "Delete Folder".
 func operationName(o operations.Operation) i18n.Text {
 	if op, ok := opByID(string(o)); ok {
 		return op.name
@@ -267,7 +244,6 @@ func operationName(o operations.Operation) i18n.Text {
 	return i18n.M("Transfer")
 }
 
-// transferPaths describes a transfer's paths: "gdrive:Photos → /Users/me/Photos", "gdrive:old".
 func transferPaths(t transfers.Transfer) string {
 	out := ""
 	if s := t.Sources; len(s) > 0 {
@@ -283,13 +259,11 @@ func transferPaths(t transfers.Transfer) string {
 	return out
 }
 
-// stopAction is an action that stops something, with the title of its row.
 type stopAction struct {
 	engine.Action
 	title i18n.Text
 }
 
-// stopTransfers returns an action that stops the transfers ts, after asking for confirmation.
 func stopTransfers(ts []transfers.Transfer) stopAction {
 	n := len(ts)
 	name, question := i18n.M("Stop All Transfers"), i18n.N("Stop %d transfer?", "Stop %d transfers?", n, n)
@@ -324,7 +298,6 @@ func stopTransfers(ts []transfers.Transfer) stopAction {
 		}}}
 }
 
-// stopTransfer stops one transfer. A transfer that ended in the meantime counts as stopped.
 func stopTransfer(ctx context.Context, c engine.Transfers, id string) error {
 	err := c.Stop(ctx, id)
 	if errors.Is(err, transfers.ErrNotRunning) {
@@ -333,10 +306,6 @@ func stopTransfer(ctx context.Context, c engine.Transfers, id string) error {
 	return err
 }
 
-// StopEverything returns the Stop Everything row. Its action stops every transfer (a watcher's or
-// a schedule's run included), serve and mount that the core runs, and the remote tunnel. It first
-// asks a question that names what is running according to d, with the same phrase as the quit
-// dialog. It returns false when nothing is running. The launcher's stop button uses it too.
 func StopEverything(d *engine.Data) (engine.Result, bool) {
 	running := core.Running{Transfers: len(d.Transfers), Mounts: len(d.Mounts), Serves: len(d.Serves), Tunnel: d.Tunnel}
 	if running == (core.Running{}) {
@@ -357,9 +326,6 @@ func StopEverything(d *engine.Data) (engine.Result, bool) {
 	}.Say(title, words), true
 }
 
-// stopEverything asks the core to stop everything it runs. The core makes its own list of what is
-// running, so what started after the question was asked stops too. The status then shows the
-// core's summary of what stopped.
 func stopEverything(ctx context.Context, env engine.Env) error {
 	c := env.Core().Everything
 	if c == nil {
@@ -374,8 +340,6 @@ func stopEverything(ctx context.Context, env engine.Env) error {
 	return nil
 }
 
-// reads reports whether a running item that reads source matches one of the typed paths. When
-// no path is typed, every item matches.
 func reads(q engine.Query, source string) bool {
 	if len(q.Paths) == 0 {
 		return true
@@ -426,7 +390,6 @@ func mountResults(q engine.Query, d *engine.Data) []engine.Result {
 			ID: "run:mount:" + m.ID, Key: historyKey("mount", m.Source+" "+m.MountPoint),
 			Title: m.Source + " → " + m.MountPoint, Subtitle: state, Icon: icons.Mount, Score: 130, Actions: actions,
 		}.Say(i18n.Text{}, mountWords).Say(i18n.Text{}, activeWords), engine.Result{
-			// the Stop row makes the stop available without the ⌘K panel
 			ID: "run:mount:stop:" + m.ID, Key: historyKey("unmount", m.Source+" "+m.MountPoint),
 			Subtitle: m.Source, Icon: icons.Stop, Score: 125, Recent: true, Actions: []engine.Action{stopMount(m)},
 		}.Say(unmount, mountWords))
@@ -536,8 +499,6 @@ func serveRunResults(q engine.Query, d *engine.Data) []engine.Result {
 	return out
 }
 
-// copyAddress returns an action that copies the serve's address to the clipboard, as the Serve
-// page does.
 func copyAddress(v serves.ServeRow) engine.Action {
 	return engine.Action{ID: "copy", Name: i18n.T("Copy Address"), Icon: icons.Clipboard, Run: func(_ context.Context, env engine.Env) error {
 		env.Clipboard(v.Addr)
@@ -566,8 +527,6 @@ func stopServe(v serves.ServeRow) engine.Action {
 		}}
 }
 
-// serveURL returns a serve's address in a form this machine's browser can open. A serve that
-// listens on every interface is reached at 127.0.0.1.
 func serveURL(addr string) string {
 	if strings.Contains(addr, "://") {
 		return addr
@@ -607,8 +566,6 @@ func vfsResults(q engine.Query, d *engine.Data) []engine.Result {
 			Actions: []engine.Action{forget("", "")},
 		}.Say(i18n.M("Forget Every VFS Cache"), vfsWords))
 	}
-	// The VFS item leads to the caches on an empty query. When no cache is in use, it shows for a
-	// typed word too, to say so. VFS is rclone's name, so its title isn't translated.
 	vfs := engine.Result{ID: "run:vfs", Key: "vfs", Title: "VFS", Subtitle: i18n.T("Forget the local cache for one or all remotes."),
 		Icon: icons.VFS, Score: 35}.Say(i18n.Text{}, vfsWords)
 	if len(d.Vfs) == 0 {
@@ -633,7 +590,6 @@ func vfsResults(q engine.Query, d *engine.Data) []engine.Result {
 	return out
 }
 
-// vfsOwner names what uses a VFS cache: a mount or a serve.
 func vfsOwner(kind string) string {
 	switch kind {
 	case "mount":
@@ -646,8 +602,6 @@ func vfsOwner(kind string) string {
 	return kind
 }
 
-// forget returns an action that forgets the VFS cache with id, of the remote fs. An empty id
-// forgets every cache.
 func forget(id, fs string) engine.Action {
 	working, done := i18n.T("Forgetting every VFS cache…"), i18n.T("Forgot every VFS cache.")
 	if id != "" {

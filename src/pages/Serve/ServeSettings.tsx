@@ -4,23 +4,16 @@ import CommonSettings, { SettingText } from '../../components/operation/CommonSe
 import type { BoundGroup } from '../../components/operation/optionBinding'
 import { defaultValue } from '../../components/optionValues'
 
-/** Returns an option's default value, written the way it would be typed in its field. */
 function defaultText(option: Option): string {
     const value = defaultValue(option)
     return Array.isArray(value) ? value.join(', ') : value
 }
 
-/**
- * The common settings of a serve, limited to the ones its type supports: the address it listens
- * on, and the username and password that clients must use. Renders nothing for a type that has
- * none of them (DLNA has no login).
- */
 export default function ServeSettings({
     group,
     options,
 }: {
     group: BoundGroup
-    /** The serve type's options, from the catalog. */
     options: readonly Option[]
 }) {
     const addr = options.find((option) => option.name === 'addr')

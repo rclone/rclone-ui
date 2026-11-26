@@ -25,10 +25,6 @@ export type {
 }
 export { NotificationProvider, SMTPEncryption }
 
-// Notifications run in the core (core/notifications): it owns the catalog, the targets, delivery
-// and the result of each send, and it validates what is saved. notifications.changed keeps the
-// queries fresh. This file has the calls to the core and the helpers for the provider forms.
-
 /** The saved targets, oldest first. */
 export function useNotificationTargets() {
     return useQuery({
@@ -37,7 +33,6 @@ export function useNotificationTargets() {
     })
 }
 
-/** The choices that a target's form offers, in order. */
 export function useNotificationsCatalog() {
     return useQuery({
         queryKey: coreKey('notifications', 'Catalog'),
@@ -101,17 +96,12 @@ export async function testSmtp(to: string): Promise<string> {
 const P = NotificationProvider
 
 interface ProviderMeta {
-    // The provider's name, which is the same in every language.
     label: string
-    // addLabel is the title of the drawer that adds a target and the label of its save button.
-    // editLabel is the title of the drawer that edits one. Each is a whole label, so that a
-    // language can order its words its own way.
     addLabel: string
     editLabel: string
     description: string
     urlPlaceholder: string
     accentClass: string
-    // The official docs page for getting the webhook or bot token, shown as a button in the drawer.
     helpUrl?: string
     helpLabel?: string
 }
@@ -157,8 +147,6 @@ const PROVIDER_META: Partial<Record<NotificationProvider, ProviderMeta>> = {
         helpLabel: t`How to create a bot and get its token`,
     },
     [P.NotificationProviderWebhook]: WEBHOOK,
-    // The `url` holds the recipients. The mail is sent through the mail server set in the
-    // Notifications window.
     [P.NotificationProviderEmail]: {
         label: 'Email',
         addLabel: t`Add Email`,
@@ -169,7 +157,6 @@ const PROVIDER_META: Partial<Record<NotificationProvider, ProviderMeta>> = {
     },
 }
 
-/** The providers a target can send to, in the order the page offers them. */
 export const NOTIFICATION_PROVIDERS: NotificationProvider[] = [
     P.NotificationProviderDiscord,
     P.NotificationProviderSlack,
@@ -182,19 +169,11 @@ export function providerMeta(provider: NotificationProvider): ProviderMeta {
     return PROVIDER_META[provider] ?? WEBHOOK
 }
 
-// The checks below are loose, and run while the user types in the form. They catch a field left
-// empty, or a value that is plainly not a URL or an address. The core decides what may be saved,
-// and when it rejects a save, the reason is shown next to the field (refusedFields).
-
-// The stored URL's path: /bot<token>/sendMessage.
 const RE_TELEGRAM_PATH = /^\/bot([^/]+)\/sendMessage$/
 const TELEGRAM_API = 'https://api.telegram.org'
 
-// One mailbox: some text, an @, and a domain. It accepts everything that the core accepts,
-// including a domain with no dot, as in ops@mailhost.
 const RE_EMAIL_ADDRESS = /^[^\s@,<>]+@[^\s@,<>]+$/
 
-/** Checks the Email target's recipients: one address or several, separated by commas. */
 function validateRecipients(value: string): string | null {
     const addresses = value
         .split(',')
@@ -215,10 +194,6 @@ function isWebUrl(value: string): boolean {
     }
 }
 
-/**
- * Returns what is plainly wrong with a target's url as typed: it is empty, or it isn't a URL (or,
- * for Email, an address).
- */
 export function validateWebhookUrl(provider: NotificationProvider, url: string): string | null {
     const trimmed = url.trim()
     if (provider === P.NotificationProviderEmail) {
@@ -240,16 +215,10 @@ export const TELEGRAM_CHAT_ID_HELP = t({
         '@userinfobot and @getidsbot are the names of Telegram bots: keep them as they are. @channelname is an example.',
 })
 
-/**
- * Builds the stored Telegram URL from the bot token that BotFather sent and the chat id. The
- * target stores one URL (https://api.telegram.org/bot<token>/sendMessage?chat_id=…), so that
- * delivery works the same way for every provider, and the form edits its two parts.
- */
 export function buildTelegramUrl(token: string, chatId: string): string {
     return `${TELEGRAM_API}/bot${token.trim()}/sendMessage?chat_id=${encodeURIComponent(chatId.trim())}`
 }
 
-/** The inverse of buildTelegramUrl, for filling in the edit form from a stored URL. */
 export function splitTelegramUrl(url: string): { token: string; chatId: string } {
     try {
         const parsed = new URL(url)
@@ -302,8 +271,6 @@ export function targetSubtitle(target: Pick<NotificationTarget, 'provider' | 'ur
     return maskWebhookUrl(target.url)
 }
 
-// Webhook URLs are credentials (Telegram's first path segment IS the bot token), so the list
-// shows this masked form instead of the full URL.
 export function maskWebhookUrl(url: string): string {
     try {
         const parsed = new URL(url)

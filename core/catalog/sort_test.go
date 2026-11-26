@@ -36,8 +36,6 @@ func TestSortOptions(t *testing.T) {
 		return out
 	}
 	for group, want := range map[string][]string{
-		// A main option that a run can set, but no group lists, goes to config, under rclone's
-		// name.
 		"config":   {"dry_run", "max_depth", "transfers"},
 		"copy":     {"ignore_existing"},
 		"sync":     {"max_delete"},
@@ -50,7 +48,6 @@ func TestSortOptions(t *testing.T) {
 			t.Errorf("%s: %v, want %v", group, g, want)
 		}
 	}
-	// Without a serve type, a serve option goes into the group of each serve that has it.
 	for _, serve := range []string{"serve.http", "serve.webdav", "serve.ftp"} {
 		if _, ok := got.Groups[serve]["addr"]; !ok {
 			t.Errorf("addr is not in %s: %v", serve, got.Groups)
@@ -72,8 +69,6 @@ func TestSortOptions(t *testing.T) {
 		t.Errorf("skipped %v, want %v", why, want)
 	}
 
-	// With a serve type, a serve option goes into that serve's group alone, and an option that
-	// only another serve has is skipped.
 	got = SortOptions(Group{"addr": json.RawMessage(`":8080"`), "announce_interval": json.RawMessage(`"5m"`)}, "webdav")
 	if len(got.Groups) != 1 || got.Groups["serve.webdav"]["addr"] == nil {
 		t.Errorf("groups of a webdav serve: %v", got.Groups)
@@ -99,9 +94,6 @@ func sameSet(a, b []string) bool {
 	return true
 }
 
-// The reasons reach the page in the app's language. The pseudo-language shows that they are
-// translated, whether or not a language has their translation yet. rclone's own reason keeps its
-// words.
 func TestLocalSkipped(t *testing.T) {
 	t.Cleanup(func() { i18n.SetLanguage(i18n.English) })
 	a := NewAPI(New(""), nil)

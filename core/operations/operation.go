@@ -4,21 +4,11 @@ import (
 	"github.com/rclone/rclone-ui/core/location"
 )
 
-// operationSpec describes one operation that BuildPlan can build.
 type operationSpec struct {
-	// settings reads the options that the plan runs with from the form's groups. It is nil for a
-	// form without options.
 	settings func(Groups) (settings, error)
-	// check refuses a form that the plan can't be built from. It only makes the checks that need
-	// no call to rclone, because CheckForm runs it as the user types.
-	check func(a args, s settings) error
-	// describe means that rclone is asked whether each source is a file or a folder
-	// (describeSources) before the plan is built.
+	check    func(a args, s settings) error
 	describe bool
-	// build builds the plan of a form that check accepted.
-	build func(a args, s settings, k Kinds) (Plan, error)
-	// recorded is the operation stored on the transfer. When it is empty, the operation itself
-	// is stored.
+	build    func(a args, s settings, k Kinds) (Plan, error)
 	recorded Operation
 }
 
@@ -69,13 +59,10 @@ func builder[A any, P argsOf[A]](build func(A, settings, Kinds) (Plan, error)) f
 	return func(a args, s settings, k Kinds) (Plan, error) { return build(*a.(P), s, k) }
 }
 
-// transferOf returns the settings function of an operation that reads the filter and metadata
-// groups. own is the operation's own group, or "" if it has none.
 func transferOf(own string) func(Groups) (settings, error) {
 	return func(g Groups) (settings, error) { return transferSettings(own, g) }
 }
 
-// RecordedOperation returns the operation stored on a transfer built for operation.
 func RecordedOperation(operation Operation) Operation {
 	if s := operationSpecs[operation]; s.recorded != "" {
 		return s.recorded
@@ -83,7 +70,6 @@ func RecordedOperation(operation Operation) Operation {
 	return operation
 }
 
-// IsRecordedOperation reports whether a transfer built by BuildPlan can be stored with operation.
 func IsRecordedOperation(operation Operation) bool {
 	for name, s := range operationSpecs {
 		if operation == name && s.recorded == "" || s.recorded != "" && operation == s.recorded {
@@ -106,8 +92,6 @@ func (a CleanupArgs) ends() ([]string, string)  { return []string{a.Remote}, "" 
 func (a MountArgs) ends() ([]string, string)    { return []string{a.Source}, a.Destination }
 func (a ServeArgs) ends() ([]string, string)    { return []string{a.Source}, "" }
 
-// ends of a rename returns the renamed entries as sources. When a single entry is renamed, the
-// destination is its new path, written in the same form as the old one.
 func (a RenameArgs) ends() ([]string, string) {
 	sources := make([]string, len(a.Items))
 	for i, it := range a.Items {

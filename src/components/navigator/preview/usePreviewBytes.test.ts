@@ -1,7 +1,6 @@
 import { expect, test } from 'vitest'
 import { type ReadOf, readAtMost, readFor } from './usePreviewBytes'
 
-/** A stream of chunks of the given sizes. Each chunk repeats the letter for its index. */
 function streamOf(...sizes: number[]): ReadableStream<Uint8Array> {
     return new ReadableStream({
         start(controller) {
@@ -33,8 +32,6 @@ test('a shorter stream, or one exactly the most, is read whole', async () => {
     expect(unbounded.done).toBe(true)
 })
 
-// When switching files, the render for the next file comes before the read that fetches it. It
-// must not present the previous file's bytes as the next file's.
 test('a read held for another file is still loading for this one', () => {
     const read: ReadOf = {
         buffer: new ArrayBuffer(4),
@@ -48,6 +45,5 @@ test('a read held for another file is still loading for this one', () => {
     const next = readFor(read, 'http://core/media?p=b.pdf')
     expect(next.buffer).toBeNull()
     expect(next.isLoading).toBe(true)
-    // With no URL yet (it is still being signed), the state is loading, whatever was read before.
     expect(readFor(read, null)).toMatchObject({ buffer: null, isLoading: true, error: null })
 })

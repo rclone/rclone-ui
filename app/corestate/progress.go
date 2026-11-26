@@ -6,9 +6,7 @@ import (
 	"github.com/rclone/rclone-ui/core/bus"
 )
 
-// Sum is the combined progress of the running transfers.
 type Sum struct {
-	// Running is how many transfers have progress.
 	Running int
 	// Pct is the percentage of their bytes done, or -1 while none of them knows its total.
 	Pct int

@@ -1,7 +1,3 @@
-// The schedules, as the pages use them. A schedule runs an operation's form at set times while
-// the app runs (core/schedules). schedules.changed keeps the queries fresh, so the writes here
-// only call the core.
-
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useDebounce } from 'use-debounce'
 import { schedules as api } from './core/api'
@@ -15,7 +11,6 @@ export function useSchedules() {
     return useQuery({ queryKey: coreKey('schedules', 'List'), queryFn: () => api.List() })
 }
 
-/** A schedule that doesn't exist fails with not_found, so the query doesn't retry. */
 export function useSchedule(id: string | null) {
     return useQuery({
         queryKey: coreKey('schedules', 'Get', { id }),
@@ -77,7 +72,6 @@ export async function runScheduleNow(id: string): Promise<void> {
     await api.RunNow(id)
 }
 
-/** Runs a bisync schedule's first merge of its two folders again. */
 export async function mergeScheduleAgain(id: string): Promise<void> {
     await api.MergeAgain(id)
 }
@@ -92,7 +86,6 @@ export async function deleteSchedule(id: string): Promise<void> {
     await api.Delete(id)
 }
 
-/** The form that a run of the template saved under `id` would start for `operation`. */
 export function scheduleFromTemplate(
     id: string,
     operation: OperationName

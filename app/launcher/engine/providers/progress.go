@@ -10,8 +10,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// progressLine formats the progress as the transfers row shows it: "42% · 12 MB/s · 3 min left".
-// Unknown parts are left out, and it returns "" when nothing is known.
 func progressLine(p corestate.Sum) string {
 	var parts []string
 	if p.Pct >= 0 {
@@ -26,8 +24,6 @@ func progressLine(p corestate.Sum) string {
 	return strings.Join(parts, " · ")
 }
 
-// Size formats a number of bytes the way the pages do (1024 bytes to a KB): "512 B", "1.5 MB",
-// "12 GB".
 func Size(n int64) string {
 	const unit = 1024
 	if n < unit {
@@ -45,8 +41,6 @@ func Size(n int64) string {
 	return fmt.Sprintf("%.0f %s", v, suffix)
 }
 
-// left formats the time a transfer has left: "less than a minute left", "3 min left",
-// "2 h 5 min left".
 func left(d time.Duration) string {
 	if d < time.Minute {
 		return i18n.T("less than a minute left")
@@ -64,7 +58,6 @@ func left(d time.Duration) string {
 	return i18n.T("%[1]d h %[2]d min left", mins/60, mins%60)
 }
 
-// ago formats how long ago t was: "just now", "10 min ago", "3 h ago".
 func ago(t, now time.Time) string {
 	switch d := now.Sub(t); {
 	case d < time.Minute:

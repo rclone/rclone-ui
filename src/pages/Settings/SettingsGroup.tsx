@@ -6,14 +6,12 @@ import type { Tone } from '../../components/look/tones'
 
 type IconType = ComponentType<{ className?: string }>
 
-/** The classes of HeroUI's Tabs when they stand in for a segmented control, without panels. */
 export const SEGMENTED = {
     tabList: 'p-1 gap-1',
     tab: 'h-7 px-3',
     panel: 'hidden',
 }
 
-/** A group of settings. `id` is its anchor in the window, which `?section=` scrolls to. */
 export function SettingsGroup({
     id,
     icon,
@@ -52,10 +50,6 @@ export function SettingsGroup({
     )
 }
 
-/**
- * One setting: its name and a line about it on the left, its control on the right. When the
- * control is wide, `stacked` puts it under the text.
- */
 export function SettingRow({
     title,
     titleId,
@@ -94,7 +88,6 @@ export function SettingRow({
     )
 }
 
-/** A setting that is on or off, with a switch. The title says what happens when it is on. */
 export function SwitchRow({
     title,
     description,

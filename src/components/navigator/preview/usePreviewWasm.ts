@@ -1,7 +1,6 @@
 import { t } from '@lingui/core/macro'
 import { useEffect, useState } from 'react'
 
-// One shared fetch per wasm asset, reused across mounts (including StrictMode remounts).
 const wasmCache = new Map<string, Promise<void>>()
 
 async function fetchWasm(wasmUrl: string): Promise<ArrayBuffer> {
@@ -11,14 +10,8 @@ async function fetchWasm(wasmUrl: string): Promise<ArrayBuffer> {
 }
 
 /**
- * Fetches a viewer library's wasm (a bundled asset on the same origin), passes it to that
- * library's `setWasmSource` as an ArrayBuffer, and then reports `ready`.
- *
- * These libraries parse inside a Web Worker and pass the configured wasm source on to it. The
- * bytes are passed rather than a URL, because the worker would have to resolve a URL itself.
- * Don't render the viewer until `ready` is set, so the source is configured before the library
- * starts its worker. If the wasm can't be loaded, `error` is set, because otherwise the viewer
- * would wait for the wasm forever.
+ * The library needs its wasm source before its first parse, so render the viewer only once
+ * `ready` is set.
  */
 export default function usePreviewWasm(
     wasmUrl?: string,
@@ -30,7 +23,6 @@ export default function usePreviewWasm(
     })
 
     useEffect(() => {
-        // Nothing to configure. For example, PdfPreview loads its own wasm through its engine.
         if (!wasmUrl || !setWasmSource) {
             setState({ ready: true, error: null })
             return
@@ -50,7 +42,6 @@ export default function usePreviewWasm(
                 if (!cancelled) setState({ ready: true, error: null })
             })
             .catch((error: unknown) => {
-                // Drop the failed attempt so a later mount can retry the fetch.
                 if (wasmCache.get(wasmUrl) === attempt) wasmCache.delete(wasmUrl)
                 if (cancelled) return
                 const detail = error instanceof Error ? error.message : String(error)

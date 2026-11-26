@@ -17,24 +17,20 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// fakeSMTP is a minimal mail server on 127.0.0.1. It supports EHLO, STARTTLS or TLS from the
-// first byte, AUTH PLAIN and LOGIN, the envelope and DATA. It records what the client sent in
-// each session.
 type fakeSMTP struct {
-	t        *testing.T
-	ln       net.Listener
-	cert     tls.Certificate
-	startTLS bool   // offer STARTTLS
-	mechs    string // AUTH mechanisms offered ("" for none)
-	user     string // the credentials it accepts
-	pass     string
-	// mailReplies are the replies to MAIL FROM, one per session in order. After them, 250.
+	t           *testing.T
+	ln          net.Listener
+	cert        tls.Certificate
+	startTLS    bool
+	mechs       string
+	user        string
+	pass        string
 	mailReplies []string
-	hangUp      bool // close every connection immediately
+	hangUp      bool
 
 	mu       sync.Mutex
 	sessions []string
-	conns    []net.Conn // closed when the test ends, because a client may leave one open
+	conns    []net.Conn
 	wg       sync.WaitGroup
 }
 
@@ -199,8 +195,6 @@ func (f *fakeSMTP) session(c net.Conn) {
 			}
 			say("250 queued")
 		case "QUIT":
-			// Record the session before replying. The client is done once it reads the reply,
-			// and the test reads the session right after.
 			record()
 			say("221 bye")
 			return
@@ -239,7 +233,6 @@ func TestSMTPSettingsRules(t *testing.T) {
 	if v != want {
 		t.Fatalf("view = %+v, want %+v", v, want)
 	}
-	// The password is stored in the keychain, never in the database.
 	var host string
 	if err := f.db.Read(context.Background(), func(tx *sql.Tx) error {
 		return tx.QueryRow(`SELECT host FROM notification_smtp`).Scan(&host)
@@ -257,19 +250,16 @@ func TestSMTPSettingsRules(t *testing.T) {
 		}
 		return *c
 	}
-	// An empty password keeps the saved one.
 	in := smtpInput(587, SMTPEncryptionStartTLS)
 	in.Password, in.FromName = "", "Backups"
 	if v := f.saveSMTP(in); !v.HasPassword || v.FromName != "Backups" || saved().Password != "hunter2" {
 		t.Fatalf("empty password: view %+v, saved %+v", v, saved())
 	}
-	// A new one replaces it.
 	in.Password = "correct horse"
 	f.saveSMTP(in)
 	if saved().Password != "correct horse" {
 		t.Fatalf("new password not saved: %+v", saved())
 	}
-	// A keychain that can't be read returns a blank password, and the stored one is kept.
 	in.Password = ""
 	f.secrets.mu.Lock()
 	f.secrets.getErr = errors.New("the keychain is locked")
@@ -281,8 +271,6 @@ func TestSMTPSettingsRules(t *testing.T) {
 	if saved().Password != "correct horse" {
 		t.Fatalf("an unreadable keychain lost the password: %+v", saved())
 	}
-	// When the keychain can't be written, nothing is saved, so there is never a server
-	// without its password.
 	moved := in
 	moved.Host, moved.Password = "smtp.example.com", "battery staple"
 	f.secrets.mu.Lock()
@@ -297,7 +285,6 @@ func TestSMTPSettingsRules(t *testing.T) {
 	if c := saved(); c.Host != "127.0.0.1" || c.Password != "correct horse" {
 		t.Fatalf("after a failed save: %+v", c)
 	}
-	// An empty username removes the password (a relay without credentials).
 	in.Username, in.Password = " ", ""
 	if v := f.saveSMTP(in); v.HasPassword || v.Username != "" || saved().Password != "" {
 		t.Fatalf("empty username: view %+v, saved %+v", v, saved())
@@ -328,7 +315,6 @@ func TestSMTPSettingsRules(t *testing.T) {
 		t.Fatalf("a refused save changed the settings: %+v", saved())
 	}
 
-	// An empty host clears everything.
 	if v := f.saveSMTP(SMTPInput{Host: "  ", Port: 587}); v != (SMTPView{}) {
 		t.Fatalf("cleared view = %+v", v)
 	}
@@ -465,7 +451,6 @@ func TestMailRetry(t *testing.T) {
 			if (err == nil) != c.ok {
 				t.Fatalf("err = %v, want ok %v", err, c.ok)
 			}
-			// The server records a session when its connection ends.
 			deadline := time.Now().Add(10 * time.Second)
 			for len(srv.got()) < c.sessions && time.Now().Before(deadline) {
 				time.Sleep(5 * time.Millisecond)

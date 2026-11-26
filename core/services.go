@@ -39,18 +39,8 @@ import (
 	"github.com/rclone/rclone-ui/core/watchers"
 )
 
-// notifyTimeout is the time limit for each delivery of a notification.
 const notifyTimeout = 15 * time.Second
 
-// startServices creates the core's services and starts them, in four steps:
-//
-//  1. openRclone: the settings and the config file, then rclone's init, which gives the store.
-//  2. build: every other service, each after the services it uses. Building starts nothing.
-//  3. start: what each service does once at the start, in order.
-//  4. background: the work that starts once every service is up.
-//
-// Where two services need each other, one reaches the other later, through a closure or a
-// subscription: configs.Attach, configUsers, settings.OnBwLimit and remotes.Start.
 func (c *Core) startServices(ctx context.Context) error {
 	if err := c.openRclone(ctx); err != nil {
 		return fmt.Errorf("rclone: %w", err)
@@ -65,10 +55,6 @@ func (c *Core) startServices(ctx context.Context) error {
 	return nil
 }
 
-// openRclone creates the services that rclone's init needs, and then sets up rclone's process-wide
-// state with the config file. A config file that can't be read (a wrong or missing password, or a
-// broken file) doesn't stop the core. The store reports the problem, and the pages ask the user
-// to fix it.
 func (c *Core) openRclone(ctx context.Context) error {
 	c.keychain = keychain.New(c.dataDir)
 	c.settings = settings.New(c.db, c.bus)
@@ -99,11 +85,7 @@ func (c *Core) openRclone(ctx context.Context) error {
 		return err
 	}
 	c.store = store
-	// The config's service needs the store, which rclone's init only creates once the service
-	// has found the file and its password.
 	c.configs.Attach(store)
-	// The Settings page shows the config's state, such as a password being needed, a save being
-	// refused, or a password removed outside the app.
 	store.OnState(func(st rclone.State) {
 		c.configs.StateChanged(st)
 		c.bus.Publish(bus.ConfigChanged, nil)
@@ -113,16 +95,11 @@ func (c *Core) openRclone(ctx context.Context) error {
 	return nil
 }
 
-// build creates the other services, each after the services it uses. Building a service starts
-// no goroutine and writes nothing, so a boot that fails here leaves nothing to stop. Only the
-// children's supervisor can fail, when its sockets' folder is too long.
 func (c *Core) build() error {
 	c.telemetry = c.newTelemetry()
 	c.templates = templates.New(c.db, c.bus, c.exe)
 	c.favorites = favorites.New(c.db, c.bus)
 	c.launcher = launcher.New(c.db)
-	// The link resolution for the Download page goes through the same proxy as the download
-	// itself.
 	c.links = linkresolve.New(httpx.New(linkresolve.Timeout), linkresolve.Service)
 	lister := browse.NewLister()
 	c.lister = lister
@@ -153,7 +130,6 @@ func (c *Core) build() error {
 	c.vfs = vfs.New(c.mountVFSes, c.serveVFSes)
 	c.tunnel = tunnel.New(tunnel.Options{DB: c.db, Bus: c.bus, Children: sup, Configs: c.configs})
 
-	// A transfer that ends (including a resumed one) drops the listings it changed.
 	c.transfers = transfers.New(transfers.Options{
 		DB: c.db, Bus: c.bus, Notifier: c.notifications, Run: c,
 		Ended: func(t transfers.Transfer) {
@@ -161,9 +137,6 @@ func (c *Core) build() error {
 			c.transferEnded(t)
 		},
 	})
-	// The watchers and the schedules run through the transfers. The runs that a quit cut short
-	// run again, unless the app crashed. The schedules' runs that catch up after the start wait
-	// until the config is unlocked.
 	c.watchers = watchers.New(watchers.Options{
 		DB: c.db, Bus: c.bus, Transfers: c.transfers, Notifier: c.notifications, Run: c,
 	})
@@ -171,15 +144,9 @@ func (c *Core) build() error {
 		DB: c.db, Bus: c.bus, Transfers: c.transfers, Templates: c.templates, Watchers: c.watchers,
 		Notifier: c.notifications, Run: c, Crashed: c.crashed, Locked: c.configs.Locked,
 	})
-	// The Commander's file actions. Those that take long run as transfers, and a single-file
-	// delete is recorded as one.
 	c.files = files.New(c.bus, lister, c.transfers)
-	// The server for the signed media URLs, which listens on its own loopback port once started.
 	c.media = media.NewSigner()
 
-	// A change of the config's remotes drops their listings, and flags the mounts and serves that
-	// use them. A rename rewrites what names the remote: the favorites, the templates, the
-	// automounts, the watchers' folders and the schedules' forms.
 	c.remotes = remotes.New(remotes.Options{
 		DB: c.db, Store: c.store, Bus: c.bus, Run: c, Config: c.configs, Invalidator: lister,
 		Followers: []remotes.Follower{c.favorites, c.templates, c.mounts, c.watchers, c.schedules},
@@ -189,25 +156,17 @@ func (c *Core) build() error {
 	return nil
 }
 
-// start runs what each service does once at the start, in order. Nothing calls a service before
-// it ends, because the APIs get their services only once the boot is done.
 func (c *Core) start(ctx context.Context) error {
 	if err := c.launcher.Prune(ctx); err != nil {
-		// Stale entries only affect the launcher's ranking for a while longer, so this error
-		// shouldn't stop the start.
 		logs.Logger(logs.CompApp, "launcher").ErrorContext(ctx, "pruning the launcher's usage history", "error", err)
 	}
 	if err := c.media.Listen(); err != nil {
 		return fmt.Errorf("browse: serving the media URLs: %w", err)
 	}
-	// The notifications' queue holds what was sent before this, and the transfers and the
-	// children send notifications from now on.
 	c.notifications.Start()
 	if c.crashed {
 		c.notifications.Notify(ctx, notifications.NotificationEventAppCrashed, notifications.Crashed{Crashes: 1})
 	}
-	// The remotes listen to the store before it watches the file, so no edit made outside the app
-	// is missed.
 	c.remotes.Start(ctx)
 	c.Go("config.watch", c.store.Watch)
 	c.settings.OnBwLimit(c.setBwLimit)
@@ -215,9 +174,6 @@ func (c *Core) start(ctx context.Context) error {
 	if err := c.startChildren(ctx); err != nil {
 		return fmt.Errorf("children: %w", err)
 	}
-	// Before anything can start a transfer, the transfers that the previous run left open are
-	// settled. At Shutdown, the running transfers are marked as interrupted, or, on an update's
-	// restart, marked to start again.
 	var last int64
 	if prev := c.logs.Previous(); !prev.IsZero() {
 		last = prev.UnixMilli()
@@ -228,8 +184,6 @@ func (c *Core) start(ctx context.Context) error {
 	return nil
 }
 
-// background starts what was running before, and the mounts set to start with the app, and the
-// watchers' and the schedules' schedulers. It runs once every service is up.
 func (c *Core) background() {
 	c.GoOnce("mounts.boot", c.mounts.Boot)
 	c.GoOnce("serves.boot", c.serves.Boot)
@@ -238,12 +192,10 @@ func (c *Core) background() {
 	c.Go("schedules", c.schedules.Run)
 }
 
-// setBwLimit applies a new bandwidth limit at once: to the core's transfers, and through their rc
-// to the mounts and serves that are running. Those that start later get it from rclone's options.
 func (c *Core) setBwLimit(ctx context.Context, limit string) {
 	pair, err := settings.BwLimit(limit)
 	if err != nil {
-		return // Update refuses it first
+		return
 	}
 	rclone.SetBwLimit(pair)
 	rate := "off"
@@ -268,10 +220,6 @@ func (c *Core) setBwLimit(ctx context.Context, limit string) {
 	}
 }
 
-// configUsers lists the children, which all use the config file. Changing the file's password
-// waits for them to stop. The mounts, the serves and the tunnel are built after the config's
-// service, which gets this function. Reading them here is safe, because only a page can change
-// the password, and the pages reach the services after the boot.
 func (c *Core) configUsers() []i18n.Text {
 	var out []i18n.Text
 	for _, m := range c.mounts.List() {
@@ -288,11 +236,6 @@ func (c *Core) configUsers() []i18n.Text {
 	return out
 }
 
-// startChildren kills the children that a previous run left (listed in children.json). It
-// clears every broken mount point, both the recorded ones and those of the mounts set to start
-// with the app, and removes stale sockets and key files. Then the supervisor begins with the
-// mounts and serves to start again: those that a planned restart kept, or that were running when
-// the previous run crashed.
 func (c *Core) startChildren(ctx context.Context) error {
 	log := logs.Logger(logs.CompChildren, logs.SubSupervisor)
 	points, err := mounts.AutomountPoints(ctx, c.db, runtime.GOOS)
@@ -303,18 +246,12 @@ func (c *Core) startChildren(ctx context.Context) error {
 	return c.children.Begin(lo.Restore)
 }
 
-// childRemotesChanged flags the running mounts and serves that use one of the remotes that
-// changed. Their processes keep what they read when they started, so their rows say "Restart to
-// apply" until they start again.
 func (c *Core) childRemotesChanged(names []string) {
 	uses := func(source string) bool { return rclone.Mentions(source, names) }
 	c.mounts.RemotesChanged(uses)
 	c.serves.RemotesChanged(uses)
 }
 
-// stopChildren stops every child (which unmounts the mounts) and waits for each one, so no child
-// outlives the app. On an update's restart, the mounts and serves that were running stay listed
-// in children.json so they start again.
 func (c *Core) stopChildren(ctx context.Context, restart bool) {
 	var keep func(children.Record) bool
 	if restart {
@@ -327,7 +264,6 @@ func (c *Core) stopChildren(ctx context.Context, restart bool) {
 	c.serves.Shutdown(restart)
 }
 
-// mountVFSes and serveVFSes list the children's VFSes for the VFS page.
 func (c *Core) mountVFSes() []vfs.Target {
 	var out []vfs.Target
 	for _, m := range c.mounts.List() {
@@ -347,24 +283,18 @@ func (c *Core) serveVFSes() []vfs.Target {
 	return out
 }
 
-// BusyItem is one thing that a quit or an update would interrupt.
 type BusyItem struct {
-	// Kind is "transfer", "mount", "serve" or "tunnel".
-	Kind string
-	ID   string
-	// Label is the name the user knows it by ("Copy gdrive:Photos → /Volumes/Backup").
-	Label string
-	// Detail explains why it matters ("3 files not uploaded yet" for a mount's dirty cache).
+	Kind   string
+	ID     string
+	Label  string
 	Detail string
 }
 
 type BusyList struct {
-	Items []BusyItem
-	// Running counts the items by kind, which the dialog's text names with Running.Phrase.
+	Items   []BusyItem
 	Running Running
 }
 
-// Busy lists what a quit or an update would interrupt. It is the same set that StopAll stops.
 func (c *Core) Busy(ctx context.Context) BusyList {
 	items := c.busyTransfers(ctx)
 	items = append(items, c.busyChildren(ctx)...)
@@ -385,17 +315,11 @@ func (c *Core) Busy(ctx context.Context) BusyList {
 	return BusyList{Items: items, Running: r}
 }
 
-// Running counts what the core runs that a stop ends. A watcher's or a schedule's run counts as a
-// transfer. Busy, StopAll and the launcher all use it and name it with Phrase, so that a question
-// names exactly what its answer stops.
 type Running struct {
 	Transfers, Mounts, Serves int
-	// Tunnel is set while the remote tunnel is on or starting.
-	Tunnel bool
+	Tunnel                    bool
 }
 
-// Phrase names what r counts, for a question or a message: "2 transfers, a serve and 3 mounts",
-// "a mount and the remote tunnel". It is "" when r counts nothing.
 func (r Running) Phrase() i18n.Text {
 	var parts []i18n.Text
 	if r.Transfers > 0 {
@@ -419,8 +343,6 @@ func (r Running) Phrase() i18n.Text {
 
 type StopSummary struct{ Running }
 
-// Done says what StopAll stopped: "Stopped 2 transfers, a serve and 3 mounts.", or "Nothing was
-// running." when it stopped nothing.
 func (s StopSummary) Done() i18n.Text {
 	if p := s.Phrase(); !p.IsZero() {
 		// i18n: %s names what was stopped: "2 transfers, a serve and 3 mounts".
@@ -429,15 +351,11 @@ func (s StopSummary) Done() i18n.Text {
 	return i18n.M("Nothing was running.")
 }
 
-// Kept counts the watchers and schedules that run while the app is open (KeepsRunning).
 type Kept struct {
 	Watchers  int `json:"watchers"`
 	Schedules int `json:"schedules"`
 }
 
-// KeepsRunning counts the watchers and schedules that would run if the app stayed open: those
-// that aren't paused, and for watchers, that don't wait for the user. The quit dialog says they
-// won't run while the app is closed.
 func (c *Core) KeepsRunning(ctx context.Context) Kept {
 	var k Kept
 	log := logs.Logger(logs.CompTransfers, "")
@@ -452,9 +370,6 @@ func (c *Core) KeepsRunning(ctx context.Context) Kept {
 	k.Schedules = n
 	return k
 }
-
-// The busy items' labels and details are in the app's language: the quit and update dialogs show
-// them as soon as they are listed.
 
 func (c *Core) busyTransfers(ctx context.Context) []BusyItem {
 	active, err := c.transfers.Active(ctx)
@@ -475,9 +390,6 @@ func (c *Core) busyTransfers(ctx context.Context) []BusyItem {
 	return items
 }
 
-// busyDetail says what happens to a running transfer after a stop: one from the pages starts
-// again after an update, and a schedule's run runs again at the next start, whatever the stop. A
-// retry of a schedule's run is the user's own, so the schedule doesn't run it again.
 func busyDetail(tr transfers.Transfer) string {
 	switch {
 	case transfers.Resumable(tr):
@@ -507,8 +419,6 @@ func (c *Core) busyChildren(ctx context.Context) []BusyItem {
 	return items
 }
 
-// busyTunnel lists the tunnel while it is on, because a paired phone loses its connection on a
-// quit or an update.
 func (c *Core) busyTunnel() []BusyItem {
 	if c.tunnel.Status().State == tunnel.StateOff {
 		return nil
@@ -532,8 +442,6 @@ func (c *Core) Subscribe(fn func(bus.Event)) (stop func()) {
 			if ctx.Err() != nil {
 				return
 			}
-			// The subscription fell behind. The new one is made before Resync is sent, so fn
-			// misses nothing that is published after it reads again.
 			sub = c.bus.Subscribe()
 			fn(bus.Event{Name: bus.Resync})
 		}
@@ -544,7 +452,6 @@ func (c *Core) Subscribe(fn func(bus.Event)) (stop func()) {
 	}
 }
 
-// relay passes sub's events to fn until ctx ends or sub falls behind (its channel is closed).
 func relay(ctx context.Context, sub *bus.Sub, fn func(bus.Event)) {
 	for {
 		select {

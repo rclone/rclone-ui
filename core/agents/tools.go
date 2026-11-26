@@ -35,27 +35,16 @@ func reads(title string) *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{Title: title, ReadOnlyHint: true, OpenWorldHint: ptr(true)}
 }
 
-// changes are the annotations of a tool that changes something without destroying anything: it
-// adds files, starts something, or saves a schedule.
 func changes(title string) *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{Title: title, DestructiveHint: ptr(false), OpenWorldHint: ptr(true)}
 }
 
-// destroys are the annotations of a tool that can delete or overwrite files, or stop something
-// that is running.
 func destroys(title string) *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{Title: title, DestructiveHint: ptr(true), OpenWorldHint: ptr(true)}
 }
 
 func ptr[T any](v T) *T { return &v }
 
-// add registers a tool. Around the handler, it records which client called, so that History shows
-// a transfer that the call starts as the agent's (transfers.WithOrigin). It also logs the call,
-// and returns an error as the core's own message, in English, because the agent reads it.
-//
-// The tool is registered without an output schema. Every client loads every tool's definition
-// into its model's context before the first call, and output schemas would be more than half of
-// that text. An output is JSON with plain names, which a model reads without a schema.
 func add[In, Out any](s *Server, tool *mcp.Tool, handle func(ctx context.Context, in In) (Out, error)) {
 	mcp.AddTool(s.mcp, tool, func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 		client := clientName(req)
@@ -73,7 +62,6 @@ func add[In, Out any](s *Server, tool *mcp.Tool, handle func(ctx context.Context
 	})
 }
 
-// orUnnamed returns a client's name for the log, where an empty name would read as a mistake.
 func orUnnamed(client string) string {
 	if client == "" {
 		return "unnamed"

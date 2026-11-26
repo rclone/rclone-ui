@@ -11,18 +11,14 @@ import (
 	"time"
 )
 
-// Record is one line of the log, as stored in the file and the tail. The handler makes one from
-// each slog record, and a child's line reader makes them from what the child printed.
 type Record struct {
-	// N numbers this process's records from 1, in the order they were written. The start mark
-	// is 1. The file continues across runs, and each run begins with its start mark.
 	N            int64
 	Time         time.Time
 	Level        slog.Level
 	Component    string
 	Subcomponent string
 	Message      string
-	Source       string // file:line in rclone's Go code
+	Source       string
 	Object       string
 	ObjectType   string
 	Size         *int64
@@ -35,12 +31,9 @@ type Record struct {
 	// is the number of lines of one kind folded into this one (fold.go).
 	Mark  string
 	Count int64
-	// Extra holds every other attribute. Its values are made safe for JSON when the record is
-	// made.
 	Extra map[string]any
 }
 
-// The marks. They are numbered in the same sequence as the other lines.
 const (
 	MarkStart    = "start"
 	MarkStop     = "stop"
@@ -48,7 +41,6 @@ const (
 	MarkRepeated = "repeated"
 )
 
-// wire is a record as written in one JSON line of the file.
 type wire struct {
 	N            int64          `json:"n,omitempty"`
 	Time         string         `json:"time"`
@@ -69,8 +61,6 @@ type wire struct {
 	Extra        map[string]any `json:"extra,omitempty"`
 }
 
-// MarshalJSON encodes the record as the file stores it. The level is written as its word, and
-// the time in RFC 3339 UTC to the millisecond.
 func (r Record) MarshalJSON() ([]byte, error) {
 	w := wire{
 		N: r.N, Time: wireTime(r.Time), Level: LevelWord(r.Level), Component: r.Component,
@@ -82,8 +72,6 @@ func (r Record) MarshalJSON() ([]byte, error) {
 	if err == nil {
 		return b, nil
 	}
-	// A value may still fail to encode, for example a json.Marshaler that returns invalid JSON.
-	// Such values are written as text so the line isn't lost.
 	safe := make(map[string]any, len(r.Extra))
 	for k, v := range r.Extra {
 		if _, err := json.Marshal(v); err != nil {
@@ -95,16 +83,14 @@ func (r Record) MarshalJSON() ([]byte, error) {
 	return json.Marshal(w)
 }
 
-// wireTimeLayout is the format of a record's time: RFC 3339 in UTC, to the millisecond.
 const wireTimeLayout = "2006-01-02T15:04:05.000Z07:00"
 
 func wireTime(t time.Time) string { return t.UTC().Format(wireTimeLayout) }
 
-// handler turns slog records into Records for the log.
 type handler struct {
 	l      *Log
-	pre    []groupedAttr // from WithAttrs
-	groups []string      // from WithGroup
+	pre    []groupedAttr
+	groups []string
 }
 
 type groupedAttr struct {
@@ -155,7 +141,6 @@ func (h *handler) WithGroup(name string) slog.Handler {
 	return &next
 }
 
-// attribute fills the attribution columns from the values that With put on ctx.
 func (r *Record) attribute(ctx context.Context) {
 	if a, ok := ctx.Value(attributionKey{}).(*attribution); ok {
 		a.attribute(r)
@@ -165,7 +150,6 @@ func (r *Record) attribute(ctx context.Context) {
 	}
 }
 
-// add puts one attribute in its own column, or in Extra under its groups.
 func (r *Record) add(groups []string, a slog.Attr) {
 	a.Value = a.Value.Resolve()
 	if a.Equal(slog.Attr{}) {
@@ -238,8 +222,6 @@ func (r *Record) setExtra(groups []string, key string, v any) {
 	m[key] = v
 }
 
-// valueOf converts v now to the form it will be encoded in. The writer encodes later on its own
-// goroutine, and by then the caller may have changed what it logged.
 func valueOf(v slog.Value) (out any) {
 	switch v.Kind() {
 	case slog.KindString:
@@ -262,8 +244,6 @@ func valueOf(v slog.Value) (out any) {
 		return v.Time().Format(time.RFC3339Nano)
 	}
 	defer func() {
-		// slog does the same for a LogValuer: a value whose method panics is logged as text
-		// instead of crashing.
 		if r := recover(); r != nil {
 			out = fmt.Sprintf("!PANIC: %v", r)
 		}

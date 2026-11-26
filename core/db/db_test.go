@@ -21,8 +21,6 @@ import (
 
 var update = flag.Bool("update", false, "rewrite testdata/schema/app.sql")
 
-// TestSchemaGolden checks the schema that a fresh file gets. An edit to a schema file changes it,
-// so run `go test ./core/db -update` and commit the golden file with the edit.
 func TestSchemaGolden(t *testing.T) {
 	d := openT(t, filepath.Join(t.TempDir(), "app.db"))
 	got := schemaOf(t, d.W)
@@ -102,7 +100,6 @@ func TestPathsThatNeedEscaping(t *testing.T) {
 	}
 }
 
-// testSchema is the base schema file and the extra files, read the way the embedded folder is.
 func testSchema(t *testing.T, extra map[string]string) schema {
 	t.Helper()
 	base, err := fs.ReadFile(embedded, "migrations/0001_base.sql")
@@ -122,8 +119,6 @@ func TestSchemaFileNames(t *testing.T) {
 	if len(s.files) == 0 || s.files[0].name != "0001_base.sql" {
 		t.Fatalf("files %v", s.files)
 	}
-	// The README is in the same folder as the schema files and is skipped. A .sql file with a
-	// name in the wrong form is refused.
 	for name, ok := range map[string]bool{"0001_base.sql": true, "0002_Bad-Name.sql": false, "2_short.sql": false} {
 		fsys := fstest.MapFS{"README.md": {Data: []byte("#")}, name: {Data: []byte("SELECT 1")}}
 		if _, err := loadSchema(fsys); (err == nil) != ok {
@@ -135,8 +130,6 @@ func TestSchemaFileNames(t *testing.T) {
 	}
 }
 
-// The hash ignores comments and runs of whitespace, and notices any other edit, a rename and a
-// new file.
 func TestSchemaHash(t *testing.T) {
 	plain := testSchema(t, map[string]string{"0002_x.sql": "CREATE TABLE x (a TEXT, b TEXT DEFAULT '--');"})
 	same := testSchema(t, map[string]string{"0002_x.sql": "-- a comment\nCREATE TABLE x (a TEXT, -- why a\n  b  TEXT DEFAULT '--');\n"})
@@ -171,8 +164,6 @@ func TestChangedSchemaIsRefusedAndTheFileUnchanged(t *testing.T) {
 			testutil.Must(t, d.Close())
 		}},
 		{"another app's file, without a meta table", func(t *testing.T, path string) {
-			// In WAL mode, as the files that Open makes are, so that only the check could
-			// change the file.
 			c, err := sql.Open("sqlite", fileURI(path)+"?_pragma=journal_mode(WAL)")
 			testutil.Must(t, err)
 			_, err = c.Exec(`CREATE TABLE notes (body TEXT)`)
@@ -217,7 +208,6 @@ func TestFailingSchemaFileLeavesNoTables(t *testing.T) {
 	if objects != 0 {
 		t.Fatalf("%d tables or indexes were kept", objects)
 	}
-	// The file is still empty, so this build's schema is applied to it.
 	openT(t, path)
 }
 
@@ -242,7 +232,6 @@ func TestCheckpointDoesNotHoldAWriterBack(t *testing.T) {
 		testutil.Must(t, d.Write(ctx(t), func(tx *sql.Tx) error { return SetMeta(ctx(t), tx, key, "v") }))
 	}
 	write("a")
-	// Hold a reader on an older snapshot. A TRUNCATE checkpoint must wait for it.
 	rtx, err := d.R.BeginTx(ctx(t), &sql.TxOptions{ReadOnly: true})
 	testutil.Must(t, err)
 	defer func() { _ = rtx.Rollback() }()
@@ -262,9 +251,6 @@ func TestCheckpointDoesNotHoldAWriterBack(t *testing.T) {
 		done <- busy
 	}()
 	time.Sleep(20 * time.Millisecond)
-	// The checkpoint waits 100 ms for the reader and then falls back. One that waited as long as
-	// a writer does (5 s) would hold the write back far past the limit. A busy disk only adds a
-	// little to the 100 ms.
 	start := time.Now()
 	write("c")
 	if held := time.Since(start); held > 2*time.Second {
@@ -300,8 +286,6 @@ func openT(t *testing.T, path string) *DB {
 	return d
 }
 
-// schemaOf returns the statements in sqlite_schema, tables first and then by name. Comments are
-// dropped and the whitespace on each line is collapsed.
 func schemaOf(t *testing.T, c *sql.DB) string {
 	t.Helper()
 	var b strings.Builder

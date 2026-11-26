@@ -1,29 +1,7 @@
-; The Windows installer of Rclone UI. It installs per user (in %LOCALAPPDATA%\Programs) or per
-; machine (in Program Files), and an upgrade keeps the mode and folder of the existing install.
-;
-; Built by build/package.sh:
-;   makensis -DVERSION=4.0.0 -DFILEVERSION=4.0.0.0 -DARCH=x64|arm64
-;            -DBINDIR=<build/bin/windows-…> -DOUTFILE=<…>
-;            -DWEBVIEW2BOOTSTRAPPER=<MicrosoftEdgeWebview2Setup.exe> -DWINFSPMSI=<winfsp-….msi>
-;            [-DSIGNCOMMAND=<cmd "%1">] project.nsi
-;
-; Switches (the updater passes /P /UPDATE /WAITPID=<pid> [/R]; WinGet /S):
-;   /S          silent            /P        passive: a progress window, no questions
-;   /UPDATE     no new shortcuts  /NS       no shortcuts at all
-;   /WAITPID=n  wait for process n (the app that started the update) to exit first
-;   /R          start the app when done (passive or silent)
-;   /NOWINFSP   don't install WinFsp (see the WinFsp section)
-;
-; It exits with code 10 when a running copy keeps the files and the user (or /S) gives up. WinGet
-; reads that code as packageInUse, so a silent upgrade says to close the app, and not that the
-; install failed.
-
 Unicode true
 ManifestDPIAware true
 SetCompressor /SOLID lzma
 
-; CI builds with NSIS's strlen_8192 build (build.yml). A standard build still works, but its
-; uninstaller leaves $INSTDIR\bin on a PATH longer than 1024 characters (see "Add rclone to PATH").
 !if ${NSIS_MAX_STRLEN} < 8192
   !warning "NSIS_MAX_STRLEN is ${NSIS_MAX_STRLEN}: use NSIS's strlen_8192 build for releases"
 !endif
@@ -33,9 +11,7 @@ SetCompressor /SOLID lzma
 !define BUNDLEID "org.rclone.ui"
 !define HOMEPAGE "https://github.com/rclone/rclone-ui"
 !define MAINBINARY "rcui.exe"
-; The Start menu's folder for the app's shortcut, named after the publisher.
 !define STARTMENUDIR "$SMPROGRAMS\${MANUFACTURER}"
-; The app's entry in Apps & features, and the key that keeps the install folder.
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${BUNDLEID}"
 !define MANUKEY "Software\${MANUFACTURER}"
 !define MANUPRODUCTKEY "${MANUKEY}\${PRODUCTNAME}"
@@ -89,7 +65,6 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" "© ${MANUFACTURER}"
 
-; Per user or per machine: the mode of an existing install by default.
 !define MULTIUSER_MUI
 !define MULTIUSER_EXECUTIONLEVEL Highest
 !define MULTIUSER_INSTALLMODE_INSTDIR "${MANUFACTURER}\${PRODUCTNAME}"
@@ -148,8 +123,6 @@ Function SkipIfPassive
   ${IfThen} $PassiveMode = 1 ${|} Abort ${|}
 FunctionEnd
 
-; RestorePreviousInstallLocation keeps an existing install's folder (the default value of the
-; product key).
 Function RestorePreviousInstallLocation
   ReadRegStr $0 SHCTX "${MANUPRODUCTKEY}" ""
   ${If} $0 != ""
@@ -189,7 +162,6 @@ Function .onInit
   !insertmacro REGVIEW_64
   !insertmacro MULTIUSER_INIT
 
-  ; Wait for the app that started the update to exit, before its files are replaced.
   ${GetOptions} $R9 "/WAITPID=" $R0
   ${IfNot} ${Errors}
     System::Call 'kernel32::OpenProcess(i 0x00100000, i 0, i $R0) p .r1'
@@ -202,9 +174,6 @@ FunctionEnd
 
 !define EXIT_IN_USE 10 ; WinGet's packageInUse (ExpectedReturnCodes in its manifest)
 
-; WaitUnlocked waits for a running copy to let go of $0 (a file of the install folder), asking
-; the user to quit it when it doesn't within a few seconds. Giving up exits with EXIT_IN_USE.
-; Defined twice, as the installer's and the uninstaller's (whose functions are named un.*).
 !macro WAIT_UNLOCKED UN
 Function ${UN}WaitUnlocked
   IfFileExists "$0" 0 done
@@ -234,8 +203,6 @@ FunctionEnd
 !insertmacro WAIT_UNLOCKED "un."
 
 Section WebView2
-  ; WebView2 is on every supported Windows 11 and most Windows 10; the bootstrapper installs it
-  ; where it isn't.
   ReadRegStr $0 HKLM "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\${WEBVIEW2APPGUID}" "pv"
   ${If} $0 == ""
     ReadRegStr $0 HKLM "SOFTWARE\Microsoft\EdgeUpdate\Clients\${WEBVIEW2APPGUID}" "pv"
@@ -265,13 +232,10 @@ Section Install
   SetOutPath "$INSTDIR\bin"
   File "${BINDIR}\bin\rclone.exe"
   SetOutPath $INSTDIR
-  ; The WinFsp section installs WinFsp from this file. When it doesn't, the Mount page offers to
-  ; (core/mounts' WinFspInstaller).
   File "/oname=winfsp.msi" "${WINFSPMSI}"
   File "/oname=LICENSE.txt" "..\..\..\LICENSE"
   File "..\..\..\public\THIRD_PARTY_NOTICES.txt"
 
-  ; rclone:// links (the app also registers them for the user at start).
   WriteRegStr SHCTX "Software\Classes\rclone" "" "URL:${BUNDLEID} protocol"
   WriteRegStr SHCTX "Software\Classes\rclone" "URL Protocol" ""
   WriteRegStr SHCTX "Software\Classes\rclone\DefaultIcon" "" '"$INSTDIR\${MAINBINARY}",0'
@@ -295,9 +259,6 @@ Section Install
   IntFmt $0 "0x%08X" $0
   WriteRegDWORD SHCTX "${UNINSTKEY}" "EstimatedSize" "$0"
 
-  ; Shortcuts, made on a first install only. The Start menu's is in the publisher's folder, which
-  ; is the app's own. Another program's shortcut is never replaced: a desktop shortcut with the
-  ; same name stays as it is.
   ${If} $UpdateMode = 0
   ${AndIf} $NoShortcutMode = 0
     CreateDirectory "${STARTMENUDIR}"
@@ -312,13 +273,6 @@ Section Install
   ${EndIf}
 SectionEnd
 
-; WinFsp mounts remotes as drives. When this computer doesn't have it, this section installs it
-; from the copy in the install folder, with no questions: the welcome page says so. It is skipped
-; on an update and with /NOWINFSP. WinFsp installs a driver, which needs administrator rights, so
-; the section is also skipped when the installer doesn't run as an administrator. It asks for
-; those rights where the user has them (MULTIUSER_EXECUTIONLEVEL Highest). When WinFsp isn't
-; installed here, the Mount page offers to install it from the same copy, and Windows asks for an
-; administrator then. The uninstaller leaves WinFsp, which other programs may use.
 Section WinFsp
   ${If} $UpdateMode = 1
     Return
@@ -341,7 +295,7 @@ Section WinFsp
   DetailPrint "Installing WinFsp..."
   ClearErrors
   ExecWait '"$SYSDIR\msiexec.exe" /i "$INSTDIR\winfsp.msi" /qn /norestart' $1
-  ${If} ${Errors} ; msiexec didn't start
+  ${If} ${Errors}
     DetailPrint "WinFsp could not be installed. The Mount page offers to install it."
   ${ElseIf} $1 <> 0
   ${AndIf} $1 <> 3010 ; installed, and Windows wants a restart
@@ -363,7 +317,6 @@ Function RunApp
 FunctionEnd
 
 Function .onInstSuccess
-  ; The finish page offers it in a normal install; /R asks for it in a passive or silent one.
   ${If} $PassiveMode = 1
   ${OrIf} ${Silent}
     ${GetParameters} $R9
@@ -379,9 +332,6 @@ Function un.onInit
   !insertmacro MULTIUSER_UNINIT
 FunctionEnd
 
-; un.DeleteOwnShortcut deletes the shortcut $0 when it opens this install's executable, and leaves
-; another program's shortcut of the same name alone. It reads the shortcut's target through
-; Windows' IShellLink: CoCreateInstance, IPersistFile::Load, then IShellLinkW::GetPath.
 !define CLSID_ShellLink "{00021401-0000-0000-C000-000000000046}"
 !define IID_IShellLinkW "{000214F9-0000-0000-C000-000000000046}"
 !define IID_IPersistFile "{0000010B-0000-0000-C000-000000000046}"
@@ -425,8 +375,6 @@ Section Uninstall
   Delete "$INSTDIR\THIRD_PARTY_NOTICES.txt"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
-  ; The publisher's folder that holds the install folder, when nothing else is in it. A folder
-  ; that the user chose has another name and stays.
   ${GetParent} "$INSTDIR" $1
   ${GetFileName} "$1" $2
   ${If} $2 == "${MANUFACTURER}"
@@ -450,13 +398,10 @@ Section Uninstall
     DeleteRegKey HKCU "Software\Classes\CLSID\${GOTOASTACTIVATOR}"
   ${EndIf}
 
-  ; rclone:// when it's this install's.
   ReadRegStr $1 SHCTX "Software\Classes\rclone\shell\open\command" ""
   ${If} $1 == '"$INSTDIR\${MAINBINARY}" "%1"'
     DeleteRegKey SHCTX "Software\Classes\rclone"
   ${EndIf}
-  ; The per-user one the app writes at every start (deeplink.Register), which a per-machine
-  ; uninstall would leave pointing at nothing.
   ReadRegStr $1 HKCU "Software\Classes\rclone\shell\open\command" ""
   ${If} $1 == '"$INSTDIR\${MAINBINARY}" "%1"'
     DeleteRegKey HKCU "Software\Classes\rclone"
@@ -480,7 +425,6 @@ Section Uninstall
     ${EndIf}
   ${EndIf}
 
-  ; Starting at login (app/autostart).
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${BUNDLEID}"
 
   DeleteRegKey SHCTX "${UNINSTKEY}"

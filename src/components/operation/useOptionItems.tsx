@@ -6,20 +6,6 @@ import type { OptionsAccordionItemDef } from './OptionsAccordion'
 import { type GroupKey, OPTION_GROUPS } from './optionGroups'
 import type { OptionGroups } from './useOptionGroups'
 
-/**
- * The accordion rows of the option groups that useOptionGroups holds: one for each group, in the
- * order the page listed them, and then the Remotes row while the paths name a remote. Each row
- * has the group's editor, with the options that the catalog offers for it (OPTION_GROUPS).
- *
- * - `refusals`: the core's refusal of each group, which the editor shows under its text.
- * - `errors`: a message under a group's editor, such as a drawer's refusal of a save.
- * - `onEdit`: called after the user changes a group's text, so a drawer can clear its error.
- * - `mapperPaths`: the paths that the metadata mapper suggests each backend's fields for.
- * - `serveType`: the serve whose options the serve group offers. Without one, it offers the
- *   options of every serve type.
- * - `above`: what a group's row shows above its editor, such as Bisync's switches.
- * - `counted`: options that a group's title counts with its own, such as the switches that are on.
- */
 export function useOptionItems<K extends GroupKey>(
     state: Pick<OptionGroups<K>, 'keys' | 'groups' | 'remoteNames' | 'remotes'>,
     {
@@ -42,8 +28,6 @@ export function useOptionItems<K extends GroupKey>(
 ): OptionsAccordionItemDef[] {
     const flags = useFlags()
     const { keys, groups, remoteNames, remotes } = state
-    // The paths are read one by one, so a page can pass a new object on each render. Without
-    // them, as in the template drawer, the mapper doesn't ask for paths.
     const hasMapperPaths = mapperPaths !== undefined
     const mapperSource = mapperPaths?.source
     const mapperDestination = mapperPaths?.destination
@@ -72,7 +56,6 @@ export function useOptionItems<K extends GroupKey>(
                             ? { source: mapperSource, destination: mapperDestination }
                             : undefined
                     }
-                    // A page with a Remotes section lets the mapper point there for this run.
                     mapperRemoteOverrides={metadata && remoteNames ? remotes.options : undefined}
                     refusal={refusals?.[key]}
                 />

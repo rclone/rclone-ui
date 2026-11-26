@@ -14,10 +14,6 @@ func waylandSession(getenv func(string) string) bool {
 	return getenv("WAYLAND_DISPLAY") != ""
 }
 
-// portalTrigger converts a Wails accelerator ("CmdOrCtrl+Shift+/") into the preferred trigger
-// for the GlobalShortcuts portal ("CTRL+SHIFT+slash"). The modifiers use the portal's names and
-// order, and the key uses its XKB keysym name. The trigger is only a preference, because the
-// compositor and the user decide the actual keys.
 func portalTrigger(accel string) string {
 	// Accelerator writes a "+" key as "plus", so every "+" is a separator.
 	parts := strings.Split(accel, "+")
@@ -49,8 +45,6 @@ func portalTrigger(accel string) string {
 	return strings.Join(append(out, key), "+")
 }
 
-// keysyms maps the keys that Accelerator writes to their XKB names, for keys whose name isn't the
-// character itself.
 var keysyms = map[string]string{
 	";": "semicolon", "=": "equal", ",": "comma", "-": "minus", ".": "period", "/": "slash",
 	"`": "grave", "[": "bracketleft", `\`: "backslash", "]": "bracketright", "'": "apostrophe",

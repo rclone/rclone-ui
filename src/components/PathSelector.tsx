@@ -34,10 +34,6 @@ export default function PathSelector({
     allowMultiple = true,
 }: {
     onClose: () => void
-    /**
-     * Receives the picked items, and the folder that the picker showed when they were picked
-     * (null on Favorites and the list of disks, which aren't folders).
-     */
     onSelect?: (items: SelectItem[], shown: string | null) => void
     initialPaths?: string[]
     isOpen?: boolean
@@ -56,7 +52,6 @@ export default function PathSelector({
         setSelectedCount(selected.length)
     }, [])
 
-    // A renamed or deleted row is removed from the selection. The listing refreshes on its own.
     const { rename, remove } = useEntryActions(
         useCallback((entry: Entry) => {
             panelRef.current?.deselect([entry.key])
@@ -69,11 +64,7 @@ export default function PathSelector({
         setIsFavorites(remote === 'UI_FAVORITES')
     }, [])
 
-    // The folder shown can be picked only when it is a real folder. Favorites and the list of
-    // disks are not, so nothing is picked there.
     const currentFolder = panelFolder(currentRemote, currentPath)
-    // The menu item that picks the folder shows its name, or the remote's name at the top of a
-    // remote. At the top of this computer it says "root".
     const folderName =
         baseName(currentPath) ||
         (currentRemote && currentRemote !== 'UI_LOCAL_FS' && currentRemote !== 'UI_FAVORITES'
@@ -95,8 +86,6 @@ export default function PathSelector({
         onSelect?.([{ path: currentFolder, type: 'folder' }], currentFolder)
     }, [currentFolder, onSelect])
 
-    // The panel opens at the first path. If that folder can't be listed, the panel shows an
-    // error, but the sidebar still works. With no path, the panel opens in the home folder.
     const firstPath = initialPaths[0]
     const initialPlace = firstPath ? placeOf(firstPath) : undefined
     const initialRemote = initialPlace?.remote
@@ -242,8 +231,6 @@ export default function PathSelector({
             size="full"
             onClose={onClose}
             hideCloseButton={true}
-            // The drawer is full-screen, so the only thing outside it to click is the underlay
-            // of the preview drawer inside it. That click must close only the preview.
             isDismissable={false}
         >
             <DrawerContent>

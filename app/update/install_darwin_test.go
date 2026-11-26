@@ -13,8 +13,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// An update replaces the bundle whole, in place at the same path, even when the new version's
-// executable has another name: nothing of the old bundle is left.
 func TestInstallBundle(t *testing.T) {
 	apps := t.TempDir()
 	bundle := filepath.Join(apps, "Rclone UI.app")
@@ -112,7 +110,6 @@ func TestAdminSwapScript(t *testing.T) {
 	}
 	write(bundle, "old")
 
-	// The new bundle isn't there, so the second move fails.
 	if out, err := exec.Command("/bin/sh", "-c", adminSwapScript(filepath.Join(apps, "missing.app"), bundle)).CombinedOutput(); err == nil {
 		t.Fatalf("a failed move succeeded: %s", out)
 	}
@@ -131,7 +128,6 @@ func TestAdminSwapScript(t *testing.T) {
 	leftovers()
 }
 
-// When Launch Services can't open a bundle, the script falls back to running its executable.
 func TestRelaunchFallsBack(t *testing.T) {
 	dir := t.TempDir()
 	ran := filepath.Join(dir, "ran")
@@ -139,7 +135,6 @@ func TestRelaunchFallsBack(t *testing.T) {
 	if err := os.WriteFile(exe, []byte("#!/bin/sh\necho ran > "+shQuote(ran)+"\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// A process that has exited and been reaped.
 	gone := exec.Command("true")
 	if err := gone.Run(); err != nil {
 		t.Fatal(err)

@@ -11,7 +11,6 @@ import (
 	"github.com/rclone/rclone/fs"
 )
 
-// FsInfoView describes what a remote's backend can do, as the pages read it.
 type FsInfoView struct {
 	Features map[string]bool `json:"features"`
 	// MetadataInfo describes the metadata that the backend keeps, or is nil when it keeps none.
@@ -46,7 +45,6 @@ type SessionRequest struct {
 	NonInteractive bool `json:"nonInteractive"`
 }
 
-// ConfigStep is a config session as the pages see it.
 type ConfigStep struct {
 	ID     string `json:"id"`
 	Remote string `json:"remote"`
@@ -80,8 +78,6 @@ type API struct{ s *late.Value[*Service] }
 
 func NewAPI(s *late.Value[*Service]) *API { return &API{s: s} }
 
-// fsinfoView returns what a page reads of a remote's features. The help of its metadata is
-// rclone's, in the app's language (catalog.LocalMetadataInfo). typ is the remote's backend.
 func fsinfoView(typ string, fi *FSInfo) *FsInfoView {
 	if fi == nil {
 		return nil
@@ -92,8 +88,6 @@ func fsinfoView(typ string, fi *FSInfo) *FsInfoView {
 	}
 }
 
-// stepError returns why a step failed, in the app's language. An error that rclone ended the
-// setup with is one of its setup texts, which are translated by backend (catalog.LocalNotice).
 func stepError(st *Step) string {
 	var refused setupError
 	if errors.As(st.Error, &refused) {
@@ -102,7 +96,6 @@ func stepError(st *Step) string {
 	return i18n.Localize(st.Error)
 }
 
-// stepView returns a session's step as the pages read it, with its texts in the app's language.
 func stepView(st *Step) *ConfigStep {
 	if st == nil {
 		return nil
@@ -169,8 +162,8 @@ func (a *API) Recheck(ctx context.Context) error {
 	})
 }
 
-// CheckRemote checks one remote again, for its edit form. Health reports checking until the
-// check finishes, and remotes.health reports its result.
+// CheckRemote checks one remote again. Health reports checking until the check finishes, and
+// remotes.health reports its result.
 func (a *API) CheckRemote(ctx context.Context, name string) error {
 	return a.s.Do(ctx, func(s *Service) error {
 		if !s.exists(name) {

@@ -26,9 +26,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// A folder is copied from the operation page's arguments. It is recorded from queued to
-// completed with its totals and files, reported to the pages and the targets, and its stats group
-// is deleted at the end.
 func TestCopyFolder(t *testing.T) {
 	f := newFixture(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -99,7 +96,6 @@ func TestCopyFolder(t *testing.T) {
 	if slices.Contains(groups(t), groupOf(started.ID)) {
 		t.Error("the stats group outlived the transfer")
 	}
-	// The stored request is the plan that it ran.
 	var request string
 	if err := f.db.R.QueryRow(`SELECT request FROM transfers WHERE id = ?`, started.ID).Scan(&request); err != nil {
 		t.Fatal(err)
@@ -113,8 +109,6 @@ func syncOf(src, dst string) *operations.Plan {
 	return planOf(operations.Step{Op: operations.OpSync, Src: src, Dst: dst})
 }
 
-// A long copy (throttled per job) is stopped. It is claimed first, so the cancellation it ends
-// with is recorded as stopped, never as a failure. The targets are told only that it started.
 func TestStopLongCopy(t *testing.T) {
 	f := newFixture(t)
 	src, dst := t.TempDir(), memory()
@@ -156,8 +150,6 @@ func TestStopLongCopy(t *testing.T) {
 	}
 }
 
-// StopAll stops each open transfer and counts it. With nothing open, it stops nothing and
-// reports no error.
 func TestStopAll(t *testing.T) {
 	f := newFixture(t)
 	src, dst := t.TempDir(), memory()
@@ -182,8 +174,6 @@ func TestStopAll(t *testing.T) {
 	f.settled()
 }
 
-// A dry run writes nothing, is recorded as a dry run, and tells the targets nothing. Its preset
-// doesn't reopen as a dry run.
 func TestDryRun(t *testing.T) {
 	f := newFixture(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -220,16 +210,11 @@ func TestDryRun(t *testing.T) {
 	if got := string(mustJSON(t, d.Preset)); strings.Contains(got, "dry_run") || !strings.Contains(got, `"transfers":2`) {
 		t.Errorf("preset %s", got)
 	}
-	// The page's own preset is left as it was.
 	if _, ok := preset.Copy.Options.Config["dry_run"]; !ok {
 		t.Error("the page's preset lost its dry run")
 	}
 }
 
-// A request whose source is gone by the time it runs (because the plan was built earlier) ends
-// within the launch check. Start returns rclone's error, and the row is failed, never started.
-// The targets are told about the failure, but the desktop isn't, because the page shows Start's
-// error.
 func TestLaunchCheckRefusesMissingSource(t *testing.T) {
 	f := newFixture(t)
 	missing := filepath.Join(t.TempDir(), "missing")
@@ -250,7 +235,6 @@ func TestLaunchCheckRefusesMissingSource(t *testing.T) {
 	if got := f.notes.events(started.Seq); !slices.Equal(got, []notifications.NotificationEvent{notifications.NotificationEventJobFailed}) {
 		t.Errorf("notified %v, want failed alone", got)
 	}
-	// The targets get the step's own error, not how many steps failed.
 	f.notes.mu.Lock()
 	sent := f.notes.got[len(f.notes.got)-1].job.Error
 	f.notes.mu.Unlock()
@@ -262,7 +246,6 @@ func TestLaunchCheckRefusesMissingSource(t *testing.T) {
 		t.Errorf("a failure Start answered showed %+v on the desktop", got)
 	}
 
-	// With the page's arguments, rclone is asked first, so nothing is recorded.
 	before, _ := f.s.Active(context.Background())
 	_, err = f.s.Start(f.ctx, Spec{
 		Form:   formOf(t, "copy", operations.CopyArgs{Sources: []string{missing}, Destination: t.TempDir()}),
@@ -280,9 +263,6 @@ func TestLaunchCheckRefusesMissingSource(t *testing.T) {
 	}
 }
 
-// A plan that rclone can't run as it is (an option it refuses, or an operation it doesn't have)
-// is refused before anything is recorded. So are a start without an origin, a form whose options
-// rclone refuses, and a purge of a root.
 func TestPlanRefused(t *testing.T) {
 	f := newFixture(t)
 	bad := syncOf(t.TempDir(), t.TempDir())
@@ -313,9 +293,6 @@ func TestPlanRefused(t *testing.T) {
 	}
 }
 
-// A plan with one failing step ends failed ("1 of 2"). It keeps its output and its list of
-// files: the files moved, the one that failed (matched to its folder's step), and what can be
-// retried.
 func TestPlanWithFailingStep(t *testing.T) {
 	f := newFixture(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -375,13 +352,11 @@ func TestPlanWithFailingStep(t *testing.T) {
 	if err != nil || d.Retryable != 1 {
 		t.Errorf("detail retryable %d %v", d.Retryable, err)
 	}
-	// The files that a page which started it reads.
 	tracked, err := f.s.Tracked(ctx, []string{"gone", started.ID, started.ID})
 	if err != nil || len(tracked) != 1 || tracked[0].ID != started.ID || len(tracked[0].Files) != 3 {
 		t.Errorf("tracked %+v %v", tracked, err)
 	}
 
-	// The retry starts the selected file as one new transfer with the original's settings.
 	if err := os.Remove(inTheWay); err != nil {
 		t.Fatal(err)
 	}
@@ -409,17 +384,12 @@ func TestPlanWithFailingStep(t *testing.T) {
 	}
 }
 
-// The ticker reads the transfer's group through its pointer, because a call by the group's name
-// would create it again after it was deleted. The progress is the transfer's own, and the group
-// is gone after the end.
 func TestTickerReadsItsGroupAndDeletesIt(t *testing.T) {
 	f := newFixture(t)
 	src, dst := t.TempDir(), memory()
 	for i := range 3 {
 		writeFile(t, filepath.Join(src, string(rune('a'+i))+".bin"), 30<<10)
 	}
-	// The copy takes about 3 s, so the ticks at 1 s and 2 s come while it runs, even when one is
-	// late.
 	args := operations.CopyArgs{
 		Sources: []string{src}, Destination: dst,
 		Options: groupsOf("config", `{"bwlimit_file":"10K"}`),
@@ -435,7 +405,7 @@ func TestTickerReadsItsGroupAndDeletesIt(t *testing.T) {
 	if len(f.published(bus.TransfersProgress)) == 0 {
 		t.Fatal("no progress while it ran")
 	}
-	time.Sleep(1500 * time.Millisecond) // a tick after the end
+	time.Sleep(1500 * time.Millisecond)
 	if slices.Contains(groups(t), groupOf(started.ID)) {
 		t.Error("the group exists after the end")
 	}
@@ -450,9 +420,6 @@ func TestTickerReadsItsGroupAndDeletesIt(t *testing.T) {
 	}
 }
 
-// A shutdown claims the running transfers as interrupted and waits for the end handlers. A
-// restart with resume marks the transfers started from the pages, but not a bisync, as the busy
-// check said it would. Nothing starts after the shutdown.
 func TestShutdownAndResume(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -501,10 +468,6 @@ func TestShutdownAndResume(t *testing.T) {
 	}
 }
 
-// After a restart for an update, the marked transfer starts again as a retry of itself, with its
-// plan and origin. The flag is cleared first. Rows left open are interrupted and get the previous
-// process's last log time. A transfer that a newer build recorded is history and isn't started
-// again.
 func TestRecover(t *testing.T) {
 	f := newFixture(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -563,7 +526,6 @@ func TestRecover(t *testing.T) {
 		tr.Error != "Couldn't start again after the update: the transfer's plan is of version 99; this version of the app runs version 1" {
 		t.Errorf("a newer build's: %s %q", tr.State, tr.Error)
 	}
-	// Recover again, as after a crash right afterwards. Nothing comes back twice.
 	if err := f.s.Recover(f.ctx, 6000); err != nil {
 		t.Fatal(err)
 	}
@@ -575,15 +537,10 @@ func TestRecover(t *testing.T) {
 	}
 }
 
-// A batch that was running when the app restarted for an update comes back with only the steps
-// that had not succeeded. A move that was done is not run again, because it would fail on the
-// file it had moved. A batch whose end was never written comes back whole, and a batch whose
-// steps all succeeded doesn't come back.
 func TestRecoverSkipsWhatSucceeded(t *testing.T) {
 	f := newFixture(t)
-	// The folders are written with `/`, as a plan's steps and the sources read from them are.
 	src, dst := filepath.ToSlash(t.TempDir()), filepath.ToSlash(t.TempDir())
-	writeFile(t, filepath.Join(dst, "a.txt"), 3) // moved before the restart
+	writeFile(t, filepath.Join(dst, "a.txt"), 3)
 	writeFile(t, filepath.Join(src, "b.txt"), 3)
 	writeFile(t, filepath.Join(src, "c.txt"), 3)
 	move := func(name string) operations.Step {
@@ -624,7 +581,6 @@ func TestRecoverSkipsWhatSucceeded(t *testing.T) {
 		t.Errorf("a batch with nothing left came back: %d (%v)", n, err)
 	}
 
-	// With no end output, every step is run again.
 	if left := resumeOf(*planOf(move("a.txt"), move("b.txt")), nil); len(left.Steps) != 2 {
 		t.Errorf("without an end: %+v", left.Steps)
 	}
@@ -633,8 +589,6 @@ func TestRecoverSkipsWhatSucceeded(t *testing.T) {
 	}
 }
 
-// Options.Ended runs before transfers.changed reports the end. The Browser lists a folder
-// again as soon as it hears, so the listing cache must be dropped by then (browse.TransferEnded).
 func TestTheEndCallbacksRunBeforeTheEndIsSaid(t *testing.T) {
 	var sub *bus.Sub
 	heardFirst := make(chan bool, 1)
@@ -659,7 +613,6 @@ func TestTheEndCallbacksRunBeforeTheEndIsSaid(t *testing.T) {
 	}
 }
 
-// heardEnd drains sub and reports whether it held transfers.changed for tr's end.
 func heardEnd(sub *bus.Sub, tr Transfer) bool {
 	heard := false
 	for {
@@ -674,8 +627,6 @@ func heardEnd(sub *bus.Sub, tr Transfer) bool {
 	}
 }
 
-// The end is written once. A claim made between the job's end and the UPDATE keeps its state,
-// the end's totals and output are still written, and a second end writes nothing.
 func TestEndsOnce(t *testing.T) {
 	release := make(chan struct{})
 	f := newFixture(t, func(o *Options) {
@@ -696,13 +647,9 @@ func TestEndsOnce(t *testing.T) {
 	f.s.mu.Lock()
 	rn := f.s.running[started.ID]
 	f.s.mu.Unlock()
-	// The claim lands after rclone ended the job and before the end is written. The job is
-	// cancelled directly, so only the claim records it as stopped.
 	f.exec(`UPDATE transfers SET state = 'stopped' WHERE id = ?`, started.ID)
 	rn.job.Stop()
 	<-release
-	// The end callbacks run before transfers.changed says the end, so wait for it before
-	// counting the events.
 	f.wait(started.ID)
 	tr := f.get(started.ID)
 	if tr.State != StateStopped || tr.Error != "" || tr.Stats == nil {
@@ -716,7 +663,6 @@ func TestEndsOnce(t *testing.T) {
 		t.Error("the end snapshot's output was not written")
 	}
 	ended := *tr.EndedAt
-	// A second end (the handler running again) writes and reports nothing.
 	rn2 := *rn
 	rn2.ended, rn2.launched = make(chan struct{}), make(chan struct{})
 	close(rn2.launched)
@@ -731,11 +677,9 @@ func TestEndsOnce(t *testing.T) {
 	}
 }
 
-// held serves files over HTTP for an :http remote, and holds every request until release. A
-// transfer, or a start's plan, waits on it in the middle of a request.
 type held struct {
 	srv     *httptest.Server
-	asked   chan struct{} // a request arrived
+	asked   chan struct{}
 	release chan struct{}
 }
 
@@ -763,7 +707,6 @@ func newHeld(t *testing.T, files map[string]string) *held {
 	return h
 }
 
-// remote returns the served root as an rclone path.
 func (h *held) remote() string { return fmt.Sprintf(":http,url='%s/':", h.srv.URL) }
 
 func (h *held) waitAsked(t *testing.T) {
@@ -775,9 +718,6 @@ func (h *held) waitAsked(t *testing.T) {
 	}
 }
 
-// A start whose plan waits on a remote holds nothing that a shutdown waits for. The shutdown
-// ends at once, a start during it is refused at once, and the start being prepared records
-// nothing.
 func TestShutdownDoesNotWaitForAStartBeingPrepared(t *testing.T) {
 	f := newFixture(t)
 	h := newHeld(t, nil)
@@ -831,9 +771,6 @@ func TestShutdownDoesNotWaitForAStartBeingPrepared(t *testing.T) {
 	}
 }
 
-// A stop that reaches a job whose plan has returned on its own, before its end is written, is
-// refused. A stop claim that lands at that point doesn't hold either. The transfer ends as it
-// really did, and the targets and the desktop are told so.
 func TestStopAfterTheJobEndedDoesNotRelabelIt(t *testing.T) {
 	f := newFixture(t)
 	h := newHeld(t, map[string]string{"a.txt": "abc"})
@@ -849,7 +786,6 @@ func TestStopAfterTheJobEndedDoesNotRelabelIt(t *testing.T) {
 		t.Fatal("the transfer is not running")
 	}
 
-	// Hold the writer, so the end waits for it once the job is done.
 	tx, err := f.db.W.BeginTx(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -868,7 +804,6 @@ func TestStopAfterTheJobEndedDoesNotRelabelIt(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the stop of an ended job waited to claim it")
 	}
-	// A claim that was written before the check (the plan returned meanwhile).
 	if _, err := tx.Exec(`UPDATE transfers SET state = 'stopped' WHERE id = ?`, started.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -890,8 +825,6 @@ func TestStopAfterTheJobEndedDoesNotRelabelIt(t *testing.T) {
 	}
 }
 
-// An end that can't be written with its files (a full disk) is tried again, then written on its
-// own. The transfer ends with its state instead of staying running until the next start.
 func TestEndWrittenAloneWhenItsFilesCannotBe(t *testing.T) {
 	f := newFixture(t)
 	f.s.endWaits = []time.Duration{time.Millisecond, time.Millisecond}
@@ -918,7 +851,6 @@ func TestEndWrittenAloneWhenItsFilesCannotBe(t *testing.T) {
 	}
 }
 
-// retryEnd tries writing an end again after each of its waits, and stops at the first success.
 func TestRetryEnd(t *testing.T) {
 	s := &Service{log: slog.New(slog.DiscardHandler), endWaits: []time.Duration{time.Millisecond, time.Millisecond}}
 	failing := errors.New("busy")
@@ -938,9 +870,6 @@ func TestRetryEnd(t *testing.T) {
 	}
 }
 
-// When a start can't record that its job is running, it stops the job and returns the reason.
-// The job doesn't run without a record, no change without a state is published, and the
-// transfer still ends.
 func TestStartStopsAJobItCannotMarkRunning(t *testing.T) {
 	f := newFixture(t)
 	f.exec(`CREATE TRIGGER no_start BEFORE UPDATE OF started_ms ON transfers
@@ -964,8 +893,6 @@ func TestStartStopsAJobItCannotMarkRunning(t *testing.T) {
 	}
 }
 
-// The desktop notification for an end says, in plain words, what the transfer was and how it
-// ended. Secrets in its paths and error are hidden.
 func TestToastOf(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
@@ -999,10 +926,6 @@ func TestToastOf(t *testing.T) {
 	}
 }
 
-// A restart for an update marked a transfer whose plan this build refuses (an option that rclone
-// dropped). The transfer fails with the reason, instead of staying interrupted with no
-// explanation, and the desktop is told. Its retry page explains why it can't run instead of
-// offering items that would fail, and Retry refuses it the same way.
 func TestRecoverSaysARefusedResume(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
@@ -1045,8 +968,6 @@ func TestRecoverSaysARefusedResume(t *testing.T) {
 	}
 }
 
-// A resume that starts and fails within its launch check (its source was removed meanwhile) is
-// shown on the desktop, because no page asked for it and so no page shows Start's error.
 func TestRecoverSaysAResumeThatFailsAtOnce(t *testing.T) {
 	f := newFixture(t)
 	missing := filepath.Join(t.TempDir(), "missing")
@@ -1062,7 +983,6 @@ func TestRecoverSaysAResumeThatFailsAtOnce(t *testing.T) {
 	if err := f.db.R.QueryRow(`SELECT id FROM transfers WHERE retry_of = '3000-aaaaaa'`).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	// Start returned once its end was written.
 	if tr := f.get(id); tr.State != StateFailed {
 		t.Fatalf("the resume %s, want failed", tr.State)
 	}
@@ -1073,10 +993,6 @@ func TestRecoverSaysAResumeThatFailsAtOnce(t *testing.T) {
 	}
 }
 
-// A stop that claims a transfer after its row is inserted but before its job is tracked doesn't
-// stop anything itself. The start finds the claim when it marks the job running, and stops the
-// job. The transfer ends stopped, its job has done almost nothing, and no failure is recorded
-// or reported.
 func TestStopBeforeTheJobIsTracked(t *testing.T) {
 	f := newFixture(t)
 	src := t.TempDir()
@@ -1114,10 +1030,6 @@ func TestStopBeforeTheJobIsTracked(t *testing.T) {
 	}
 }
 
-// A start is refused after its row was inserted (rclone wouldn't start the job), and its end
-// can't be written either. The end is tried again, then the row is left as it is. Nothing is
-// reported for an end that isn't recorded, the stats group is deleted, and Recover ends the
-// transfer at the next start.
 func TestRefusalWhoseWriteFails(t *testing.T) {
 	f := newFixture(t)
 	f.s.endWaits = []time.Duration{time.Millisecond, time.Millisecond}
@@ -1131,7 +1043,7 @@ func TestRefusalWhoseWriteFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	group := groupOf(rw.id)
-	accounting.StatsGroup(ctx, group) // as Start makes it before the job
+	accounting.StatsGroup(ctx, group)
 	f.exec(`CREATE TRIGGER no_end BEFORE UPDATE OF ended_ms ON transfers
 		BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END`)
 	changes := len(f.published(bus.TransfersChanged))
@@ -1157,9 +1069,6 @@ func TestRefusalWhoseWriteFails(t *testing.T) {
 	}
 }
 
-// A sync that fails more files than the ledger keeps lists the first maxFailed of them, and so do
-// Retryable and Retry. A retry copies those files and not the others. The test pins the current
-// limit.
 func TestSyncWithMoreFailuresThanKept(t *testing.T) {
 	if runtime.GOOS == "windows" || os.Getuid() == 0 {
 		t.Skip("a file without permissions is readable here")
@@ -1210,10 +1119,6 @@ func TestSyncWithMoreFailuresThanKept(t *testing.T) {
 	}
 }
 
-// A shutdown that races a start leaves nothing open, whichever one wins. A start that it refused
-// recorded nothing. A start that it claimed ended interrupted within its wait, with its job
-// stopped. A shutdown that begins while the start holds its row waits for the start to track
-// its job, then claims it.
 func TestShutdownRacingAStart(t *testing.T) {
 	src := t.TempDir()
 	writeFile(t, filepath.Join(src, "big.bin"), 1<<20)
@@ -1222,7 +1127,6 @@ func TestShutdownRacingAStart(t *testing.T) {
 		slow.Config = operations.Options{"bwlimit_file": "10K"}
 		return f.s.Start(f.ctx, Spec{Form: operations.Form{Operation: "copy"}, Plan: slow, Origin: page})
 	}
-	// nothingOpen checks what the start returned against what it recorded.
 	nothingOpen := func(t *testing.T, f *fixture, started Started, err error) {
 		t.Helper()
 		var recorded, open int
@@ -1281,7 +1185,7 @@ func TestShutdownRacingAStart(t *testing.T) {
 			})
 			wg.Go(func() {
 				<-ready
-				time.Sleep(time.Duration(i) * 100 * time.Microsecond) // a little later each run
+				time.Sleep(time.Duration(i) * 100 * time.Microsecond)
 				f.s.Shutdown(context.Background(), false)
 			})
 			close(ready)

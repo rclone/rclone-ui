@@ -7,22 +7,16 @@ import "github.com/rclone/rclone-ui/core/i18n"
 type NotificationEvent string
 
 const (
-	NotificationEventJobStarted   NotificationEvent = "job.started"
-	NotificationEventJobCompleted NotificationEvent = "job.completed"
-	NotificationEventJobFailed    NotificationEvent = "job.failed"
-	NotificationEventMountFailed  NotificationEvent = "mount.failed"
-	NotificationEventServeFailed  NotificationEvent = "serve.failed"
-	// NotificationEventWatcherFailed is sent when a watcher's sync fails, once per streak of
-	// failures.
-	NotificationEventWatcherFailed NotificationEvent = "watcher.failed"
-	// NotificationEventAppCrashed is sent at startup when the app's previous run didn't stop
-	// cleanly.
-	NotificationEventAppCrashed NotificationEvent = "app.crashed"
-	// NotificationEventUpdateAvailable is sent when the ui's updater finds a new release.
+	NotificationEventJobStarted      NotificationEvent = "job.started"
+	NotificationEventJobCompleted    NotificationEvent = "job.completed"
+	NotificationEventJobFailed       NotificationEvent = "job.failed"
+	NotificationEventMountFailed     NotificationEvent = "mount.failed"
+	NotificationEventServeFailed     NotificationEvent = "serve.failed"
+	NotificationEventWatcherFailed   NotificationEvent = "watcher.failed"
+	NotificationEventAppCrashed      NotificationEvent = "app.crashed"
 	NotificationEventUpdateAvailable NotificationEvent = "app.update-available"
 )
 
-// NotificationSeverity sets the colour of a Discord embed, and is sent to generic webhooks.
 type NotificationSeverity string
 
 const (
@@ -31,7 +25,6 @@ const (
 	NotificationSeverityError   NotificationSeverity = "error"
 )
 
-// NotificationCategory groups the events in the target form.
 type NotificationCategory string
 
 const (
@@ -66,37 +59,30 @@ type NotificationCategoryMeta struct {
 	Label string               `json:"label"`
 }
 
-// NotificationCatalog lists the categories and events that the target form offers, in order.
 type NotificationCatalog struct {
 	Categories []NotificationCategoryMeta `json:"categories"`
 	Events     []NotificationEventMeta    `json:"events"`
 }
 
-// NotificationTarget is a saved target, as shown in the Notifications window.
 type NotificationTarget struct {
-	ID        string               `json:"id"`
-	Provider  NotificationProvider `json:"provider"`
-	Name      string               `json:"name"`
-	URL       string               `json:"url"`
-	IsEnabled bool                 `json:"isEnabled"`
-	Events    []NotificationEvent  `json:"events"`
-	CreatedAt int64                `json:"createdAt"`
-	// LastSentAt and LastError describe the last delivery, including a test of a saved target.
-	// LastError is English inside the core, and the API gives it in the app's language.
-	LastSentAt *int64 `json:"lastSentAt,omitempty"`
-	LastError  string `json:"lastError,omitempty"`
+	ID         string               `json:"id"`
+	Provider   NotificationProvider `json:"provider"`
+	Name       string               `json:"name"`
+	URL        string               `json:"url"`
+	IsEnabled  bool                 `json:"isEnabled"`
+	Events     []NotificationEvent  `json:"events"`
+	CreatedAt  int64                `json:"createdAt"`
+	LastSentAt *int64               `json:"lastSentAt,omitempty"`
+	LastError  string               `json:"lastError,omitempty"`
 
-	lastError i18n.Text // LastError as a translatable text, read from its saved form
+	lastError i18n.Text
 }
 
-// local returns t as a page shows it, with its last error in the app's language.
 func (t NotificationTarget) local() NotificationTarget {
 	t.LastError = t.lastError.Local()
 	return t
 }
 
-// TargetInput is the target form. An update keeps the saved provider and refuses a different
-// one. The form includes the provider either way, because Problems needs it.
 type TargetInput struct {
 	Provider  NotificationProvider `json:"provider"`
 	Name      string               `json:"name"`
@@ -115,14 +101,11 @@ type TestInput struct {
 	URL      string               `json:"url,omitempty"`
 }
 
-// Outcome is the result of a test send.
 type Outcome struct {
 	OK      bool   `json:"ok"`
 	Message string `json:"message,omitempty"`
 }
 
-// SMTPEncryption is how the connection to the mail server is encrypted: STARTTLS, TLS from the
-// first byte, or none.
 type SMTPEncryption string
 
 const (

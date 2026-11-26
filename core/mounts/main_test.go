@@ -1,11 +1,5 @@
 package mounts
 
-// This test binary also acts as every mount child that the tests start. An rclone child (marked
-// by childenv) runs rclone's command line, as main.go dispatches it. It has one extra rclone
-// command, `fakemount`, which runs a real VFS, so the child's rc responds to vfs/queue and
-// core/stats, but mounts nothing. Instead it writes a marker file next to the mount point to
-// show that it is mounted, and the tests' mount table reads that file.
-
 import (
 	"cmp"
 	"context"
@@ -44,7 +38,6 @@ import (
 
 func TestMain(m *testing.M) {
 	if _, ok := os.LookupEnv(childenv.Env); ok {
-		// An rclone child runs rclone's own main, as main.go's runRclone does.
 		childenv.Adopt(children.OwnMount)
 		rclonecmd.Root.PersistentPreRun = func(*cobra.Command, []string) { childenv.Ready() }
 		rclonecmd.Root.AddCommand(fakeMountCommand())
@@ -53,25 +46,16 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 	slog.SetDefault(slog.New(slog.DiscardHandler))
-	// The children, and rclone in this process, use their own home folder.
 	testutil.Main(m, func(dir string) error {
 		testHome = dir
 		return nil
 	})
 }
 
-// testHome is the tests' home folder (testutil.Main). Anything the tests create outside
-// t.TempDir goes in it, so it is removed along with it.
 var testHome string
 
-// markerOf returns the path of the fake mount's "mounted" marker for a mount point.
 func markerOf(mountPoint string) string { return filepath.Clean(mountPoint) + ".fakemounted" }
 
-// fakeMountCommand is `fakemount <source> <mount point>`. It runs a VFS over the source, and the
-// tests' mount table treats it as mounted once its marker is written. SIGTERM, or the parent
-// process going away, shuts the VFS down and removes the marker, just as rclone unmounts (unless
-// --fake-stay is set). Flags on the mount command line that it doesn't know (--addr,
-// --volname…) are ignored.
 func fakeMountCommand() *cobra.Command {
 	var (
 		fail    string
@@ -107,7 +91,7 @@ func fakeMountCommand() *cobra.Command {
 					fs.Fatalf(nil, "fake mount: write: %v", err)
 				}
 			}
-			if open != "" { // written and left open: dirty, but not in the upload queue
+			if open != "" {
 				fd, err := v.OpenFile(open, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 				if err == nil {
 					_, err = fd.Write([]byte("still being written"))
@@ -125,12 +109,11 @@ func fakeMountCommand() *cobra.Command {
 				for !exists(crashOn) {
 					time.Sleep(10 * time.Millisecond)
 				}
-				// The next start must not find the file and crash at once.
 				if err := os.Remove(crashOn); err != nil {
 					fs.Fatalf(nil, "fake mount: %v", err)
 				}
 				fs.Errorf(nil, "fake mount: crashed")
-				os.Exit(1) // no unmount, so the marker stays, as a dead mount does
+				os.Exit(1)
 			}
 			select {}
 		},
@@ -145,11 +128,10 @@ func fakeMountCommand() *cobra.Command {
 	return c
 }
 
-// configs is the config service as the mounts see it: one plain file.
 type configs struct {
 	mu   sync.Mutex
 	path string
-	err  error // returned by ChildPassword when set
+	err  error
 }
 
 func (c *configs) Path() string {
@@ -164,8 +146,6 @@ func (c *configs) ChildPassword(context.Context) (string, error) {
 	return "", c.err
 }
 
-// fixture is a Service with a fresh app.db and a real supervisor whose mount children run
-// fakemount.
 type fixture struct {
 	t       *testing.T
 	s       *Service
@@ -178,8 +158,8 @@ type fixture struct {
 	lines   *lines
 	ctx     context.Context
 
-	base   string // sources and mount points
-	data   string // the data dir: rclone.conf, cache
+	base   string
+	data   string
 	run    string
 	cache  string
 	config string
@@ -190,9 +170,9 @@ type fixture struct {
 }
 
 type fixtureOpts struct {
-	logLevel string // the children's log level; INFO when ""
+	logLevel string
 	pending  []children.Record
-	run      string // an earlier fixture's run dir, to simulate a restart
+	run      string
 	data     string
 	db       *db.DB
 	tweak    func(*Options)
@@ -288,15 +268,12 @@ func newFixture(t *testing.T, fo ...fixtureOpts) *fixture {
 	return f
 }
 
-// fake sets the fake mount's own flags for the next starts.
 func (f *fixture) fake(args ...string) {
 	f.mu.Lock()
 	f.fakeArgs = args
 	f.mu.Unlock()
 }
 
-// place returns a source folder with a file in it, and a mount point under base written the
-// way the mount command writes it (with forward slashes on Windows).
 func (f *fixture) place(name string) (src, mp string) {
 	f.t.Helper()
 	src = filepath.Join(f.base, name+"-src")
@@ -309,7 +286,6 @@ func (f *fixture) place(name string) (src, mp string) {
 	return src, filepath.ToSlash(filepath.Join(f.base, name+"-mnt"))
 }
 
-// start starts a mount and waits for the state it reaches first after starting.
 func (f *fixture) start(a operations.MountArgs) (Mount, bus.MountsChangedData) {
 	f.t.Helper()
 	m, err := f.s.Start(f.ctx, a)
@@ -338,7 +314,6 @@ func (f *fixture) exec(q string, args ...any) {
 	}
 }
 
-// notes records the notifications that were sent.
 type notes struct {
 	bus  *bus.Bus
 	mu   sync.Mutex
@@ -356,8 +331,6 @@ func (n *notes) Notify(_ context.Context, event notifications.NotificationEvent,
 	n.mu.Unlock()
 }
 
-// Desktop shows a desktop notification as the notification service does once the UI has
-// subscribed: on the bus.
 func (n *notes) Desktop(_ context.Context, e notifications.NotificationEvent, p notifications.Payload, d notifications.Desktop) {
 	n.bus.Publish(bus.NotifyOS, d.NotifyOS(e, p))
 }
@@ -368,7 +341,6 @@ func (n *notes) get() []note {
 	return slices.Clone(n.list)
 }
 
-// events collects mounts.changed events and the OS notifications that were requested.
 type events struct {
 	mu     sync.Mutex
 	list   []bus.MountsChangedData
@@ -424,13 +396,11 @@ func (e *events) of(id string) []bus.MountsChangedData {
 	return out
 }
 
-// wait returns the first event for id in one of states, and fails after a minute.
 func (e *events) wait(t *testing.T, id string, states ...children.Status) bus.MountsChangedData {
 	t.Helper()
 	return e.waitN(t, id, 1, states...)
 }
 
-// waitN returns the nth event for id in one of states.
 func (e *events) waitN(t *testing.T, id string, n int, states ...children.Status) bus.MountsChangedData {
 	t.Helper()
 	deadline := time.After(time.Minute)
@@ -451,7 +421,6 @@ func (e *events) waitN(t *testing.T, id string, n int, states ...children.Status
 	}
 }
 
-// lines collects the children's log lines.
 type lines struct {
 	mu   sync.Mutex
 	list []logs.Record
@@ -463,7 +432,6 @@ func (l *lines) emit(e logs.Record) {
 	l.mu.Unlock()
 }
 
-// cacheRefused returns a child's line saying that its VFS cache couldn't be created, or "".
 func (l *lines) cacheRefused() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -490,7 +458,6 @@ func exists(p string) bool {
 	return err == nil
 }
 
-// groupsOf returns option groups as a page sends them, from pairs of name and JSON.
 func groupsOf(kv ...string) operations.Groups {
 	var b strings.Builder
 	b.WriteByte('{')

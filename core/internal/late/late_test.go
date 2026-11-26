@@ -22,7 +22,7 @@ func TestGetWaitsForSet(t *testing.T) {
 	}()
 	time.Sleep(10 * time.Millisecond)
 	v.Set(7)
-	v.Set(8) // only the first call counts
+	v.Set(8)
 	if n := <-got; n != 7 {
 		t.Fatalf("got %d", n)
 	}
@@ -44,7 +44,6 @@ func TestFailAndCancel(t *testing.T) {
 	}
 }
 
-// Call and Do pass the value to fn and return fn's result and error unchanged.
 func TestCallAndDo(t *testing.T) {
 	ctx := context.Background()
 	v := Of(3)
@@ -63,7 +62,6 @@ func TestCallAndDo(t *testing.T) {
 	}
 }
 
-// CallValue and CallValues give the pages values in place of the services' pointers.
 func TestCallValue(t *testing.T) {
 	ctx := context.Background()
 	v := Of("s")

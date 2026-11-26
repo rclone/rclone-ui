@@ -1,8 +1,6 @@
 package launcher
 
-// Usage is one key's history.
 type Usage struct {
-	// Key identifies the result (the launcher's Key).
 	Key   string `json:"key"`
 	Count int64  `json:"count"`
 	// LastUsed is when it was last picked, in milliseconds since the epoch.

@@ -12,7 +12,6 @@ import (
 	"github.com/rclone/rclone-ui/core/vfs"
 )
 
-// APIReader reads the core's state through the APIs that the pages call too.
 func APIReader(apis *core.APIs) Reader { return apiReader{apis} }
 
 type apiReader struct{ apis *core.APIs }

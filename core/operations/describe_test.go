@@ -21,7 +21,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// localTree creates a temp folder that holds a folder and a file.
 func localTree(t *testing.T) (dir, folder, file string) {
 	t.Helper()
 	dir = filepath.ToSlash(t.TempDir())
@@ -71,8 +70,6 @@ func TestDescribeSources(t *testing.T) {
 	}
 }
 
-// A root is a folder, checked by reading its first page. It is accepted when it lists, and
-// refused with rclone's error when it doesn't (an unplugged disk, a missing bucket).
 func TestDescribeRoots(t *testing.T) {
 	ctx := context.Background()
 	_, err := rclone.Run(ctx, rclone.CallOpts{}, func(ctx context.Context) error {
@@ -100,8 +97,6 @@ func TestDescribeRoots(t *testing.T) {
 func TestBuildPlan(t *testing.T) {
 	dir, folder, file := localTree(t)
 	ctx := context.Background()
-	// rclone's answer decides the step, however the path is written. The app's own mapper, typed
-	// as one text with a quoted part, is stored as the list that the mapping panel writes.
 	form := CopyArgs{Sources: []string{folder, file}, Destination: dir + "/out",
 		Options: groups("metadata", `{"metadata": true, "metadata_mapper": "metadata-map --drop \"a b\""}`)}.Form()
 	p, err := BuildPlan(ctx, form)
@@ -145,7 +140,6 @@ func TestBuildPlan(t *testing.T) {
 		}
 	}
 
-	// Refused with rclone's error before rclone is asked anything.
 	if _, err := BuildPlan(ctx, CopyArgs{Sources: []string{"-bad:x"}, Destination: dir}.Form()); err == nil ||
 		!strings.HasPrefix(err.Error(), "Rclone cannot read this path: config name contains invalid characters") ||
 		!errs.Is(err) {
@@ -175,10 +169,8 @@ func TestBuildPlan(t *testing.T) {
 	}
 }
 
-// testExe is the running executable that the tests pretend to be.
 var testExe = filepath.FromSlash("/opt/rcui/rcui")
 
-// groups builds option groups as a page sends them, from pairs of name and JSON.
 func groups(kv ...string) Groups {
 	var b strings.Builder
 	b.WriteByte('{')
@@ -196,7 +188,6 @@ func groups(kv ...string) Groups {
 	return g
 }
 
-// decodeOptions decodes the JSON of one option group, as decodeGroup decodes a group.
 func decodeOptions(raw json.RawMessage) (options, error) {
 	var g catalog.Group
 	if err := json.Unmarshal(raw, &g); err != nil {
@@ -205,7 +196,6 @@ func decodeOptions(raw json.RawMessage) (options, error) {
 	return decodeGroup(GroupConfig, g)
 }
 
-// anyTexts returns the texts of a stored list option.
 func anyTexts(v any) []string {
 	list, _ := v.([]any)
 	out := make([]string, len(list))

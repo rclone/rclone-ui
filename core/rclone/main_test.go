@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	// main.go imports every backend for the binary. The tests need memory, local, and the
-	// providers that core/catalog lists.
 	_ "github.com/rclone/rclone/backend/all"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
@@ -19,12 +17,11 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/testutil"
 )
 
-// Every test shares one Init, as the app does.
 var (
 	dataDir       string
-	configPath    string // the active config file Init opened: [mem] type = memory
+	configPath    string
 	store         *Store
-	operatorHTTP  string // HTTP_PROXY before Init
+	operatorHTTP  string
 	operatorHas   bool
 	testProxy     = Proxy{URL: "http://127.0.0.1:9", IgnoredHosts: []string{"localhost", "10.0.0.0/8"}}
 	errFromRclone = errors.New("the exact text rclone gave")
@@ -45,8 +42,6 @@ func run(m *testing.M) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	// Don't touch the user's own files. rclone's default config file is
-	// dataDir/rclone/rclone.conf.
 	testutil.Home(dataDir)
 	configPath = filepath.Join(dataDir, "rclone.conf")
 	if err := os.WriteFile(configPath, []byte("[mem]\ntype = memory\n\n"), 0o600); err != nil {
@@ -67,7 +62,6 @@ func run(m *testing.M) int {
 	return m.Run()
 }
 
-// registerTestCalls adds rc functions the tests call through Call.
 func registerTestCalls() {
 	rc.Add(rc.Call{Path: "rcui-test/echo", Fn: func(ctx context.Context, in rc.Params) (rc.Params, error) {
 		group, _ := accounting.StatsGroupFromContext(ctx)

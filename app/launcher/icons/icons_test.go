@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// TestTinted: every black in the glyph is replaced by the given colour, and an unknown name has no
-// glyph.
 func TestTinted(t *testing.T) {
 	got := Tinted(Copy, "#ffffff")
 	if got == "" || strings.Contains(got, `"#000"`) || !strings.Contains(got, `"#ffffff"`) {

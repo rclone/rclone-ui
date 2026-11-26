@@ -39,10 +39,6 @@ type Fields = 'name' | 'pathA' | 'pathB'
 
 const LOOK = WINDOWS.watchers
 
-/**
- * The drawer that creates a watcher, or edits `watcher`. The core checks the form, and a refused
- * field shows its error on the field.
- */
 export default function WatcherDrawer({
     isOpen,
     onClose,
@@ -87,7 +83,6 @@ export default function WatcherDrawer({
         },
     })
 
-    // Typing in a field clears the error the core gave it.
     const edit = (field: Fields, set: (value: string) => void) => (value: string) => {
         set(value)
         setRefused((prev) => ({ ...prev, [field]: undefined }))
@@ -164,7 +159,6 @@ export default function WatcherDrawer({
                                 </RouteRow>
                             </RoutePanel>
                         </section>
-                        {/* Enter in a field saves. */}
                         <button type="submit" hidden={true} />
                     </form>
                 </DrawerBody>

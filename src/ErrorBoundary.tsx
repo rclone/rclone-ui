@@ -8,10 +8,6 @@ import EmptyState from './components/EmptyState'
 import { toneButton } from './components/look/buttons'
 import { SURFACE } from './components/look/Panel'
 
-/**
- * Catches a page that failed to render, so the window isn't left blank. It logs the error to the
- * console, which the app's log keeps.
- */
 export default class ErrorBoundary extends Component<
     { children: ReactNode },
     { error: Error | null }

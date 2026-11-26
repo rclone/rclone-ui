@@ -49,9 +49,6 @@ func TestField(t *testing.T) {
 	}
 }
 
-// TestOf checks how Of converts the core's own errors for the pages. A refusal becomes Invalid,
-// with its text unchanged and the rejected field. A canceled request becomes Canceled. Any other
-// error is left to rclone.ErrorOf.
 func TestOf(t *testing.T) {
 	e := Of(fmt.Errorf("renaming: %w", Field("name", "That name is taken.")))
 	if e.Code != CodeInvalid || e.Message != "renaming: That name is taken." ||
@@ -73,8 +70,6 @@ func TestOf(t *testing.T) {
 	}
 }
 
-// TestMarshal checks the JSON that the pages read: the code, the message, and the details that
-// the page acts on.
 func TestMarshal(t *testing.T) {
 	for _, c := range []struct {
 		err  error
@@ -96,8 +91,6 @@ func TestMarshal(t *testing.T) {
 	}
 }
 
-// TestTextRefusals checks the refusals made from a text: a sentence, and a field's refusal. Each
-// reads in English, and Of turns it into Invalid with its field.
 func TestTextRefusals(t *testing.T) {
 	text := i18n.MN("%d name is taken.", "%d names are taken.", 2, 2)
 	if e := Of(Sentence(text)); e.Code != CodeInvalid || e.Message != "2 names are taken." {

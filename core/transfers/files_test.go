@@ -7,9 +7,6 @@ import (
 	"github.com/rclone/rclone/fs/accounting"
 )
 
-// A row's outcome comes from rclone's snapshot: a failure whatever the action, a check for each
-// of rclone's checking labels that only read, and a transfer for a copy and for the checking
-// labels that change the file.
 func TestRowOutcome(t *testing.T) {
 	none := func(accounting.TransferSnapshot) *int { return nil }
 	for _, c := range []struct {

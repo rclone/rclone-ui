@@ -31,11 +31,8 @@ func printPairing(url, user, pass string) {
 	terminal.WriteString(out.String())
 }
 
-// quiet is the light margin around the code, in modules (the QR code's cells).
 const quiet = 2
 
-// qrBlocks draws a code with half blocks, two rows of modules per line, dark on light whatever
-// the terminal's own colors are.
 func qrBlocks(size int, black func(x, y int) bool) string {
 	dark := func(x, y int) bool { return black(x-quiet, y-quiet) }
 	n := size + 2*quiet

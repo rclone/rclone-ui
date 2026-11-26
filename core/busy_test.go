@@ -6,8 +6,6 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// A running transfer from the pages starts again after an update. A schedule's run runs again at
-// the next start, whatever stops it. A retry of a scheduled run is the user's, and keeps neither.
 func TestBusyDetail(t *testing.T) {
 	page := transfers.Origin{Kind: transfers.OriginPage}
 	schedule := transfers.Origin{Kind: transfers.OriginSchedule, ID: "s1", Name: "Nightly"}
@@ -31,8 +29,6 @@ func TestBusyDetail(t *testing.T) {
 	}
 }
 
-// Phrase names what runs in one line, the same for a question and its answer. Done says what a
-// stop stopped, or that nothing was running.
 func TestRunningPhrase(t *testing.T) {
 	for _, c := range []struct {
 		r    Running

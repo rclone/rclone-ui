@@ -9,7 +9,6 @@ import (
 	"github.com/leonelquinteros/gotext"
 )
 
-// use puts a catalog in place of a language's file for one test, and makes it the language.
 func use(t *testing.T, lang, po string) {
 	t.Helper()
 	p := gotext.NewPo()
@@ -71,7 +70,6 @@ msgstr "un servidor"
 	}
 }
 
-// texted is an error whose message is a Text, as the core's errors are.
 type texted struct{ text Text }
 
 func (e texted) Error() string { return e.text.String() }
@@ -89,12 +87,10 @@ msgstr "No se pudo renombrar %s: %w"
 	if got := Localize(taken); got != "Ese nombre ya está en uso." {
 		t.Errorf("a text: %q", got)
 	}
-	// An error as a value is translated with the message around it.
 	outer := texted{M("Could not rename %s: %w", "a", taken)}
 	if got, want := Localize(outer), "No se pudo renombrar a: Ese nombre ya está en uso."; got != want {
 		t.Errorf("a wrapped text: %q, want %q", got, want)
 	}
-	// Words that only fmt put around a text are English, so the whole stays English.
 	wrapped := fmt.Errorf("renaming: %w", taken)
 	if got := Localize(wrapped); got != "renaming: That name is taken." {
 		t.Errorf("wrapped by fmt: %q", got)
@@ -140,7 +136,6 @@ func TestMatch(t *testing.T) {
 		{[]string{"zh_CN.UTF-8"}, "zh-CN"},
 		{[]string{"zh-SG"}, "zh-CN"},
 		{[]string{"zh"}, "zh-CN"},
-		// Traditional Chinese is not Simplified.
 		{[]string{"zh-TW"}, "en"},
 		{[]string{"zh-Hant-HK", "zh-Hans"}, "zh-CN"},
 		{[]string{"fr-FR", "es"}, "es"},
@@ -192,7 +187,6 @@ msgstr "Ese nombre ya está en uso."
 	if got, want := back.Local(), "Fallaron 3 archivos de gdrive:: Ese nombre ya está en uso."; got != want {
 		t.Errorf("Spanish: %q, want %q", got, want)
 	}
-	// Another error is saved as its words, and reads back as them in every language.
 	plainErr := errors.New("googleapi: Error 403: 100% of quota used")
 	if got := Save(plainErr); got != plainErr.Error() {
 		t.Errorf("another error saved as %q", got)
@@ -203,7 +197,6 @@ msgstr "Ese nombre ya está en uso."
 	if Save(nil) != "" || !Saved("").IsZero() || Saved("").Local() != "" {
 		t.Error("nothing saved")
 	}
-	// A broken record shows as it is rather than as nothing.
 	if got := Saved(savedMark + "{not json").String(); got != savedMark+"{not json" {
 		t.Errorf("a broken record: %q", got)
 	}
@@ -224,7 +217,6 @@ func TestPlain(t *testing.T) {
 	if got := Saved("disk full").Local(); got != "disk full" {
 		t.Errorf("plain words read back as %q", got)
 	}
-	// Plain words as a value of a message stay as they are, and are saved as words.
 	msg := M("Could not copy: %s", Plain("disk full"))
 	if got := msg.Local(); got != "[Çóúld ñót çópý: disk full]" {
 		t.Errorf("plain words in a message: %q", got)

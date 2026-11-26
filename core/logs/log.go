@@ -1,13 +1,3 @@
-// Package logs is the app's single log. Every line is an slog record with a component and
-// usually a subcomponent (see Logger). The context it was logged with can attribute it to a
-// transfer or a job (see With). One writer goroutine folds floods of similar lines into counts
-// (fold.go) and writes the rest as JSON lines to <data>/logs/rcui.log. When that file reaches
-// 10 MB it starts over, and the previous file is kept as rcui.log.1. The writer also keeps the
-// newest records in memory, so a bug report can include the last lines (Tail). When asked, the
-// lines at the app's level are also copied to stderr as text, without folding.
-//
-// The lines are not stored in a database, because nothing needs to filter them over several
-// days. A desktop app only needs the recent lines and a file to attach to a bug report.
 package logs
 
 import (
@@ -30,18 +20,11 @@ import (
 )
 
 const (
-	// maxFileSize is the size at which the file starts over.
-	maxFileSize = 10 << 20
-	// ringSize is the number of records kept in memory for Tail.
-	ringSize = 5000
-	// queueSize is the number of records that can wait for the writer. When the queue is full,
-	// Append drops new records and counts them.
-	queueSize = 65536
-	// failureNotice is the minimum time between two stderr lines about a file that cannot be
-	// written. It is also how long the writer waits before it tries to open the file again.
+	maxFileSize   = 10 << 20
+	ringSize      = 5000
+	queueSize     = 65536
 	failureNotice = 30 * time.Second
-	// closeWait is the longest Close waits for the writer.
-	closeWait = 5 * time.Second
+	closeWait     = 5 * time.Second
 )
 
 type Options struct {
@@ -50,7 +33,6 @@ type Options struct {
 	Level  string // level of the app's lines: debug, info, notice, warning, error; "" is info
 }
 
-// tuning holds the limits that the tests make smaller.
 type tuning struct {
 	stderr  io.Writer
 	queue   int
@@ -63,26 +45,24 @@ type tuning struct {
 // counted in a `dropped` mark. Every line that is appended is either written, folded into a
 // `repeated` mark, or counted in a `dropped` mark.
 type Log struct {
-	path string
-	// previous is when the file was last written before this Open, which is the time of the
-	// previous process's last line. It is zero when there was no file.
+	path     string
 	previous time.Time
 	level    slog.LevelVar
 	fold     foldRules
 	maxSize  int64
 
-	text slog.Handler // writes to stderr when lines are copied there; otherwise nil
+	text slog.Handler
 
 	queue   chan Record
-	dropped atomic.Int64 // lines dropped because the queue was full, since the last mark
+	dropped atomic.Int64
 
-	mu     sync.RWMutex // keeps closed from changing while a push is in progress
+	mu     sync.RWMutex
 	closed bool
 
-	tmu      sync.Mutex // guards the ring that Tail reads
+	tmu      sync.Mutex
 	ring     []Record
 	ringCap  int
-	ringHead int // index of the oldest record once the ring is full
+	ringHead int
 
 	quit      chan struct{}
 	done      chan struct{}
@@ -90,7 +70,6 @@ type Log struct {
 	closeErr  error
 }
 
-// Open opens the log file for appending, starts the writer and writes the `start` mark.
 func Open(o Options) (*Log, error) {
 	return open(o, tuning{stderr: os.Stderr, queue: queueSize, fold: folding(), maxSize: maxFileSize, ring: ringSize})
 }
@@ -132,8 +111,6 @@ func open(o Options, t tuning) (*Log, error) {
 		return nil, fmt.Errorf("logs: %w", err)
 	}
 	l.push(l.mark(MarkStart, 0))
-	// This doesn't use the core's Go, because Go logs panics through this log. The writer
-	// recovers from its own panics.
 	go l.run(w)
 	return l, nil
 }
@@ -141,7 +118,6 @@ func open(o Options, t tuning) (*Log, error) {
 // Previous is when the previous process last wrote the log. It is zero on the first run.
 func (l *Log) Previous() time.Time { return l.previous }
 
-// Handler returns the slog handler for the app's records, to pass to slog.SetDefault.
 func (l *Log) Handler() slog.Handler { return &handler{l: l} }
 
 // Path is the path of the log file. The previous file is Path() + ".1".
@@ -187,8 +163,6 @@ func (l *Log) push(r Record) {
 	if l.closed {
 		return
 	}
-	// Lines were dropped before this one. Their mark goes in first, at the place where the lines
-	// went missing. If the queue is still full, this record is dropped and counted with them.
 	if l.dropped.Load() > 0 {
 		if n := l.dropped.Swap(0); n > 0 {
 			select {
@@ -238,8 +212,6 @@ func (l *Log) Close() error {
 	}
 }
 
-// run is the writer goroutine. It folds lines (fold.go), numbers the ones it keeps, and writes
-// them to the file and the tail. It flushes the file whenever the queue is empty.
 func (l *Log) run(w *writer) {
 	defer close(l.done)
 	w.sweep = time.NewTimer(time.Hour)
@@ -249,7 +221,6 @@ func (l *Log) run(w *writer) {
 		case r := <-l.queue:
 			w.add(r)
 			if len(l.queue) == 0 {
-				// Lines were dropped, and the queue is empty now, so write their mark.
 				if n := l.dropped.Swap(0); n > 0 {
 					w.emit(l.mark(MarkDropped, n))
 				}
@@ -279,26 +250,23 @@ func (l *Log) run(w *writer) {
 	}
 }
 
-// writer is the writer goroutine's state.
 type writer struct {
 	l    *Log
-	n    int64 // N of the last record
+	n    int64
 	fold *folder
 
-	sweep    *time.Timer // set while some lines are folded; fires to check for counts that are due
+	sweep    *time.Timer
 	sweeping bool
 
 	f    *os.File
 	buf  *bufio.Writer
 	size int64
 
-	lost       int64 // records that couldn't be written since the file last worked
+	lost       int64
 	failNotice time.Time
 	retryAt    time.Time
 }
 
-// add handles a record from the queue. It writes the counts that folding says are due, and the
-// record itself if folding lets it through.
 func (w *writer) add(r Record) {
 	write, due := w.fold.line(r, time.Now())
 	for _, d := range due {
@@ -317,8 +285,6 @@ func (w *writer) armSweep() {
 	}
 }
 
-// emit numbers r and writes it to the file and the tail. It never calls the folder, because the
-// records being emitted may be the folder's due counts.
 func (w *writer) emit(r Record) {
 	w.n++
 	r.N = w.n
@@ -360,8 +326,6 @@ func (w *writer) flush() {
 	}
 }
 
-// openFile opens the log file for appending. On failure it prints a notice on stderr, and the
-// writer tries again after failureNotice.
 func (w *writer) openFile() error {
 	f, err := os.OpenFile(w.l.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
 	if err == nil {
@@ -409,8 +373,6 @@ func (w *writer) closeFile() error {
 	return err
 }
 
-// failed closes the file after an error and reports it on stderr. The file is opened again after
-// failureNotice. Meanwhile the tail still keeps every line.
 func (w *writer) failed(err error) {
 	if w.f != nil {
 		_ = w.f.Close()
@@ -424,11 +386,8 @@ func (w *writer) failed(err error) {
 	}
 }
 
-// notice is the last resort. It prints a line on stderr, whether or not the log copies lines
-// there.
 func notice(msg string) { _, _ = fmt.Fprintln(os.Stderr, msg) }
 
-// tail adds r to the ring.
 func (l *Log) tail(r Record) {
 	l.tmu.Lock()
 	defer l.tmu.Unlock()
@@ -456,10 +415,9 @@ func (l *Log) Tail(limit int) []Record {
 	return out
 }
 
-// textHandler writes slog's text format to w, with the level written as its word.
 func textHandler(w io.Writer) slog.Handler {
 	return slog.NewTextHandler(w, &slog.HandlerOptions{
-		Level: slog.Level(math.MinInt32), // Append has already checked the level
+		Level: slog.Level(math.MinInt32),
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			if len(groups) == 0 && a.Key == slog.LevelKey {
 				if l, ok := a.Value.Any().(slog.Level); ok {
@@ -471,7 +429,6 @@ func textHandler(w io.Writer) slog.Handler {
 	})
 }
 
-// toStderr writes r as a text line, for when the app runs in a terminal.
 func (l *Log) toStderr(r Record) {
 	rec := slog.NewRecord(r.Time, r.Level, r.Message, 0)
 	rec.AddAttrs(slog.String("component", r.Component))
@@ -500,5 +457,5 @@ func (l *Log) toStderr(r Record) {
 		}
 		rec.AddAttrs(slog.Any(k, v))
 	}
-	_ = l.text.Handle(context.Background(), rec) // a stderr failure has nowhere to be reported
+	_ = l.text.Handle(context.Background(), rec)
 }

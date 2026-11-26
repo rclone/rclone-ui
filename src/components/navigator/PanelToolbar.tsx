@@ -18,14 +18,8 @@ export type ToolbarButtons = {
     NewFolderButton: ReactNode
 }
 
-/**
- * Where the panel's controls are drawn. `header` is the row above the list (the Commander's), with
- * compact icon buttons. `floating` is the toolbar that floats over the bottom of the list, which a
- * page that brings its own buttons (the path picker, through `renderToolbar`) uses.
- */
 export type ControlsPlacement = 'header' | 'floating'
 
-/** A keyboard shortcut beside a tooltip's text. */
 export function TipWithKeys({ text, keys }: { text: string; keys?: string }) {
     if (!keys) return text
     return (
@@ -131,10 +125,6 @@ export function RefreshButton({
     )
 }
 
-/**
- * The search field. While it has focus, an option under it (above it in the floating toolbar)
- * searches the sub-folders too, with a button that turns that off and leaves the field.
- */
 export function SearchField({
     searchTerm,
     onSearchChange,
@@ -152,7 +142,6 @@ export function SearchField({
 }) {
     const header = placement === 'header'
     return (
-        // In a narrow panel's header, the field is a search button until it has focus or a term.
         <div
             data-filled={searchTerm !== ''}
             className={cn(
@@ -228,11 +217,6 @@ export function SearchField({
     )
 }
 
-/**
- * The toolbar that floats over the bottom of a panel's list: groups of round buttons. A page
- * arranges the groups with `renderToolbar`, from the panel's own buttons and its own. Without
- * it, the panel shows back and refresh, then search and new folder.
- */
 export default function PanelToolbar({
     onBack,
     onRefresh,
@@ -251,7 +235,6 @@ export default function PanelToolbar({
     onRefresh: () => void
     isBackDisabled: boolean
     isLoading: boolean
-    /** The folder shown is being listed again. Its rows stay, and the refresh button spins. */
     isRefreshing?: boolean
     searchTerm: string
     onSearchChange: (term: string) => void
@@ -315,7 +298,6 @@ export default function PanelToolbar({
                             )}
                         >
                             {group.map((button, slot) => (
-                                // A group's slots are fixed, so their position is their key.
                                 <Fragment key={slot}>{button}</Fragment>
                             ))}
                         </motion.div>

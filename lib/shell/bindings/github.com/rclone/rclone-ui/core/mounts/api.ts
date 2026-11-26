@@ -15,8 +15,7 @@ import * as $models from "./models.js";
 
 /**
  * Check returns the refusal of the page's form that Start would give before it mounts anything,
- * or nil. The page calls it as the user types. The mount point's own checks, such as whether it
- * is in use, are left to Start.
+ * or nil. The mount point's own checks, such as whether it is in use, are left to Start.
  */
 export function Check(args: operations$0.MountArgs): $CancellablePromise<void> {
     return $Call.ByID(2678204371, args);
@@ -103,8 +102,7 @@ export function Start(args: operations$0.MountArgs): $CancellablePromise<$models
 
 /**
  * StartReady starts a mount from a form, as Start does, and returns once the mount is ready, or
- * with why its first start failed. A page learns both from mounts.changed. An agent's tool gets
- * no events, so it waits here instead. A mount that is still starting when ctx ends comes back as
+ * with why its first start failed. A mount that is still starting when ctx ends comes back as
  * it is.
  */
 export function StartReady(args: operations$0.MountArgs): $CancellablePromise<$models.MountRow> {
@@ -121,9 +119,6 @@ export function StopAll(): $CancellablePromise<void> {
     return $Call.ByID(3508694408);
 }
 
-/**
- * Stopped lists the stopped mounts that have uploads waiting.
- */
 export function Stopped(): $CancellablePromise<$models.StoppedRow[]> {
     return $Call.ByID(2930823250).then(($result: any) => {
         return $$createType7($result);

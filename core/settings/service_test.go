@@ -32,7 +32,6 @@ func TestDefaultsThenUpdates(t *testing.T) {
 		t.Fatalf("before anything is saved: %v", st)
 	}
 
-	// Updating one field leaves the rest unchanged and doesn't require a restart.
 	st, restart, err := s.Update(ctx, Patch{HideStartup: ptr(true)})
 	if err != nil || restart {
 		t.Fatalf("Update: %v restart %v", err, restart)
@@ -44,7 +43,6 @@ func TestDefaultsThenUpdates(t *testing.T) {
 		t.Errorf("event %q", ev.Name)
 	}
 
-	// The proxy only applies after the app starts again.
 	st, restart, err = s.Update(ctx, Patch{Proxy: &Proxy{URL: "http://proxy:3128", IgnoredHosts: []string{"localhost"}}})
 	if err != nil || !restart || st.Proxy.URL != "http://proxy:3128" {
 		t.Fatalf("the proxy: %v, restart %v, %v", err, restart, st)
@@ -55,14 +53,12 @@ func TestDefaultsThenUpdates(t *testing.T) {
 		t.Errorf("read back %v, %v; want %v", again, err, st)
 	}
 
-	// An empty proxy clears it, ignored hosts included.
 	st, _, err = s.Update(ctx, Patch{Proxy: &Proxy{}})
 	if err != nil || st.Proxy.URL != "" || st.Proxy.IgnoredHosts == nil || len(st.Proxy.IgnoredHosts) != 0 {
 		t.Errorf("cleared proxy: %v %v", st, err)
 	}
 }
 
-// A nil field of a patch keeps its value, and a field set to its zero value replaces it.
 func TestPatchKeepsNilFields(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New())
@@ -82,7 +78,7 @@ func TestPatchKeepsNilFields(t *testing.T) {
 	want.Appearance.TrayIcon = TrayIconDark
 	want.Updates.Channel = "beta"
 	want.Transfers.BwLimit = "1M"
-	want.Telemetry.ID = st.Telemetry.ID // made by the first update where the data is shared
+	want.Telemetry.ID = st.Telemetry.ID
 	if !reflect.DeepEqual(st, want) {
 		t.Errorf("got %+v, want %+v", st, want)
 	}
@@ -91,9 +87,6 @@ func TestPatchKeepsNilFields(t *testing.T) {
 	}
 }
 
-// TestUpdatesAtOnceKeepEveryChange checks that updates to different fields sent at the same time
-// (two Settings toggles) each keep their change. Neither one writes the document from a read made
-// before the other's write.
 func TestUpdatesAtOnceKeepEveryChange(t *testing.T) {
 	ctx := context.Background()
 	s := New(testdb.Open(t), bus.New())
@@ -146,8 +139,6 @@ func TestUpdateRefuses(t *testing.T) {
 	}
 }
 
-// A refusal's message starts with the setting's path, and the field's description doesn't. Both
-// are translated when the page receives them.
 func TestRefusalIsTranslated(t *testing.T) {
 	_, _, err := New(testdb.Open(t), bus.New()).Update(context.Background(), Patch{Proxy: &Proxy{URL: "ftp://x"}})
 	e := errs.Of(err)
@@ -163,8 +154,6 @@ func TestRefusalIsTranslated(t *testing.T) {
 	}
 }
 
-// TestCorruptSettingsDocumentStillFails checks that a document that can't be read isn't replaced
-// by the defaults, because the next Update would then write over it.
 func TestCorruptSettingsDocumentStillFails(t *testing.T) {
 	ctx := context.Background()
 	d := testdb.Open(t)
@@ -183,8 +172,6 @@ func TestCorruptSettingsDocumentStillFails(t *testing.T) {
 	}
 }
 
-// TestTelemetryChoice checks the user's choice about sharing usage data: where it starts, and the
-// id that the data is sent under while it is on.
 func TestTelemetryChoice(t *testing.T) {
 	if TelemetryDefault("linux") || !TelemetryDefault("darwin") || !TelemetryDefault("windows") {
 		t.Fatal("sharing starts on everywhere but on Linux")
@@ -214,8 +201,6 @@ func TestTelemetryChoice(t *testing.T) {
 	}
 }
 
-// TestTurningOnOnLinux checks that on Linux, where sharing starts off, turning it on makes the id
-// that the data is sent under.
 func TestTurningOnOnLinux(t *testing.T) {
 	st := Defaults()
 	st.Telemetry = Telemetry{Enabled: TelemetryDefault("linux")}

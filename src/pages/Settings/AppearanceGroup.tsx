@@ -25,14 +25,8 @@ const TRAY_ICONS: [TrayIcon, string][] = [
     [TrayIcon.TrayIconColor, t`Color`],
 ]
 
-/** The key of the choice that follows the system's language (an empty language setting). */
 const SYSTEM_LANGUAGE = 'system'
 
-/**
- * The languages to choose from: the system's first, then each of the app's languages under its
- * own name, so that anyone finds theirs whatever language the app is in. A dev build adds the
- * test language.
- */
 function languageChoices(): { key: string; label: string }[] {
     const system = LANGUAGES[systemLanguage()] ?? LANGUAGES.en
     return [

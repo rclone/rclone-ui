@@ -15,9 +15,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// Save refuses a missing or used name and a time the app doesn't accept, as field errors on name
-// and when. A form that a run would refuse comes back as one message, not a field error. A save
-// that only renames a schedule or changes its time doesn't check the form again.
 func TestSaveChecks(t *testing.T) {
 	r := &fakeRunner{}
 	f := newFixture(t, r)
@@ -47,13 +44,11 @@ func TestSaveChecks(t *testing.T) {
 		err.Error() != "A schedule called photos exists already." {
 		t.Errorf("a used name: %v", err)
 	}
-	// A rename and a new time, while the remote is offline: no check.
 	r.checkErr = errors.New("couldn't connect")
 	f.save(Input{ID: sc.ID, Name: "Pictures", Form: form("copy", copyArgs([]string{"/a"}, "/b")), When: "@hourly"})
 	if r.checks != 1 {
 		t.Errorf("a rename checked the form: %d checks", r.checks)
 	}
-	// A new form is checked, and its refusal is one message.
 	r.checkErr = errs.Field("options.copy", "‘nope’ is not an option of copy")
 	_, err := f.s.Save(ctx, Input{ID: sc.ID, Name: "Pictures", Form: form("copy", copyArgs([]string{"/a"}, "/c")), When: "@hourly"})
 	if err == nil || errs.FieldOf(err) != "" || err.Error() != "‘nope’ is not an option of copy" {
@@ -67,8 +62,6 @@ func TestSaveChecks(t *testing.T) {
 	}
 }
 
-// Save drops what is for a single run: a dry run in any option group (a dry run notifies nobody,
-// so a schedule of one would do nothing), and Bisync's resync, force and dry run.
 func TestSaveCleansTheForm(t *testing.T) {
 	f := newFixture(t, &fakeRunner{})
 	sc := f.save(Input{Name: "Copy", Form: form("copy", json.RawMessage(`{"sources":["/a"],"destination":"/b","options":{"config":{"dry_run":true,"transfers":8},"copy":{"--dry-run":true},"filter":{"include":["*.jpg"]}}}`)), When: "@daily"})
@@ -85,7 +78,6 @@ func TestSaveCleansTheForm(t *testing.T) {
 	}
 }
 
-// Duplicate copies a schedule as "{name} copy", then "copy 2", paused.
 func TestDuplicate(t *testing.T) {
 	f := newFixture(t, &fakeRunner{})
 	sc := daily(f, "Photos")
@@ -99,7 +91,6 @@ func TestDuplicate(t *testing.T) {
 	}
 }
 
-// Describe gives the next 3 times with the zone's abbreviation, or the problem.
 func TestDescribe(t *testing.T) {
 	loc := bucharest(t)
 	f := newFixture(t, &fakeRunner{}, func(o *Options) { o.Location = loc })
@@ -115,7 +106,6 @@ func TestDescribe(t *testing.T) {
 	}
 }
 
-// Pause and Resume of a schedule that doesn't exist say so.
 func TestNotFound(t *testing.T) {
 	f := newFixture(t, &fakeRunner{})
 	ctx := context.Background()
@@ -129,9 +119,6 @@ func TestNotFound(t *testing.T) {
 	}
 }
 
-// A remote's rename rewrites the paths, the keys of the remotes options, the option values that
-// name a path on it, and a bisync's outer backup folders. A bisync whose paths changed is no
-// longer baselined, and one whose paths didn't change keeps its baseline.
 func TestRenameRemote(t *testing.T) {
 	f := newFixture(t, &fakeRunner{})
 	ctx := context.Background()
@@ -160,7 +147,6 @@ func TestRenameRemote(t *testing.T) {
 	}
 }
 
-// Changing a bisync's folders clears its baseline. Changing its other options doesn't.
 func TestBisyncEditClearsTheBaseline(t *testing.T) {
 	f := newFixture(t, &fakeRunner{})
 	ctx := context.Background()
@@ -208,7 +194,6 @@ func TestActive(t *testing.T) {
 	}
 }
 
-// A page that asks about a schedule that doesn't exist gets not_found, not invalid.
 func TestAPINotFound(t *testing.T) {
 	f := newFixture(t, &fakeRunner{})
 	ctx := context.Background()

@@ -50,7 +50,6 @@ describe('stepsFor', () => {
             'keep',
             'plan',
         ])
-        // A download keeps no template either.
         expect(stepsFor({ goal: 'download' })).toEqual(['goal', 'places', 'plan'])
         expect(stepsFor({ goal: 'clear', refine: 'purge' })).toEqual([
             'goal',
@@ -64,7 +63,6 @@ describe('stepsFor', () => {
 })
 
 describe('withRefine', () => {
-    // Nothing here tells a file from a folder, so a picker that takes folders only asks again.
     it('asks again for sources picked where files could be', () => {
         const toDelete: Answers = { goal: 'clear', refine: 'delete', sources: ['e2e:a.txt'] }
         expect(withRefine(toDelete, 'purge')).toEqual({ goal: 'clear', refine: 'purge' })

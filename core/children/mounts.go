@@ -13,13 +13,8 @@ import (
 	"time"
 )
 
-// unmountTimeout limits one cleanup command, because a dead mount can make it hang.
 const unmountTimeout = 15 * time.Second
 
-// Unmount force-unmounts a broken mount point, trying each command until one succeeds. On Linux
-// it tries fusermount3 -uz, fusermount -uz, then umount -l. On macOS it tries umount -f, then
-// diskutil unmount force. On Windows it does nothing, because WinFsp removes a mount when its
-// process ends.
 func Unmount(ctx context.Context, mountPoint string) error {
 	var errs []error
 	for _, c := range unmountCommands(runtime.GOOS, mountPoint) {
@@ -76,7 +71,6 @@ func runBounded(ctx context.Context, d time.Duration, name string, args ...strin
 	}
 }
 
-// mountEntry is one line of Linux's /proc/self/mountinfo.
 type mountEntry struct {
 	Point  string
 	FSType string

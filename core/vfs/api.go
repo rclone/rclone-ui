@@ -6,7 +6,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/late"
 )
 
-// VFS is one running VFS, which belongs to a mount or a serve.
 type VFS struct {
 	ID string `json:"id"`
 	// Kind is "mount" or "serve".
@@ -17,10 +16,8 @@ type VFS struct {
 	Name string `json:"name"`
 }
 
-// API gives the pages and the launcher access to the running VFSes and their caches.
 type API struct{ s *late.Value[*Service] }
 
-// NewAPI creates the API. s provides the service once the core has started.
 func NewAPI(s *late.Value[*Service]) *API { return &API{s: s} }
 
 // List lists the VFSes of the running mounts and serves.

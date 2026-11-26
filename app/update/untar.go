@@ -15,14 +15,8 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// maxBundle limits the total size that an update archive may unpack to.
 const maxBundle = 2 << 30
 
-// untarBundle unpacks a .app.tar.gz into dst, dropping its top folder. The archive has one top
-// folder, "Rclone UI.app/", as build/package.sh writes it. Paths may not leave dst, and links may
-// only point inside it. A bundle is executable code, and this runs before anything else checks
-// it. Every write goes through an os.Root on dst, because checking the names alone would miss a
-// chain of the archive's own links that leads out ("d/up" → "..", then "d/up/up2" → "..").
 func untarBundle(archive, dst string) error {
 	f, err := os.Open(archive)
 	if err != nil {
@@ -57,7 +51,7 @@ func untarBundle(archive, dst string) error {
 			return err
 		}
 		if rel == "" {
-			continue // skip the top folder itself
+			continue
 		}
 		target := filepath.FromSlash(rel)
 		mode := os.FileMode(hdr.Mode).Perm()
@@ -94,8 +88,6 @@ func untarBundle(archive, dst string) error {
 	return nil
 }
 
-// innerPath returns an entry's path below the top folder, or an error when the path would leave
-// it.
 func innerPath(name string) (string, error) {
 	clean := path.Clean(strings.TrimPrefix(name, "./"))
 	if path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") {
@@ -105,8 +97,6 @@ func innerPath(name string) (string, error) {
 	return rest, nil
 }
 
-// linkStaysInside reports whether a symlink at rel (a slash-separated path below the bundle) that
-// points to target resolves inside the bundle.
 func linkStaysInside(rel, target string) bool {
 	if target == "" || path.IsAbs(target) {
 		return false
@@ -129,7 +119,6 @@ func writeFile(root *os.Root, name string, r io.Reader, mode os.FileMode) (err e
 	return err
 }
 
-// plistString reads one string value from an XML property list's top dictionary.
 func plistString(file, key string) (string, error) {
 	f, err := os.Open(file)
 	if err != nil {
@@ -150,7 +139,6 @@ func plistString(file, key string) (string, error) {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			depth++
-			// In <plist><dict><key>, the top dictionary's entries are at depth 3.
 			if depth != 3 {
 				continue
 			}
@@ -173,8 +161,6 @@ func plistString(file, key string) (string, error) {
 	}
 }
 
-// bundleExecutable returns the name of the executable that an .app runs (CFBundleExecutable), and
-// checks that it exists.
 func bundleExecutable(bundle string) (string, error) {
 	name, err := plistString(filepath.Join(bundle, "Contents", "Info.plist"), "CFBundleExecutable")
 	if err != nil {

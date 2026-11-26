@@ -27,15 +27,14 @@ func NormalizeOptionName(name string) string {
 	return strings.ReplaceAll(strings.TrimPrefix(name, "--"), "-", "_")
 }
 
-// SortOptions sorts options into the catalog's groups. It is the one rule for this: a pasted
-// command (ParseCommand), a template applied to a page, and the template drawer all use it.
+// SortOptions sorts options into the catalog's groups.
 //
 // Each key is read as rclone's option name, in any spelling, and the option is put under that
 // name. Its block is the first one that has the name, in the order that rclone's command line
 // defines their flags: main, filter, vfs, mount, and then the serve's own block. The option goes
 // into the first catalog group that lists it, so an option that config and copy both list goes
 // into config. serve names the serve type. When it is "", a serve option goes into the group of
-// every serve type that has it, because an option such as addr belongs to each one.
+// every serve type that has it.
 //
 // Some options go into no group, and are skipped with the reason. A main option that a run can
 // set, but no group lists (dry_run, max_depth), goes into config. The exceptions are the logging
@@ -61,8 +60,6 @@ func SortOptions(options Group, serve string) Sorted {
 	return out
 }
 
-// groupsOf returns the catalog groups that take the option called name, or the reason why none
-// does. serve is as in SortOptions.
 func groupsOf(name, serve string) ([]string, i18n.Text) {
 	index := sectionIndex()
 	for _, block := range []string{"main", "filter", "vfs", "mount"} {
@@ -110,8 +107,6 @@ func optionOf(block, name string) (*fs.Option, bool) {
 	return o, o != nil
 }
 
-// serveBlocks returns the blocks of the serve type serve, or of every serve type when serve is
-// "". Only the types that this build has are returned.
 func serveBlocks(serve string) []string {
 	types := rclone.ServeTypes()
 	if serve == "" {
@@ -125,8 +120,6 @@ func serveBlocks(serve string) []string {
 
 type optionKey struct{ block, name string }
 
-// sectionIndex maps each block option to the first catalog group that lists it, in the order of
-// the groups. For example, an option that both copy and sync list belongs to copy.
 var sectionIndex = sync.OnceValue(func() map[optionKey]string {
 	out := map[optionKey]string{}
 	for _, g := range sections() {

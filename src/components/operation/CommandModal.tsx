@@ -34,13 +34,8 @@ const SDK_LINKS = [
 const CODE =
     'font-mono rounded-xl bg-default-100/70 dark:bg-default-100/50 leading-relaxed select-text'
 
-/**
- * A command line that wraps only between its words, so a flag such as --create-empty-src-dirs
- * stays whole. A word longer than the row, such as a long path, still wraps inside itself.
- */
 function Words({ line }: { line: string }) {
     return line.split(' ').map((word, index) => (
-        // The words never move, so the index is a safe key.
         <Fragment key={index}>
             {index > 0 && ' '}
             <span className="inline-block max-w-full [overflow-wrap:anywhere]">{word}</span>
@@ -128,13 +123,6 @@ function purpose(): string {
     }
 }
 
-/**
- * "Copy command" from an operation page's More menu: the page's operation, to run outside the
- * app. The CLI section has it as rclone commands for a terminal or a script, and the SDK section
- * as a program for rclone-sdk, which runs it through rclone's API. The core writes both from the
- * same form that Start sends, so they run what the page would run. A page that can't start yet
- * says why instead.
- */
 export function CommandModal({
     isOpen,
     onClose,
@@ -142,16 +130,13 @@ export function CommandModal({
 }: {
     isOpen: boolean
     onClose: () => void
-    /** The page's operation for a script, or the reason the page can't start. */
     command: () => Promise<Operations.Script>
 }) {
     const look = pageLook()
     const [state, setState] = useState<State>()
-    // The page makes a new `command` on every render, and only an opening asks for it.
     const latest = useRef(command)
     latest.current = command
 
-    // The script is written each time the dialog opens, from the form as it is then.
     useEffect(() => {
         if (!isOpen) return
         let current = true
@@ -204,8 +189,6 @@ export function CommandModal({
                                 <div className={`flex flex-col p-1 text-[13px] ${CODE}`}>
                                     {script.lines.map((line, index) => (
                                         <code
-                                            // A script may hold the same line twice, and the
-                                            // lines never move.
                                             key={index}
                                             className="block px-2.5 py-2 not-first:border-t border-divider"
                                         >

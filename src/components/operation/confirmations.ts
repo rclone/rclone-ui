@@ -4,13 +4,6 @@ import { message } from '../../../lib/shell'
 import type { FlagValue } from '../../../types/rclone'
 import type { StartAnswer } from './useOperationSubmission'
 
-// The questions asked before a start that deletes files. The confirm functions are for any start:
-// a page's, or a template's.
-
-/**
- * A question asked before a start. `start` and `dryRun` are the labels of its buttons.
- * `destructive` draws it in red, for a start that only deletes.
- */
 export interface StartQuestion {
     title?: string
     text: string
@@ -23,7 +16,6 @@ function listed(question: string, sources: readonly string[]): string {
     return `${question}\n\n${sources.join('\n')}`
 }
 
-/** Delete keeps the folders. With filters, only the files that match them are deleted. */
 export function deleteQuestion(sources: readonly string[], filtered: boolean): StartQuestion {
     const one = sources.length === 1
     const [path] = sources
@@ -80,7 +72,6 @@ export function purgeQuestion(sources: readonly string[]): StartQuestion {
     }
 }
 
-/** `switches` are the Bisync page's own (the `outer` group). A template has none. */
 export function bisyncQuestion(
     a: string,
     b: string,
@@ -129,11 +120,8 @@ export function syncQuestion(source: string, destination: string): StartQuestion
     }
 }
 
-// Options in the filter group that change how the rules are applied, but don't select files.
 const NOT_RULES = new Set(['ignore_case'])
 
-// The filter rules in the metadata group. The group's other options control which metadata is
-// copied.
 const METADATA_RULES = /^metadata_(include|exclude|filter)/
 
 function isSet(value: FlagValue | undefined): boolean {
@@ -143,10 +131,6 @@ function isSet(value: FlagValue | undefined): boolean {
     return true
 }
 
-/**
- * Whether the options limit which files an operation includes. That is the case when a filter
- * rule (a pattern, an age, a size, a list of files) or a metadata filter rule is set.
- */
 export function hasFilters(
     filter: Record<string, FlagValue> = {},
     metadata: Record<string, FlagValue> = {}
@@ -157,10 +141,6 @@ export function hasFilters(
     )
 }
 
-/**
- * Asks a question before a start. `title` replaces the question's own title. Cancelling or
- * closing the dialog answers 'cancel'.
- */
 export async function askBeforeStart(
     question: StartQuestion,
     title?: string

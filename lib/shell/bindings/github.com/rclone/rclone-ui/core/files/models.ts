@@ -5,9 +5,6 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
-/**
- * RenameItem is one entry in a batch rename.
- */
 export class RenameItem {
     "path": string;
     "isDir": boolean;
@@ -37,9 +34,6 @@ export class RenameItem {
     }
 }
 
-/**
- * RenameResult is the new path of a renamed entry, and the transfer that renames a folder.
- */
 export class RenameResult {
     "path": string;
 

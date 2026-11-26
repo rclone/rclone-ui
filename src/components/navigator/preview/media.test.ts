@@ -6,7 +6,6 @@ const tick = (ms = 20) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const HOUR = 60 * 60 * 1000
 
-// A fake of the core's signer. Its URLs last `lifetime`, and `signed` counts them.
 const signer = vi.hoisted(() => ({ lifetime: 0, signed: 0 }))
 
 vi.mock('../../../../lib/core/api', () => ({
@@ -25,7 +24,6 @@ beforeEach(() => {
     signer.signed = 0
 })
 
-/** A query for a preview's signed URL, from a signer whose URLs last `lifetime`. */
 function previewQuery(lifetime: number) {
     signer.lifetime = lifetime
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -35,8 +33,6 @@ function previewQuery(lifetime: number) {
     return { client, observer, off }
 }
 
-// Missed events or a config change invalidate every query. A new URL would restart a playing
-// video and reload a document.
 test('asking every query again keeps a fresh signed URL', async () => {
     const { client, observer, off } = previewQuery(12 * HOUR)
     await tick()

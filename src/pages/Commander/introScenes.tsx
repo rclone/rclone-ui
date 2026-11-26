@@ -22,8 +22,6 @@ import { formatBytes, formatDate } from '../../../lib/format'
 import { platform } from '../../../lib/shell'
 import BackendIcon from '../../components/BackendIcon'
 
-// Small renderings of the Commander for its intro. With reduced motion, each holds one phase.
-
 function usePhase(times: readonly number[], still: number): number {
     const reduce = useReducedMotion()
     const [phase, setPhase] = useState(0)
@@ -40,11 +38,8 @@ type Kind = 'folder' | 'video' | 'sheet' | 'text'
 interface Row {
     name: string
     kind: Kind
-    /** The size in bytes. A folder has none until its size is measured. */
     size?: number
-    /** The modification date, as ISO 8601. */
     modified: string
-    /** A folder's size once it is measured. */
     measured?: number
 }
 
@@ -55,7 +50,6 @@ const KIND: Record<Kind, { icon: ComponentType<{ className?: string }>; color: s
     text: { icon: FileTextIcon, color: 'text-default-500' },
 }
 
-// Round sizes in the units that formatBytes shows, so that each fits on one line.
 const KB = 1024
 const MB = 1024 * KB
 const GB = 1024 * MB
@@ -82,7 +76,6 @@ interface Place {
     icon: ReactNode
 }
 
-/** The sidebar's places: a favorite, two remotes, and a folder on this computer. */
 function usePlaces(): Place[] {
     return [
         {
@@ -97,7 +90,6 @@ function usePlaces(): Place[] {
 const DRIVE_PLACE = 1
 const BACKUPS_PLACE = 3
 
-/** A disk that the panel settings can add to the sidebars, as this system names it. */
 function backupDisk(): { path: string; system: string } {
     switch (platform()) {
         case 'windows':
@@ -109,7 +101,6 @@ function backupDisk(): { path: string; system: string } {
     }
 }
 
-// One per scene: its layoutId moves it from where it was to where it is rendered.
 function Pointer({ pressed = false, carrying }: { pressed?: boolean; carrying?: string }) {
     return (
         <motion.span
@@ -167,16 +158,13 @@ function Panel({
     pointer,
 }: {
     side: 'left' | 'right'
-    /** The open place's index in the sidebar, or null before the panel opens one. */
     at: number | null
     rows: Row[]
     picked?: string[]
     fresh?: string[]
     target?: boolean
     names?: boolean
-    /** Whether folders show their measured sizes. */
     sizes?: boolean
-    /** Whether the sidebar offers the backup disk. */
     disk?: boolean
     pointer?: { on: number | string | 'list'; is: ReactNode }
 }) {
@@ -351,7 +339,6 @@ function Stage({ id, children }: { id: string; children: ReactNode }) {
 
 const PLACES_TIMES = [900, 1400, 1400, 2600]
 
-/** Each panel opens a place from its sidebar. */
 export function PlacesScene() {
     const phase = usePhase(PLACES_TIMES, 3)
     const pointer = <Pointer />
@@ -382,7 +369,6 @@ export function PlacesScene() {
 
 const DRAG_TIMES = [1000, 500, 1200, 1800, 1800]
 
-/** Files dragged from one panel to the other, then the choice to copy or move them. */
 export function DragScene() {
     const phase = usePhase(DRAG_TIMES, 3)
     const count = PICKED.length
@@ -464,7 +450,6 @@ function Choice({ on, label, hint }: { on: boolean; label: string; hint: string 
 
 const KEYS_TIMES = [1200, 2200, 900]
 
-/** While Shift is held, the sidebars show the names of their places. */
 export function KeysScene() {
     const phase = usePhase(KEYS_TIMES, 1)
     const down = phase === 1
@@ -494,10 +479,6 @@ export function KeysScene() {
 
 const SETTINGS_TIMES = [900, 600, 1100, 2600]
 
-/**
- * The cog opens the panel settings, a backup disk is turned on, and both sidebars offer it. Folder
- * sizes stay on, as they are at first.
- */
 export function SettingsScene() {
     const phase = usePhase(SETTINGS_TIMES, 3)
     const added = phase === 3

@@ -1,25 +1,5 @@
 name: release-beta
 
-# Releases the commit it runs on as the next beta of package.json's version (4.0.0-beta.1, then
-# 4.0.0-beta.2). The app, the file names (Rclone-UI-4.0.0-beta.1-*), the release's title and its
-# tag (v4.0.0-beta.1) all carry that version.
-#
-# It works like the release workflow, but it publishes the release at once as a pre-release, so
-# there is no draft to publish by hand. Publishing is all it takes to offer the beta:
-#   - The beta channel looks up GitHub's newest pre-release with such a tag, and reads the feed
-#     that the release carries (app/update's newestBeta). So the newest beta is the one offered,
-#     and deleting a beta's release takes the channel back to the one before it.
-#   - The stable channel never sees it. That channel reads the feed of GitHub's latest release,
-#     and a pre-release is never the latest.
-#
-# package.json holds the version that the betas lead to, and this workflow numbers them: one more
-# than the highest beta of that version that has a tag. The tag is made on GitHub as the release
-# is published, so a failed run leaves none, and the next run takes the same number. A beta
-# counts as older than the release of its version, so a version that is released can have no more
-# betas: name the next version in package.json first.
-#
-# A dry run does all of it but the tag and the release: its files are the run's
-# release-beta-dry-run artifact.
 on:
   workflow_dispatch:
     inputs:
@@ -32,16 +12,11 @@ on:
 permissions:
   contents: read
 
-# One run at a time, so that two runs never take the same number.
 concurrency:
   group: release-beta
   cancel-in-progress: false
 
 jobs:
-  # Decides the version once, so that every job builds the same one. Before anything is built, it
-  # refuses a version that can't have a beta, and a beta whose release exists already (a draft
-  # that was left behind), which would make gh release create fail after every build. A dry run
-  # only warns.
   prepare:
     name: The beta's version
     runs-on: ubuntu-24.04
@@ -61,7 +36,6 @@ jobs:
           DRY_RUN: ${{ inputs.dry-run }}
         run: |
           refuse() { if [ "$DRY_RUN" = true ]; then echo "::warning::$1"; else echo "::error::$1"; exit 1; fi; }
-          # package.json's version, without a pre-release part of its own.
           base=$(node -p "require('./package.json').version"); base="${base%%[-+]*}"
           if ! grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' <<<"$base"; then
             echo "::error::package.json's version ($base) isn't three numbers"
@@ -74,7 +48,6 @@ jobs:
           refs=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v$base-beta." --jq '.[].ref')
           last=$(sed -n "s|^refs/tags/v${base//./\\.}-beta\.\([0-9][0-9]*\)$|\1|p" <<<"$refs" | sort -n | tail -n 1)
           version="$base-beta.$((10#${last:-0} + 1))"; tag="v$version"
-          # Every page, so an old forgotten draft is seen too.
           releases=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq ".[] | select(.tag_name == \"$tag\") | .id")
           [ -z "$releases" ] ||
             refuse "a release for $tag exists already (an unpublished draft?): delete it"
@@ -84,8 +57,6 @@ jobs:
   build:
     name: Build
     needs: prepare
-    # Each target built, signed and packaged (build.yml) under the beta's version, as
-    # dist-<goos>-<goarch>.
     uses: ./.github/workflows/build.yml
     with:
       release: true
@@ -151,12 +122,10 @@ jobs:
 
       - name: The feed
         run: |
-          # The policy (which running versions must or should update) is build/release/policy.json.
           go run ./build/release manifest -version "$VERSION" \
             -base-url "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION" \
             -rclone "$(go list -m -f '{{.Version}}' github.com/rclone/rclone)" \
             -notes "See https://github.com/$GITHUB_REPOSITORY/releases/tag/v$VERSION" dist
-          # Exactly the files a release publishes: no file under another app's names.
           go run ./build/release check -version "$VERSION" dist
 
       - name: The dry run's files

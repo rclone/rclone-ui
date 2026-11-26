@@ -13,8 +13,8 @@ import "C"
 
 import "github.com/wailsapp/wails/v3/pkg/application"
 
-// activate brings the app to the front before a dialog opens. The app runs as an accessory,
-// often with no window, so otherwise the dialog would open behind the app the user is in.
+// The app runs as an accessory, often with no window, so otherwise a dialog would open behind the
+// app the user is in.
 func activate() {
 	application.InvokeSync(func() { C.rcuiActivate() })
 }

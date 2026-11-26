@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-// metricsServer stands in for cloudflared's metrics server. The hostname appears first, and the
-// connection a moment later.
 func metricsServer(t *testing.T) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -34,8 +32,6 @@ func metricsServer(t *testing.T) string {
 	return ln.Addr().String()
 }
 
-// TestWaitServed checks that the address is returned once the tunnel is connected, and that
-// cloudflared ending first returns its error.
 func TestWaitServed(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

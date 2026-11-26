@@ -7,9 +7,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// On Windows, the local backend written as a remote takes a drive, and fspath.SplitFs reads a
-// share as a local root. The listing's root and folder are in rclone's form, and its rows write
-// the root the same way the request did.
 func TestFoldersOnWindows(t *testing.T) {
 	for _, tc := range []struct{ folder, root, rel, row string }{
 		{`:local:C:\x`, ":local:C:/", "x", ":local:C:/x/y"},
@@ -29,7 +26,6 @@ func TestFoldersOnWindows(t *testing.T) {
 	}
 }
 
-// A change to a Windows path invalidates the listings of its folder, however each one is written.
 func TestInvalidationOnWindows(t *testing.T) {
 	l, _ := testLister()
 	keys := [][2]string{{":local:C:/", "x"}, {":local:C:/", "y"}, {":local://srv/share/", "x"}}

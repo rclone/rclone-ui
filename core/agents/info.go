@@ -12,10 +12,8 @@ type about struct {
 	AppVersion    string `json:"app_version"`
 	RcloneVersion string `json:"rclone_version"`
 	OS            string `json:"os" jsonschema:"darwin, windows or linux: the form of local paths follows from it"`
-	// CanMount is false when this computer lacks what a mount needs (WinFsp, macFUSE or FUSE).
-	CanMount bool `json:"can_mount"`
-	// MountHelp says what is missing when the computer can't mount.
-	MountHelp string `json:"mount_help,omitempty"`
+	CanMount      bool   `json:"can_mount"`
+	MountHelp     string `json:"mount_help,omitempty"`
 }
 
 type remote struct {
@@ -24,10 +22,9 @@ type remote struct {
 	State       string `json:"state,omitempty" jsonschema:"ok (reachable), checking (being checked now), unknown (it didn't answer in time) or faulty (it failed: see error); empty when it hasn't been checked yet"`
 	Error       string `json:"error,omitempty" jsonschema:"why the remote can't be used, when it can't"`
 	NeedsSignIn bool   `json:"needs_sign_in,omitempty" jsonschema:"true when the user must sign in to the remote again, in the app's Remotes window; an agent can't do it for them"`
-	// UsedBytes, FreeBytes and TotalBytes are the remote's storage, where it reports them.
-	UsedBytes  *int64 `json:"used_bytes,omitempty"`
-	FreeBytes  *int64 `json:"free_bytes,omitempty"`
-	TotalBytes *int64 `json:"total_bytes,omitempty"`
+	UsedBytes   *int64 `json:"used_bytes,omitempty"`
+	FreeBytes   *int64 `json:"free_bytes,omitempty"`
+	TotalBytes  *int64 `json:"total_bytes,omitempty"`
 }
 
 type remoteList struct {
@@ -63,7 +60,6 @@ func (s *Server) infoTools() {
 		if err != nil {
 			return remoteList{}, err
 		}
-		// The health is what the app last found. A remote that was never checked has none.
 		health, _ := s.o.APIs.Remotes.Health(ctx)
 		out := remoteList{Remotes: make([]remote, 0, len(list))}
 		for _, r := range list {

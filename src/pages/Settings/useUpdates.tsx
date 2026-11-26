@@ -13,13 +13,11 @@ import { saveSettings, useSettings } from '../../../lib/settings'
 import { message, openUrl, updater } from '../../../lib/shell'
 import { SwitchRow } from './SettingsGroup'
 
-/** The text of the update button during the slow phases of the update flow. */
 const UPDATE_FLOW_TEXT: Record<string, string> = {
     downloading: t`Downloading…`,
     installing: t`Installing…`,
 }
 
-/** What the last check found, which picks the button's text and icon. */
 type Found =
     | { kind: 'none' }
     | { kind: 'checking' }
@@ -27,10 +25,6 @@ type Found =
     | { kind: 'failed' }
     | { kind: 'release'; version: string; page: string }
 
-/**
- * The update button's text for what the last check found. A release is offered as a download
- * from its page when the copy can't update itself (`manual`), and as an install otherwise.
- */
 function checkLabel(found: Found, manual: boolean): string {
     switch (found.kind) {
         case 'release': {
@@ -56,14 +50,6 @@ function checkLabel(found: Found, manual: boolean): string {
     }
 }
 
-/**
- * The updates of the About header: `button` checks for updates, and `footer` holds Beta
- * releases. The shell's update flow does the rest: the download, the check for running work, and
- * the restart. An install that can't update itself (a Flatpak, or a copy that no installer put
- * there) has no button, and its footer says why. A portable copy can't update itself either, but
- * it still checks: its button then opens the release's page, and its footer says how to update
- * by hand.
- */
 export function useUpdates(): { button: ReactNode; footer: ReactNode } {
     const availableQuery = useQuery({
         queryKey: ['updater', 'available'],
@@ -71,9 +57,6 @@ export function useUpdates(): { button: ReactNode; footer: ReactNode } {
     })
     const { settings } = useSettings()
     const [found, setFound] = useState<Found>({ kind: 'none' })
-    // While the shell's update flow downloads or installs, the button shows what it is doing. It
-    // goes back to its own text once the flow is idle again (the user declined the restart) or
-    // has failed.
     const [flowText, setFlowText] = useState<string | null>(null)
 
     useEffect(
@@ -119,7 +102,6 @@ export function useUpdates(): { button: ReactNode; footer: ReactNode } {
     const why = (
         <p className="flex items-start gap-2 px-6 py-3.5 text-xs leading-relaxed text-default-500">
             <InfoCircleIcon className="size-4 shrink-0" />
-            {/* The core gives its reason in the app's language. */}
             {availability.why || t`This copy of Rclone UI can't update itself.`}
         </p>
     )
@@ -158,7 +140,6 @@ export function useUpdates(): { button: ReactNode; footer: ReactNode } {
                     description={t`Get new releases before they're marked stable.`}
                     isSelected={settings?.updates?.channel === 'beta'}
                     onValueChange={(beta) => {
-                        // A release found on the other channel is no longer the right one to offer.
                         setFound({ kind: 'none' })
                         saveSettings({ channel: beta ? 'beta' : 'stable' })
                     }}

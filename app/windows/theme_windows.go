@@ -8,7 +8,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// windowsTheme returns the theme that a new window is created with (see base).
 func windowsTheme(theme string) application.Theme {
 	return creationTheme(theme, w32.IsCurrentlyDarkMode())
 }
@@ -24,7 +23,6 @@ const (
 	dwmaDarkModeLegacy = 19
 )
 
-// setTheme makes the window's title bar dark or light. "" follows the system's app mode.
 func setTheme(native unsafe.Pointer, theme string) {
 	if dwmSetWindowAttribute.Find() != nil {
 		return

@@ -40,10 +40,9 @@ type Watcher struct {
 	// stored. The watcher then shows Initializing, whatever it needed before.
 	Resyncing bool `json:"resyncing"`
 
-	lastError i18n.Text // LastError as a translatable text
+	lastError i18n.Text
 }
 
-// local returns w with its last error in the app's language, as a page shows it.
 func (w *Watcher) local() *Watcher {
 	if w != nil {
 		w.LastError = w.lastError.Local()
@@ -64,11 +63,8 @@ const (
 	ResultFailed = "failed"
 )
 
-// The reasons a watcher needs the user.
 const (
-	// AttentionResync is a bisync that can only go on after a resync.
-	AttentionResync = "resync"
-	// AttentionDeletes is bisync's max-delete safety: many files were deleted in one folder.
+	AttentionResync  = "resync"
 	AttentionDeletes = "deletes"
 	// AttentionEmptied is a folder that lost every file since the last sync. It reads like
 	// AttentionDeletes, but bisync won't run with an empty side even with force, so Force syncs

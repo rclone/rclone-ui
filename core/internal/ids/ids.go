@@ -1,4 +1,3 @@
-// Package ids creates the core's random ids and tokens, using crypto/rand.
 package ids
 
 import (
@@ -6,8 +5,7 @@ import (
 	"encoding/hex"
 )
 
-// New returns a new random id of 16 hex digits (8 random bytes). The ids that the core stores
-// (such as for config files) and the stats groups of reads have this form.
+// New returns a new random id of 16 hex digits (8 random bytes).
 func New() string { return Hex(8) }
 
 // Hex returns n random bytes in hex (2n digits).

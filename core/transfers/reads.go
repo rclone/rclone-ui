@@ -18,7 +18,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// maxPage is the most rows that one page of a list can hold.
 const maxPage = 200
 
 const transferCols = `id, seq, created_ms, started_ms, ended_ms, state, resume, operation, sources,
@@ -45,8 +44,6 @@ func scanTransfer(sc db.Scanner) (Transfer, error) {
 	if ended.Valid {
 		t.EndedAt = &ended.Int64
 	}
-	// The error is saved so that it can be translated (i18n.Save). It is read in English, and the
-	// API gives it in the app's language.
 	t.Destination, t.RetryOf, t.saved = destination.String, retryOf.String, errText.String
 	t.Error = i18n.Saved(t.saved).String()
 	t.Origin.ID, t.Origin.Name = originID.String, originName.String
@@ -62,7 +59,6 @@ func scanTransfer(sc db.Scanner) (Transfer, error) {
 	return t, nil
 }
 
-// query reads transfers, and adds the live numbers of those that are running.
 func (s *Service) query(ctx context.Context, q string, args ...any) ([]Transfer, error) {
 	rows, err := s.db.R.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -98,8 +94,6 @@ func (s *Service) get(ctx context.Context, id string) (Transfer, error) {
 	return ts[0], nil
 }
 
-// Active returns every transfer that has not ended, newest first (the Transfers page's `active`
-// list).
 func (s *Service) Active(ctx context.Context) ([]Transfer, error) {
 	return s.query(ctx, `SELECT `+transferCols+` FROM transfers WHERE ended_ms IS NULL
 		ORDER BY created_ms DESC, id DESC`)
@@ -116,13 +110,12 @@ type EndedQuery struct {
 	// State keeps the transfers that ended in it. StateStopped also takes the interrupted ones.
 	// "" keeps them all.
 	State State `json:"state"`
-	// Search keeps the transfers that it is found in (see Matches).
+	// Search keeps the transfers that it is found in.
 	Search string `json:"search"`
 }
 
 var ErrNotAnEnd = errs.New("Not a state that a transfer ends in")
 
-// Ended returns one page of the ended transfers, ordered by (created_ms, id) descending.
 func (s *Service) Ended(ctx context.Context, q EndedQuery) (EndedPage, error) {
 	limit := q.Limit
 	if limit <= 0 || limit > maxPage {
@@ -141,8 +134,6 @@ func (s *Service) Ended(ctx context.Context, q EndedQuery) (EndedPage, error) {
 	order := `created_ms DESC, id DESC`
 	switch {
 	case q.After > 0:
-		// The oldest end first, so that a page that stops at the limit leaves no gap before the
-		// next one. The page is sorted newest first before it is returned.
 		where, args, order = where+` AND ended_ms >= ?`, append(args, q.After), `ended_ms, id`
 	case q.Before != "":
 		created, ok, err := s.createdOf(ctx, q.Before)
@@ -169,9 +160,6 @@ func (s *Service) Ended(ctx context.Context, q EndedQuery) (EndedPage, error) {
 	return page, nil
 }
 
-// ended returns the first n rows of query that search is found in. Without a search, the query
-// gets a LIMIT. With one, it keeps reading rows until n of them match, because the rows that don't
-// match can't be counted in SQL.
 func (s *Service) ended(ctx context.Context, query string, args []any, n int, search string) ([]Transfer, error) {
 	if strings.TrimSpace(search) == "" {
 		return s.query(ctx, query+` LIMIT ?`, append(args, n)...)
@@ -198,10 +186,6 @@ func (s *Service) ended(ctx context.Context, query string, args []any, n int, se
 	return out, nil
 }
 
-// Matches reports whether search is found in t's number (#12), operation, destination, sources,
-// error or origin's name, ignoring case. The operation is searched by its key ("sync") and by its
-// name (OperationName), and the name and the error are searched as History shows them, in the
-// app's language, and in English. An empty search matches every transfer.
 func Matches(t Transfer, search string) bool {
 	needle := strings.ToLower(strings.TrimSpace(search))
 	if needle == "" {
@@ -215,16 +199,12 @@ func Matches(t Transfer, search string) bool {
 	})
 }
 
-// sortNewest orders transfers the way the ended pages do, with the newest created first.
 func sortNewest(ts []Transfer) {
 	slices.SortFunc(ts, func(a, b Transfer) int {
 		return cmp.Or(cmp.Compare(b.CreatedAt, a.CreatedAt), strings.Compare(b.ID, a.ID))
 	})
 }
 
-// createdOf returns the created_ms for a cursor. It reads it from the cursor's row, or else from
-// the time that its id begins with, because the row may have been trimmed since the page loaded
-// it.
 func (s *Service) createdOf(ctx context.Context, id string) (int64, bool, error) {
 	var created int64
 	err := s.db.R.QueryRowContext(ctx, `SELECT created_ms FROM transfers WHERE id = ?`, id).Scan(&created)
@@ -287,15 +267,12 @@ func (s *Service) Get(ctx context.Context, id string) (Detail, error) {
 	return d, nil
 }
 
-// FilesQuery selects one page of a transfer's files with one outcome. Before is the cursor of the
-// last file shown, or "" for the newest page.
 type FilesQuery struct {
 	Outcome Outcome
 	Before  string
 	Limit   int
 }
 
-// Files returns one page of a transfer's files with one outcome, newest first, with their total.
 func (s *Service) Files(ctx context.Context, id string, q FilesQuery) (FilesPage, error) {
 	switch q.Outcome {
 	case OutcomeTransferred, OutcomeFailed, OutcomeChecked:
@@ -369,8 +346,6 @@ func parseFileCursor(c string) (int64, int64, error) {
 	return at, rowid, nil
 }
 
-// Live returns the latest numbers of the running transfers, by id. A page shows them until the
-// next transfers.progress event arrives.
 func (s *Service) Live() map[string]bus.TransferProgress {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -383,8 +358,6 @@ func (s *Service) Live() map[string]bus.TransferProgress {
 	return out
 }
 
-// IDOf returns the id of the transfer whose number is seq, or ErrNotFound when the record has no
-// such transfer.
 func (s *Service) IDOf(ctx context.Context, seq int64) (string, error) {
 	var id string
 	err := s.db.R.QueryRowContext(ctx, `SELECT id FROM transfers WHERE seq = ?`, seq).Scan(&id)
@@ -394,8 +367,6 @@ func (s *Service) IDOf(ctx context.Context, seq int64) (string, error) {
 	return id, err
 }
 
-// Open reports whether the transfer id is still queued or running. A transfer that the record no
-// longer has is not open.
 func (s *Service) Open(ctx context.Context, id string) (bool, error) {
 	var state State
 	err := s.db.R.QueryRowContext(ctx, `SELECT state FROM transfers WHERE id = ?`, id).Scan(&state)

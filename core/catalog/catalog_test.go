@@ -116,7 +116,6 @@ func TestKinds(t *testing.T) {
 		}
 	}
 
-	// Every backend option has a kind, so a form shows more than bools and strings.
 	for _, b := range c.Backends {
 		for _, o := range b.Options {
 			if o.Kind == "" {
@@ -138,7 +137,6 @@ func TestKinds(t *testing.T) {
 	if got := values(option(t, backend(t, c, "swift").Options, "use_segments_container").Choices); !slices.Equal(got, []string{"unset", "true", "false"}) {
 		t.Errorf("tristate %v", got)
 	}
-	// Examples first, then the presets.
 	provider := option(t, backend(t, c, "s3").Options, "provider")
 	if len(provider.Choices) < 10 || provider.Choices[0].Help == "" {
 		t.Errorf("s3 provider examples %v", values(provider.Choices))
@@ -153,21 +151,16 @@ func TestKinds(t *testing.T) {
 	if o := option(t, backend(t, c, "sftp").Options, "pass"); !o.Password {
 		t.Error("sftp pass is not a password")
 	}
-	// An alias that rclone registers for a renamed backend (tardigrade for storj) isn't offered
-	// by any form.
 	if !backend(t, c, "tardigrade").Hidden || backend(t, c, "storj").Hidden {
 		t.Error("tardigrade offered, or storj not")
 	}
 }
 
 func TestDefaultText(t *testing.T) {
-	// The default uses rclone's own text, so a bare size keeps its unit and reads back as the
-	// same size.
 	o := &fs.Option{Name: "x", Default: fs.SizeSuffix(100)}
 	if got := defaultText(o); got != "100B" {
 		t.Errorf("size %q", got)
 	}
-	// A value set by a flag is not the default.
 	o.Value = fs.SizeSuffix(200)
 	if got := defaultText(o); got != "100B" {
 		t.Errorf("with a value %q", got)
@@ -177,8 +170,6 @@ func TestDefaultText(t *testing.T) {
 	}
 }
 
-// The catalog's backends have the choices of every provider, with each value once. us-east-1
-// belongs to AWS and to other providers, and it keeps the first one's help.
 func TestChoicesOnce(t *testing.T) {
 	region := option(t, backend(t, New("").Catalog(), "s3").Options, "region")
 	seen := map[string]bool{}
@@ -194,7 +185,6 @@ func TestChoicesOnce(t *testing.T) {
 }
 
 func TestFromOption(t *testing.T) {
-	// A config session's yes/no question.
 	out, _ := fs.ConfigConfirm("state", true, "config_change_team_drive", "Configure this as a Shared Drive?")
 	q := FromOption(out.Option)
 	if q.Name != "config_change_team_drive" || q.Kind != KindBool || q.DefaultText != "true" {
@@ -245,8 +235,6 @@ func TestGroups(t *testing.T) {
 			t.Errorf("group %s not sorted", g.Name)
 		}
 	}
-	// There is a group for each serve type built into rclone here (nfs only on Unix), and no
-	// others.
 	var serves []string
 	for _, g := range c.Groups {
 		if typ, ok := strings.CutPrefix(g.Name, "serve."); ok {
@@ -284,8 +272,6 @@ func TestValues(t *testing.T) {
 	if v := New("").Values(context.Background()); v.Blocks == nil {
 		t.Error("no blocks map")
 	}
-	// rclone's current values come as text, by option name. The nanoseconds and bytes in the rc
-	// JSON are not what a form shows.
 	ci := fs.GetConfig(context.Background())
 	before := ci.ConnectTimeout
 	ci.ConnectTimeout = fs.Duration(90 * time.Second)
@@ -302,8 +288,6 @@ func TestValues(t *testing.T) {
 		t.Errorf("lists with no list set %v", lists)
 	}
 
-	// A list comes as its elements, as rclone holds them, as well as its text. This covers an
-	// argv (a SpaceSepList) with a quoted word, and a comma list with a comma inside one element.
 	beforeMapper := ci.MetadataMapper
 	ci.MetadataMapper = fs.SpaceSepList{"/usr/bin/mapper", "a b", "-v"}
 	defer func() { ci.MetadataMapper = beforeMapper }()
@@ -315,8 +299,6 @@ func TestValues(t *testing.T) {
 		t.Errorf("mapper elements %q", got)
 	}
 
-	// A serve's values are keyed by option name too (the Go field is Addrs), and a repeated
-	// flag comes as its elements.
 	oi := fs.OptionsRegistry["webdav"]
 	addr := oi.Options.Get("addr")
 	if addr == nil || addr.FieldName == addr.Name {
@@ -335,10 +317,6 @@ func TestValues(t *testing.T) {
 	}
 }
 
-// rcloneAsks runs rclone's own config for a new remote of type ri with the given provider. It
-// calls fs.BackendConfig from ConfigAll, includes every advanced question, and answers each one
-// with its current value. It returns the options asked, in order, and the values suggested for
-// each. The backend's own Config step, which comes afterwards, is left out.
 func rcloneAsks(t *testing.T, ri *fs.RegInfo, provider string) ([]string, map[string][]string) {
 	t.Helper()
 	r := *ri
@@ -377,15 +355,11 @@ func rcloneAsks(t *testing.T, ri *fs.RegInfo, provider string) ([]string, map[st
 	return nil, nil
 }
 
-// A backend's view for a provider matches what rclone's config asks for it. It has the same
-// options, apart from those that rclone hides from its config, which the catalog also marks.
-// Each option's choices start with the values rclone suggests. This is checked for every
-// provider of every backend that has providers.
 func TestBackendIsWhatRcloneAsks(t *testing.T) {
 	s := New("")
 	compared := 0
 	defer func() {
-		if compared < 40 { // s3 alone has more providers
+		if compared < 40 {
 			t.Errorf("only %d providers compared", compared)
 		}
 	}()
@@ -407,7 +381,7 @@ func TestBackendIsWhatRcloneAsks(t *testing.T) {
 				t.Errorf("%s: no provider is %q, want the default %q", ri.Name, view.Provider, defaultText(po))
 			}
 			if view.Provider == "" {
-				continue // no provider yet: see TestBackendWaitsForAProvider
+				continue
 			}
 			compared++
 			asked, examples := rcloneAsks(t, ri, view.Provider)
@@ -430,8 +404,6 @@ func TestBackendIsWhatRcloneAsks(t *testing.T) {
 	}
 }
 
-// With no provider chosen and no default, a backend's view has the options that apply to every
-// provider, with their suggestions unfiltered, as rclone shows them without a provider.
 func TestBackendWaitsForAProvider(t *testing.T) {
 	s := New("")
 	view, err := s.Backend("s3", "")
@@ -452,14 +424,11 @@ func TestBackendWaitsForAProvider(t *testing.T) {
 	if !slices.Equal(got, want) || !slices.Contains(got, "provider") || slices.Contains(got, "region") {
 		t.Errorf("options %v, want %v", got, want)
 	}
-	// A provider's view offers only that provider's regions.
 	aws, _ := s.Backend("s3", "AWS")
 	region := values(option(t, aws.Backend.Options, "region").Choices)
 	if !slices.Contains(region, "eu-west-1") || slices.Contains(region, "de") {
 		t.Errorf("AWS regions %v", region)
 	}
-	// A backend without providers has all its options, and every registered name, aliases
-	// included, finds its own backend.
 	drive, _ := s.Backend("drive", "")
 	if len(drive.Backend.Options) != len(backend(t, s.Catalog(), "drive").Options) {
 		t.Errorf("drive has %d options", len(drive.Backend.Options))
@@ -482,8 +451,6 @@ func TestSummaryLeavesOptionsOut(t *testing.T) {
 			t.Errorf("Summary's %s has %d options", b.Name, len(b.Options))
 		}
 	}
-	// The metadata mapper reads a local path's fields from the metadata info, so the summary
-	// keeps it.
 	if backend(t, sum, "local").MetadataInfo == nil {
 		t.Error("Summary's local lost its metadata info")
 	}
@@ -499,8 +466,6 @@ func TestSummaryLeavesOptionsOut(t *testing.T) {
 	}
 }
 
-// The remote option of each wrapping backend is marked for the remote picker, and only that
-// option. A backend that rclone adds later with a "remote" option fails here until it is listed.
 func TestWrappedRemotes(t *testing.T) {
 	for typ, opt := range wrappedRemotes {
 		ri, err := fs.Find(typ)

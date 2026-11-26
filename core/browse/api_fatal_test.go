@@ -20,5 +20,4 @@ func TestAFatalRemoteIsTheReadsError(t *testing.T) {
 	}
 }
 
-// testAPI returns an API that discards its events.
 func testAPI() *API { return NewAPI(late.Of(NewLister()), func(context.Context, string, any) {}) }

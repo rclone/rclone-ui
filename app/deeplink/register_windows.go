@@ -6,10 +6,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// Register makes exe open rclone:// links for this user (in HKCU\Software\Classes\rclone). It runs
-// at every start, so per-user installs and portable copies get links without an installer. When
-// a machine has several copies, the one that started last opens the links. The NSIS installer's
-// own entry, which is per machine, is left alone.
+// Register makes exe open rclone:// links for this user (in HKCU\Software\Classes\rclone).
 func Register(exe string) error {
 	root, _, err := registry.CreateKey(registry.CURRENT_USER, `Software\Classes\`+Scheme, registry.ALL_ACCESS)
 	if err != nil {

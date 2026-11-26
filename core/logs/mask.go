@@ -10,11 +10,6 @@ import (
 	"strings"
 )
 
-// Mask hides known secret values in records, such as a child's rc password or a serve's
-// credentials. It hides each secret in every form that a line can contain: as is, URL-escaped as
-// a query or a path, quoted the way Go quotes strings (rclone's %q) and JSON-escaped. It also
-// hides each of those forms when it is JSON-escaped again, which is how a secret appears in a
-// JSON line that wasn't decoded (such as one that was cut short).
 type Mask struct {
 	r *strings.Replacer
 }
@@ -33,8 +28,6 @@ func NewMask(secrets ...string) *Mask {
 			forms = append(forms, jsonEscapes(f)...)
 		}
 	}
-	// Replace the longest forms first. When one secret is inside another (such as an item of a
-	// list and the whole list), this keeps the rest of the longer one from showing.
 	slices.SortFunc(forms, func(a, b string) int { return cmp.Or(len(b)-len(a), strings.Compare(a, b)) })
 	forms = slices.Compact(forms)
 	if len(forms) == 0 {

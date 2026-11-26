@@ -14,9 +14,6 @@ import (
 	"github.com/rclone/rclone-ui/core/catalog"
 )
 
-// mountCase is one mount's command line. It holds the environment, the mount point as the page
-// gives it, the start of the command line (command, Fs, mount point, then the platform's own
-// flags), and a pattern for the volname flag ("" for none).
 type mountCase struct {
 	name        string
 	env         MountEnv
@@ -25,14 +22,8 @@ type mountCase struct {
 	volname     string
 }
 
-// mountSource is the Fs of every mountCase: gdrive:photos with the override from the remotes
-// group.
 const mountSource = `gdrive,chunk_size='64M':photos/`
 
-// checkMounts builds each case's mount of gdrive:photos with the same groups. After the start of
-// the command line come the cache folder and the volname, and then each group's flags, sorted by
-// name: mount, VFS, main options and filters. The app's defaults would be among them, but the
-// config group names both: transfers with its own value, and checkers with a blank one.
 func checkMounts(t *testing.T, cases []mountCase) {
 	t.Helper()
 	options := groups(
@@ -89,7 +80,6 @@ func TestMountCommand(t *testing.T) {
 		{"windows drive picked by rclone", MountEnv{OS: "windows"}, "*", []string{"cmount", mountSource, "*"}, ""},
 	}
 	if runtime.GOOS != "windows" {
-		// These paths are only valid on the OS that rclone is built for.
 		cases = append(cases,
 			mountCase{"linux", MountEnv{OS: "linux"}, "/mnt/photos/", []string{"mount", mountSource, "/mnt/photos"}, ""},
 			mountCase{"cleaned", MountEnv{OS: "linux"}, "/mnt//photos/./", []string{"mount", mountSource, "/mnt/photos"}, ""},
@@ -108,8 +98,6 @@ func TestMountCommandStable(t *testing.T) {
 	if a.CacheDir != b.CacheDir || !slices.Equal(a.Args, b.Args) || a.CacheDir == c.CacheDir {
 		t.Fatalf("cache dirs %s %s %s", a.CacheDir, b.CacheDir, c.CacheDir)
 	}
-	// A gdrive remote in another config file (after the file moved) may be another account, so
-	// its uploads wait in a separate folder.
 	other := env
 	other.Config = "/home/me/work.conf"
 	if d, _ := MountCommand(MountArgs{Source: "gdrive:x", Destination: "/m", Options: g}, other); d.CacheDir == a.CacheDir {
@@ -167,7 +155,6 @@ func TestServeCommand(t *testing.T) {
 	if !slices.Equal(s.Args, want) || s.Addr != "127.0.0.1:8081" {
 		t.Fatalf("args %q addr %q", s.Args, s.Addr)
 	}
-	// Without its own address, the serve uses the group's address, or else rclone's default.
 	s, _ = ServeCommand(ServeArgs{Type: "http", Source: "/srv", Options: groups("serve", `{"addr": ["127.0.0.1:0"]}`)}, ServeEnv{})
 	if s.Addr != "127.0.0.1:0" || !slices.Equal(s.Args, append([]string{"serve", "http", ":local:/srv/", "--addr=127.0.0.1:0"}, serveDefaultFlags...)) {
 		t.Fatalf("args %q addr %q", s.Args, s.Addr)
@@ -176,16 +163,12 @@ func TestServeCommand(t *testing.T) {
 	if s.Addr != "localhost:2121" || !slices.Equal(s.Addrs, []string{"localhost:2121"}) {
 		t.Fatalf("default addr %q %q", s.Addr, s.Addrs)
 	}
-	// Addrs lists every address of the group, the first one first.
 	s, _ = ServeCommand(ServeArgs{Type: "http", Source: "/srv", Options: groups("serve", `{"addr": ["127.0.0.1:9001", ":9002"]}`)}, ServeEnv{})
 	if s.Addr != "127.0.0.1:9001" || !slices.Equal(s.Addrs, []string{"127.0.0.1:9001", ":9002"}) {
 		t.Fatalf("several addresses %q %q", s.Addr, s.Addrs)
 	}
 }
 
-// TestServeSecretsGoToTheEnvironment checks that a serve's password and s3 key pairs move from
-// its command line to its environment, where rclone reads them (a list as one CSV record). The
-// user name and every other flag stay on the command line.
 func TestServeSecretsGoToTheEnvironment(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -193,11 +176,10 @@ func TestServeSecretsGoToTheEnvironment(t *testing.T) {
 		serve   string
 		args    []string
 		env     []string
-		secrets []string // values that the child's log lines must not show
+		secrets []string
 	}{
 		{"http", "http", `{"user": "me", "pass": "hunter2"}`,
 			[]string{"--user=me"}, []string{"RCLONE_PASS=hunter2"}, []string{"hunter2"}},
-		// rclone prints each item of a list, as well as the whole variable.
 		{"s3", "s3", `{"auth_key": ["ak1,sk1", "ak2,sk2"]}`,
 			nil, []string{`RCLONE_AUTH_KEY="ak1,sk1","ak2,sk2"`}, []string{"ak1,sk1", "ak2,sk2", `"ak1,sk1","ak2,sk2"`}},
 		{"ftp", "ftp", `{"passive_port": "30000-30010", "pass": "x y"}`,
@@ -219,16 +201,12 @@ func TestServeSecretsGoToTheEnvironment(t *testing.T) {
 			}
 		})
 	}
-	// rclone parses the record back into the same pairs.
 	var keys fs.CommaSepList
 	if err := keys.Set(`"ak1,sk1","ak2,sk2"`); err != nil || !slices.Equal(keys, fs.CommaSepList{"ak1,sk1", "ak2,sk2"}) {
 		t.Fatalf("read back %q (%v)", keys, err)
 	}
 }
 
-// TestServeSecretsOutOfTheForm checks that ServeSecrets removes a serve form's credentials,
-// however the page wrote their names, and leaves the rest unchanged. WithServeSecrets puts them
-// back, and the command line matches the one built from the whole form.
 func TestServeSecretsOutOfTheForm(t *testing.T) {
 	a := ServeArgs{Type: "s3", Source: "/srv", Addr: "127.0.0.1:1", Options: groups(
 		"serve", `{"user": "me", "--auth-key": ["ak1,sk1"], "pass": "  "}`,
@@ -267,7 +245,6 @@ func TestServeSecretsOutOfTheForm(t *testing.T) {
 		t.Fatalf("args %q env %q, want %q %q", again.Args, again.Env, whole.Args, whole.Env)
 	}
 
-	// Without credentials, the form is returned unchanged.
 	plain := ServeArgs{Type: "http", Options: groups("serve", `{"user": "me"}`)}
 	if kept, secrets, err := ServeSecrets(plain); err != nil || secrets != nil || text(kept.Options.Serve) != `{"user":"me"}` {
 		t.Fatalf("kept %s secrets %s (%v)", text(kept.Options.Serve), secrets, err)

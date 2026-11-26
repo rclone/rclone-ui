@@ -8,7 +8,6 @@ import { Panel } from '../../components/look/Panel'
 import { useLogFiles } from './logs'
 import { useUpdates } from './useUpdates'
 
-/** The rclone mark, cut out of the shape it is drawn on. */
 export const LOGO_MASK: CSSProperties = {
     maskImage: 'url(/icon.png)',
     maskSize: 'contain',
@@ -16,10 +15,6 @@ export const LOGO_MASK: CSSProperties = {
     maskPosition: 'center',
 }
 
-/**
- * What the app knows about itself: its versions, the OS, and its folders. The header shows the
- * versions, and Help copies all of it into a bug report.
- */
 export function useAbout() {
     const infoQuery = useAppInfo()
     const filesQuery = useLogFiles()
@@ -55,7 +50,6 @@ export function useAbout() {
     return { debug, logsFile: filesQuery.data?.core, isLoading: infoQuery.isLoading }
 }
 
-/** The app's icon: the rclone mark in white on its blue square. Size it with classes. */
 function AppIcon({ className }: { className?: string }) {
     return (
         <span

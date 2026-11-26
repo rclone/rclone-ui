@@ -1,6 +1,3 @@
-// Command rcui is Rclone UI and rclone in one executable. The arguments choose the role before
-// anything else runs, so a mount child or a CLI call never touches the UI's single-instance lock,
-// its windows or its data.
 package main
 
 import (
@@ -8,9 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	_ "github.com/rclone/rclone/backend/all" // every backend, as rclone ships
+	_ "github.com/rclone/rclone/backend/all"
 	rclonecmd "github.com/rclone/rclone/cmd"
-	_ "github.com/rclone/rclone/cmd/all" // every command; -tags noselfupdate leaves out rclone's selfupdate
+	_ "github.com/rclone/rclone/cmd/all"
 	_ "github.com/rclone/rclone/lib/plugin"
 	"github.com/spf13/cobra"
 
@@ -35,11 +32,7 @@ const (
 	roleRclone
 )
 
-// dispatch reads the role from the executable's name and its arguments. Only the words below
-// belong to rcui. Everything else is passed to rclone's command line, so `rcui rcd` runs
-// `rclone rcd`. A test fails if rclone ever registers a command with one of these names.
 func dispatch(argv0 string, args []string) (role, []string) {
-	// Split on both separators so that a Windows argv[0] is recognised on any OS the tests run on.
 	base := argv0[strings.LastIndexAny(argv0, `/\`)+1:]
 	name := strings.ToLower(strings.TrimSuffix(base, filepath.Ext(base)))
 	if name == "rclone" {
@@ -81,18 +74,12 @@ func main() {
 	case roleUI:
 		os.Exit(app.Run(args))
 	case roleMapper:
-		// rclone runs this once per file while the app is running, so it takes no lock, opens no
-		// data and writes no log.
 		os.Exit(metadatamap.Main(args, os.Stdin, os.Stdout, os.Stderr))
 	case roleAgents:
-		// `rcui mcp` connects an agent that an MCP client started to the running app's server
-		// (core/agents). Like the mapper, it takes no lock and opens no data.
 		os.Exit(agents.Bridge(args, os.Stdin, os.Stdout, os.Stderr))
 	default:
 		consoleForCLI()
 		if conf, ok := rclone.PortableConfig(); ok {
-			// Created now, so that the next rclone command finds it at init (EnsurePortableConfig).
-			// A command that can't create it still runs, with the file named by --config.
 			_ = rclone.EnsurePortableConfig()
 			args = withConfig(args, conf, os.LookupEnv)
 		}
@@ -120,11 +107,6 @@ func withConfig(args []string, conf string, lookupEnv func(string) (string, bool
 	return append([]string{"--config=" + conf}, args...)
 }
 
-// runRclone runs rclone's own main with a few changes. The update command updates Rclone UI, which
-// includes its rclone, and rclone's selfupdate is replaced by a note. The tunnel command runs the
-// remote tunnel, with cloudflared built in. A child that the core started (a mount, a serve or the
-// tunnel) also exits when the app closes its end of the child's stdin, so an app that died never
-// leaves a mount behind.
 func runRclone(args []string) {
 	if childenv.Adopt(children.OwnMount) {
 		// No rclone command sets PersistentPreRun. It runs after rclone's init has started the rc.

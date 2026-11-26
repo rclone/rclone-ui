@@ -14,8 +14,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// Mounting from an encrypted config with no known password is a failed precondition, which the
-// page can fix by asking for the password. It is never an internal error.
 func TestNeedsPasswordIsAPrecondition(t *testing.T) {
 	err := fmt.Errorf("starting: %w", &children.ConfigError{Path: "/x/rclone.conf", Err: config.ErrNeedsPassword})
 	if got := rclone.ErrorOf(err).Code; got != errs.CodePrecondition {
@@ -23,8 +21,6 @@ func TestNeedsPasswordIsAPrecondition(t *testing.T) {
 	}
 }
 
-// StartReady returns once the mount is ready, and with the child's own words when its first
-// start fails.
 func TestStartReady(t *testing.T) {
 	f := newFixture(t)
 	api := NewAPI(late.Of(f.s))

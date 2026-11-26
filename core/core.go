@@ -1,20 +1,3 @@
-// Package core is the app's engine. It calls rclone in-process (rclone is compiled in), keeps the
-// app's data in SQLite, and provides the APIs that the pages call (apis.go), which the shell
-// binds. It runs inside the UI process.
-//
-// # Start
-//
-// Start runs the boot steps in order. It locks the data folder and opens the database at this
-// build's schema. Then it sets up rclone with the config file, creates the other services
-// without starting anything, and starts them (services.go has the steps). The APIs get their
-// services once every step is done, except those that need nothing from the boot (NewAPIs).
-//
-// # Shutdown
-//
-// Shutdown stops everything that has a lifetime: the media URLs, the tunnel, the watchers' and
-// the schedules' schedulers, the transfers, and the children (which unmounts the mounts). The UI
-// calls it once, as it quits. rclone's own exit functions (lib/atexit) run after it. rclone's
-// signal handler is never installed, because the UI's quit flow handles the signals.
 package core
 
 import (
@@ -59,12 +42,8 @@ import (
 	"github.com/rclone/rclone-ui/core/watchers"
 )
 
-// startWait is how long Start keeps trying to lock the data folder, because a previous run of
-// the app may still be shutting down.
 const startWait = 10 * time.Second
 
-// runningFile is a file that exists in the run folder while the core runs. If it is already there
-// at the start, the previous run didn't stop cleanly (see Crashed).
 const runningFile = "running"
 
 type Options struct {
@@ -87,16 +66,13 @@ type Options struct {
 }
 
 type Core struct {
-	opts    Options
-	exe     string
-	dataDir string
-	runDir  string // holds children.json, the running file and the children's key files
-	// socketDir is the folder for the children's sockets.
+	opts      Options
+	exe       string
+	dataDir   string
+	runDir    string
 	socketDir string
-	// crashed is true when the running file was already there at the start.
-	crashed bool
+	crashed   bool
 
-	// ctx lasts as long as the core. Every goroutine started with Go runs on it.
 	ctx    context.Context
 	cancel context.CancelFunc
 
@@ -104,34 +80,25 @@ type Core struct {
 	stopping bool
 	goes     sync.WaitGroup
 	down     sync.Once
-	// backoff is the delay before Go starts a goroutine again after a panic. The zero value means
-	// children.RcloneBackoff. It is a field, not a package variable, so that a test can shorten it
-	// for one core only.
-	backoff children.Backoff
+	backoff  children.Backoff
 
-	release func() // releases the lock on the data folder
+	release func()
 	db      *db.DB
 	bus     *bus.Bus
 	logs    *logs.Log
 
-	// built is set once every service below exists (build). A boot that fails before that has
-	// none of them to stop.
 	built bool
 
-	// The services, which services.go creates and starts.
-	keychain  *keychain.Keychain
-	telemetry *telemetry.Service
-	settings  *settings.Service
-	prefs     *prefs.Service
-	templates *templates.Service
-	favorites *favorites.Service
-	launcher  *launcher.Service
-	// store is the config file, which rclone reads and writes.
-	store   *rclone.Store
-	configs *config.Service
-	remotes *remotes.Service
-	// lister caches folder listings. The remotes, the file actions and the transfers invalidate
-	// the parts they change.
+	keychain      *keychain.Keychain
+	telemetry     *telemetry.Service
+	settings      *settings.Service
+	prefs         *prefs.Service
+	templates     *templates.Service
+	favorites     *favorites.Service
+	launcher      *launcher.Service
+	store         *rclone.Store
+	configs       *config.Service
+	remotes       *remotes.Service
 	lister        *browse.Lister
 	files         *files.Service
 	media         *media.Signer
@@ -141,15 +108,11 @@ type Core struct {
 	serves        *serves.Service
 	vfs           *vfs.Service
 	transfers     *transfers.Service
-	// watchers keeps pairs of folders the same, with a bisync transfer every minute.
-	watchers *watchers.Service
-	// schedules runs operations at set times, through the transfers.
-	schedules *schedules.Service
-	// links resolves the addresses entered on the Download page.
-	links  *linkresolve.Resolver
-	tunnel *tunnel.Service
+	watchers      *watchers.Service
+	schedules     *schedules.Service
+	links         *linkresolve.Resolver
+	tunnel        *tunnel.Service
 
-	// libraryPath is the AppImage's LD_LIBRARY_PATH. Every child uses it to load its libraries.
 	libraryPath string
 }
 
@@ -175,9 +138,6 @@ func Start(opts Options) (*Core, error) {
 
 func (c *Core) DataDir() string { return c.dataDir }
 
-// Crashed reports whether the previous run of the app didn't stop cleanly (it crashed or was
-// killed). It also returns how many transfers that run left running. Those transfers are now
-// interrupted.
 func (c *Core) Crashed() (crashed bool, interrupted int) {
 	if !c.crashed {
 		return false, 0
@@ -185,7 +145,6 @@ func (c *Core) Crashed() (crashed bool, interrupted int) {
 	return true, c.transfers.Interrupted()
 }
 
-// executable returns the path of the app's binary, or "" when the OS can't tell.
 func executable() string {
 	exe, err := os.Executable()
 	if err != nil {
@@ -219,27 +178,22 @@ func (c *Core) boot(ctx context.Context) error {
 
 	c.logs = c.opts.Log
 	if c.logs == nil {
-		// A core started without the UI's log (as in the tests) opens its own.
 		if c.logs, err = logs.Open(logs.Options{Path: filepath.Join(dir, datadir.LogsDir, "rcui.log")}); err != nil {
 			return err
 		}
 	}
 	slog.SetDefault(slog.New(c.logs.Handler()))
-	// Sends rclone's log lines to the app's log. This must run before rclone.Init.
 	rclonelog.Install(c.logs)
 
 	if c.db, err = db.Open(ctx, filepath.Join(dir, datadir.AppDB)); err != nil {
 		return fmt.Errorf("database: %w", err)
 	}
-	// Shutdown cancels the context of Go's goroutines and waits for them before it closes the
-	// database, so Maintain never runs on a closed database.
 	c.Go("db.maintain", c.db.Maintain)
 
 	c.bus = bus.New()
 	return c.startServices(ctx)
 }
 
-// markRunning writes the running file and reports whether a previous run left one behind.
 func markRunning(path string) (crashed bool) {
 	_, err := os.Stat(path)
 	crashed = err == nil

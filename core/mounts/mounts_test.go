@@ -23,8 +23,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// writeBack keeps what the fake mount writes in the queue for an hour, so the upload stays
-// waiting.
 var writeBack = groupsOf("vfs", `{"vfs_cache_mode":"writes","vfs_write_back":"1h"}`)
 
 func TestSupport(t *testing.T) {
@@ -55,7 +53,6 @@ func TestSupport(t *testing.T) {
 	}
 }
 
-// CanInstall is set on Windows when WinFsp is missing and its installer is next to the app.
 func TestSupportCanInstall(t *testing.T) {
 	dir := t.TempDir()
 	missing := func() Support { return Support{Reason: "WinFsp is not installed."} }
@@ -125,7 +122,6 @@ func TestPrepareMountPoint(t *testing.T) {
 					t.Errorf("under a file: %v", err)
 				}
 			}
-			// A link is refused, whether it leads to a folder or nowhere, and is left as it is.
 			if runtime.GOOS != "windows" { // a symlink needs a privilege on Windows
 				target := filepath.Join(dir, "target")
 				if err := os.Mkdir(target, 0o700); err != nil {
@@ -174,7 +170,7 @@ func TestPrepareMountPoint(t *testing.T) {
 		if _, err := f.s.Start(f.ctx, operations.MountArgs{Source: src, Destination: kept}); !errors.Is(err, errNotRemoved) {
 			t.Fatalf("start: %v, want errNotRemoved", err)
 		}
-		time.Sleep(200 * time.Millisecond) // the bus delivers events on its own goroutine
+		time.Sleep(200 * time.Millisecond)
 		f.ev.mu.Lock()
 		published := slices.Clone(f.ev.list)
 		f.ev.mu.Unlock()
@@ -184,9 +180,6 @@ func TestPrepareMountPoint(t *testing.T) {
 	})
 }
 
-// TestReadiness checks readiness based on the mount table. A listed mount point is running, a
-// child that exits before being listed has failed, and one that isn't listed within the time
-// limit has failed and is stopped.
 func TestReadiness(t *testing.T) {
 	t.Run("ListedMountPoint", func(t *testing.T) {
 		f := newFixture(t)
@@ -208,8 +201,6 @@ func TestReadiness(t *testing.T) {
 		if len(list) != 1 || list[0].State != children.StatusRunning || list[0].PID == 0 {
 			t.Fatalf("list %+v", list)
 		}
-		// The app makes a missing mount point, except on Windows, where WinFsp makes it and
-		// refuses a path that exists. The fake mount makes nothing.
 		if made := exists(mp); made == (runtime.GOOS == "windows") {
 			t.Fatalf("the missing mount point: made %v", made)
 		}
@@ -217,7 +208,6 @@ func TestReadiness(t *testing.T) {
 			t.Fatalf("notified %+v", f.notes.get())
 		}
 
-		// A change to a remote it mounts flags it until it starts again.
 		f.s.RemotesChanged(func(source string) bool { return source == src })
 		if l := f.s.List(); len(l) != 1 || !l[0].Restart || !Row(l[0]).Restart {
 			t.Fatalf("after the change: %+v", l)
@@ -248,13 +238,11 @@ func TestReadiness(t *testing.T) {
 		_ = m
 	})
 
-	// A mount that fails after it started, on a computer that can no longer mount, says so in
-	// its failed event, so the page can explain how to set mounting up.
 	t.Run("FailsWhereItCannotMount", func(t *testing.T) {
 		var checks atomic.Int32
 		f := newFixture(t, fixtureOpts{tweak: func(o *Options) {
 			o.support = func() Support {
-				if checks.Add(1) == 1 { // the start's own check
+				if checks.Add(1) == 1 {
 					return Support{Supported: true}
 				}
 				return Support{Reason: "There is no /dev/fuse."}
@@ -300,7 +288,6 @@ func TestStartRefusals(t *testing.T) {
 	if _, err := f.s.Start(f.ctx, operations.MountArgs{Source: src, Destination: mp}); !errors.Is(err, errNotEmpty) {
 		t.Fatalf("a folder with something in it: %v", err)
 	}
-	// A refused mount point counts as the mount failing, and sends a notification.
 	if n := f.notes.get(); len(n) != 1 || n[0].event != notifications.NotificationEventMountFailed ||
 		n[0].payload != (notifications.MountFailed{Source: src, Destination: mp, Error: errNotEmpty.Error()}) {
 		t.Fatalf("notified %+v", n)
@@ -312,7 +299,6 @@ func TestStartRefusals(t *testing.T) {
 		t.Fatalf("a machine that cannot mount: %v", err)
 	}
 
-	// With two mounts at the same place, the second is refused while the first is starting.
 	_, other := f.place("twice")
 	m, _ := f.start(operations.MountArgs{Source: src, Destination: other})
 	if _, err := f.s.Start(f.ctx, operations.MountArgs{Source: src, Destination: other}); !errs.Is(err) {
@@ -324,8 +310,6 @@ func TestStartRefusals(t *testing.T) {
 	if len(f2.notes.get()) != 0 {
 		t.Fatalf("a machine that cannot mount notified %+v", f2.notes.get())
 	}
-	// A mount point inside another mount would be created through that mount, on its remote.
-	// A mount point that contains another mount would hide it.
 	for _, dest := range []string{filepath.Join(other, "nested"), filepath.Dir(other)} {
 		if _, err := f.s.Start(f.ctx, operations.MountArgs{Source: src, Destination: dest}); !errs.Is(err) ||
 			!strings.Contains(err.Error(), "is inside") {
@@ -343,8 +327,6 @@ func TestStartRefusals(t *testing.T) {
 	}
 }
 
-// TestInside checks that a path below a folder is inside it, while the folder itself and a
-// sibling whose name only starts the same way are not. Case is ignored where the OS ignores it.
 func TestInside(t *testing.T) {
 	for _, tc := range []struct {
 		a, b, goos string
@@ -367,9 +349,6 @@ func TestInside(t *testing.T) {
 	}
 }
 
-// TestStop checks that a stop with nothing queued deletes the cache folder, while a stop with
-// queued uploads keeps it and lists it in stopped_mounts. Mount again sends the uploads from
-// the same folder and removes the row. Discard deletes both the folder and the row.
 func TestStop(t *testing.T) {
 	f := newFixture(t)
 
@@ -437,7 +416,6 @@ func TestStop(t *testing.T) {
 		if err := f.s.Stop(f.ctx, again.ID); err != nil {
 			t.Fatal(err)
 		}
-		// The upload is still waiting (write back is 1 h), so the mount is listed again.
 		if rows := f.stoppedRows(); len(rows) != 1 || *rows[0].Pending != 1 {
 			t.Fatalf("stopped mounts %+v", rows)
 		}
@@ -459,8 +437,6 @@ func TestStop(t *testing.T) {
 	})
 }
 
-// TestPointChanged checks that the listings cache hears of a mount point before the pages do,
-// when its mount comes up and when it stops, but not while it is only starting.
 func TestPointChanged(t *testing.T) {
 	var mu sync.Mutex
 	var points []string
@@ -487,7 +463,6 @@ func TestPointChanged(t *testing.T) {
 	}
 }
 
-// folderOf returns a running mount's cache folder.
 func (f *fixture) folderOf(t *testing.T, id string) string {
 	t.Helper()
 	c := f.s.reg.Get(id)
@@ -500,8 +475,6 @@ func (f *fixture) folderOf(t *testing.T, id string) string {
 	return c.Own.folder
 }
 
-// TestCrash checks that a crashed mount has its mount point cleaned and is started again.
-// mount.failed is sent once for the streak, however often the mount crashes.
 func TestCrash(t *testing.T) {
 	f := newFixture(t)
 	crash := filepath.Join(f.base, "crash")
@@ -511,8 +484,6 @@ func TestCrash(t *testing.T) {
 	if got.State != string(children.StatusRunning) {
 		t.Fatalf("got %+v\n%s", got, f.lines.dump())
 	}
-	// Each crash comes after the mount is seen running. A crash on a timer could come first on a
-	// slow machine, and a first start that fails is not started again.
 	for n := 1; n <= 3; n++ {
 		f.ev.waitN(t, m.ID, n, children.StatusRunning)
 		if err := os.WriteFile(crash, nil, 0o600); err != nil {
@@ -540,9 +511,6 @@ func TestCrash(t *testing.T) {
 	}
 }
 
-// TestUploadsAndBusy checks that the Mount page's list reads each mount's upload queue when asked,
-// and the plain list doesn't. The busy check reads each mount's queue and reports which mounts
-// come back.
 func TestUploadsAndBusy(t *testing.T) {
 	f := newFixture(t)
 	f.fake("--fake-write=queued.txt")
@@ -581,8 +549,6 @@ func TestUploadsAndBusy(t *testing.T) {
 		}
 	}
 
-	// A shutdown where the mounts don't come back lists the uploads left in their caches once
-	// every child has stopped.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := f.sup.StopAll(ctx, nil); err != nil {
@@ -598,10 +564,6 @@ func TestUploadsAndBusy(t *testing.T) {
 	}
 }
 
-// TestStopWithAFileOpen covers a file that is still open for writing when a user stops the
-// mount. The file is dirty in the cache but not in the upload queue. The folder is still kept and
-// listed, because pending uploads are never deleted automatically. The same happens at a
-// shutdown.
 func TestStopWithAFileOpen(t *testing.T) {
 	f := newFixture(t)
 	f.fake("--fake-open=open.txt")
@@ -626,8 +588,6 @@ func TestStopWithAFileOpen(t *testing.T) {
 		t.Fatalf("stopped mounts %+v", rows)
 	}
 
-	// The same happens at a shutdown, where reading the queue before the children stop would
-	// miss the file.
 	f.exec(`DELETE FROM stopped_mounts`)
 	src, mp = f.place("open-shutdown")
 	m, got = f.start(operations.MountArgs{Source: src, Destination: mp, Options: writeBack})
@@ -643,9 +603,6 @@ func TestStopWithAFileOpen(t *testing.T) {
 	}
 }
 
-// TestSlowStop checks that a stop that takes longer than its wait returns the error, and still
-// ends the mount once its child has exited. The mount leaves the list, a stopped event is sent,
-// and its mount point is free again. A restart that begins in the meantime doesn't bring it back.
 func TestSlowStop(t *testing.T) {
 	f := newFixture(t, fixtureOpts{tweak: func(o *Options) { o.stopWait = time.Nanosecond }})
 	src, mp := f.place("slow")
@@ -668,7 +625,6 @@ func TestSlowStop(t *testing.T) {
 		t.Fatalf("mounting at the same place again: %+v\n%s", got, f.lines.dump())
 	}
 
-	// A planned restart during the stop.
 	if err := f.s.Stop(f.ctx, again.ID); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("stop: %v", err)
 	}
@@ -683,15 +639,12 @@ func TestSlowStop(t *testing.T) {
 	}
 }
 
-// TestShutdownWaitsForAStop checks that a stop keeps going to its cleanup even when the shutdown
-// ended its request. The shutdown waits for it before the database closes, so the uploads that
-// the mount hadn't sent are recorded.
 func TestShutdownWaitsForAStop(t *testing.T) {
 	var slow atomic.Bool
 	f := newFixture(t, fixtureOpts{tweak: func(o *Options) {
 		mounted := o.mounted
 		o.mounted = func(mp string) (bool, error) {
-			if slow.Load() { // the stop's cleanup takes a while
+			if slow.Load() {
 				time.Sleep(500 * time.Millisecond)
 			}
 			return mounted(mp)
@@ -721,9 +674,6 @@ func TestShutdownWaitsForAStop(t *testing.T) {
 	}
 }
 
-// TestShutdownClearsMountPoints checks that the shutdown clears what a child left mounted when it
-// stopped, whether or not the mounts come back. This happens when the OS refused an unmount, or a
-// child was killed after its grace period. An update's restart still brings the mount back.
 func TestShutdownClearsMountPoints(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("WinFsp removes a mount with its process")
@@ -762,10 +712,6 @@ func TestShutdownClearsMountPoints(t *testing.T) {
 	}
 }
 
-// TestWindowsDrive checks that the app picks the drive for a Windows `*` mount when it starts.
-// It counts down from Z:, skipping drives in use and the drives of this app's mounts that are
-// still starting. That way readiness doesn't depend on cmount's NOTICE line, which a quieter
-// --log-level leaves out. The child is started on that drive.
 func TestWindowsDrive(t *testing.T) {
 	f := newFixture(t, fixtureOpts{tweak: func(o *Options) {
 		o.goos = "windows"
@@ -799,7 +745,6 @@ func TestWindowsDrive(t *testing.T) {
 		t.Fatalf("the next `*` got %q (%v), want W:", next.Own.mountPoint, err)
 	}
 	f.s.reg.Drop(next)
-	// A second `*` mount of the same source would share the first one's cache folder.
 	if _, err := f.s.Start(f.ctx, operations.MountArgs{Source: src, Destination: "*"}); !errs.Is(err) ||
 		!strings.Contains(err.Error(), "is already mounted on a drive Rclone UI picked") {
 		t.Fatalf("a second `*` mount of one source: %v", err)
@@ -817,8 +762,6 @@ func TestWindowsDrive(t *testing.T) {
 	}
 }
 
-// TestFlatpakCannotMount checks that mounting is never supported inside the Flatpak, whatever
-// devices it can see.
 func TestFlatpakCannotMount(t *testing.T) {
 	t.Setenv("FLATPAK_ID", "org.rclone.ui")
 	if s := CheckSupport(); s.Supported || !strings.Contains(s.Reason, "Flatpak") {
@@ -826,9 +769,6 @@ func TestFlatpakCannotMount(t *testing.T) {
 	}
 }
 
-// TestKeepWaiting checks that a stopped mount is recorded with the larger of its queue and its
-// dirty items, when that number is above zero. For a folder that can't be read, only the queue
-// is counted, and the count is reported as unknown when the queue was empty.
 func TestKeepWaiting(t *testing.T) {
 	f := newFixture(t)
 	for i, tc := range []struct {
@@ -889,8 +829,6 @@ func TestKeepWaiting(t *testing.T) {
 	}
 }
 
-// TestSupportLocalized checks that the reason why this computer can't mount reaches the page in
-// the app's language, and stays English for the logs.
 func TestSupportLocalized(t *testing.T) {
 	sup := supportOn("windows", func(string) bool { return false }, func() bool { return false })
 	if sup.Reason != "WinFsp is not installed." || sup.localized().Reason != sup.Reason {
@@ -904,7 +842,6 @@ func TestSupportLocalized(t *testing.T) {
 	if sup.Reason != "WinFsp is not installed." {
 		t.Errorf("the logs' reason changed: %q", sup.Reason)
 	}
-	// The reason is translated with the message that holds it.
 	if err := unsupported(sup); strings.Count(i18n.Localize(err), "[") != 2 {
 		t.Errorf("the refusal: %q", i18n.Localize(err))
 	}

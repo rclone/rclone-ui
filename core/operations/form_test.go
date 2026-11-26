@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// Each operation's arguments come back from MarshalArgs through DecodeForm as they were, and
-// MarshalArgs writes the same JSON again.
 func TestFormRoundTrip(t *testing.T) {
 	for _, tc := range []struct {
 		op   Operation
@@ -38,7 +36,6 @@ func TestFormRoundTrip(t *testing.T) {
 		if err != nil || string(raw) != tc.args {
 			t.Errorf("%s: %s (%v), want %s", tc.op, raw, err, tc.args)
 		}
-		// The form itself, as the pages send it, decodes to the same form.
 		whole, err := json.Marshal(f)
 		if err != nil {
 			t.Fatal(err)
@@ -53,8 +50,6 @@ func TestFormRoundTrip(t *testing.T) {
 	}
 }
 
-// A number keeps the digits that the page wrote, such as the zero of 1.50, all the way to the
-// stored arguments.
 func TestFormKeepsNumbers(t *testing.T) {
 	args := `{"sources":["a:x"],"destination":"c:","options":{"config":{"max_backlog":1.50,"retries_sleep":1e3}}}`
 	f, err := DecodeForm(OperationCopy, json.RawMessage(args))
@@ -70,8 +65,6 @@ func TestFormKeepsNumbers(t *testing.T) {
 	}
 }
 
-// A field that the operation's arguments don't have is refused, and so is a switch that bisync
-// doesn't have.
 func TestDecodeFormRefusesUnknownFields(t *testing.T) {
 	for _, tc := range []struct {
 		op   Operation
@@ -93,7 +86,6 @@ func TestDecodeFormRefusesUnknownFields(t *testing.T) {
 	}
 }
 
-// A form holds only its own operation's arguments, whose JSON names the form's fields follow.
 func TestFormRefusesAnotherOperationsField(t *testing.T) {
 	for name, f := range map[string]Form{
 		"a sync's field":  {Operation: OperationCopy, Sync: &SyncArgs{Source: "a:x"}},
@@ -108,7 +100,6 @@ func TestFormRefusesAnotherOperationsField(t *testing.T) {
 			t.Errorf("%s: marshalled", name)
 		}
 	}
-	// Without its field, a form has empty arguments.
 	if raw, err := (Form{Operation: OperationDelete}).MarshalArgs(); err != nil || string(raw) != `{}` {
 		t.Errorf("an empty delete: %s %v", raw, err)
 	}
@@ -117,7 +108,6 @@ func TestFormRefusesAnotherOperationsField(t *testing.T) {
 	}
 }
 
-// Groups returns the arguments' own groups, so a change through it changes the form.
 func TestFormGroups(t *testing.T) {
 	f := CopyArgs{Options: groups("config", `{"dry_run": true}`)}.Form()
 	delete(f.Groups().Config, "dry_run")
@@ -134,8 +124,6 @@ func TestFormGroups(t *testing.T) {
 	}
 }
 
-// A rename rewrites the form's paths, the option values that name a path on the remote, the keys
-// of the remotes group and bisync's outer backup folders, and says whether the paths changed.
 func TestFormRenameRemote(t *testing.T) {
 	f, err := DecodeForm(OperationBisync, json.RawMessage(`{"source":"old:a","destination":"/b","options":{
 		"sync":{"backup_dir":"old:trash"},"remotes":{"old":{"chunk_size":"64M"}},
@@ -155,12 +143,10 @@ func TestFormRenameRemote(t *testing.T) {
 	if string(raw) != want {
 		t.Errorf("got %s", raw)
 	}
-	// Only an option names the remote: the paths stay.
 	f = DeleteArgs{Sources: []string{"/a"}, Options: Groups{Outer: &BisyncSwitches{BackupDir2: "old:x"}}}.Form()
 	if changed, paths := f.RenameRemote("old", "new"); !changed || paths || f.Delete.Options.Outer.BackupDir2 != "new:x" {
 		t.Errorf("changed %v, paths %v, %+v", changed, paths, f.Delete.Options.Outer)
 	}
-	// A form of another remote doesn't change.
 	f = FolderArgs{Path: "older:x"}.Form()
 	if changed, _ := f.RenameRemote("old", "new"); changed || f.DeleteFolder.Path != "older:x" {
 		t.Errorf("rewrote %s", f.DeleteFolder.Path)

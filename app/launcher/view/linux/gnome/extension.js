@@ -1,19 +1,6 @@
-// The Rclone UI launcher's GNOME Shell extension (GNOME 45 and later).
-//
-// On Wayland, the compositor decides where windows go, and GNOME's compositor doesn't support
-// layer-shell, so apps can't place their own windows there. This extension places the launcher
-// window. It centres the window horizontally on the monitor with the pointer, with its top where a
-// launcher with every row would be centred, so the window grows downward. If the user dragged the
-// window, it goes back to where they left it. The window is kept above other windows, shown on
-// every workspace and focused. Rclone UI installs the extension (ensure_linux.go in this folder),
-// and the view it works with is in app/launcher/view/linux.
-
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-// Details of the launcher window: its title, the GTK application ids that Rclone UI runs under
-// (the same id in a package and in the Flatpak), and its width and full height with every row,
-// in its own pixels. They must match app/launcher/view/linux/layout.go, and its tests check that they do.
 const TITLE = 'Rclone UI Launcher';
 const APP_IDS = ['org.rclone.ui'];
 const WIDTH = 700;
@@ -21,10 +8,8 @@ const FULL_HEIGHT = 478;
 
 export default class RcloneUILauncher extends Extension {
     enable() {
-        // Where the user dragged the launcher: a monitor and the offset from the top-left of its
-        // work area. null means centre it.
         this._dragged = null;
-        this._waiting = new Map(); // window actor → its signal handlers, until its first frame
+        this._waiting = new Map();
         this._handlers = [
             global.display.connect('window-created', (_display, window) => this._created(window)),
             global.display.connect('grab-op-end', (_display, window) => this._moved(window)),
@@ -88,8 +73,6 @@ export default class RcloneUILauncher extends Extension {
 
     _place(window) {
         const frame = window.get_frame_rect();
-        // The window's pixels per launcher pixel, which is its scale in whichever layout mode
-        // GNOME uses.
         const scale = frame.width > 0 ? frame.width / WIDTH : 1;
         let x, y;
         if (this._dragged && this._dragged.monitor < global.display.get_n_monitors()) {
@@ -107,8 +90,6 @@ export default class RcloneUILauncher extends Extension {
         Main.activateWindow(window);
     }
 
-    // The user dragged the window, so it opens there next time, as long as that monitor is
-    // still connected.
     _moved(window) {
         if (!this._ours(window))
             return;

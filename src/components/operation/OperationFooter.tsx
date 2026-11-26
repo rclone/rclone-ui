@@ -12,7 +12,6 @@ import { StatusDot } from '../look/Status'
 import { pageLook } from './look'
 import { type BarLine, plainLine } from './summary'
 
-/** The animation that swaps the bar's buttons when the operation starts. */
 export function useSwap() {
     const reduced = useReducedMotion()
     return {
@@ -23,17 +22,12 @@ export function useSwap() {
     } as const
 }
 
-/**
- * The left of the action bar: what the main button will do, why it can't yet, or what has
- * started.
- */
 export function BarText({
     line,
     problem,
     status,
 }: {
     line?: BarLine
-    /** Why the main button is disabled, shown instead of the line. */
     problem?: string
     status?: 'active' | 'success'
 }) {
@@ -48,7 +42,6 @@ export function BarText({
                         <p className="leading-snug truncate text-small" title={textOf(line)}>
                             {line.title.map((segment, index) => (
                                 <span
-                                    // The segments never move, so the index is a safe key.
                                     key={index}
                                     className={
                                         segment.strong
@@ -102,13 +95,6 @@ const previewStarting = () =>
         t`A dry run simulates the operation without changing anything.`
     )
 
-/**
- * The action bar shared by the operation pages. On the left it says what will happen ("Sync
- * Photos to gdrive:Backup"), or why the page can't start yet. On the right are Schedule (on pages
- * that a schedule can run) and the main button. Once started, the bar says so, and offers the
- * next steps: History (or the page's own action, such as Serve's Copy address) and New, whose
- * menu resets the paths, the options or both.
- */
 export default function OperationFooter({
     line,
     startedLine,
@@ -131,19 +117,13 @@ export default function OperationFooter({
     onResetOptions,
     onResetAll,
 }: {
-    /** What the main button will do. */
     line?: BarLine
-    /** What has started, once the main button has done it. */
     startedLine?: BarLine
-    /** Why the main button is disabled, shown instead of `line`. */
     problem?: string
     startIsSuccess: boolean
     startIsPending: boolean
-    /** A preview (a dry run) from the header's More menu is starting. The bar says so. */
     previewIsPending?: boolean
-    /** Starts the operation. The button can be pressed again once the promise settles. */
     onStart: () => Promise<unknown> | undefined
-    /** Opens the Schedule drawer with the page's form. Set on the pages that a schedule can run. */
     onSchedule?: () => void
     startBlocked: boolean
     buttonText: string
@@ -151,9 +131,7 @@ export default function OperationFooter({
     newLabel: string
     newButtonPrimary?: boolean
     showViewTransfers?: boolean
-    // Shown instead of View in History once started (the Serve page's Copy address).
     startedAction?: { label: string; onPress: () => void; icon?: ReactNode }
-    /** More buttons once started, before New (the Mount page's Open and Unmount). */
     startedExtra?: ReactNode
     resetPathsLabel?: string
     onResetPaths: () => void
@@ -164,8 +142,6 @@ export default function OperationFooter({
     const { tone } = pageLook()
     const swap = useSwap()
 
-    // Set from the press until the start settles. The second press of a double-click arrives
-    // before the page renders its pending state, and would start it twice.
     const running = useRef(false)
     const run = useCallback((action: (() => Promise<unknown> | undefined) | undefined) => {
         if (running.current || !action) {
@@ -203,8 +179,6 @@ export default function OperationFooter({
                     <motion.div key="started-buttons" {...swap} className="flex gap-2 shrink-0">
                         {startedExtra}
                         {startedAction ? (
-                            // The page's own next step is the main one (Serve's Copy address,
-                            // Mount's Open), in the window's tone.
                             <StartButton
                                 startContent={startedAction.icon}
                                 onPress={startedAction.onPress}

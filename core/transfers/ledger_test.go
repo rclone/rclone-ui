@@ -43,8 +43,6 @@ func (f *fixture) count(id string, o Outcome) int {
 	return n
 }
 
-// Failed files are keyed by (src_fs, name), replaced when they fail again, and capped at the
-// first ones to fail. The other outcomes keep their newest files.
 func TestFileMerge(t *testing.T) {
 	f := newFixture(t)
 	f.seed("1-aaaaaa", 1, map[string]any{"state": "running", "ended_ms": nil})
@@ -74,7 +72,6 @@ func TestFileMerge(t *testing.T) {
 	if n := f.count("1-aaaaaa", OutcomeFailed); n != maxFailed {
 		t.Errorf("%d failed kept, want %d", n, maxFailed)
 	}
-	// At the cap, a file that failed before is still replaced.
 	f.merge("1-aaaaaa", failed("a.txt", "/src", "now this", 9999))
 	var e string
 	if err := f.db.R.QueryRow(`SELECT error FROM transfer_files WHERE transfer_id = '1-aaaaaa' AND name = 'a.txt' AND src_fs = '/src'`).Scan(&e); err != nil {
@@ -104,10 +101,6 @@ func TestFileMerge(t *testing.T) {
 	}
 }
 
-// An end with more failures than the ledger keeps (from a group's last snapshots and a sync's
-// logged failures, each as many as the cap) keeps the first maxFailed to fail, and is written in
-// one pass. The merger reads a transfer's count of failed rows once, then counts the rows it
-// adds.
 func TestEndWithMoreFailuresThanKept(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
@@ -116,7 +109,7 @@ func TestEndWithMoreFailuresThanKept(t *testing.T) {
 	failed := func(name string) fileRow {
 		return fileRow{outcome: OutcomeFailed, srcFs: "/src", name: name, err: "denied", what: "transferring"}
 	}
-	f.merge(id, failed("tick-a"), failed("tick-b")) // from a tick, before the end
+	f.merge(id, failed("tick-a"), failed("tick-b"))
 
 	at := time.UnixMilli(5000)
 	end := endOf{
@@ -154,8 +147,6 @@ func TestEndWithMoreFailuresThanKept(t *testing.T) {
 		t.Errorf("not the first to fail: tick-a %v, %s %v, l00000 %v", kept("tick-a"), last, kept(last), kept("l00000"))
 	}
 
-	// The count comes from the table. It is read once for a transfer that has rows, and counted
-	// up from there.
 	f.seed("2-bbbbbb", 2, map[string]any{"state": "running", "ended_ms": nil})
 	if err := f.db.Write(ctx, func(tx *sql.Tx) error {
 		m, err := newFileMerger(ctx, tx)
@@ -183,8 +174,6 @@ func TestEndWithMoreFailuresThanKept(t *testing.T) {
 	}
 }
 
-// A failure from rclone's sync logger and the snapshot of the same file, if the group still had
-// it at the end, make only one failed row.
 func TestLoggedFailureMergesWithItsSnapshot(t *testing.T) {
 	f := newFixture(t)
 	f.seed("1-aaaaaa", 1, map[string]any{"state": "running", "ended_ms": nil})
@@ -222,8 +211,6 @@ func TestRowOf(t *testing.T) {
 	}
 }
 
-// Which step a finished file belongs to. It is found by the names that rclone gave each step's Fs,
-// which are not the strings that the plan opened them with.
 func TestStepMatcher(t *testing.T) {
 	p := operations.Plan{V: 1, Steps: []operations.Step{
 		{Op: operations.OpCopyFile, Src: ":local:/data/", SrcRemote: "a.txt", Dst: ":local:/dst/", DstRemote: "a.txt"},
@@ -241,13 +228,13 @@ func TestStepMatcher(t *testing.T) {
 	})
 	for _, tc := range []struct {
 		snap accounting.TransferSnapshot
-		want int // -1 means none
+		want int
 	}{
 		{accounting.TransferSnapshot{Name: "a.txt", SrcFs: "/data"}, 0},
 		{accounting.TransferSnapshot{Name: "2024/p.jpg", SrcFs: "gdrive{AbCdE}:photos"}, 1},
 		{accounting.TransferSnapshot{Name: "song.mp3", DstFs: "/dst/music"}, 2},
 		{accounting.TransferSnapshot{Name: "d.txt", SrcFs: "/y"}, 4},
-		{accounting.TransferSnapshot{Name: "d.txt"}, -1}, // two steps match it
+		{accounting.TransferSnapshot{Name: "d.txt"}, -1},
 		{accounting.TransferSnapshot{Name: "old/dir/f.txt", SrcFs: "/"}, 5},
 		{accounting.TransferSnapshot{Name: "z", SrcFs: "/elsewhere"}, -1},
 	} {
@@ -256,7 +243,6 @@ func TestStepMatcher(t *testing.T) {
 			t.Errorf("%+v → %v, want %d", tc.snap, got, tc.want)
 		}
 	}
-	// Every file belongs to the only step.
 	one := operations.Plan{V: 1, Steps: []operations.Step{{Op: operations.OpPurge, Src: "/x", SrcRemote: "d"}}}
 	if got := stepMatcher(one, operations.NewRecord(one).Steps())(accounting.TransferSnapshot{Name: "q"}); got == nil || *got != 0 {
 		t.Errorf("single step → %v", got)
@@ -267,8 +253,6 @@ func TestStepMatcher(t *testing.T) {
 	}
 }
 
-// The 500 transfers that ended last are kept, so a long transfer that started before the others
-// isn't deleted at its end. Open transfers, and those marked for resume, are always kept.
 func TestRetention(t *testing.T) {
 	f := newFixture(t)
 	f.seed("1-open00", 1, map[string]any{"state": "running", "ended_ms": nil})
@@ -298,13 +282,11 @@ func TestRetention(t *testing.T) {
 	}
 }
 
-// Paging through the ended transfers never repeats or skips a row, even with a cursor whose row
-// is gone.
 func TestEndedPaging(t *testing.T) {
 	f := newFixture(t)
 	f.seed("50-open", 50, map[string]any{"state": "running", "ended_ms": nil})
 	for i := range 25 {
-		created := int64(100 + i/2) // two rows per ms, so the id breaks the tie
+		created := int64(100 + i/2)
 		f.seed(fmt.Sprintf("%d-%02d", created, i), created, map[string]any{"seq": 100 + i, "ended_ms": 1000 + i})
 	}
 	ctx := context.Background()
@@ -339,7 +321,6 @@ func TestEndedPaging(t *testing.T) {
 	if !slices.Equal(seen, wantIDs) {
 		t.Fatalf("paged %v, want %v", seen, wantIDs)
 	}
-	// A cursor whose row is gone still continues from where that row was.
 	f.exec(`DELETE FROM transfers WHERE id = '110-20'`)
 	page, _ := f.s.Ended(ctx, EndedQuery{Before: "110-20", Limit: 2})
 	if len(page.Items) != 2 || page.Items[0].ID != "109-19" {
@@ -347,7 +328,6 @@ func TestEndedPaging(t *testing.T) {
 	}
 }
 
-// A transfer's files are paged per outcome, newest first, with their total.
 func TestFilesPaging(t *testing.T) {
 	f := newFixture(t)
 	f.seed("1-aaaaaa", 1, nil)

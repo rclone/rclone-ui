@@ -3,8 +3,6 @@ import { t } from '@lingui/core/macro'
 import { Cloud as CloudIcon } from '@zappicon/react'
 import { useState } from 'react'
 
-// The logos that are drawn in white only. They wouldn't show on the light theme, so they are
-// inverted there.
 const WHITE_ONLY = new Set([
     'alias',
     'archive',
@@ -22,10 +20,6 @@ const WHITE_ONLY = new Set([
     'union',
 ])
 
-/**
- * A backend's logo, looked up by its rclone type (public/icons/backends/<type>.png). A type with
- * no logo, or no type at all (a remote that isn't loaded yet), shows a plain cloud instead.
- */
 export default function BackendIcon({
     type,
     alt = '',
@@ -67,7 +61,6 @@ const TILE_SIZES = {
     '2xl': 'size-16 rounded-[18px] [&>*]:size-10',
 } as const
 
-/** A backend's logo on a tile. The tile has the sizes of IconTile, so the two line up. */
 export function BackendTile({
     type,
     alt,
@@ -93,10 +86,6 @@ export function BackendTile({
     )
 }
 
-/**
- * The display names of the well-known backends, by rclone type. The names of products and of
- * rclone's own backends are not translated. Only the names that describe the backend are.
- */
 const LABELS: Record<string, string> = {
     alias: 'Alias',
     azureblob: 'Azure Blob',

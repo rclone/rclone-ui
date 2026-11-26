@@ -1,5 +1,3 @@
-# deb and rpm: build/package.sh fills in ${VERSION}, ${GOARCH} and ${BIN} (the build's folder)
-# and runs `wails3 tool package` on it from the repository root.
 name: rcui
 arch: ${GOARCH}
 platform: linux

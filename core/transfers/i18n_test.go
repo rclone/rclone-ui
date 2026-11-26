@@ -8,12 +8,8 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/late"
 )
 
-// TestSavedErrors checks that the core's own error is saved with its message and values, that
-// the service reads it in English, that the API gives it in the app's language, and that History's
-// search finds it in either. rclone's own error is saved as its words.
 func TestSavedErrors(t *testing.T) {
 	f := newFixture(t)
-	// i18n.M builds the message as resumeRefused saves it.
 	own := i18n.M("Couldn't start again after the update: %v", "no such remote")
 	f.seed("100-a", 100, map[string]any{"state": "failed", "error": i18n.SaveText(own)})
 	f.seed("101-b", 101, map[string]any{"state": "failed", "error": "directory not found"})
@@ -51,7 +47,6 @@ func TestSavedErrors(t *testing.T) {
 	if shown := got["100-a"]; !strings.HasPrefix(shown, "[") || !strings.Contains(shown, "no such remote") {
 		t.Errorf("the API shows %q in the pseudo-language", shown)
 	}
-	// The pseudo-language brackets every text, including rclone's words, which it leaves as they are.
 	if !strings.Contains(got["101-b"], "directory not found") {
 		t.Errorf("rclone's error is shown as %q, want its own words", got["101-b"])
 	}
@@ -67,14 +62,11 @@ func TestSavedErrors(t *testing.T) {
 	if err != nil || d.Error != got["100-a"] || len(d.General) != 1 || d.General[0].Error != got["100-a"] {
 		t.Fatalf("Get = %+v, %v", d, err)
 	}
-	// The agents' server reads the errors in English, whatever the app's language.
 	if d.ErrorText().String() != english || d.General[0].ErrorText().String() != english {
 		t.Errorf("in English: %q and %q", d.ErrorText().String(), d.General[0].ErrorText().String())
 	}
 }
 
-// TestSummaryIsSaved checks that a batch's summary of failed steps is saved as a translatable
-// message, which reads back in English.
 func TestSummaryIsSaved(t *testing.T) {
 	out := outcome{V: 1, Errors: []string{"", i18n.Save(errString("object not found")), ""}}
 	_, text := stateOf(i18n.Text{}, out)
@@ -82,7 +74,6 @@ func TestSummaryIsSaved(t *testing.T) {
 	if saved == text.String() || i18n.Saved(saved).String() != "1 of 3 operations failed" {
 		t.Errorf("saved %q", saved)
 	}
-	// rclone's own error is saved as its words.
 	if got := saveText(words("directory not found")); got != "directory not found" {
 		t.Errorf("rclone's error saved as %q", got)
 	}
@@ -91,8 +82,6 @@ func TestSummaryIsSaved(t *testing.T) {
 	}
 }
 
-// TestSearchByName checks that History's search finds a transfer by its operation's name, in
-// English and in the app's language.
 func TestSearchByName(t *testing.T) {
 	sync := Transfer{Seq: 1, Operation: "sync", Sources: []string{"/a"}, Destination: "/b"}
 	purge := Transfer{Seq: 2, Operation: "purge", Sources: []string{"/a"}}

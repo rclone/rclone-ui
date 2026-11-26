@@ -4,10 +4,8 @@ package interaction
 
 import "github.com/wailsapp/wails/v3/pkg/application"
 
-// show uses Wails' dialogs. On macOS that is an NSAlert. On Linux it is a GTK 4 window that Wails
-// builds as a message dialog, where Escape and closing the window both choose the button marked
-// as the cancel button. show always marks one, so every way of closing the dialog reports a
-// button, and an answer always arrives.
+// On Linux, Wails builds a GTK 4 message dialog, where Escape and closing the window both choose
+// the button marked as the cancel button.
 func show(d Dialog) Answer {
 	app := application.Get()
 	var dlg *application.MessageDialog

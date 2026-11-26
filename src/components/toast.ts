@@ -32,19 +32,10 @@ function show(tone: Tone, icon: typeof CheckIcon, color: 'success' | 'warning') 
         })
 }
 
-/**
- * Shows a green toast in this window for an action that worked, such as "Link Copied". It goes
- * away by itself. Use it for what the user just did in the window. Background events (a transfer
- * that ended) stay OS notifications, and errors stay dialogs.
- */
 export function toastSuccess(title: string, description?: string, action?: ReactNode) {
     show('green', CheckIcon, 'success')(title, description, action)
 }
 
-/**
- * Shows an amber toast for an action that the window turned down for a reason worth a line, such
- * as a row that is already selected through its folder.
- */
 export function toastWarning(title: string, description?: string, action?: ReactNode) {
     show('orange', ExclamationTriangleIcon, 'warning')(title, description, action)
 }

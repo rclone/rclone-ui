@@ -53,8 +53,6 @@ func TestResolvePort(t *testing.T) {
 	}
 }
 
-// TestSameListener checks that two serves on the same port clash whatever their hosts, and that
-// a unix socket is compared by its path. A different port doesn't clash.
 func TestSameListener(t *testing.T) {
 	for _, pair := range [][2]string{
 		{":8080", "0.0.0.0:8080"}, {":8080", "127.0.0.1:8080"}, {"[::]:8080", "192.168.1.2:8080"},
@@ -75,7 +73,6 @@ func TestSameListener(t *testing.T) {
 	}
 }
 
-// TestClash checks that every address of both serves is compared, and that port 0 never clashes.
 func TestClash(t *testing.T) {
 	if addr, ok := clash([]string{"127.0.0.1:9001", ":9002"}, []string{"localhost:9000", "[::1]:9002"}); !ok || addr != ":9002" {
 		t.Errorf("a second address on a taken port: %q %v", addr, ok)
@@ -91,12 +88,8 @@ func TestClash(t *testing.T) {
 	}
 }
 
-// TestHTTPServe checks that an http serve child accepts connections on the port that the parent
-// picked and Start returned at once. It stops on a Stop.
 func TestHTTPServe(t *testing.T) {
 	f := newFixture(t)
-	// The child waits for this file. A Start that waited for the serve to answer would take the
-	// 30 s of readyTimeout, which is far longer than the limit below.
 	hold := filepath.Join(t.TempDir(), "go")
 	t.Setenv(holdEnv, hold)
 	began := time.Now()
@@ -134,8 +127,6 @@ func TestHTTPServe(t *testing.T) {
 		t.Fatalf("busy %+v", b)
 	}
 
-	// Try the same address again, written the same way or as every interface, and with
-	// something else listening there.
 	_, port, _ := net.SplitHostPort(v.Addr)
 	for _, addr := range []string{v.Addr, ":" + port, "0.0.0.0:" + port, "localhost:" + port, "[::1]:" + port} {
 		if _, err := f.s.Start(f.ctx, operations.ServeArgs{Type: "http", Source: f.folder(), Addr: addr}); !errs.Is(err) ||
@@ -167,10 +158,6 @@ func TestHTTPServe(t *testing.T) {
 	}
 }
 
-// TestServePasswordOffTheCommandLine checks that a serve's password reaches its child, which
-// asks for it, through the child's environment. It never appears on the command line, which any
-// local user can read, or anywhere in children.json, including the form recorded to start the
-// serve again. The password is stored in the keychain under the serve's id.
 func TestServePasswordOffTheCommandLine(t *testing.T) {
 	const pass = "hunter2-off-argv"
 	f := newFixture(t)
@@ -230,8 +217,6 @@ func TestServePasswordOffTheCommandLine(t *testing.T) {
 	}
 }
 
-// TestServeVFSCache checks that a serve's VFS cache is in the folder for its address,
-// <cache>/serves/<16 hex>.
 func TestServeVFSCache(t *testing.T) {
 	f := newFixture(t)
 	src := f.folder()
@@ -266,8 +251,6 @@ func TestServeVFSCache(t *testing.T) {
 	}
 }
 
-// TestServeFails checks that a serve whose child exits before accepting connections fails with
-// the child's error, and that serve.failed is sent.
 func TestServeFails(t *testing.T) {
 	f := newFixture(t)
 	v, err := f.s.Start(f.ctx, operations.ServeArgs{Type: "http", Source: "nosuchremote:dir", Addr: "127.0.0.1:0"})
@@ -290,8 +273,6 @@ func TestServeFails(t *testing.T) {
 	}
 }
 
-// TestServeCrash checks that a crashed serve is started again on the same address, and that
-// serve.failed is sent once for the streak.
 func TestServeCrash(t *testing.T) {
 	f := newFixture(t)
 	v, err := f.s.Start(f.ctx, operations.ServeArgs{Type: "http", Source: f.folder(), Addr: "127.0.0.1:0"})
@@ -313,15 +294,11 @@ func TestServeCrash(t *testing.T) {
 	if n := f.notes.get(); len(n) != 1 {
 		t.Fatalf("notified %d times", len(n))
 	}
-	// One dial can time out on a busy machine.
 	testutil.Eventually(t, 10*time.Second, "the serve to answer on its address after the restarts", func() bool {
 		return answers(context.Background(), v.Addr)
 	})
 }
 
-// TestServeCrashPortTaken checks that before a crashed serve starts again, its address is
-// checked. While another program listens there, each start fails with "Something already
-// listens on {addr}.", and the serve keeps trying until the address is free again.
 func TestServeCrashPortTaken(t *testing.T) {
 	f := newFixture(t, fixtureOpts{tweak: func(o *Options) {
 		o.backoff = children.Backoff{Min: 500 * time.Millisecond, Max: 500 * time.Millisecond, Reset: time.Hour}
@@ -331,8 +308,6 @@ func TestServeCrashPortTaken(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.ev.waitN(t, v.ID, 1, children.StatusRunning)
-	// The address is taken while the crash is notified. That comes before the backoff and the
-	// check of the next start, so the test doesn't race the backoff.
 	var ln net.Listener
 	listened := make(chan error, 1)
 	f.notes.onNext(func() {
@@ -356,7 +331,6 @@ func TestServeCrashPortTaken(t *testing.T) {
 	default:
 		t.Fatal("the crash was not notified before the restarting event")
 	}
-	// The first start after the crash finds the address taken, and the serve doesn't run.
 	got := f.ev.waitN(t, v.ID, 2, children.StatusRestarting)
 	if want := "Something already listens on " + v.Addr + "."; got.Error != want {
 		t.Fatalf("got %+v, want restarting with %q", got, want)
@@ -371,8 +345,6 @@ func TestServeCrashPortTaken(t *testing.T) {
 	}
 }
 
-// TestServeRemotesChanged checks that a serve whose remote changed says so until it starts
-// again, and that the other serves don't.
 func TestServeRemotesChanged(t *testing.T) {
 	f := newFixture(t)
 	a, err := f.s.Start(f.ctx, operations.ServeArgs{Type: "http", Source: f.folder(), Addr: "127.0.0.1:0"})
@@ -409,7 +381,6 @@ func TestServeRemotesChanged(t *testing.T) {
 	if err := p.Kill(); err != nil {
 		t.Fatal(err)
 	}
-	// The flag was published with the running state, so this is the third running event.
 	f.ev.waitN(t, a.ID, 3, children.StatusRunning)
 	for _, v := range f.s.List() {
 		if v.Restart {
@@ -418,7 +389,6 @@ func TestServeRemotesChanged(t *testing.T) {
 	}
 }
 
-// TestServeRestore checks that after a planned restart, the serves come back on their address.
 func TestServeRestore(t *testing.T) {
 	first := newFixture(t)
 	v, err := first.s.Start(first.ctx, operations.ServeArgs{Type: "webdav", Source: first.folder(), Addr: "127.0.0.1:0"})
@@ -451,10 +421,6 @@ func TestServeRestore(t *testing.T) {
 	}
 }
 
-// TestServeRestoreWithPassword checks that a serve with a password comes back after a planned
-// restart with its password, which only the keychain stored. The keychain deletes it once the
-// serve is stopped, and a quit deletes it too. A record whose password is missing isn't started
-// without it.
 func TestServeRestoreWithPassword(t *testing.T) {
 	const pass = "hunter2-in-the-keychain"
 	first := newFixture(t)
@@ -504,7 +470,6 @@ func TestServeRestoreWithPassword(t *testing.T) {
 		t.Fatalf("kept after the stop: %v", kept)
 	}
 
-	// A quit deletes the password of a serve that is still running.
 	w, err := next.s.Start(next.ctx, args)
 	if err != nil {
 		t.Fatal(err)
@@ -521,7 +486,6 @@ func TestServeRestoreWithPassword(t *testing.T) {
 		t.Fatalf("kept after a quit: %v", kept)
 	}
 
-	// The password is missing, so the serve isn't started without it.
 	raw, _ := json.Marshal(meta{Args: operations.ServeArgs{Type: "http", Source: t.TempDir(), Addr: "127.0.0.1:1"}, Secrets: true})
 	rec := children.Record{ID: "0123abcd", Kind: children.KindServe, Name: "http:127.0.0.1:1", Addr: "127.0.0.1:1", Args: []string{"serve"}, Meta: raw}
 	last := newFixture(t, fixtureOpts{pending: []children.Record{rec}})
@@ -531,8 +495,6 @@ func TestServeRestoreWithPassword(t *testing.T) {
 	}
 }
 
-// TestLockedConfig checks that a serve from a config file with an unknown password is refused
-// before anything starts, and that the error names the file.
 func TestLockedConfig(t *testing.T) {
 	f := newFixture(t)
 	f.configs.err = errors.New("the config is encrypted: enter its password")
@@ -543,9 +505,6 @@ func TestLockedConfig(t *testing.T) {
 	}
 }
 
-// TestBootDuringShutdown checks that a serve from the previous run that Boot can't start,
-// because the app is shutting down again, doesn't count as a failure. Nothing is notified, and
-// the record that StopAll kept stays.
 func TestBootDuringShutdown(t *testing.T) {
 	raw, _ := json.Marshal(meta{Args: operations.ServeArgs{Type: "http", Source: t.TempDir(), Addr: "127.0.0.1:1"}})
 	rec := children.Record{ID: "0123abcd", Kind: children.KindServe, Name: "http:127.0.0.1:1", Addr: "127.0.0.1:1", Args: []string{"serve"}, Meta: raw}
@@ -564,9 +523,6 @@ func TestBootDuringShutdown(t *testing.T) {
 	}
 }
 
-// TestSlowStop checks that a stop that takes longer than its wait returns the error, and still
-// removes the serve once its child has exited. The serve leaves the list, a stopped event is
-// sent, and its address is free again.
 func TestSlowStop(t *testing.T) {
 	f := newFixture(t, fixtureOpts{tweak: func(o *Options) { o.stopWait = time.Nanosecond }})
 	args := operations.ServeArgs{Type: "http", Source: f.folder(), Addr: "127.0.0.1:0"}
@@ -597,7 +553,6 @@ func TestSlowStop(t *testing.T) {
 	}
 }
 
-// groupsOf returns option groups as a page sends them, from pairs of name and JSON.
 func groupsOf(kv ...string) operations.Groups {
 	var b strings.Builder
 	b.WriteByte('{')

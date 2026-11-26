@@ -1,8 +1,3 @@
-// Rows dragged between the panels can't be dropped onto themselves. A copy or move into the
-// folder an item is already in, into the item itself, or into a folder inside it would make
-// rclone copy a folder into itself or a file onto itself. Such a drop starts nothing
-// (`FilePanel`).
-
 import {
     currentHost,
     type Host,
@@ -13,12 +8,6 @@ import {
 } from '../../../lib/paths'
 import type { SelectItem } from './types'
 
-/**
- * Splits a path into the form that drops compare. `at` is the location (this machine, or a remote
- * with its parameters and whether its path starts at `/`), and `names` are the names below it.
- * Trailing separators are ignored. On a Windows host, both separators are accepted and local
- * names are compared without case. Returns null for anything that isn't a path.
- */
 function placeOf(path: string, host: Host): { at: string; names: string[] } | null {
     const parsed = parsePath(path, host)
     if (parsed.kind === 'invalid') return null
@@ -36,10 +25,6 @@ function placeOf(path: string, host: Host): { at: string; names: string[] } | nu
 const startsWith = (names: string[], start: string[]) =>
     start.length <= names.length && start.every((name, i) => name === names[i])
 
-/**
- * Whether `path` is inside `folder`, at any depth. A path isn't inside itself, and `r:ab` isn't
- * inside `r:a`.
- */
 export function isInside(path: string, folder: string, host: Host = currentHost()): boolean {
     const at = placeOf(path, host)
     const of = placeOf(folder, host)
@@ -47,11 +32,6 @@ export function isInside(path: string, folder: string, host: Host = currentHost(
     return at.names.length > of.names.length && startsWith(at.names, of.names)
 }
 
-/**
- * Whether dropping `items` on the folder `destination` would put one of them onto itself. That
- * is the case when the destination is the folder the item is already in, the item itself, or a
- * folder inside it. A root counts as being inside itself.
- */
 export function landsOnItself(
     items: readonly SelectItem[],
     destination: string,

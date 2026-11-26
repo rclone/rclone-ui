@@ -21,10 +21,8 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// misreported returns a temp folder on a store that ignores case, and a remote that opens it but
-// reports that it doesn't ignore case (the local backend with case_sensitive=true). This is how
-// sftp to a Mac, or smb with case_insensitive=false, looks to rclone. The test is skipped where
-// the temp folder is case-sensitive (Linux).
+// The local backend with case_sensitive=true, on a store that ignores case, looks to rclone the
+// same as sftp to a Mac, or smb with case_insensitive=false.
 func misreported(t *testing.T) (dir, remote string) {
 	t.Helper()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
@@ -42,7 +40,6 @@ func misreported(t *testing.T) (dir, remote string) {
 	return dir, ":local,case_sensitive=true:" + dir
 }
 
-// names returns a folder's entries as the store spells them.
 func names(t *testing.T, dir string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -56,7 +53,6 @@ func names(t *testing.T, dir string) []string {
 	return out
 }
 
-// content returns a file's content, or "" when it can't be read.
 func content(path string) string {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -65,7 +61,6 @@ func content(path string) string {
 	return string(b)
 }
 
-// inJob runs fn on the Fs of remote, in an rclone job.
 func inJob(t *testing.T, remote string, fn func(ctx context.Context, f fs.Fs) error) error {
 	t.Helper()
 	_, err := rclone.Run(context.Background(), rclone.CallOpts{}, func(ctx context.Context) error {
@@ -79,9 +74,7 @@ func inJob(t *testing.T, remote string, fn func(ctx context.Context, f fs.Fs) er
 }
 
 // On a store that claims to be case-sensitive but isn't, rclone's own MoveFile finds the file
-// as its own destination and deletes it. That is why a change of case never uses MoveFile. If
-// rclone fixes this, keep the MoveFileCaseSafe route, because a store's flag can't be trusted,
-// and change this test.
+// as its own destination and deletes it.
 func TestPlainMoveFileDeletesOnAMisreportedStore(t *testing.T) {
 	dir, remote := misreported(t)
 	write(t, dir+"/a.txt", "data")
@@ -96,8 +89,6 @@ func TestPlainMoveFileDeletesOnAMisreportedStore(t *testing.T) {
 	}
 }
 
-// On a store that misreports its case handling, a change of case loses no data. This covers a
-// file, a folder with a subfolder, and the folder of a retried file.
 func TestCaseOnlyOnAMisreportedStore(t *testing.T) {
 	dir, remote := misreported(t)
 
@@ -132,8 +123,6 @@ func TestCaseOnlyOnAMisreportedStore(t *testing.T) {
 	t.Run("a retried file of a folder", func(t *testing.T) {
 		write(t, dir+"/retry/photos/a.txt", "a")
 		write(t, dir+"/retry/photos/b.txt", "b")
-		// A retry keeps the plan's config. This plan has none, so only the case-safe route keeps
-		// the file.
 		rec, err := runPlan(t, Plan{V: PlanVersion, Steps: []Step{{
 			Op: OpMoveFile, Src: remote + "/retry/photos/", SrcRemote: "a.txt",
 			Dst: remote + "/retry/Photos/", DstRemote: "a.txt",
@@ -147,9 +136,6 @@ func TestCaseOnlyOnAMisreportedStore(t *testing.T) {
 	})
 }
 
-// On a backend without a directory move (memory), a change of case of a folder moves file by
-// file, twice. Every file ends up under the new spelling, and nothing is left under the old one
-// or the temporary one.
 func TestCaseOnlyFolderFileByFile(t *testing.T) {
 	const bucket = "mem:caseonly"
 	files := map[string]string{"x.txt": "x", "sub/y.txt": "y"}
@@ -194,8 +180,6 @@ func TestCaseOnlyFolderFileByFile(t *testing.T) {
 	}
 }
 
-// failSecondMove makes the second move of the next case-only step fail once, before it moves
-// anything. The step stops with its folder under the temporary name.
 func failSecondMove(t *testing.T) {
 	t.Helper()
 	var calls atomic.Int32
@@ -208,9 +192,6 @@ func failSecondMove(t *testing.T) {
 	t.Cleanup(func() { moveDir = rcsync.MoveDir })
 }
 
-// A retry finishes a change of case of a folder that failed between its two moves. It finds the
-// folder under the temporary name and makes only the second move. When the failed step left
-// files in both places, the retry finishes the first move and then makes the second.
 func TestCaseOnlyFolderRetried(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {

@@ -8,13 +8,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// The rows are drawn directly, so a screen reader can't read them. A live region lets Win32 UI
-// have text announced without implementing its own UI Automation provider. The view uses a STATIC
-// child window whose text is the selected row. It is marked as a live region through
-// IAccPropServices, and the view sends EVENT_OBJECT_LIVEREGIONCHANGED on each change. UIA's own
-// UiaRaiseNotificationEvent would need a custom provider, because the provider returned by
-// UiaHostProviderFromHwnd can't raise events.
-
 var (
 	clsidAccPropServices = windows.GUID{Data1: 0xb5f8350b, Data2: 0x0548, Data3: 0x48b1, Data4: [8]byte{0xa6, 0xee, 0x88, 0xbd, 0x00, 0xb4, 0xa5, 0xe7}}
 	iidIAccPropServices  = windows.GUID{Data1: 0x6e26e776, Data2: 0x04f0, Data3: 0x495d, Data4: [8]byte{0x80, 0xe4, 0x33, 0x30, 0x35, 0x2e, 0x31, 0x69}}
@@ -23,19 +16,18 @@ var (
 
 const (
 	eventObjectLiveRegionChanged = 0x8019
-	objidClient                  = 0xFFFFFFFC // -4
+	objidClient                  = 0xFFFFFFFC
 	childidSelf                  = 0
-	liveAssertive                = 2 // announced at once, as the selection moves
+	liveAssertive                = 2
 	vtI4                         = 3
 	clsctxInprocServer           = 1
 	ssNoPrefix                   = 0x0080
 )
 
-// liveRegion is the STATIC window that a screen reader reads the selected row from.
 type liveRegion struct {
 	hwnd   uintptr
-	props  uintptr // IAccPropServices, created on the first announcement
-	marked bool    // the STATIC has been marked as a live region
+	props  uintptr
+	marked bool
 	said   string
 }
 
@@ -50,8 +42,6 @@ func newLiveRegion(parent, instance uintptr) *liveRegion {
 	return &liveRegion{hwnd: h}
 }
 
-// say has text announced once. The same text is not announced again, such as after a render that
-// didn't move the selection.
 func (l *liveRegion) say(text string) {
 	if l == nil || l.hwnd == 0 || text == l.said {
 		return
@@ -64,23 +54,17 @@ func (l *liveRegion) say(text string) {
 	_, _, _ = procNotifyWinEvent.Call(eventObjectLiveRegionChanged, l.hwnd, objidClient, childidSelf)
 }
 
-// forget makes the next announcement happen even if it repeats the last one. It is called when
-// the launcher is hidden.
 func (l *liveRegion) forget() {
 	if l != nil {
 		l.said = ""
 	}
 }
 
-// mark marks the STATIC as a live region, because screen readers ignore the event from a window
-// that isn't one.
 func (l *liveRegion) mark() bool {
 	if l.marked {
 		return true
 	}
 	if l.props == 0 {
-		// COM is already initialized on the UI thread, because WebView2 needs it. Initializing
-		// it again is harmless.
 		_ = windows.CoInitializeEx(0, windows.COINIT_APARTMENTTHREADED)
 		hr, _, _ := procCoCreateInstance.Call(uintptr(unsafe.Pointer(&clsidAccPropServices)), 0, clsctxInprocServer,
 			uintptr(unsafe.Pointer(&iidIAccPropServices)), uintptr(unsafe.Pointer(&l.props)))

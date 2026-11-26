@@ -125,7 +125,7 @@ describe('runsSentence', () => {
 })
 
 describe('times', () => {
-    const at = new Date(2026, 10, 9, 2, 0).getTime() // Monday 9 November 2026, 02:00
+    const at = new Date(2026, 10, 9, 2, 0).getTime()
     it('formats a time as the drawer shows it', () => {
         expect(shortTime(at)).toBe('Mon, Nov 9, 02:00')
         expect(nextRunsLine([at, at + 86_400_000], 'EET')).toBe(

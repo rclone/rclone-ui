@@ -14,14 +14,10 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// env is the environment that an action runs in. It gives the action access to the platform and
-// the core.
 type env struct {
 	l      *Launcher
 	action engine.Action
-	// seq is the sequence number of the status that the action last showed in the corner (main
-	// thread). When the action ends, it clears only that status.
-	seq uint64
+	seq    uint64
 }
 
 func (e *env) OpenWindow(name, url string) { e.l.p.OpenWindow(name, url) }
@@ -33,9 +29,6 @@ func (e *env) Notify(title, body string)   { e.l.p.Notify(title, body) }
 func (e *env) Quit()                       { e.l.p.Quit() }
 func (e *env) Core() engine.Services       { return e.l.state.Services() }
 
-// Status shows a Stay action's progress or outcome in the status corner. It only does so if the
-// corner is listening to this action, which means it is the last action run and the launcher
-// hasn't closed since. Otherwise the status is dropped. Called off the main thread.
 func (e *env) Status(kind engine.StatusKind, text string) {
 	l := e.l
 	l.p.MainSync(func() {
@@ -50,9 +43,6 @@ func (e *env) Status(kind engine.StatusKind, text string) {
 	})
 }
 
-// finish ends the action. If the corner is listening to it, its progress message is cleared, or
-// a failure is shown there in red. Otherwise a failure is only logged (the caller logs every
-// failure). Called off the main thread.
 func (e *env) finish(err error) {
 	l := e.l
 	l.p.MainSync(func() {
@@ -71,8 +61,6 @@ func (e *env) finish(err error) {
 	})
 }
 
-// ClipboardText reads the clipboard after the user chose a result that needs it. Called off the
-// main thread, like all actions.
 func (e *env) ClipboardText() string {
 	if e.l.p.ClipboardText == nil {
 		return ""
@@ -80,8 +68,6 @@ func (e *env) ClipboardText() string {
 	return e.l.p.ClipboardText()
 }
 
-// SetQuery is used for drill-in actions. The launcher stays up and runs the query for the new
-// text.
 func (e *env) SetQuery(text string) {
 	l := e.l
 	l.p.Main(func() {
@@ -97,16 +83,13 @@ func (e *env) SetQuery(text string) {
 	})
 }
 
-// History is the launcher's usage history, which the core stores.
 type History interface {
 	Usage(ctx context.Context) ([]launcherpb.Usage, error)
 	Record(ctx context.Context, key, query string) error
 }
 
-// usageStore caches the usage history that the core stores. It is read when the launcher shows,
-// and written after each pick: the cache at once, then the core.
 type usageStore struct {
-	history History // nil when there is no history (in tests)
+	history History
 	log     *slog.Logger
 
 	mu    sync.Mutex
@@ -117,7 +100,6 @@ func newUsageStore(history History, log *slog.Logger) *usageStore {
 	return &usageStore{history: history, log: log, usage: engine.Usage{}}
 }
 
-// load reads the history again, in the background.
 func (s *usageStore) load() {
 	if s.history == nil {
 		return
@@ -148,7 +130,6 @@ func (s *usageStore) snapshot() engine.Usage {
 	return out
 }
 
-// record records that key was picked after typing query.
 func (s *usageStore) record(key, query string) {
 	s.mu.Lock()
 	u := s.usage[key]

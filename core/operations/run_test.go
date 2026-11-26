@@ -23,8 +23,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// runPlan runs a plan the way the transfer service does, as a job in a stats group of its own,
-// and waits for it. It returns the record and the job's error.
 func runPlan(t *testing.T, p Plan) (*Record, error) {
 	t.Helper()
 	if err := p.Check(); err != nil {
@@ -39,7 +37,6 @@ func runPlan(t *testing.T, p Plan) (*Record, error) {
 	return rec, err
 }
 
-// write creates a file, along with any missing folders.
 func write(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -55,7 +52,6 @@ func exists(path string) bool {
 	return err == nil
 }
 
-// stepErrors returns the error of each step in a record, or "" for a step without one.
 func stepErrors(rec *Record) []string {
 	var out []string
 	for _, s := range rec.Steps() {
@@ -68,8 +64,6 @@ func stepErrors(rec *Record) []string {
 	return out
 }
 
-// A copy of a folder and a file is built from a page's form and run in-process. Every step ends,
-// and the record names each step's Fs the way rclone names it in a finished file's snapshot.
 func TestRunCopy(t *testing.T) {
 	src, dst := filepath.ToSlash(t.TempDir()), filepath.ToSlash(t.TempDir())
 	write(t, src+"/photos/a.jpg", "aa")
@@ -88,7 +82,6 @@ func TestRunCopy(t *testing.T) {
 			t.Errorf("%s not copied", f)
 		}
 	}
-	// A file's step opens the root that its path is split at, which on Windows is its drive.
 	steps := rec.Steps()
 	if steps[0].SrcFs != localFs(src+"/photos") || steps[0].DstFs != localFs(dst+"/photos") ||
 		steps[1].SrcFs != localFs(filepath.VolumeName(src)+"/") || !steps[1].Ended {
@@ -96,8 +89,7 @@ func TestRunCopy(t *testing.T) {
 	}
 }
 
-// localFs returns the name that rclone gives the local Fs of a full path, written with `/`. On
-// Windows rclone opens a local path in its long form, and names the Fs by it (`//?/C:/x`).
+// On Windows rclone opens a local path in its long form, and names the Fs by it (`//?/C:/x`).
 func localFs(path string) string {
 	if runtime.GOOS == "windows" {
 		return ":local://?/" + path
@@ -105,9 +97,6 @@ func localFs(path string) string {
 	return ":local:" + path
 }
 
-// This covers a move of a file and of a folder, a rename of a folder and of a file (from the
-// Browser), a sync that deletes what the source no longer has, a delete with a filter, and a
-// purge.
 func TestRunOperations(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	write(t, dir+"/m/f.txt", "f")
@@ -155,9 +144,6 @@ func TestRunOperations(t *testing.T) {
 	}
 }
 
-// A folder moved together with its own subfolder is a single move. The subfolder goes with its
-// parent, so its files are not copied twice, and they are not split between two moves that run
-// at the same time.
 func TestNestedFolderSourcesMoveOnce(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	for i := range 200 {
@@ -179,9 +165,6 @@ func TestNestedFolderSourcesMoveOnce(t *testing.T) {
 	}
 }
 
-// A dry run changes nothing, including a bisync's dry run, which with its own switch set doesn't
-// record any listings as done. A per-remote override reaches the backend through the connection
-// string.
 func TestRunDryRunAndOverrides(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	write(t, dir+"/src/a.txt", "a")
@@ -198,7 +181,6 @@ func TestRunDryRunAndOverrides(t *testing.T) {
 			Options: groups("outer", `{"resync": true, "maxDelete": 50, "resyncMode": "newer"}`)},
 			settings{}, Kinds{dir + "/src": KindFolder})
 	}).WithDryRun()
-	// Run it the way a resume or a retry does, read back from what the ledger stores.
 	raw, err := json.Marshal(bisync)
 	if err != nil {
 		t.Fatal(err)
@@ -213,9 +195,6 @@ func TestRunDryRunAndOverrides(t *testing.T) {
 		t.Error("a dry bisync wrote")
 	}
 
-	// A bisync of two folders that have no baseline yet fails with rclone's reason, which
-	// IsFirstRun reads, so that the Bisync page can offer a resync. Once a resync sets the
-	// baseline, a bisync runs.
 	first := func(outer string) Plan {
 		return buildOf(t, func() (Plan, error) {
 			return buildBisync(BisyncArgs{Source: dir + "/src", Destination: dir + "/two",
@@ -254,8 +233,6 @@ func TestRunDryRunAndOverrides(t *testing.T) {
 	}
 }
 
-// In a batch, each step fails on its own and the job doesn't fail. A whole sync fails with its
-// step's error. An option that rclone refuses fails the job before any step runs.
 func TestRunFailures(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	write(t, dir+"/ok.txt", "ok")
@@ -279,9 +256,6 @@ func TestRunFailures(t *testing.T) {
 	}
 }
 
-// rclone's logger records a sync's failed file as soon as it fails. The stats group keeps only
-// the last finished files, so a sync that checks a thousand unchanged files would push the
-// failure out before anything reads it. The failure is named the same way the snapshots name it.
 func TestSyncFailuresAreLogged(t *testing.T) {
 	if runtime.GOOS == "windows" || os.Getuid() == 0 {
 		t.Skip("a file without permissions is readable here")
@@ -333,8 +307,6 @@ func TestSyncFailuresAreLogged(t *testing.T) {
 	}
 }
 
-// When a sync fails more files than the ledger keeps, the record holds the first MaxFailures in
-// the order they failed, and counts all of them.
 func TestRecordKeepsTheFirstFailures(t *testing.T) {
 	ctx := context.Background()
 	f, err := fs.NewFs(ctx, ":memory:failures")
@@ -348,7 +320,7 @@ func TestRecordKeepsTheFirstFailures(t *testing.T) {
 		o := object.NewStaticObjectInfo(fmt.Sprintf("f%05d", i), time.Now(), 1, true, nil, f)
 		logger(ctx, rcops.TransferError, o, nil, errors.New("denied"))
 	}
-	logger(ctx, rcops.Differ, object.NewStaticObjectInfo("same", time.Now(), 1, true, nil, f), nil, nil) // no failure
+	logger(ctx, rcops.Differ, object.NewStaticObjectInfo("same", time.Now(), 1, true, nil, f), nil, nil)
 	kept, all := rec.Failures()
 	if len(kept) != MaxFailures || cap(rec.failed) > 2*MaxFailures || all != n {
 		t.Fatalf("kept %d (holding %d), counted %d; want %d of %d", len(kept), cap(rec.failed), all, MaxFailures, n)
@@ -358,7 +330,6 @@ func TestRecordKeepsTheFirstFailures(t *testing.T) {
 	}
 }
 
-// A download runs rclone's CopyURL into the folder, under the given file name.
 func TestRunDownload(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("zipped"))
@@ -376,8 +347,6 @@ func TestRunDownload(t *testing.T) {
 	}
 }
 
-// Stopping the job stops every step, both running ones and ones that haven't started yet,
-// because they share its context. Each step reports that it was stopped.
 func TestRunStopped(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	write(t, dir+"/big.bin", strings.Repeat("x", 1<<20))
@@ -414,7 +383,6 @@ func TestRunStopped(t *testing.T) {
 	}
 }
 
-// The app's own metadata mapper runs the current executable. Another program is left unchanged.
 func TestRunnableConfig(t *testing.T) {
 	own := runnableConfig(Options{"metadata_mapper": []any{"metadata-map", "--drop", "x"}, "transfers": "2"}, "/opt/rcui")
 	if got := own["metadata_mapper"]; !reflect.DeepEqual(got, []string{"/opt/rcui", "metadata-map", "--drop", "x"}) || own["transfers"] != "2" {
@@ -429,9 +397,7 @@ func TestRunnableConfig(t *testing.T) {
 	}
 }
 
-// TestAFatalRemoteIsTheStepsError checks a step whose remote has an override that makes rclone's
-// HTTP client call fs.Fatalf (a client cert without its key), on the step's own goroutine. That
-// step fails, but the app keeps running, and so do the other steps.
+// A client cert without its key makes rclone's HTTP client call fs.Fatalf.
 func TestAFatalRemoteIsTheStepsError(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "src", "a.txt"), "a")
@@ -452,8 +418,6 @@ func TestAFatalRemoteIsTheStepsError(t *testing.T) {
 	}
 }
 
-// A rename's file step whose new name was taken after the rename's checks fails, and both files
-// stay as they were. The other steps still run.
 func TestRenameStepFailsWhenTaken(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	write(t, dir+"/r/a.txt", "a")
@@ -475,9 +439,6 @@ func TestRenameStepFailsWhenTaken(t *testing.T) {
 	}
 }
 
-// A folder moved file by file keeps its empty subfolders at the destination, and leaves nothing
-// behind in the source. A filter turns off the backend's own folder move, as a move to another
-// remote would.
 func TestMovedFolderLeavesNothing(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	write(t, dir+"/src/photos/2023/a.jpg", "a")
@@ -501,8 +462,6 @@ func TestMovedFolderLeavesNothing(t *testing.T) {
 	}
 }
 
-// A folder renamed file by file keeps its empty subfolders, and leaves no old folder behind. A
-// filter turns off the backend's own folder move, as a backend without one would.
 func TestRenamedFolderKeepsEmptyFolders(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	write(t, dir+"/r/old/in.txt", "in")

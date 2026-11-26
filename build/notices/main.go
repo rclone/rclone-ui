@@ -1,12 +1,3 @@
-// Command notices writes public/THIRD_PARTY_NOTICES.txt, which holds the licenses of the
-// third-party software that a release of Rclone UI includes. That covers the Go modules linked
-// into rcui on every target that build/build.sh builds (with its tags), Go's standard library,
-// and the npm packages that the pages are built from. The About section shows the file, and
-// build/package.sh puts it in every package. A license text that several parts share is printed
-// once.
-//
-//	go run ./build/notices          # write it
-//	go run ./build/notices -check   # fail when it is out of date (CI)
 package main
 
 import (
@@ -27,15 +18,9 @@ import (
 
 const out = "public/THIRD_PARTY_NOTICES.txt"
 
-// gpl3 is the GNU GPL 3.0. The LGPL 3.0 builds on it and asks for it to be shipped alongside
-// (https://www.gnu.org/licenses/gpl-3.0.txt).
-//
 //go:embed gpl-3.0.txt
 var gpl3 string
 
-// targets are the GOOS/GOARCH pairs that build/build.sh builds. Each one is listed with the tags
-// that build.sh uses for it (see buildTags), because a module that only one target links is
-// still shipped.
 var targets = []struct{ goos, goarch string }{
 	{"darwin", "arm64"},
 	{"darwin", "amd64"},
@@ -45,18 +30,15 @@ var targets = []struct{ goos, goarch string }{
 	{"linux", "arm64"},
 }
 
-// licenseFile matches a file at the root of a module or package that holds its terms.
 var licenseFile = regexp.MustCompile(`(?i)^(licen[cs]e|copying|notice|patents|unlicense)([._-].*)?$`)
 
-// A part is one module or package, with the files that hold its terms.
 type part struct {
-	label string // "github.com/rclone/rclone v1.75.1", "react 18.3.1"
+	label string
 	files []licensed
 }
 
 type licensed struct{ name, text string }
 
-// bare is an npm package that declares its license in package.json and ships no file for it.
 type bare struct{ label, license, author, repo string }
 
 func main() {
@@ -132,8 +114,6 @@ Also in some packages
 
 const rule = "================================================================================\n"
 
-// section prints parts grouped by license text. Each text is printed once, after the parts that
-// it covers.
 func section(b *bytes.Buffer, title string, parts []part) {
 	fmt.Fprintf(b, "%s\n%s\n\n", title, strings.Repeat("-", len(title)))
 	type group struct {
@@ -167,8 +147,6 @@ func section(b *bytes.Buffer, title string, parts []part) {
 	}
 }
 
-// bareSection lists the npm packages that have no license file, grouped by the license that
-// their package.json declares. It adds the permission text that the common licenses ask to keep.
 func bareSection(b *bytes.Buffer, bares []bare) {
 	if len(bares) == 0 {
 		return
@@ -198,7 +176,6 @@ func bareSection(b *bytes.Buffer, bares []bare) {
 			}
 			fmt.Fprintf(b, "%s\n", line)
 		}
-		// A compound declaration such as "(Apache-2.0 AND BSD-3-Clause)" gets the text of each.
 		for _, id := range licenseID.FindAllString(l, -1) {
 			if t, ok := permission[id]; ok {
 				b.WriteString("\n" + t)
@@ -208,12 +185,8 @@ func bareSection(b *bytes.Buffer, bares []bare) {
 	}
 }
 
-// licenseID is an SPDX identifier in a license expression.
 var licenseID = regexp.MustCompile(`[A-Za-z0-9][A-Za-z0-9.+-]*`)
 
-// permission holds the text that each license declared by a bare package asks to keep. The
-// copyright line refers to the authors named above. The Apache-2.0 text is printed at the end of
-// the file, as Rclone UI's own license.
 var permission = map[string]string{
 	"MIT": `Copyright (c) the authors named above
 
@@ -271,8 +244,6 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	"Apache-2.0": "The Apache License 2.0 is printed at the end of this file.\n",
 }
 
-// lgpl3 reports whether a part is under the LGPL 3.0, which asks for the GPL 3.0 to be included
-// with it.
 func lgpl3(parts []part) bool {
 	for _, p := range parts {
 		for _, f := range p.files {
@@ -284,9 +255,6 @@ func lgpl3(parts []part) bool {
 	return false
 }
 
-// normalize returns a text as it is printed: UTF-8, LF line endings, no trailing blanks, and
-// one final newline. A file that isn't UTF-8 is read as Latin-1, which is what the few old files
-// with a © use.
 func normalize(text string) []byte {
 	if !utf8.ValidString(text) {
 		runes := make([]rune, len(text))
@@ -303,8 +271,6 @@ func normalize(text string) []byte {
 	return []byte(strings.TrimSpace(strings.Join(lines, "\n")) + "\n")
 }
 
-// buildTags returns the tags that build/build.sh uses for goos/goarch. It asks build.sh, so that
-// the tags are defined in one place.
 func buildTags(goos, goarch string) (string, error) {
 	cmd := exec.Command("bash", "build/build.sh", "--print-tags")
 	cmd.Env = append(os.Environ(), "GOOS="+goos, "GOARCH="+goarch)
@@ -316,7 +282,6 @@ func buildTags(goos, goarch string) (string, error) {
 	return strings.TrimSpace(string(tags)), nil
 }
 
-// goModules returns the modules that any target links, and Go's standard library.
 func goModules() ([]part, error) {
 	type mod struct{ path, version, dir string }
 	seen := map[string]mod{}
@@ -338,7 +303,6 @@ func goModules() ([]part, error) {
 			if len(f) != 3 {
 				continue
 			}
-			// A module replaced by a folder of this repository (tools/nosentry) is our own code.
 			if f[1] == "" && (strings.HasPrefix(f[0], "./") || strings.HasPrefix(f[0], "../")) {
 				continue
 			}
@@ -363,8 +327,6 @@ func goModules() ([]part, error) {
 	if err != nil || len(std) == 0 {
 		return nil, fmt.Errorf("Go's own license: %v", err)
 	}
-	// A patch release of the toolchain doesn't change the license. Naming it by its minor
-	// version keeps the file from changing with each CI runner's Go.
 	minor := strings.Join(strings.SplitN(strings.TrimSpace(string(goversion)), ".", 3)[:2], ".")
 	parts := []part{{label: "The Go standard library (" + minor + ")", files: std}}
 
@@ -387,8 +349,6 @@ func goModules() ([]part, error) {
 	return parts, nil
 }
 
-// npmPackages returns the packages that `npm ls --omit=dev` lists, split into those with license
-// files and those without.
 func npmPackages() ([]part, []bare, error) {
 	cmd := exec.Command("npm", "ls", "--omit=dev", "--all", "--parseable")
 	cmd.Stderr = os.Stderr
@@ -400,8 +360,6 @@ func npmPackages() ([]part, []bare, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	// npm prints physical paths. When run from a symlinked directory (macOS's /tmp is one), the
-	// root would otherwise be listed as a package of its own.
 	if real, err := filepath.EvalSymlinks(root); err == nil {
 		root = real
 	}
@@ -418,7 +376,7 @@ func npmPackages() ([]part, []bare, error) {
 		}
 		label := p.Name + " " + p.Version
 		if seen[label] {
-			continue // the same version at another place in node_modules
+			continue
 		}
 		seen[label] = true
 		files, err := filesAt(dir)
@@ -464,7 +422,6 @@ func readPackage(dir string) (packageJSON, error) {
 	return p, nil
 }
 
-// stringOr reads a package.json field that is a string or an object with key.
 func stringOr(raw json.RawMessage, key string) string {
 	var s string
 	if json.Unmarshal(raw, &s) == nil {
@@ -504,7 +461,6 @@ func (p packageJSON) repo() string {
 	return strings.TrimSuffix(r, ".git")
 }
 
-// filesAt returns the license files at the root of dir, with their names.
 func filesAt(dir string) ([]licensed, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

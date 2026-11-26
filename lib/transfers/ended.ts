@@ -1,26 +1,17 @@
-// The ended transfers that History lists, a page at a time. The list asks the core for the newest
-// page, then for older pages as the user scrolls, and for newer rows only after a transfer ends.
-// It holds at most ENDED_CAP rows. Pure: the core is reached through the `fetch` it is given.
-
 import type { Transfers } from '../core/types'
 
 type Transfer = Transfers.Transfer
 
-/** Rows per page. The core answers at most 200. */
 export const ENDED_PAGE = 200
-/** The most rows the list holds. */
 export const ENDED_CAP = 5000
 
-/** The ends that History can narrow the list to. "" is every end. */
 export type EndedState = '' | 'completed' | 'failed' | 'stopped'
 
-/** What the list shows: the ended transfers in one state, with a search. */
 export interface EndedFilter {
     state: EndedState
     search: string
 }
 
-/** One question to the core (transfers.ListEnded). */
 export interface EndedAsk extends EndedFilter {
     before: string
     after: number
@@ -31,32 +22,17 @@ export type EndedFetch = (ask: EndedAsk) => Promise<{ items: Transfer[]; more: b
 
 export interface EndedSnapshot {
     items: Transfer[]
-    /** Whether older rows can be loaded. */
     hasOlder: boolean
     loading: boolean
-    /** Whether the first page has been answered (or has failed) since the filter last changed. */
     settled: boolean
     error: unknown
-    /** Whether the error came from loading older rows, so that Retry asks for them again. */
     olderFailed: boolean
-    /** When the question of the latest answer was sent, in ms. */
     askedAt: number
 }
 
-/** Sorts by creation time, newest first, which is the order of the core's pages. */
 export const newestFirst = (a: Transfer, b: Transfer) =>
     b.createdAt - a.createdAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
 
-/**
- * Whether `search` is in a transfer's number (#12), operation, paths, error or origin's name,
- * ignoring case. The operation matches by its key ("sync") and by `name`, its name as History
- * shows it in the app's language ("Sincronizar").
- *
- * The page filters the running transfers with it, and it finds what the core's search finds
- * (transfers.Matches, with transfers.OperationName). The page can't ask the core instead,
- * because the core's pages don't yet have the rows that are still leaving the running list.
- * `testdata/transfer_search_cases.json` holds the cases that both sides are tested against.
- */
 export function matches(
     transfer: Pick<Transfer, 'seq' | 'operation' | 'destination' | 'error' | 'sources' | 'origin'>,
     search: string,
@@ -75,20 +51,12 @@ export function matches(
     ].some((text) => text.toLowerCase().includes(needle))
 }
 
-/**
- * The latest end among the rows, or 0 when there is none. The list asks the core for the rows
- * that ended since then.
- */
 export function latestEnd(items: readonly Transfer[]): number {
     let latest = 0
     for (const item of items) if ((item.endedAt ?? 0) > latest) latest = item.endedAt ?? 0
     return latest
 }
 
-/**
- * Adds rows to the list: the newest first, each transfer once (the new row replaces the old one),
- * and at most `cap` of them. Returns the rows and whether some were cut off the end.
- */
 export function mergeRows(
     held: readonly Transfer[],
     fresh: readonly Transfer[],
@@ -113,20 +81,13 @@ const INITIAL: EndedSnapshot = {
 
 type Direction = 'first' | 'older' | 'newer'
 
-/**
- * The ended list. Only one question is on its way at a time, and the others wait for it. A newer
- * page asked for while one is on its way is asked for again after it, because the end that asked
- * for it may have come after the question. A change of filter drops whatever is on its way.
- */
 export class EndedList {
     private state: EndedSnapshot = INITIAL
     private filter: EndedFilter = { state: '', search: '' }
     private readonly watchers = new Set<() => void>()
     private inFlight: Direction | null = null
     private queue: Direction[] = []
-    /** Counts the filter changes, so that an answer for an older filter is dropped. */
     private generation = 0
-    /** The last row of the newest and the older pages. The next older page starts after it. */
     private cursor = ''
 
     constructor(
@@ -144,13 +105,11 @@ export class EndedList {
 
     snapshot = () => this.state
 
-    /** Shows the transfers that match `filter`, from the newest page. */
     setFilter(filter: EndedFilter) {
         this.filter = filter
         this.first()
     }
 
-    /** Loads the newest page again, and drops the rest at once. */
     first = () => {
         this.generation += 1
         this.inFlight = null
@@ -159,7 +118,6 @@ export class EndedList {
         this.request('first')
     }
 
-    /** Loads the newest page again. The rows stay until it answers, and then it replaces them. */
     refresh = () => {
         this.generation += 1
         this.inFlight = null
@@ -167,16 +125,13 @@ export class EndedList {
         return this.request('first')
     }
 
-    /** Loads the next older page, unless one is on its way or there is none. */
     older = () => {
         if (!this.state.hasOlder || this.inFlight === 'older') return
         this.want('older')
     }
 
-    /** Loads the transfers that ended since the latest one shown. */
     newer = () => this.want(this.state.items.length === 0 ? 'first' : 'newer')
 
-    /** Asks again for what failed. */
     retry = () => (this.state.olderFailed ? this.older() : this.first())
 
     private want(direction: Direction) {
@@ -209,8 +164,6 @@ export class EndedList {
             const page = await this.fetch(ask)
             if (generation !== this.generation) return
             this.take(direction, page.items, page.more, askedAt)
-            // Follow only a page that moved the latest end on, so that many ends in the same
-            // millisecond can't keep asking for the same page.
             more = page.more && latestEnd(this.state.items) > ask.after
         } catch (error) {
             if (generation !== this.generation) return
@@ -218,7 +171,6 @@ export class EndedList {
         } finally {
             if (generation === this.generation) {
                 this.inFlight = null
-                // A newer page that stopped at its limit is followed by the next one.
                 if (direction === 'newer' && more && !this.queue.includes('newer')) {
                     this.queue.push('newer')
                 }
@@ -242,7 +194,6 @@ export class EndedList {
         const { items, cut } = mergeRows(held.items, fresh, this.cap)
         if (direction === 'older') {
             this.cursor = fresh.at(-1)?.id ?? this.cursor
-            // At the cap, older rows are no longer loaded.
             this.set({ ...answered, items, hasOlder: more && !cut && items.length < this.cap })
             return
         }

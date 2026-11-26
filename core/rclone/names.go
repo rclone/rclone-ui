@@ -8,10 +8,6 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// CheckRemoteName refuses name as a remote's name with an errs.Field error on field, or returns
-// nil when it can be used. A single ASCII letter is refused on every system. rclone's rc accepts
-// it, but on Windows c:path means drive C, and a config made here may later be used on Windows.
-// Other one-character names, such as "1" or "é", are not drives, so they are allowed.
 func CheckRemoteName(field, name string) error {
 	if name == "" {
 		return errs.Field(field, "Give the remote a name.")
@@ -25,8 +21,6 @@ func CheckRemoteName(field, name string) error {
 	return nil
 }
 
-// CheckNewRemoteName works like CheckRemoteName, and also refuses a name that is already in use,
-// because config/create would overwrite that remote.
 func CheckNewRemoteName(field, name string, existing []string) error {
 	if err := CheckRemoteName(field, name); err != nil {
 		return err
@@ -37,9 +31,6 @@ func CheckNewRemoteName(field, name string, existing []string) error {
 	return nil
 }
 
-// validName applies rclone's own rule for a remote's name (fspath.CheckConfigName). The name may
-// use letters and digits in any script, spaces and _ - . + @. It can't start with - or a space,
-// or end with a space.
 func validName(name string) bool {
 	return fspath.CheckConfigName(name) == nil
 }

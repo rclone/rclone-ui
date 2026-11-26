@@ -23,9 +23,6 @@ import type { FlagValue } from '../../types/rclone'
 
 type RuleKind = MapperRule['kind']
 
-// One row while it is being edited. It isn't a discriminated union, so changing the kind keeps
-// whatever was typed. `touched` is set when focus leaves the row. Until then, a half-written rule
-// isn't treated as a mistake, because flagging it while the first field is being typed is noise.
 type Row = { id: number; kind: RuleKind; left: string; right: string; touched: boolean }
 
 const KINDS: Array<{ key: RuleKind; label: string; description: string }> = [
@@ -86,7 +83,6 @@ const isCompleteRow = (row: Row) => !!row.left && (row.kind === 'drop' || !!row.
 
 type Draft = { rows: Row[]; keepUnmapped: boolean }
 
-/** `parsed` is null for a flag that runs another program, which has no rules to show. */
 const draftOf = (parsed: MapperValue | null): Draft => ({
     rows: toRows(parsed?.rules ?? []),
     keepUnmapped: parsed?.keepUnmapped ?? true,
@@ -97,20 +93,12 @@ function valueOf(rows: Row[], keepUnmapped: boolean): string[] | '' {
     return rules.length > 0 ? buildMapperValue(rules, keepUnmapped) : ''
 }
 
-/**
- * Returns the name of the remote that a path is on: `gdrive` for `gdrive:photos/` (and for
- * `gdrive,chunk_size=8M:`), `:s3` for `:s3,env_auth:bucket`, and `:local` for a local path.
- */
 function remoteNameOf(path: string | undefined) {
     if (!path) return undefined
     const parsed = parsePath(path)
     return parsed.kind === 'remote' ? parsed.name : ':local'
 }
 
-/**
- * Returns the configured remote that a path names (`gdrive` for `gdrive:photos/`), so its saved
- * values can be read. Returns undefined for a local path or a connection string.
- */
 function remoteOf(path: string | undefined) {
     const parsed = path ? parsePath(path) : undefined
     return parsed?.kind === 'remote' && !parsed.name.startsWith(':') && !parsed.params
@@ -118,11 +106,6 @@ function remoteOf(path: string | undefined) {
         : undefined
 }
 
-/**
- * Returns the metadata fields that a remote's backend supports, given a name from `remoteNameOf`.
- * For a configured remote they come from its cached fsinfo. For anything else (a local path or an
- * on-the-fly backend) they come from the backend's entry in the catalog.
- */
 function useMetadataKeys(name: string | undefined) {
     const { remotes } = useRemotes()
     const backends = useBackends()
@@ -141,7 +124,6 @@ function useMetadataKeys(name: string | undefined) {
     }, [name, remotes, backends])
 }
 
-/** Stands in for the app's executable path in the command line that is shown. */
 const SHOWN_PROGRAM = 'rcui'
 
 function FieldInput({
@@ -157,9 +139,6 @@ function FieldInput({
     keys: Array<{ key: string; Help?: string; Example?: string; ReadOnly?: boolean }>
     isInvalid: boolean
 }) {
-    // The list is filtered here and passed as `items` rather than `defaultItems`. The backend's
-    // fields come from `fsinfo`, which often arrives after this panel appears. An uncontrolled
-    // collection keeps what it was given at mount, which would be an empty list forever.
     const shown = useMemo(() => {
         const typed = value.trim().toLowerCase()
         return keys.filter((field) => field.key.toLowerCase().startsWith(typed))
@@ -168,22 +147,14 @@ function FieldInput({
     return (
         <Autocomplete
             className="flex-1 min-w-0"
-            // The popover is wider than the field, which is one of two columns in a row. The list
-            // shows each field's help from the backend, and HeroUI would otherwise size the
-            // popover to its trigger.
             classNames={{ popoverContent: 'w-72' }}
             aria-label={label}
             placeholder={label}
             size="sm"
             inputValue={value}
-            // The typed text is the value, and picking from the list only fills it in. Backends
-            // accept metadata keys they never declare (`user.*`, `x-amz-meta-*`), so the list is
-            // only a suggestion.
             onInputChange={onChange}
             onSelectionChange={(key) => key !== null && onChange(String(key))}
             allowsCustomValue={true}
-            // Don't show an empty list over the page when the backend declares no metadata
-            // fields, or when no field matches the typed key.
             allowsEmptyCollection={false}
             menuTrigger="input"
             isInvalid={isInvalid}
@@ -198,9 +169,6 @@ function FieldInput({
                     key={item.key}
                     textValue={item.key}
                     description={item.Help || item.Example}
-                    // rclone's help is wrapped rather than truncated. The caveat that decides
-                    // whether a field can be written at all ("Enable with --drive-metadata-owner")
-                    // is at the end of the sentence, which is the part truncation would hide.
                     classNames={{ description: 'whitespace-normal' }}
                 >
                     {item.key}
@@ -242,21 +210,6 @@ function gatedFix(count: number, thisRun: boolean): string {
           })
 }
 
-/**
- * An inline editor for the `metadata_mapper` flag. rclone's flag takes a program, so this writes a
- * command line: this app's `metadata-map` subcommand followed by the rules as arguments. The
- * executable path is left out, and the core adds it (see `lib/rclone/metadataMapper.ts`). rclone
- * runs the program once for each file and directory it copies.
- *
- * Edits are written to the flag as they are made, but only complete rules are included. A row
- * with an empty field stays in the editor until both fields are filled in. The incoming `value`
- * is compared with what the editor last read or wrote. A change made elsewhere (a hand edit of
- * the JSON, a template, a preset) replaces the draft, while the editor's own writes leave it alone.
- *
- * The `metadata` option has to be on as well. Tested with rclone 1.75: without it, the mapper is
- * never called. The chip that adds the flag turns it on too, and the core refuses a start that
- * sets one without the other.
- */
 export default function MetadataMapper({
     value,
     onChange,
@@ -264,26 +217,18 @@ export default function MetadataMapper({
     remoteOverrides,
 }: {
     value: FlagValue
-    /** Receives the new flag value: an argv array, or an empty string when there are no rules. */
     onChange: (value: string[] | '') => void
-    /** The operation's paths, so each side can suggest the fields its backend supports. */
     paths?: { source?: string; destination?: string }
-    /** Backend overrides for this run, by remote. They take priority over the saved config. */
     remoteOverrides?: Record<string, Record<string, FlagValue>>
 }) {
     const headingId = useId()
     const parsed = useMemo(() => parseMapperValue(value), [value])
     const [{ rows, keepUnmapped }, setDraft] = useState<Draft>(() => draftOf(parsed))
-    // The draft as of the last edit, so the next edit builds on it rather than on stale state.
-    // Picking from a field's list changes the text and the selection in the same tick, and a
-    // blur can happen in the same tick as an edit.
     const latest = useRef<Draft>({ rows, keepUnmapped })
     const reset = (next: Draft) => {
         latest.current = next
         setDraft(next)
     }
-    // The flag as this editor last read or wrote it, compared by content, because the JSON
-    // returns a new array object every time it is parsed.
     const known = useRef(JSON.stringify(value))
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: `reset` is this render's setter; the flag is the input
@@ -311,25 +256,18 @@ export default function MetadataMapper({
     const destinationRemote = remoteOf(paths?.destination)
     const sourceKeys = useMetadataKeys(remoteNameOf(paths?.source))
     const destinationKeys = useMetadataKeys(remoteNameOf(paths?.destination))
-    // A read-only field can be read from the source but never written to the destination.
     const writableKeys = useMemo(
         () => destinationKeys.filter((field) => !field.ReadOnly),
         [destinationKeys]
     )
 
-    // The destination remote's saved config. Some fields depend on it: `owner`, for example, is
-    // only written when the backend's `metadata_owner` option allows it.
     const { data: config } = useRemoteConfig(destinationRemote)
 
-    // A flag that runs some other program was written by the user. Show it rather than silently
-    // rewrite it.
     const foreign = parsed === null
     const showsProblem = rows.some((row) => row.touched && !isEmptyRow(row) && !isCompleteRow(row))
     const rules = rows.filter(isCompleteRow).map(toRule)
     const commandLine = valueOf(rows, keepUnmapped)
 
-    // A wrapping backend (crypt over drive, for example) reports its own type here, so its
-    // options are the ones checked. A gate on the wrapped remote is missed rather than guessed.
     const backendOptions = useBackendOptions(config?.type, config?.provider)
     const gated = gatedDestinations({
         fields: rules.map((rule) => (rule.kind === 'map' ? rule.to : rule.key)).filter(Boolean),
@@ -337,7 +275,6 @@ export default function MetadataMapper({
         config,
         overrides: destinationRemote ? remoteOverrides?.[destinationRemote] : undefined,
     })
-    // A page that has paths to pick passes `paths`. A template doesn't, so it shows no hint.
     const noPaths = !!paths && !paths.source && !paths.destination
 
     return (
@@ -384,8 +321,6 @@ export default function MetadataMapper({
                                     key={row.id}
                                     className="flex items-start gap-2"
                                     onBlur={(event) => {
-                                        // Moving between fields of the same row doesn't count.
-                                        // The row is finished when focus leaves it.
                                         if (!event.currentTarget.contains(event.relatedTarget)) {
                                             update(row.id, { touched: true })
                                         }
@@ -399,9 +334,6 @@ export default function MetadataMapper({
                                         })}
                                         size="sm"
                                         className="w-24 shrink-0"
-                                        // The trigger only needs to fit "Map", but the list shows
-                                        // a description of each kind. HeroUI would otherwise size
-                                        // the popover to the trigger.
                                         classNames={{ popoverContent: 'w-64' }}
                                         selectedKeys={[row.kind]}
                                         disallowEmptySelection={true}

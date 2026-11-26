@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Builds rcui for GOOS/GOARCH (default: this machine) the way releases are built, with the
-# frontend embedded and compressed, and with the release tags. CI and local builds both use this
-# script, so the tags are defined in one place.
-#
-#   build/build.sh                  # this machine → build/bin/<goos>-<goarch>/rcui
-#   GOOS=windows GOARCH=arm64 build/build.sh
-#   build/build.sh --skip-frontend  # reuse app/assets/dist
-#   build/build.sh --print-tags     # print the tags for GOOS/GOARCH
-#   build/build.sh --vet            # go vet ./... as GOOS/GOARCH builds (embeds app/assets/dist)
-#   POSTHOG_KEY=phc_… build/build.sh   # a build that sends usage data (see below)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -26,7 +16,6 @@ done
 goos=${GOOS:-$(go env GOOS)}
 goarch=${GOARCH:-$(go env GOARCH)}
 
-# On every platform, embed the pages and leave out rclone's selfupdate, because ours replaces it.
 tags=production,noselfupdate
 ldflags="-s -w"
 cgo=1
@@ -52,13 +41,9 @@ case $goos in
         export CGO_LDFLAGS="${CGO_LDFLAGS:--O2 -g} -mmacosx-version-min=12.0"
         ;;
     linux)
-        # Linux builds need no tag. They use Wails' default stack, GTK 4 with WebKitGTK 6.0, and
-        # they link gtk4-layer-shell, so its development files must be installed too.
         ;;
 esac
 
-# --print-tags and --vet stop here. They don't read the version, so they need neither node nor
-# the module graph.
 case $mode in
     print-tags)
         echo "$tags"
@@ -72,18 +57,13 @@ case $mode in
 esac
 
 version=${APP_VERSION:-$(node -p "require('./package.json').version")}
-# rclone's version is the version of the rclone module. rclone's own releases set fs.Version the
-# same way.
 rclone_version=$(go list -m -f '{{.Version}}' github.com/rclone/rclone)
 ldflags+=" -X github.com/rclone/rclone-ui/core/version.App=$version -X github.com/rclone/rclone/fs.Version=$rclone_version"
-# The PostHog key can only add events, so it isn't a secret. A build without it sends nothing.
 if [ -n "${POSTHOG_KEY:-}" ]; then
     ldflags+=" -X github.com/rclone/rclone-ui/core/telemetry.Key=$POSTHOG_KEY"
 fi
 
 if ! $skip_frontend; then
-    # The pages call the Go code through the generated bindings, so a release must not embed
-    # bindings that are out of date.
     env -u GOOS -u GOARCH build/check.sh bindings
     npm run build
     env -u GOOS -u GOARCH go -C tools run ./zstdassets -src ../dist -dst ../app/assets/dist
@@ -111,7 +91,6 @@ CGO_ENABLED=$cgo GOOS=$goos GOARCH=$goarch \
     go build -trimpath -tags "$tags" -ldflags "$ldflags" -o "$out" .
 
 if [ "$goos" = windows ]; then
-    # The console rclone.exe that the installer puts in <install folder>\bin, for the PATH option.
     shim="$(dirname "$out")/bin/rclone.exe"
     echo "building $shim"
     CGO_ENABLED=0 GOOS=$goos GOARCH=$goarch \

@@ -9,8 +9,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// TestKeylessResultsHaveNoHistory: a result with no key is ranked as if it was never picked, even
-// if the history has an entry under "".
 func TestKeylessResultsHaveNoHistory(t *testing.T) {
 	now := time.Now()
 	results := []Result{
@@ -47,16 +45,12 @@ func ids(rs []Result) []string {
 	return out
 }
 
-// TestSayMatchesBothLanguages: typing finds a row by its title and its search words in the app's
-// language and in English. Only a match in the drawn title is drawn bold. The test language
-// (Pseudo) stands in for a translation: "Copy" is "[Çópý]" there.
 func TestSayMatchesBothLanguages(t *testing.T) {
 	inLanguage(t, i18n.Pseudo)
 	now := time.Now()
 	results := []Result{
 		Result{ID: "copy", Score: 2}.Say(i18n.M("Copy"), i18n.M("duplicate, cp")),
 		Result{ID: "move", Score: 1}.Say(i18n.M("Move"), i18n.M("rename, mv")),
-		// A title that is a name is kept, and only the search words are translated.
 		Result{ID: "remote", Title: "gdrive"}.Say(i18n.Text{}, i18n.M("browse")),
 	}
 	if got := results[0].Title; got != "[Çópý]" {
@@ -68,14 +62,14 @@ func TestSayMatchesBothLanguages(t *testing.T) {
 	for _, c := range []struct {
 		typed string
 		want  []string
-		bold  bool // the match is in the drawn title
+		bold  bool
 	}{
-		{"copy", []string{"copy"}, false},      // the English title
-		{"çópý", []string{"copy"}, true},       // the translated title
-		{"çó", []string{"copy"}, true},         // its start
-		{"duplicate", []string{"copy"}, false}, // an English search word
-		{"dúplíçá", []string{"copy"}, false},   // a translated search word
-		{"cp", []string{"copy"}, false},        // a word that both languages share
+		{"copy", []string{"copy"}, false},
+		{"çópý", []string{"copy"}, true},
+		{"çó", []string{"copy"}, true},
+		{"duplicate", []string{"copy"}, false},
+		{"dúplíçá", []string{"copy"}, false},
+		{"cp", []string{"copy"}, false},
 		{"rename", []string{"move"}, false},
 		{"brówsé", []string{"remote"}, false},
 		{"browse", []string{"remote"}, false},
@@ -94,7 +88,6 @@ func TestSayMatchesBothLanguages(t *testing.T) {
 	}
 }
 
-// TestSayInEnglish: in English, the English terms are the drawn ones, so none is kept twice.
 func TestSayInEnglish(t *testing.T) {
 	inLanguage(t, i18n.English)
 	r := Result{ID: "copy"}.Say(i18n.M("Copy"), i18n.M("copy, cp"))
@@ -103,7 +96,6 @@ func TestSayInEnglish(t *testing.T) {
 	}
 }
 
-// TestWordsSplitsOnEveryComma: a translation may separate its search words with its own commas.
 func TestWordsSplitsOnEveryComma(t *testing.T) {
 	for in, want := range map[string][]string{
 		"copy, cp":     {"copy", "cp"},
@@ -118,7 +110,6 @@ func TestWordsSplitsOnEveryComma(t *testing.T) {
 	}
 }
 
-// TestGroupTitles: every group has a label of its own.
 func TestGroupTitles(t *testing.T) {
 	inLanguage(t, i18n.Pseudo)
 	seen := map[string]bool{}

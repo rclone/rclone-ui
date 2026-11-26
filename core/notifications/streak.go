@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-// StreakEnd is how long a mount or serve must stay up before its next failure is notified
-// again.
 const StreakEnd = 5 * time.Minute
 
 // Streak sends an event once per streak of failures, so a mount or serve in a crash loop is
@@ -20,8 +18,8 @@ type Streak struct {
 	now     func() time.Time
 
 	mu   sync.Mutex
-	open bool      // a failure was sent, and it hasn't stayed up long enough since
-	upAt time.Time // when it last came up; zero while it is down
+	open bool
+	upAt time.Time
 }
 
 // NewStreak returns a Streak for one mount or serve that sends event through n. With a desktop,
@@ -30,7 +28,6 @@ func NewStreak(n Notifier, event NotificationEvent, desktop *Desktop) *Streak {
 	return &Streak{n: n, event: event, desktop: desktop, now: time.Now}
 }
 
-// Up records that the mount or serve is running (ready) again.
 func (k *Streak) Up() {
 	k.mu.Lock()
 	k.upAt = k.now()

@@ -1,10 +1,6 @@
 import { cn } from '@heroui/react'
 import type { ReactNode } from 'react'
 
-/**
- * The title of a part of a window ("Running now", "Options"). It has one size for every window,
- * so the parts of the app read the same way.
- */
 export function SectionTitle({
     title,
     description,
@@ -15,7 +11,6 @@ export function SectionTitle({
     title: ReactNode
     description?: ReactNode
     actions?: ReactNode
-    /** For the section's aria-labelledby. */
     id?: string
     className?: string
 }) {

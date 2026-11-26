@@ -19,30 +19,22 @@ import { toastSuccess } from '../../components/toast'
 import { SEGMENTED, SettingRow, SettingsGroup, SwitchRow } from './SettingsGroup'
 import { SECTIONS } from './sections'
 
-/** The field that the core names when it refuses a port. */
 const PORT_FIELD = 'agents.port'
 
-/** What stands for the token on screen until it is shown. */
 const MASK = '•'.repeat(12)
 
 const RE_NOT_DIGIT = /\D/g
 
 const CODE_BOX = 'rounded-xl bg-default-100 dark:bg-black/30'
 
-/** The address of the server on a port. The server reports the same one once it runs. */
 function urlAt(port: number): string {
     return `http://127.0.0.1:${port}/mcp`
 }
 
-/** The command that adds the server to Claude Code, for every project of the user's. */
 function claudeCommand(url: string, token: string): string {
     return `claude mcp add --transport http --scope user rclone-ui ${url} --header "Authorization: Bearer ${token}"`
 }
 
-/**
- * The server in the settings of an app that starts a command. The path is written as a JSON
- * string, so a Windows path keeps its backslashes.
- */
 function commandConfig(command: string): string {
     return [
         '{',
@@ -56,21 +48,15 @@ function commandConfig(command: string): string {
     ].join('\n')
 }
 
-/**
- * The MCP server that lets the user's AI agents use the app (core/agents). It is off until the
- * switch turns it on.
- */
 export default function AgentsGroup() {
     const { settings } = useSettings()
     const config = settings?.agents
     const on = !!config?.enabled
-    // agents:changed keeps it current (followShellEvents).
     const status = useQuery({
         queryKey: shellKeys.agents,
         queryFn: () => agents.status(),
         enabled: on,
     }).data
-    // The token is hidden in each new window. Showing it shows it in the setups too.
     const [revealed, setRevealed] = useState(false)
     const reduceMotion = useReducedMotion()
 
@@ -83,7 +69,6 @@ export default function AgentsGroup() {
                 isDisabled={!settings}
                 onValueChange={(value) => saveSettings({ agentsEnabled: value })}
             />
-            {/* The rows of the server open below the switch, so the groups under it slide down. */}
             <AnimatePresence initial={false}>
                 {on && config && (
                     <motion.div
@@ -131,12 +116,9 @@ function serverState(
                 comment:
                     'The server that lets AI agents connect could not start. The reason follows.',
             }),
-            // The core's reason, in the app's language, says what to do.
             detail: status.error,
         }
     }
-    // Until the status is read, and while the server starts, the row reads as starting, with the
-    // address it is starting on, so it keeps its height when it runs.
     const url = status?.running ? status.url : urlAt(port)
     const at = (
         <Trans>
@@ -160,7 +142,6 @@ function ServerRow({ port, status }: { port: number; status: AgentsInfo | undefi
 
     const save = async () => {
         const newPort = Number(value)
-        // The core refuses the same ports, and says so in the same words.
         if (!value || newPort < 1024 || newPort > 65535) {
             setProblem(t`The port is a number from 1024 to 65535.`)
             return
@@ -244,10 +225,6 @@ function ServerRow({ port, status }: { port: number; status: AgentsInfo | undefi
     )
 }
 
-/**
- * How to connect an agent's app, ready to copy. The command, the JSON, the address and the header
- * stay in English, because the apps read them.
- */
 function ConnectRow({
     url,
     command,
@@ -272,7 +249,6 @@ function ConnectRow({
                     radius="md"
                     classNames={{ ...SEGMENTED, panel: 'px-0 pt-3 pb-0' }}
                 >
-                    {/* A name, the same in every language. */}
                     <Tab key="claude-code" title="Claude Code">
                         <Setup
                             lead={t`Run this in a terminal. It adds Rclone UI to your agent, in all your projects.`}
@@ -344,11 +320,6 @@ function Setup({ lead, note, children }: { lead: string; note?: string; children
     )
 }
 
-/**
- * Text to copy, in monospace, with its Copy button. A command wraps between its words, and a
- * `block`, such as JSON, keeps its lines and scrolls sideways. `shown` is what the screen shows,
- * with the token hidden.
- */
 function CodeBox({
     text,
     shown = text,
@@ -531,7 +502,6 @@ function CopyButton({ text, label }: { text: string; label: string }) {
     )
 }
 
-/** Animates from one icon to the next when `id` changes. */
 function SwapIcon({ id, children }: { id: string; children: ReactNode }) {
     const reduceMotion = useReducedMotion()
     return (

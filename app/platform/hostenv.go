@@ -11,10 +11,8 @@ import (
 
 // An AppImage's AppRun and linuxdeploy's GTK hook point the environment into the AppImage's mount
 // (its AppDir). With that environment, the host's programs would load the AppImage's libraries,
-// schemas and modules instead of their own, and fail. This affects xdg-open and the browser it
-// starts, gsettings, the login shell and a Python password command. So these programs get the
-// host's environment (see HostEnv). The UI keeps its own environment, because its GTK reads module
-// paths lazily.
+// schemas and modules instead of their own, and fail. The UI keeps its own environment, because
+// its GTK reads module paths lazily.
 
 // listVars are the colon-separated variables that AppRun and the GTK hook point into the AppDir.
 // Most get the AppDir's folders in front of the host's value. The GTK hook replaces the values of
@@ -43,8 +41,6 @@ var dropVars = map[string]bool{
 	"GTK_THEME": true, "GDK_BACKEND": true, "PYTHONDONTWRITEBYTECODE": true,
 }
 
-// hostEnv returns env as a host program should get it, given the AppDir. It returns env unchanged
-// when appdir is "".
 func hostEnv(env []string, appdir string) []string {
 	if appdir == "" {
 		return env
@@ -79,7 +75,6 @@ func hostEnv(env []string, appdir string) []string {
 	return out
 }
 
-// appDir returns appdir when this executable runs from that AppImage's mount, and "" otherwise.
 // The AppImage's runtime sets both variables. A program that the AppImage started inherits them,
 // but isn't inside the mount.
 func appDir(appimage, appdir, exe string) string {
@@ -132,7 +127,6 @@ func envValue(env []string, key string) string {
 	return ""
 }
 
-// lookPathIn finds an executable file named name in the folders of list, which is a PATH value.
 func lookPathIn(name, list string) (string, bool) {
 	for _, dir := range filepath.SplitList(list) {
 		if dir == "" || !filepath.IsAbs(dir) {

@@ -17,11 +17,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// On Windows, the installer and the portable zip put a console rclone.exe in the bin folder next
-// to rcui.exe (see build/windows/rclone-shim), which runs ..\rcui.exe. Enabling the link adds that
-// folder to the user's PATH in HKCU\Environment. A copy without it, such as an rcui.exe copied on
-// its own, has no rclone.exe to add to PATH.
-
 func newLinker() (*Linker, error) {
 	exe, err := platform.Executable()
 	if err != nil {
@@ -36,8 +31,8 @@ func newLinker() (*Linker, error) {
 
 func (l *Linker) Status() State {
 	st := State{Supported: l.unsupported.IsZero(), Reason: l.unsupported.Local(), Link: l.link, Target: l.exe}
-	// A copy without bin\rclone.exe only has rcui.exe, which is a windowed program, so a terminal
-	// doesn't wait for it. bin\rclone.exe is a console program.
+	// rcui.exe is a windowed program, so a terminal doesn't wait for it. bin\rclone.exe is a console
+	// program.
 	st.Command = psCommand(l.exe)
 	if !st.Supported {
 		return st
@@ -59,8 +54,6 @@ func (l *Linker) Status() State {
 	return st
 }
 
-// psCommand returns the command that PowerShell (Windows' usual terminal) uses to run a program
-// by its path.
 func psCommand(path string) string { return `& "` + path + `"` }
 
 func (l *Linker) Enable() (State, error) {
@@ -80,13 +73,8 @@ func (l *Linker) Disable() (State, error) {
 	return l.Status(), nil
 }
 
-// Refresh does nothing on Windows: the entry on PATH is the copy's own bin folder, which an
-// update leaves in place. A portable copy that was moved shows the link as off, and turning it on
-// again adds the new folder.
 func (l *Linker) Refresh() error { return nil }
 
-// setUserPath rewrites the user's PATH and tells running programs that the environment changed.
-// Explorer then reloads it, so new terminals get the new PATH.
 func (l *Linker) setUserPath(edit func(string) string) error {
 	value, err := l.userPath.get()
 	if err != nil {
@@ -103,7 +91,6 @@ func (l *Linker) setUserPath(edit func(string) string) error {
 	return nil
 }
 
-// userRclone returns the first rclone.exe in dirs that isn't this app's, and its position.
 func (l *Linker) userRclone(dirs []string) (string, int) {
 	for i, d := range dirs {
 		if d == "" || samePathSegment(d, l.link) {
@@ -117,8 +104,7 @@ func (l *Linker) userRclone(dirs []string) (string, int) {
 	return "", -1
 }
 
-// userEnvPath reads and writes HKCU\Environment\Path. It is kept as REG_EXPAND_SZ, because it can
-// hold variables such as %USERPROFILE%.
+// Path is kept as REG_EXPAND_SZ, because it can hold variables such as %USERPROFILE%.
 type userEnvPath struct{}
 
 func (userEnvPath) get() (string, error) {
@@ -143,8 +129,7 @@ func (userEnvPath) set(value string) error {
 	return k.SetExpandStringValue("Path", value)
 }
 
-// newTerminalPath returns the PATH that a new terminal gets: the machine's PATH, then the user's,
-// with variables expanded. The UI's own PATH is still the one it started with, before any change.
+// The UI's own PATH is still the one it started with, before any change.
 func newTerminalPath() []string {
 	var dirs []string
 	for _, src := range []struct {
@@ -176,8 +161,8 @@ func newTerminalPath() []string {
 
 var sendMessageTimeout = windows.NewLazySystemDLL("user32.dll").NewProc("SendMessageTimeoutW")
 
-// broadcastEnvironment sends WM_SETTINGCHANGE "Environment" to every top-level window, as setx
-// does. Explorer then reloads the environment, and the terminals it starts next see the new PATH.
+// WM_SETTINGCHANGE "Environment", as setx sends it, makes Explorer reload the environment, so
+// the terminals it starts next see the new PATH.
 func broadcastEnvironment() {
 	const (
 		hwndBroadcast   = 0xffff

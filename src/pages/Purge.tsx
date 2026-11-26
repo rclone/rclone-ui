@@ -51,7 +51,6 @@ export default function Purge() {
 
     const submission = useOperationSubmission({
         operation: 'purge',
-        // The core refuses the root of a remote, and the page shows its refusal (useFormRefusal).
         problem: () => (sources && sources.length > 0 ? undefined : t`Please select a source path`),
         jsonError,
         buildArgs: buildArgs,

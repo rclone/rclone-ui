@@ -1,6 +1,4 @@
 import { setWasmSource, XlsxViewer } from '@extend-ai/react-xlsx'
-// Bundle the sheets wasm locally (with Vite's ?url) so it loads from the same origin,
-// even offline.
 import xlsxWasmUrl from '@extend-ai/react-xlsx/duke_sheets_wasm_bg.wasm?url'
 import { t } from '@lingui/core/macro'
 import { locale } from '../../../../lib/i18n'
@@ -24,9 +22,7 @@ export default function XlsxPreview({ url, name, onDownload }: PreviewViewerProp
                 file={buffer}
                 fileName={name}
                 readOnly={true}
-                // Numbers in the cells are written as the app's language writes them.
                 locale={locale()}
-                // The preview is always light, whatever the app theme is.
                 isDark={false}
                 showDefaultToolbar={false}
                 height="100%"

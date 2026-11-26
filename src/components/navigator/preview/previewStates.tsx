@@ -10,25 +10,14 @@ import { toneButton } from '../../look/buttons'
 import { IconTile } from '../../look/IconTile'
 import { ToneProgress } from '../../look/ToneProgress'
 
-/**
- * The largest document a viewer will open. Documents are read whole and parsed in the window. A
- * file that the listing reports as larger is offered as a download instead (PreviewDrawer). A
- * file of unknown size is read up to this limit and no further (usePreviewSource).
- */
 export const DOCUMENT_MAX = 100_000_000
 
 export interface PreviewViewerProps {
-    /** The file's signed URL. It is null while being signed, and the viewer shows loading. */
     url: string | null
     name: string
     onDownload: () => void
 }
 
-/**
- * The loading state of the preview area. The bar shows the download's progress when `progress`
- * (0 to 1) is known. Otherwise it is indeterminate: the server sent no Content-Length, or a
- * viewer is still parsing.
- */
 export function PreviewLoading({ progress }: { progress?: number | null }) {
     const determinate = typeof progress === 'number'
 
@@ -49,10 +38,6 @@ export function PreviewLoading({ progress }: { progress?: number | null }) {
     )
 }
 
-/**
- * The preview area when it shows no preview: a picture of the file (or of the problem), what
- * happened, and a button to download the file instead.
- */
 export function PreviewNotice({
     visual,
     title,
@@ -106,11 +91,6 @@ export function PreviewError({
     )
 }
 
-/**
- * Catches a viewer that fails, either by throwing while it renders or because its chunk didn't
- * load. Only the preview area shows the error, with a download button, rather than the whole
- * window. Opening another file (a new `resetKey`) tries again.
- */
 export class PreviewBoundary extends Component<
     { resetKey: string; onDownload: () => void; children: ReactNode },
     { error: Error | null; key: string }

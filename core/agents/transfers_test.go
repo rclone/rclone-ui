@@ -20,8 +20,6 @@ import (
 	"github.com/rclone/rclone-ui/core/templates"
 )
 
-// writeTransferFiles writes files under dir, by their slash-separated paths, with their
-// contents.
 func writeTransferFiles(t *testing.T, dir string, files map[string]string) {
 	t.Helper()
 	for name, body := range files {
@@ -40,7 +38,6 @@ func transferExists(path string) bool {
 	return err == nil
 }
 
-// awaitTransfer waits for a transfer to end, as an agent does, and returns it.
 func awaitTransfer(t *testing.T, cs *mcp.ClientSession, id string) transferDetail {
 	t.Helper()
 	d := must[transferDetail](t, cs, "wait_for_transfer", map[string]any{"transfer_id": id, "timeout_seconds": 60})
@@ -58,8 +55,6 @@ func pathsOfTransferFiles(files []transferFile) []string {
 	return out
 }
 
-// A copy runs in the background as the agent's, and the agent follows it to its end and finds it
-// in the list, by its id or its number.
 func TestCopy(t *testing.T) {
 	cs := connect(t)
 	src, dst := filepath.Join(t.TempDir(), "Photos"), t.TempDir()
@@ -93,7 +88,6 @@ func TestCopy(t *testing.T) {
 		}
 	}
 
-	// The number that History shows names the same transfer.
 	byNumber := must[transferDetail](t, cs, "get_transfer", map[string]any{"transfer_id": fmt.Sprintf("#%d", started.Number)})
 	if byNumber.TransferID != started.TransferID {
 		t.Errorf("#%d is %s, want %s", started.Number, byNumber.TransferID, started.TransferID)
@@ -111,8 +105,6 @@ func TestCopy(t *testing.T) {
 	}
 }
 
-// An option that the operation doesn't take is left out and named, and an option's value that
-// rclone can't read is refused.
 func TestCopyOptions(t *testing.T) {
 	cs := connect(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -140,7 +132,6 @@ func TestCopyOptions(t *testing.T) {
 	if !transferExists(filepath.Join(folder, "keep.txt")) || transferExists(filepath.Join(folder, "skip.log")) {
 		t.Error("the exclude option was not applied")
 	}
-	// A local file is named by its path, as the agent wrote the source.
 	if d := must[transferDetail](t, cs, "get_transfer", map[string]any{"transfer_id": started.TransferID}); len(d.Changed.Files) != 1 ||
 		d.Changed.Files[0].Path != filepath.Join(src, "keep.txt") {
 		t.Errorf("the copied files: %+v", d.Changed.Files)
@@ -161,8 +152,6 @@ func TestCopyOptions(t *testing.T) {
 	}
 }
 
-// A sync's dry run lists the copies and the deletions it would make, deletions first, and
-// changes nothing. The real run then makes the destination match.
 func TestSyncDryRunThenReal(t *testing.T) {
 	cs := connect(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -217,8 +206,6 @@ func TestMove(t *testing.T) {
 	}
 }
 
-// The first bisync of two folders is refused with what to do instead, a resync sets the
-// baseline, and later runs carry changes both ways.
 func TestBisync(t *testing.T) {
 	cs := connect(t)
 	one, two := t.TempDir(), t.TempDir()
@@ -257,8 +244,6 @@ func TestBisync(t *testing.T) {
 	}
 }
 
-// A delete deletes the files that its filters keep and leaves the folders. A purge deletes whole
-// folders. Neither takes a remote's root, and a purge takes no file.
 func TestDeleteAndPurge(t *testing.T) {
 	cs := connect(t)
 	dir := t.TempDir()
@@ -295,7 +280,6 @@ func TestDeleteAndPurge(t *testing.T) {
 		t.Error("the purge didn't delete just its folder")
 	}
 
-	// Refused before anything runs. The dry runs keep them harmless all the same.
 	for _, c := range []struct{ tool, path string }{
 		{"delete", "box:"}, {"purge", "box:"}, {"purge", filepath.Join(dir, "a.txt")}, {"purge", filepath.Join(dir, "missing")},
 	} {
@@ -308,8 +292,6 @@ func TestDeleteAndPurge(t *testing.T) {
 	}
 }
 
-// A download saves a link's file under the link's name or the one given, and asks for a name
-// when the link has none.
 func TestDownload(t *testing.T) {
 	cs := connect(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -335,11 +317,8 @@ func TestDownload(t *testing.T) {
 	}
 }
 
-// A running transfer shows its progress in the list. A wait that times out says so, a stop
-// ends the transfer as stopped, and a transfer that isn't running can't be stopped.
 func TestWaitAndStop(t *testing.T) {
 	cs := connect(t)
-	// The link sends a little of a large file, and then nothing until it is stopped.
 	release := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", "100000000")
@@ -375,8 +354,6 @@ func TestWaitAndStop(t *testing.T) {
 	}
 }
 
-// A failed transfer's failures can be retried, and the retry is a new transfer that keeps the
-// original's origin. A transfer with nothing that failed has nothing to retry.
 func TestRetry(t *testing.T) {
 	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
 		t.Skip("a file can't be made unreadable here")
@@ -390,8 +367,6 @@ func TestRetry(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o644) })
 
-	// The copy fails within the moment that a start waits for, so the start fails, and names the
-	// transfer that it recorded.
 	_, failed := call[transferStarted](t, cs, "copy", map[string]any{"sources": []string{src}, "destination": dst})
 	list := must[transferList](t, cs, "list_transfers", map[string]any{"search": src, "state": "failed"})
 	if len(list.Transfers) != 1 || !strings.Contains(failed, list.Transfers[0].TransferID) {
@@ -419,7 +394,6 @@ func TestRetry(t *testing.T) {
 	}
 }
 
-// The list puts the newest first, and is capped. Its state must be one that it knows.
 func TestListTransfers(t *testing.T) {
 	cs := connect(t)
 	src := t.TempDir()
@@ -455,8 +429,6 @@ func TestListTransfers(t *testing.T) {
 	}
 }
 
-// get_transfer caps the changed files and puts the deletions first, and the count still says
-// how many there are.
 func TestChangedFilesAreCapped(t *testing.T) {
 	cs := connect(t)
 	src, dst := t.TempDir(), t.TempDir()
@@ -479,8 +451,6 @@ func TestChangedFilesAreCapped(t *testing.T) {
 	}
 }
 
-// The user's templates are listed with the operations that they run as, and run, for real or
-// as a dry run. A template runs only as an operation that it has paths for.
 func TestTemplates(t *testing.T) {
 	cs := connect(t)
 	src, dst := t.TempDir(), t.TempDir()

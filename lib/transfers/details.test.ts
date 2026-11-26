@@ -9,7 +9,6 @@ test('files go to the section that says how they ended', () => {
     const locked: TransferredFile = { name: 'locked.txt', size: 1, bytes: 0, error: 'denied' }
     expect(splitFiles([fine, locked])).toEqual({ transferred: [fine], failed: [locked] })
     expect(splitFiles(undefined)).toEqual({ transferred: [], failed: [] })
-    // Failures collected during the run last longer than the live window, so Failed shows them.
     const early: TransferredFile = { name: 'early.txt', size: 1, bytes: 0, error: 'quota' }
     expect(splitFiles([fine, locked], [early, locked])).toEqual({
         transferred: [fine],

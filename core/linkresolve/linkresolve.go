@@ -24,19 +24,15 @@ import (
 const (
 	// Service is the link service. Its endpoints and responses are documented at
 	// <Service>/docs/api-reference.
-	Service = "https://backend1.tioo.eu.org"
-	// agent is the User-Agent of the service's own client, which the app sends too.
-	agent = "btch/6.4.0"
-	// titleLength is how many characters of a title are kept in a file name.
+	Service     = "https://backend1.tioo.eu.org"
+	agent       = "btch/6.4.0"
 	titleLength = 42
-	// maxAnswer is the most that is read from the service's response.
-	maxAnswer = 4 << 20
+	maxAnswer   = 4 << 20
 	// Timeout is the limit for one request to the service or a media host. It is set on the
 	// client passed to New (httpx.New(Timeout)).
 	Timeout = 20 * time.Second
 )
 
-// site is one website: the name the page shows, the service's endpoint for it, and its hosts.
 type site struct {
 	name     string
 	endpoint string
@@ -69,7 +65,6 @@ var knownExtensions = []string{
 	"pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx",
 }
 
-// mimeExtensions lists only the types whose extension differs from their subtype.
 var mimeExtensions = map[string]string{
 	"video/quicktime":              "mov",
 	"video/x-msvideo":              "avi",
@@ -94,15 +89,11 @@ func Sites() []Site {
 	return out
 }
 
-// Resolver calls the link service. Its client uses the same proxy as rclone (httpx.New), which
-// is the same route the download itself takes.
 type Resolver struct {
 	client  *http.Client
 	service string
 }
 
-// New returns a Resolver that calls service through client. service is Service, or a test
-// server.
 func New(client *http.Client, service string) *Resolver {
 	return &Resolver{client: client, service: strings.TrimSuffix(service, "/")}
 }
@@ -126,8 +117,6 @@ func (r *Resolver) Resolve(ctx context.Context, pageURL string) (*Link, error) {
 // Listed reports whether pageURL is an address of one of Sites, which Resolve looks up.
 func Listed(pageURL string) bool { return endpointFor(pageURL) != "" }
 
-// endpointFor returns the service's endpoint for the address's host, or "". The host must be a
-// listed host or a subdomain of one.
 func endpointFor(pageURL string) string {
 	u, err := url.Parse(pageURL)
 	if err != nil || u.Host == "" {
@@ -173,16 +162,12 @@ func (r *Resolver) resolveWith(ctx context.Context, endpoint, pageURL string) (*
 	if !ok {
 		return nil, nil
 	}
-	// The result is passed to rclone and to the page's player, so it must be a web address.
 	media, err := url.Parse(f.url)
 	if err != nil || (media.Scheme != "http" && media.Scheme != "https") || media.Host == "" {
 		return nil, errors.New("the link service answered with something that is not a web address")
 	}
 
-	// Try the title's own extension first. When it has one, the media host isn't contacted.
 	stem, ext := splitTitle(f.title, f.kind)
-	// The extension the service reports must pass the same check as a title's extension
-	// (`mp3/../x` doesn't), because the filename goes to rclone as the name of a single file.
 	if own := strings.ToLower(strings.TrimLeft(f.extension, ".")); ext == "" && plausibleExtension(own) {
 		ext = own
 	}
@@ -208,8 +193,6 @@ type found struct {
 	extension  string
 }
 
-// at walks a decoded JSON value by object keys (strings) and array indexes (ints). It returns nil
-// when a step is missing.
 func at(v any, path ...any) any {
 	for _, step := range path {
 		switch k := step.(type) {
@@ -244,8 +227,6 @@ func firstText(vs ...any) string {
 	return ""
 }
 
-// find returns the one address worth downloading from an endpoint's response, preferring the
-// best quality.
 func find(endpoint string, d any) (found, bool) {
 	titled := func(v any, fallback string) string {
 		if s := text(v); s != "" {
@@ -334,8 +315,6 @@ func find(endpoint string, d any) (found, bool) {
 
 func isKnown(ext string) bool { return slices.Contains(knownExtensions, ext) }
 
-// knownSuffix returns a name's extension in lowercase (`clip.MP4` → `mp4`) when it is a known
-// extension, and "" otherwise.
 func knownSuffix(name string) string {
 	i := strings.LastIndex(name, ".")
 	if i < 0 {
@@ -349,7 +328,6 @@ func knownSuffix(name string) string {
 
 type pair struct{ key, value string }
 
-// queryPairs returns a query's key-value pairs in order, decoded as form values are.
 func queryPairs(raw string) []pair {
 	var out []pair
 	for part := range strings.SplitSeq(raw, "&") {
@@ -369,8 +347,6 @@ func unescape(s string) string {
 	return s
 }
 
-// extensionFromURL finds the extension in a media address. Media hosts often put the file type
-// in the query rather than in the path.
 func extensionFromURL(u *url.URL) string {
 	pairs := queryPairs(u.RawQuery)
 	param := func(keys ...string) string {
@@ -398,8 +374,6 @@ func extensionFromURL(u *url.URL) string {
 	return ""
 }
 
-// extensionFromMime reads an extension from `video/mp4; codecs=…`, or from the `video_mp4` form
-// that some hosts put in a query.
 func extensionFromMime(mime string) string {
 	m, _, _ := strings.Cut(mime, ";")
 	m = strings.ReplaceAll(strings.ToLower(strings.TrimSpace(m)), "_", "/")
@@ -412,8 +386,6 @@ func extensionFromMime(mime string) string {
 	return ""
 }
 
-// extensionFromDisposition reads an extension from `attachment; filename="clip.mp4"`, or from
-// the RFC 8187 `filename*=` form.
 func extensionFromDisposition(disposition string) string {
 	for part := range strings.SplitSeq(disposition, ";") {
 		key, value, ok := strings.Cut(strings.TrimSpace(part), "=")
@@ -427,8 +399,6 @@ func extensionFromDisposition(disposition string) string {
 	return ""
 }
 
-// extensionFromHeaders asks the media host. It sends a HEAD request, then a GET for one byte for
-// servers that refuse HEAD.
 func (r *Resolver) extensionFromHeaders(ctx context.Context, media string) string {
 	for _, method := range []string{http.MethodHead, http.MethodGet} {
 		req, err := http.NewRequestWithContext(ctx, method, media, nil)
@@ -457,14 +427,10 @@ func (r *Resolver) extensionFromHeaders(ctx context.Context, media string) strin
 	return ""
 }
 
-// unsafeInNames replaces the characters that some file system refuses in a name (Windows refuses
-// the most). Each one becomes a similar character that every file system accepts, or a space.
 var unsafeInNames = strings.NewReplacer(
 	`"`, "'", ":", " - ", "/", "-", `\`, "-", "|", "-", "<", "(", ">", ")", "?", " ", "*", " ",
 )
 
-// unescapeHTML decodes the HTML entities in a title (`&amp;`, `&#39;`). Link services pass on
-// page titles as the page had them, and some encode them twice.
 func unescapeHTML(s string) string {
 	for range 3 {
 		u := html.UnescapeString(s)
@@ -476,10 +442,6 @@ func unescapeHTML(s string) string {
 	return s
 }
 
-// splitTitle turns a title into a file name stem, cut to titleLength. When the title is already
-// a file name (Google Drive, MediaFire), it also returns the extension the title came with. HTML
-// entities are decoded, characters that a file system refuses are replaced (see unsafeInNames),
-// and control characters become spaces.
 func splitTitle(title string, kind Kind) (stem, own string) {
 	var b strings.Builder
 	for _, c := range unescapeHTML(title) {
@@ -503,7 +465,6 @@ func splitTitle(title string, kind Kind) (stem, own string) {
 	return strings.TrimSpace(stem), own
 }
 
-// plausibleExtension reports whether s could follow a name's last dot: 1 to 8 letters or digits.
 func plausibleExtension(s string) bool {
 	return len(s) >= 1 && len(s) <= 8 && alphanumeric(s)
 }

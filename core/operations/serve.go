@@ -15,40 +15,23 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// ServeEnv holds what a serve's command line needs in addition to the page's form.
 type ServeEnv struct {
-	Exe string // the running executable, for the app's own metadata mapper
+	Exe string
 }
 
-// Serve is the command line of a serve child, and the details that the parent keeps about it.
 type Serve struct {
-	// Args come after the child entry: `serve <type> <fs> --flag=value…`. The parent adds the
-	// flags that every child gets.
 	Args []string
-	// Env holds the serve's credentials (secretOptions) as variables such as `RCLONE_PASS=…`.
-	// They go in the child's environment and never on its command line. children.json doesn't
-	// store them either, because they are removed from the form that it records (ServeSecrets).
-	Env []string
-	// Secrets holds the values in Env, which the child's log lines must not show, because rclone
-	// prints each one as it reads it at DEBUG level. For a list, each item is included as well
-	// as the whole CSV record.
+	Env  []string
+	// The child's log lines must not show these, because rclone prints each one as it reads it
+	// at DEBUG level.
 	Secrets []string
 	Source  string
-	// Addr is the address that the serve listens on: the form's address, or else rclone's
-	// default for the type. The parent resolves a port 0 before the child starts, and sets Addr
-	// in the args.
-	Addr string
-	// Addrs holds every address that the serve listens on, Addr first.
-	Addrs []string
-	// own holds the serve and vfs groups that Args were made from, credentials included, and
-	// groups holds the form's groups with the app's defaults, for a program's serve (sdkServe).
-	own    []blockGroup
-	groups Groups
+	Addr    string
+	Addrs   []string
+	own     []blockGroup
+	groups  Groups
 }
 
-// ServeCommand builds a serve's command line. The serve group (with the options of the serve
-// type and of the auth proxy) and the vfs group become flags directly. The other groups are
-// handled as for a mount, and the app's defaults go under them as well (withDefaults).
 func ServeCommand(a ServeArgs, env ServeEnv) (Serve, error) {
 	a.Options = withDefaults(OperationServe, a.Options)
 	if a.Source == "" || a.Type == "" {
@@ -65,7 +48,6 @@ func ServeCommand(a ServeArgs, env ServeEnv) (Serve, error) {
 	if err != nil {
 		return Serve{}, err
 	}
-	// As for a mount, only the syntax is checked, because the child reads its own config file.
 	src := split(a.Source)
 	source, err := fsString(src, src.Dir(), remotes[src.Name])
 	if err != nil {
@@ -112,16 +94,13 @@ func ServeCommand(a ServeArgs, env ServeEnv) (Serve, error) {
 	}, nil
 }
 
-// secretOptions lists the serve options whose values are credentials. rclone doesn't mark
-// either one as Sensitive. A flag would appear on the child's command line, which any local user
-// can read (ps, /proc/<pid>/cmdline), and in children.json.
+// rclone doesn't mark either one as Sensitive. A flag would appear on the child's command line,
+// which any local user can read (ps, /proc/<pid>/cmdline), and in children.json.
 var secretOptions = []string{"pass", "auth_key"}
 
-// secretEnv moves the flags of the secret options out of flags and into variables for the
-// child's environment. rclone reads every flag's value from RCLONE_<FLAG> when it adds the flag
-// (installFlag in fs/config/flags). It reads a list option from a single CSV record
-// (fs.CommaSepList), so the repeated flags of a list become one variable. values holds what the
-// variables contain: each flag's value, and for a list, the CSV record too.
+// rclone reads every flag's value from RCLONE_<FLAG> when it adds the flag (installFlag in
+// fs/config/flags). It reads a list option from a single CSV record (fs.CommaSepList), so the
+// repeated flags of a list become one variable.
 func secretEnv(flags, blocks []string) (rest, env, values []string, err error) {
 	rest = flags
 	for _, name := range secretOptions {
@@ -164,10 +143,6 @@ func secretEnv(flags, blocks []string) (rest, env, values []string, err error) {
 	return rest, env, values, nil
 }
 
-// ServeSecrets removes the credentials (secretOptions) from the serve group of a. kept is a
-// without them, which may be written to disk to start the serve again. secrets holds only the
-// credentials, as a serve group of their own, or nil when a has none. Each option keeps the name
-// the page used, so WithServeSecrets returns the same form.
 func ServeSecrets(a ServeArgs) (kept ServeArgs, secrets json.RawMessage, err error) {
 	group := maps.Clone(a.Options.Serve)
 	taken := catalog.Group{}
@@ -177,7 +152,7 @@ func ServeSecrets(a ServeArgs) (kept ServeArgs, secrets json.RawMessage, err err
 		}
 		var v any
 		if err := decodeJSON(raw, &v); err == nil && isBlank(v) {
-			continue // a blank value has nothing to hide
+			continue
 		}
 		taken[key] = raw
 		delete(group, key)
@@ -192,8 +167,6 @@ func ServeSecrets(a ServeArgs) (kept ServeArgs, secrets json.RawMessage, err err
 	return a, secrets, nil
 }
 
-// WithServeSecrets puts the credentials that ServeSecrets removed from a form back into its
-// serve group.
 func WithServeSecrets(a ServeArgs, secrets json.RawMessage) (ServeArgs, error) {
 	var taken catalog.Group
 	if err := decodeJSON(secrets, &taken); err != nil {
@@ -211,8 +184,6 @@ func WithServeSecrets(a ServeArgs, secrets json.RawMessage) (ServeArgs, error) {
 	return a, nil
 }
 
-// allAddrs returns every address that a serve listens on: the ones in the group, or else the
-// default for the serve type.
 func allAddrs(o options, serveType string) []string {
 	switch v := o["addr"].(type) {
 	case string:
@@ -236,8 +207,6 @@ func allAddrs(o options, serveType string) []string {
 	return nil
 }
 
-// firstAddr returns the first address that a serve listens on: the one in the group, or else the
-// default for the serve type.
 func firstAddr(o options, serveType string) string {
 	switch v := o["addr"].(type) {
 	case string:

@@ -6,7 +6,6 @@ import { makeFolder } from './fsActions'
 import type { RemoteString } from './types'
 import { newFolderPath, panelFolder } from './utils'
 
-/** The NEW button. Creates a folder in the panel's folder (not in Favorites or the disk list). */
 export default function useCreateFolder(remote: RemoteString, cwd: string) {
     const canCreateFolder = panelFolder(remote, cwd) !== null
 

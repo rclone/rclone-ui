@@ -1,6 +1,4 @@
-// Each window, each operation and each group of settings has a tone. A tone colors an icon tile,
-// and the text, the glow and the main button that go with it. The classes are spelled out per
-// tone, because Tailwind only ships the classes it can read.
+// The classes are spelled out per tone, because Tailwind only ships the classes it can read.
 
 export const TONE_NAMES = [
     'blue',
@@ -30,7 +28,6 @@ export const TONE_GRADIENT: Record<Tone, string> = {
     lime: 'from-lime-400 to-lime-600',
     green: 'from-emerald-400 to-emerald-600',
     cyan: 'from-cyan-400 to-cyan-600',
-    // rclone's own color, between sky and cyan.
     sky: 'from-cyan-400 to-sky-600',
     graphite: 'from-zinc-500 to-zinc-700',
 }
@@ -50,7 +47,6 @@ export const TONE_TEXT: Record<Tone, string> = {
     graphite: 'text-zinc-500 dark:text-zinc-400',
 }
 
-/** A tone's color as RGB channels ("14 165 233"), for glows: rgb(${TONE_RGB.blue} / 0.2). */
 export const TONE_RGB: Record<Tone, string> = {
     blue: '14 165 233',
     indigo: '99 102 241',
@@ -66,5 +62,4 @@ export const TONE_RGB: Record<Tone, string> = {
     graphite: '113 113 122',
 }
 
-/** A highlight along the top edge and a small shadow underneath, for a tone-filled surface. */
 export const GLOSS = 'shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_1px_2px_rgb(0_0_0/0.15)]'

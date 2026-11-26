@@ -20,12 +20,6 @@ import (
 // config reconnect work:\"". lib/oauthutil quotes it, and a few backends write it unquoted.
 const reconnectAdvice = "rclone config reconnect "
 
-// ReconnectAdvice returns the remote that err says must be signed in again. It reads the name
-// from rclone's exact advice "rclone config reconnect <name>:". That is the remote rclone names,
-// never a wrapper: for a crypt over a drive whose sign-in expired, it names the drive. The name
-// can't contain spaces, except in rclone's quoted form ("…reconnect <name>:\""), where it runs
-// up to the colon. Advice without a remote ("…reconnect <remote name>: ", "…reconnect to fix
-// this") doesn't count.
 func ReconnectAdvice(err error) (remote string, ok bool) {
 	if err == nil {
 		return "", false
@@ -45,21 +39,10 @@ func ReconnectAdvice(err error) (remote string, ok bool) {
 	}
 }
 
-// HasReconnectAdvice reports whether err contains the advice for exactly this remote. The
-// health check offers a reconnect only in that case.
 func HasReconnectAdvice(err error, remote string) bool {
 	return err != nil && strings.Contains(err.Error(), reconnectAdvice+remote+":")
 }
 
-// ErrorOf converts any error into the form that the pages receive. It is the only classifier:
-// the shell calls it for every error that a page receives. The core's own errors come first, as
-// errs.Of converts them: an *errs.Error as it is, a refusal as Invalid, and a canceled call as
-// Canceled. Then an expired sign-in carries the remote to reconnect, and rclone's missing file or
-// folder becomes NotFound. Anything else is Failed, which the pages may try again.
-//
-// rclone's errors are English. Those that a user can meaningfully hit are recognised by their
-// type (sentence), and the page gets a sentence of the app's own, which is translated, with
-// rclone's words after it in brackets. Any other error keeps rclone's words alone.
 func ErrorOf(err error) *errs.Error {
 	if err == nil {
 		return nil
@@ -90,9 +73,6 @@ func ErrorOf(err error) *errs.Error {
 	return errs.Failed(err)
 }
 
-// sentence returns the app's own sentence for one of rclone's errors that a user can meaningfully
-// hit, recognised by its type, with rclone's words as its value. It returns the zero Text for
-// any other error. rclone's named errors come first, then the system's and the network's.
 func sentence(err error) i18n.Text {
 	words := err.Error()
 	switch {

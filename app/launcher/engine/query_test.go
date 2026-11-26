@@ -9,7 +9,6 @@ import (
 
 var testRemotes = []Remote{{Name: "gdrive", Type: "drive"}, {Name: "My Box", Type: "box"}}
 
-// TestParseHome: ~ is replaced by the given home, so the core reads a full path.
 func TestParseHome(t *testing.T) {
 	home := filepath.Join(string(filepath.Separator), "home", "me")
 	sep := string(filepath.Separator)
@@ -53,9 +52,6 @@ func TestParseHome(t *testing.T) {
 	}
 }
 
-// TestParseOpenQuote: an unclosed quote is the word being typed, spaces included, and completion
-// replaces it starting from the quote. A closed quote isn't being typed, and keeps its
-// punctuation.
 func TestParseOpenQuote(t *testing.T) {
 	q := Parse(`copy "gdrive:My Folder/in`, testRemotes, "")
 	if q.TypingFrom != 5 || q.Typing == nil || q.Typing.Text != "gdrive:My Folder/in" ||

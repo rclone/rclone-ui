@@ -1,6 +1,3 @@
-// Package tray is the app's tray icon and menu. The tray is created before anything else boots,
-// so a failed boot still leaves a way to quit. The UI sets the running mounts and serves with
-// SetRunning, and the transfers' progress with SetTransfers. Pages don't add anything to the tray.
 package tray
 
 import (
@@ -25,25 +22,18 @@ import (
 var icons embed.FS
 
 type Item struct {
-	Label string
-	// Separator draws a line instead of an item.
+	Label     string
 	Separator bool
 	Disabled  bool
-	// Children make the item a submenu.
-	Children []Item
-	// OnClick runs when the item is chosen. It is called directly from the menu's click handler,
-	// so it must not block.
+	Children  []Item
+	// OnClick is called from the menu's click handler, so it must not block.
 	OnClick func()
 }
 
-// Actions holds what the built-in items do.
 type Actions struct {
-	// ShowLauncher runs on a left click, on systems where a left click opens the launcher.
 	ShowLauncher func()
-	// Open runs for the menu's Open item. It shows the launcher, with a tip about its shortcut the
-	// first time. ShowLauncher is used when it is nil.
-	Open func()
-	// OpenWindow opens the window for a route. The route decides the window's name and shape.
+	// Open runs for the menu's Open item. ShowLauncher is used when it is nil.
+	Open       func()
 	OpenWindow func(url string)
 	GitHub     func()
 	Quit       func()
@@ -59,32 +49,20 @@ type Tray struct {
 	state      state
 	appearance string
 
-	// icon serialises setting the icon, so the last icon set always matches the latest state.
 	icon sync.Mutex
 
-	// rebuild serialises menu rebuilds, so that cur is always the menu shown and only the menu
-	// it replaced is destroyed. curHistory is cur's History item, or nil when cur has none.
 	rebuild    sync.Mutex
 	cur        *application.Menu
 	curHistory *application.MenuItem
 }
 
 type state struct {
-	// transfers is the History item's label while transfers run, such as
-	// "History (2 running · 42%)". It is "" when none runs.
 	transfers string
-	// running are the Mounts and Serves submenus that the UI adds, while any of them run.
-	running []Item
+	running   []Item
 }
 
-// dot reports whether the icon shows a dot in its corner. It does while transfers run, and
-// running mounts and serves don't show it.
 func (s state) dot() bool { return s.transfers != "" }
 
-// layout returns the menu's items for a state. Open comes first. Then History (while transfers
-// run) and the Mounts and Serves submenus (while any run) share a section, which is left out with
-// its separator when none of them shows. Guide, GitHub and Quit come last. history is the index
-// of the History item, or -1 when it isn't shown.
 func layout(s state, a Actions) (items []Item, history int) {
 	open := Item{Label: i18n.T("Open"), OnClick: func() {
 		if a.Open != nil {
@@ -112,8 +90,6 @@ func layout(s state, a Actions) (items []Item, history int) {
 	return items, history
 }
 
-// DefaultAppearance returns the default tray theme. On Linux it is the coloured icon, because
-// panels vary too much for a monochrome one. Elsewhere it follows the system.
 func DefaultAppearance() string {
 	if runtime.GOOS == "linux" {
 		return "color"
@@ -126,9 +102,8 @@ func New(app *application.App, actions Actions, linuxMint bool) *Tray {
 	t := &Tray{app: app, actions: actions, mint: linuxMint, appearance: DefaultAppearance()}
 	t.st = app.SystemTray.New()
 	if runtime.GOOS == "linux" {
-		// On Linux the label is the item's name, which panels show as the first line of the
-		// tooltip. Wails names an item without a label "Wails". The tooltip's text would be a
-		// second line that repeats the name, so there is none.
+		// On Linux, panels show the label as the first line of the tooltip. Wails names an item without
+		// a label "Wails". The tooltip's text would be a second line that repeats the name.
 		t.st.SetLabel("Rclone UI")
 	} else {
 		t.st.SetTooltip("Rclone UI")
@@ -141,8 +116,7 @@ func New(app *application.App, actions Actions, linuxMint bool) *Tray {
 		// Both clicks open the menu, which is Wails' default on macOS when there is no click
 		// handler.
 	case "windows":
-		// Both buttons open the menu. Wails opens it on a right click by default, and the left
-		// click is set here. The launcher is opened from the menu's Open item.
+		// Wails opens the menu on a right click by default.
 		t.st.OnClick(t.st.OpenMenu)
 	default:
 		t.st.OnClick(func() { actions.ShowLauncher() })
@@ -150,7 +124,6 @@ func New(app *application.App, actions Actions, linuxMint bool) *Tray {
 	return t
 }
 
-// SetRunning replaces the items that the UI adds, which are the Mounts and Serves submenus.
 func (t *Tray) SetRunning(items []Item) {
 	t.mu.Lock()
 	t.state.running = items
@@ -158,13 +131,11 @@ func (t *Tray) SetRunning(items []Item) {
 	t.setMenu()
 }
 
-// destroyGrace is how long a replaced menu is kept before it is destroyed. It may still be open,
-// or a click on it may still be on its way, and the items of a destroyed menu no longer run.
+// A replaced menu may still be open, or a click on it may still be on its way, and the items of
+// a destroyed menu no longer run.
 const destroyGrace = time.Minute
 
-// setMenu shows a menu built from the latest state. It destroys the replaced menu on the main
-// thread once destroyGrace has passed, because Wails keeps every item (and its closure) until its
-// menu is destroyed.
+// Wails keeps every item (and its closure) until its menu is destroyed.
 func (t *Tray) setMenu() {
 	t.rebuild.Lock()
 	defer t.rebuild.Unlock()
@@ -177,14 +148,10 @@ func (t *Tray) setMenu() {
 	}
 }
 
-// SetTransfers sets the History item's label, such as "History (2 running · 42%)", or "" when no
-// transfer runs. When the first transfer starts or the last one ends, the menu is rebuilt and the
-// icon is changed. Both happen in the background, because they wait for the main thread, and the
-// caller may hold a lock that the main thread needs. While transfers keep running, the label is
-// changed in place. It changes every second, and a menu replaced that often would close under the
-// pointer, because Windows destroys the menu that was replaced.
+// The menu and the icon wait for the main thread, and the caller may hold a lock that the main
+// thread needs. While transfers keep running, the label changes in place, because Windows
+// destroys a replaced menu, which would close it under the pointer every second.
 func (t *Tray) SetTransfers(label string) {
-	// Hold rebuild, so that a menu being built either picks up this label or is relabelled here.
 	t.rebuild.Lock()
 	defer t.rebuild.Unlock()
 	t.mu.Lock()
@@ -194,7 +161,6 @@ func (t *Tray) SetTransfers(label string) {
 	switch {
 	case label == prev:
 	case (label == "") != (prev == ""):
-		// A rebuild reads the state when it runs, so the last one shows the latest label.
 		go t.setMenu()
 		go t.applyIcon()
 	case t.curHistory != nil:
@@ -203,8 +169,6 @@ func (t *Tray) SetTransfers(label string) {
 	}
 }
 
-// Rebuild builds the menu again from the latest state. The app calls it when the language
-// changes, because the menu's own labels are translated when it is built.
 func (t *Tray) Rebuild() { t.setMenu() }
 
 // SetAppearance chooses the icon: "system", "color", "dark" or "light".
@@ -241,10 +205,8 @@ func (t *Tray) applyIcon() {
 	}
 }
 
-// Marked returns a tray icon (a PNG) with the dot that shows while transfers run. The dot is in the
-// top right corner, separated from the glyph by a transparent ring. The dot is red, or opaque black
-// for a template icon, because macOS tints a template the same way as the glyph, so only its
-// shape shows.
+// The dot is red, or opaque black for a template icon, because macOS tints a template the same
+// way as the glyph.
 func Marked(icon []byte, template bool) ([]byte, error) {
 	src, err := png.Decode(bytes.NewReader(icon))
 	if err != nil {
@@ -254,7 +216,7 @@ func Marked(icon []byte, template bool) ([]byte, error) {
 	img := image.NewNRGBA(b)
 	draw.Draw(img, b, src, b.Min, draw.Src)
 	size := float64(min(b.Dx(), b.Dy()))
-	r, ring := size*0.2, size*0.28 // the dot's radius, and the ring's outer one
+	r, ring := size*0.2, size*0.28
 	cx, cy := float64(b.Max.X)-ring, float64(b.Min.Y)+ring
 	dot := color.NRGBA{R: 0xff, G: 0x3b, B: 0x30, A: 0xff}
 	if template {
@@ -286,7 +248,7 @@ func Marked(icon []byte, template bool) ([]byte, error) {
 func mustMark(icon []byte, template bool) []byte {
 	b, err := Marked(icon, template)
 	if err != nil {
-		panic(err) // the icons are embedded above, so this can't fail
+		panic(err)
 	}
 	return b
 }
@@ -317,13 +279,11 @@ func IconFiles(appearance, goos string, mint bool) (light, dark string, template
 func mustIcon(name string) []byte {
 	b, err := icons.ReadFile(name)
 	if err != nil {
-		panic(err) // the names refer to the icons embedded above, so this can't fail
+		panic(err)
 	}
 	return b
 }
 
-// menu builds the menu from the latest state, and returns it along with its History item (nil
-// when it has none).
 func (t *Tray) menu() (*application.Menu, *application.MenuItem) {
 	t.mu.Lock()
 	s := t.state
@@ -339,7 +299,6 @@ func (t *Tray) menu() (*application.Menu, *application.MenuItem) {
 	return m, historyItem
 }
 
-// addItem adds an item to a menu. It returns the added item, or nil for a separator or a submenu.
 func addItem(m *application.Menu, it Item) *application.MenuItem {
 	label := escapeMnemonics(it.Label, runtime.GOOS)
 	switch {
@@ -361,8 +320,7 @@ func addItem(m *application.Menu, it Item) *application.MenuItem {
 	return nil
 }
 
-// escapeMnemonics keeps a label, such as a mount point or an address, as it is. Menus on Linux
-// read "_" as an access key, and menus on Windows read "&", and they hide it.
+// Menus on Linux read "_" as an access key, and menus on Windows read "&", and they hide it.
 func escapeMnemonics(label, goos string) string {
 	switch goos {
 	case "linux":

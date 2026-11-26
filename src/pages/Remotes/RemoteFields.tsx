@@ -7,19 +7,9 @@ import { formatNumber } from '../../../lib/format'
 import { OVERRIDES, OWN_OAUTH_TYPES } from '../../../lib/rclone/overrides'
 import RemoteField, { type RemoteValues } from './RemoteField'
 
-/**
- * The state of the remote form, shared by the create and edit drawers.
- * - `saved` holds the values that rclone stores (nothing for a new remote).
- * - `pending` holds what the user changed in the form.
- * - `effective` combines the two.
- * The backend, its fields for the chosen provider, and the credentials check all read
- * `effective`. The save reads `pending`, because Edit writes only what changed.
- */
 export function useRemoteForm({ saved }: { saved?: RemoteValues } = {}) {
     const [pending, setPending] = useState<RemoteValues>({})
 
-    // The backends offered. A hidden backend is offered only to a saved remote that uses it, so
-    // editing that remote still shows its type.
     const catalog = useBackends()
     const savedType = saved?.type
     const backends = useMemo(
@@ -42,8 +32,6 @@ export function useRemoteForm({ saved }: { saved?: RemoteValues } = {}) {
         [saved, pending]
     )
 
-    // The provider decides which options of a backend apply, and which choices they offer.
-    // `fieldsReady` is false while the fields shown are still those of another provider.
     const { options, current: fieldsReady } = useProviderOptions(effective.type, effective.provider)
     const fields = useMemo(() => {
         const all = options ?? []
@@ -53,9 +41,6 @@ export function useRemoteForm({ saved }: { saved?: RemoteValues } = {}) {
         }
     }, [options])
 
-    // Google Drive and Google Photos require the user's own OAuth credentials, because rclone is
-    // retiring its shared client ID. Nothing is saved until both values are present, either saved
-    // or typed.
     const missingCredentials = useMemo(
         () =>
             OWN_OAUTH_TYPES.includes(effective.type ?? '')
@@ -67,10 +52,6 @@ export function useRemoteForm({ saved }: { saved?: RemoteValues } = {}) {
     return { backends, fields, fieldsReady, pending, setPending, effective, missingCredentials }
 }
 
-/**
- * Keeps only the values of the options that `fields` show. When a change of provider hides an
- * option, the value typed for it stays in the form's state, and must not be saved with the remote.
- */
 export function shownValues(
     values: RemoteValues,
     fields: { normal: readonly Option[]; advanced: readonly Option[] }
@@ -79,7 +60,6 @@ export function shownValues(
     return Object.fromEntries(Object.entries(values).filter(([name]) => shown.has(name)))
 }
 
-/** Converts the form's values to text, which is what rclone expects. */
 export function valuesAsText(values: RemoteValues): Record<string, string> {
     const out: Record<string, string> = {}
     for (const [k, v] of Object.entries(values)) {
@@ -89,13 +69,6 @@ export function valuesAsText(values: RemoteValues): Record<string, string> {
     return out
 }
 
-/**
- * The fields of a backend, as both drawers lay them out: the normal ones first, then the advanced
- * ones behind "More options". `values` is what the fields show: the saved values, with the user's
- * changes on top. When editing, `saved` holds the values that rclone stores. The drawer holds
- * `showMore`, so "More options" stays open when the type changes (the fields are keyed by type)
- * or the form is reset.
- */
 export default function RemoteFields({
     fields,
     values,

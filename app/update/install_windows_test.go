@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// The switches that build/windows/nsis/project.nsi reads.
 func TestNSISArgs(t *testing.T) {
 	if got := nsisArgs(42, true); got != "/P /UPDATE /WAITPID=42 /R" {
 		t.Errorf("nsisArgs(relaunch) = %q", got)

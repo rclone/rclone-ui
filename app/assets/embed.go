@@ -15,7 +15,7 @@ var dist embed.FS
 func Handler() http.Handler {
 	sub, err := fs.Sub(dist, "dist")
 	if err != nil {
-		panic(err) // can't fail, because the embed directive includes dist
+		panic(err)
 	}
 	return newCompressed(sub, time.Now())
 }

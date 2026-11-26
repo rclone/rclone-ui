@@ -60,7 +60,6 @@ function useSteps(): Step[] {
     ]
 }
 
-/** Commander's intro: what its panels do, one step at a time, each with a small animation. */
 export default function IntroDialog({ onClose }: { onClose: () => void }) {
     const steps = useSteps()
     const [open, setOpen] = useState(true)
@@ -85,7 +84,6 @@ export default function IntroDialog({ onClose }: { onClose: () => void }) {
                         </MotionConfig>
                     </div>
                 </div>
-                {/* Focus stays on the buttons, so a screen reader reads each step from here. */}
                 <div aria-live="polite">
                     <ModalHeader className="pb-1">{title}</ModalHeader>
                     <ModalBody>

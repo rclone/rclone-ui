@@ -65,7 +65,6 @@ func TestNotifyDeliversToSubscribedTargets(t *testing.T) {
 		}
 	}
 
-	// A failure is recorded, and the next success clears it.
 	f.hooks.set(func(int, *http.Request) (int, error) { return 404, nil })
 	f.s.Notify(system, NotificationEventJobStarted, Job{Operation: "copy"})
 	f.changed(1)
@@ -80,8 +79,6 @@ func TestNotifyDeliversToSubscribedTargets(t *testing.T) {
 	}
 }
 
-// TestNotifyPastACorruptTarget checks that a target whose events are not valid JSON gets its
-// error recorded, and that the other targets still get the notification.
 func TestNotifyPastACorruptTarget(t *testing.T) {
 	f := newFixture(t)
 	bad := f.create(hook("https://example.com/bad"))
@@ -107,7 +104,6 @@ func TestNotifyPastACorruptTarget(t *testing.T) {
 		t.Errorf("the corrupt target's error: %q (%v)", lastErr.String, err)
 	}
 
-	// The list still shows both. The corrupt one has no events and says what to do.
 	list, err := f.s.Targets(f.ctx)
 	if err != nil || len(list) != 2 {
 		t.Fatalf("Targets = %+v, %v", list, err)
@@ -119,7 +115,6 @@ func TestNotifyPastACorruptTarget(t *testing.T) {
 		t.Errorf("the good target listed: %+v", list[1])
 	}
 
-	// Saving it again with its events fixes it.
 	in := hook("https://example.com/bad")
 	if _, err := f.s.Update(f.ctx, bad.ID, in); err != nil {
 		t.Fatal(err)
@@ -129,9 +124,6 @@ func TestNotifyPastACorruptTarget(t *testing.T) {
 	}
 }
 
-// TestPayloadsHideCredentials checks that a connection string's secret and a URL's password, in a
-// job's paths or its error, never reach a webhook, either in the generic webhook's data or in
-// Discord's text.
 func TestPayloadsHideCredentials(t *testing.T) {
 	f := newFixture(t)
 	f.create(hook("https://example.com/hook"))
@@ -156,7 +148,6 @@ func TestPayloadsHideCredentials(t *testing.T) {
 func TestNotifyKeepsEachTargetsOrderAndLanesApart(t *testing.T) {
 	f := newFixture(t)
 	slow := f.create(hook("https://example.com/slow", NotificationEventJobStarted))
-	// A second target on another lane, so the slow one can't hold it up.
 	var fast NotificationTarget
 	for i := 0; ; i++ {
 		fast = f.create(hook(fmt.Sprintf("https://example.com/fast/%d", i), NotificationEventJobStarted))
@@ -181,8 +172,6 @@ func TestNotifyKeepsEachTargetsOrderAndLanesApart(t *testing.T) {
 	for i := range 5 {
 		f.s.Notify(system, NotificationEventJobStarted, Job{JobID: int64(i), Operation: "copy"})
 	}
-	// Every notification reached the fast target while the slow one is still stuck on its
-	// first.
 	f.changed(5)
 	if got := f.get(slow.ID); got.LastSentAt != nil {
 		t.Fatalf("the slow target was recorded before it answered: %+v", got)
@@ -219,7 +208,6 @@ func TestNotifyEmail(t *testing.T) {
 		Events: []NotificationEvent{NotificationEventServeFailed}, IsEnabled: true})
 	failed := ServeFailed{Type: "webdav", Addr: "127.0.0.1:8080", Source: "s3:bucket", Error: "boom"}
 
-	// With no mail server saved, the reason becomes the target's last error.
 	f.s.Notify(system, NotificationEventServeFailed, failed)
 	f.changed(1)
 	if got := f.get(mailed.ID); got.LastError != errNotSetUp.Error() || got.LastSentAt == nil {
@@ -243,7 +231,6 @@ func TestNotifyEmail(t *testing.T) {
 }
 
 func TestNotifyNeverBlocks(t *testing.T) {
-	// Start isn't called, so no sender runs. The queue fills up, and Notify still returns at once.
 	s := New(nil, nil, nil, nil, nil)
 	done := make(chan struct{})
 	go func() {
@@ -271,7 +258,6 @@ func TestTest(t *testing.T) {
 	f := newFixture(t)
 	saved := f.create(hook("https://example.com/saved"))
 
-	// The unsaved form is sent, and nothing is recorded.
 	o, err := f.s.Test(f.ctx, TestInput{Provider: NotificationProviderWebhook, URL: " https://example.com/form ", Name: "Form"})
 	if err != nil || !o.OK || o.Message != "Test notification sent successfully." {
 		t.Fatalf("form test = %+v, %v", o, err)
@@ -285,7 +271,6 @@ func TestTest(t *testing.T) {
 		t.Error("an unsaved test published a change")
 	}
 
-	// A saved target uses its saved values, and the outcome is recorded.
 	f.hooks.set(func(int, *http.Request) (int, error) { return 410, nil })
 	o, err = f.s.Test(f.ctx, TestInput{ID: saved.ID, URL: "https://example.com/ignored"})
 	if err != nil || o.OK || o.Message != "Webhook responded with status 410" {
@@ -299,7 +284,6 @@ func TestTest(t *testing.T) {
 		t.Errorf("saved test calls = %+v", calls)
 	}
 
-	// An email form goes through the saved server, and none is saved.
 	o, err = f.s.Test(f.ctx, TestInput{Provider: NotificationProviderEmail, URL: "ops@example.com"})
 	if err != nil || o.OK || o.Message != errNotSetUp.Error() {
 		t.Errorf("email test = %+v, %v", o, err)
@@ -321,7 +305,6 @@ func TestTest(t *testing.T) {
 		t.Errorf("a missing target: %v", err)
 	}
 
-	// A test that the caller cancelled is not recorded as the target's last error.
 	quiet := f.create(hook("https://example.com/quiet"))
 	ctx, cancel := context.WithCancel(f.ctx)
 	f.hooks.set(func(_ int, r *http.Request) (int, error) {

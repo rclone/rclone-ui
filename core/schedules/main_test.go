@@ -29,9 +29,6 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// TestMain initialises rclone once for the package, over an empty config. The tests use local
-// folders. rclone's log goes through the app's handler, as in the app, so a bisync's log lines
-// can be heard.
 func TestMain(m *testing.M) {
 	slog.SetDefault(slog.New(slog.DiscardHandler))
 	testutil.Main(m, func(dir string) error {
@@ -49,8 +46,6 @@ func TestMain(m *testing.M) {
 	})
 }
 
-// fixture is a Service over a fresh app.db, with a clock that the test moves. Its scheduler
-// doesn't run on its own: a test calls tick.
 type fixture struct {
 	t     *testing.T
 	s     *Service
@@ -58,12 +53,11 @@ type fixture struct {
 	bus   *bus.Bus
 	notes *notes
 	ctx   context.Context
-	// ts is the real transfer service, when the runs go to one.
-	ts *transfers.Service
+	ts    *transfers.Service
 
 	clockMu sync.Mutex
 	now     time.Time
-	waits   []time.Duration // the waits asked of After
+	waits   []time.Duration
 	locked  bool
 
 	goes sync.WaitGroup
@@ -71,8 +65,6 @@ type fixture struct {
 	events *bustest.Recorder
 }
 
-// newFixture returns a Service whose runs go to runner, at 2026-11-06 12:00:30 UTC. A nil runner
-// is a real transfer service (f.ts), which tells the same notification targets.
 func newFixture(t *testing.T, runner Runner, tweak ...func(*Options)) *fixture {
 	t.Helper()
 	d := testdb.Open(t)
@@ -117,7 +109,6 @@ func newFixture(t *testing.T, runner Runner, tweak ...func(*Options)) *fixture {
 		f.goes.Wait()
 	})
 	if f.ts != nil {
-		// Registered last, so that it runs first: the transfers stop before the schedules do.
 		t.Cleanup(func() { f.ts.Shutdown(context.Background(), false) })
 	}
 	return f
@@ -129,7 +120,6 @@ func (f *fixture) clock() time.Time {
 	return f.now
 }
 
-// at sets the clock, as if the scheduler had ticked every minute until then.
 func (f *fixture) at(t time.Time) {
 	f.clockMu.Lock()
 	f.now = t
@@ -139,33 +129,26 @@ func (f *fixture) at(t time.Time) {
 	f.s.mu.Unlock()
 }
 
-// advance moves the clock on, as if the scheduler had ticked every minute meanwhile.
 func (f *fixture) advance(d time.Duration) { f.at(f.clock().Add(d)) }
 
-// sleep moves the clock on without a tick, as when the computer sleeps.
 func (f *fixture) sleep(d time.Duration) {
 	f.clockMu.Lock()
 	f.now = f.now.Add(d)
 	f.clockMu.Unlock()
 }
 
-// boot settles the last runs and starts the wait after a start, then lets it pass, as the
-// scheduler does when it starts.
 func (f *fixture) boot() {
 	f.s.boot(f.ctx)
 	f.advance(f.s.o.Wait)
 }
 
-// tick runs one tick and waits for the starts it began.
 func (f *fixture) tick() {
 	f.s.tick(f.ctx)
 	f.goes.Wait()
 }
 
-// published returns the events with that name so far.
 func (f *fixture) published(name string) []bus.Event { return f.events.Named(name) }
 
-// toasts returns the desktop notifications so far.
 func (f *fixture) toasts() []bus.NotifyOSData {
 	f.notes.mu.Lock()
 	defer f.notes.mu.Unlock()
@@ -199,19 +182,15 @@ func (f *fixture) lastDue(id string) time.Time {
 	return time.UnixMilli(sc.lastDue).UTC()
 }
 
-// copyArgs returns the arguments of a Copy form, as they are stored.
 func copyArgs(sources []string, destination string) json.RawMessage {
 	return rawArgs(map[string]any{"sources": sources, "destination": destination})
 }
 
-// rawArgs returns a form's arguments as they are stored. A test's paths go through it, because
-// the `\` of a Windows path starts an escape in JSON that is written by hand.
 func rawArgs(args map[string]any) json.RawMessage {
 	b, _ := json.Marshal(args)
 	return b
 }
 
-// form returns the form of op with the arguments raw. It panics when they can't be read.
 func form(op operations.Operation, raw json.RawMessage) operations.Form {
 	f, err := operations.DecodeForm(op, raw)
 	if err != nil {
@@ -220,7 +199,6 @@ func form(op operations.Operation, raw json.RawMessage) operations.Form {
 	return f
 }
 
-// argsOf returns a schedule's arguments as they are stored.
 func argsOf(sc *Schedule) string {
 	raw, err := sc.Form.MarshalArgs()
 	if err != nil {
@@ -229,7 +207,6 @@ func argsOf(sc *Schedule) string {
 	return string(raw)
 }
 
-// notes records the notifications sent to the targets and to the desktop.
 type notes struct {
 	mu     sync.Mutex
 	sent   []sent
@@ -248,8 +225,6 @@ func (n *notes) Notify(_ context.Context, event notifications.NotificationEvent,
 	n.sent = append(n.sent, sent{event, j})
 }
 
-// Desktop records a desktop notification as the notification service would publish it. It records
-// it at once, rather than through the bus, whose subscriber records events a moment later.
 func (n *notes) Desktop(_ context.Context, e notifications.NotificationEvent, p notifications.Payload, d notifications.Desktop) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -262,15 +237,12 @@ func (n *notes) all() []sent {
 	return append([]sent(nil), n.sent...)
 }
 
-// fakeRunner records the starts, and ends a run when the test says so.
 type fakeRunner struct {
-	mu     sync.Mutex
-	starts []transfers.Spec
-	checks int
-	closed map[string]bool
-	// refuse holds errors for the next starts, which then record nothing.
-	refuse []error
-	// checkErr is Check's answer.
+	mu       sync.Mutex
+	starts   []transfers.Spec
+	checks   int
+	closed   map[string]bool
+	refuse   []error
 	checkErr error
 }
 
@@ -306,7 +278,6 @@ func (r *fakeRunner) ToastText(_ context.Context, t transfers.Transfer) (string,
 	return "Copy failed", "body: " + t.Error
 }
 
-// FailureText adds a step's error to a count of failed steps, as transfers does.
 func (r *fakeRunner) FailureText(_ context.Context, t transfers.Transfer) i18n.Text {
 	const reason = "couldn't connect SSH: connection refused"
 	switch {
@@ -330,7 +301,6 @@ func (r *fakeRunner) spec(i int) transfers.Spec {
 	return r.starts[i]
 }
 
-// args returns the arguments of start i (from 0), as the args column stores them.
 func (r *fakeRunner) args(t *testing.T, i int) string {
 	t.Helper()
 	raw, err := r.spec(i).Form.MarshalArgs()
@@ -340,7 +310,6 @@ func (r *fakeRunner) args(t *testing.T, i int) string {
 	return string(raw)
 }
 
-// vanish closes start i (from 0) without reporting its end.
 func (r *fakeRunner) vanish(i int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -350,7 +319,6 @@ func (r *fakeRunner) vanish(i int) {
 	r.closed[fmt.Sprintf("t%d", i+1)] = true
 }
 
-// end ends start i (from 0) as its transfer would.
 func (r *fakeRunner) end(i int, state transfers.State, errText string, stats *transfers.Summary) {
 	r.vanish(i)
 	spec := r.spec(i)
@@ -361,5 +329,4 @@ func (r *fakeRunner) end(i int, state transfers.State, errText string, stats *tr
 	})
 }
 
-// changed is a run's totals with one file copied.
 var changed = &transfers.Summary{Transfers: 1}

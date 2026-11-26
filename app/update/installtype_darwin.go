@@ -10,9 +10,6 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// detectInstall finds the .app bundle that contains the executable. A bundle that macOS
-// translocated (because it was opened straight from a download) or one on a read-only volume (its
-// disk image) can't be replaced.
 func detectInstall() (InstallType, string, i18n.Text) {
 	exe, err := platform.Executable()
 	if err != nil {

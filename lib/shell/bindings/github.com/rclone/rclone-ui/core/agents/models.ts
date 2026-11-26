@@ -7,10 +7,6 @@ import { Create as $Create } from "@wailsio/runtime";
 
 export class Status {
     "running": boolean;
-
-    /**
-     * URL is where the server answers while it runs.
-     */
     "url": string;
 
     /**

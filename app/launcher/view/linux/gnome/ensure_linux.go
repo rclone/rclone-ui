@@ -55,7 +55,6 @@ func Ensure(ctx context.Context, log *slog.Logger, acks Acks) {
 	case state == extensionActive:
 		acks.Add(ctx, enabledAck)
 	case acks.Has(ctx, enabledAck):
-		// It was enabled once already, so if it is off now, the user turned it off.
 	case state != 0:
 		var ok bool
 		if err := shell.CallWithContext(ctx, shellExtensions+".EnableExtension", 0, UUID).Store(&ok); err != nil || !ok {
@@ -66,9 +65,6 @@ func Ensure(ctx context.Context, log *slog.Logger, acks Acks) {
 		acks.Add(ctx, enabledAck)
 	default:
 		if err := enableAtLogin(ctx); err != nil {
-			// This is a Flatpak, or gsettings is missing. The first start after the next login
-			// enables the extension, because the shell will have loaded it by then. (A Flatpak
-			// can talk to the shell, because the Flatpak gate requires that on GNOME.)
 			log.Info("the launcher's GNOME extension is enabled at a later start", "error", err)
 			return
 		}
@@ -77,8 +73,6 @@ func Ensure(ctx context.Context, log *slog.Logger, acks Acks) {
 	}
 }
 
-// syncUserCopy writes or removes the user's copy of the extension, as UserCopy decides. The change
-// takes effect at the next login.
 func syncUserCopy(log *slog.Logger) error {
 	dir, err := userDir()
 	if err != nil {
@@ -114,7 +108,6 @@ func systemVersion() int {
 	return -1
 }
 
-// versionIn returns the version of the copy in dir, or -1 when there is none.
 func versionIn(dir string) int {
 	data, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
 	if err != nil {
@@ -137,7 +130,6 @@ func userDir() (string, error) {
 	return filepath.Join(base, "gnome-shell", "extensions", UUID), nil
 }
 
-// install writes the extension's files to dir, skipping files that already match this build's.
 func install(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -158,12 +150,8 @@ func install(dir string) error {
 	})
 }
 
-// enableAtLogin adds the extension to GNOME's list of enabled extensions (org.gnome.shell
-// enabled-extensions), which the shell reads at login.
 func enableAtLogin(ctx context.Context) error {
 	if platform.IsFlatpak() {
-		// The sandbox has its own gsettings, separate from the desktop's. Writing to them would
-		// succeed and change nothing.
 		return errors.New("a Flatpak's gsettings are its own")
 	}
 	// Run the host's gsettings in the host's environment, because an AppImage's schemas aren't

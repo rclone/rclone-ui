@@ -8,8 +8,6 @@ import (
 	"github.com/rclone/rclone-ui/core/errs"
 )
 
-// badBwLimit is the error for a bandwidth limit that rclone can't read, or a timetable, which the
-// app can't change while it runs.
 const badBwLimit = "Use a speed such as 10M (10 MiB/s), or an upload and a download speed such as 10M:2M."
 
 // BwLimit reads a bandwidth limit as rclone's --bwlimit does: one speed for both directions

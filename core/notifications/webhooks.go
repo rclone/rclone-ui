@@ -21,31 +21,23 @@ import (
 	"github.com/rclone/rclone-ui/core/logs"
 )
 
-// sendTimeout limits one attempt, so an endpoint that doesn't respond can't hold up the
-// notifications behind it for long.
 const sendTimeout = 15 * time.Second
 
-// message is one notification, which each provider renders in its own format.
 type message struct {
 	meta  NotificationEventMeta
 	title string
 	body  string
-	data  any // the generic webhook's data; nil is sent as null
+	data  any
 	at    time.Time
 }
 
-// request is one webhook call.
 type request struct {
-	url  string
-	body []byte
-	// event is the X-RcloneUI-Event header, sent to generic webhooks only.
-	event NotificationEvent
-	// service names the endpoint in an error: Slack, Discord or Telegram, and "" for a generic
-	// webhook.
+	url     string
+	body    []byte
+	event   NotificationEvent
 	service string
 }
 
-// serviceNames are the names of the providers' endpoints, as errors say them.
 var serviceNames = map[NotificationProvider]string{
 	NotificationProviderSlack:    "Slack",
 	NotificationProviderDiscord:  "Discord",
@@ -74,7 +66,6 @@ const (
 	discordDescriptionMax = 4096
 )
 
-// textLen returns the length of s in UTF-16 code units.
 func textLen(s string) int {
 	n := 0
 	for _, r := range s {
@@ -83,7 +74,6 @@ func textLen(s string) int {
 	return n
 }
 
-// clip returns s cut to at most limit UTF-16 code units, ending with an ellipsis when it was cut.
 func clip(s string, limit int) string {
 	if textLen(s) <= limit {
 		return s
@@ -99,14 +89,10 @@ func clip(s string, limit int) string {
 	return s
 }
 
-// markupEscaper escapes the characters that Telegram's HTML and Slack's text treat as markup.
 var markupEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
-// timestamp formats t as RFC 3339 in UTC, with milliseconds.
 func timestamp(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z07:00") }
 
-// encode returns v as JSON without Go's HTML escaping, because Telegram's text is HTML and the
-// payloads should read as they were sent.
 func encode(v any) ([]byte, error) {
 	var b bytes.Buffer
 	enc := json.NewEncoder(&b)
@@ -117,8 +103,6 @@ func encode(v any) ([]byte, error) {
 	return bytes.TrimSuffix(b.Bytes(), []byte("\n")), nil
 }
 
-// buildRequest renders m for a target of the given provider. version is the app's version, which
-// is sent to generic webhooks.
 func buildRequest(provider NotificationProvider, target string, m message, version string) (request, error) {
 	var body any
 	switch provider {
@@ -141,8 +125,6 @@ func buildRequest(provider NotificationProvider, target string, m message, versi
 		}{"Rclone UI", []embed{{clip(m.title, discordTitleMax), clip(m.body, discordDescriptionMax),
 			discordColor(m.meta.Severity), timestamp(m.at)}}}
 	case NotificationProviderTelegram:
-		// Move every query parameter in the target (chat_id, message_thread_id, …) into the
-		// JSON body, because the Bot API doesn't reliably merge a query with a JSON body.
 		u, err := url.Parse(target)
 		if err != nil {
 			return request{}, fmt.Errorf("invalid telegram url: %w", err)
@@ -184,11 +166,6 @@ func buildRequest(provider NotificationProvider, target string, m message, versi
 	return r, nil
 }
 
-// post sends r. It retries once on a network error, a 5xx, or a 429 (which a burst of events
-// over Discord's, Slack's or Telegram's rate limit can cause). The retry comes after retryDelay,
-// or after the wait that a 429 asks for, when that is longer and at most maxRetryWait. Any other
-// 4xx means the endpoint refused the call, for example because of a bad URL or a revoked
-// webhook, and retrying would only add load.
 func (s *Service) post(ctx context.Context, r request) error {
 	for attempt := 1; ; attempt++ {
 		a := s.postOnce(ctx, r)
@@ -208,8 +185,6 @@ func (s *Service) post(ctx context.Context, r request) error {
 	}
 }
 
-// refused is the error for an endpoint's answer that isn't a success. service names it (Slack,
-// Discord, Telegram), and is "" for a generic webhook. The reason is the endpoint's own words.
 func refused(service string, a answer) error {
 	switch {
 	case service == "" && a.reason != "":
@@ -226,18 +201,13 @@ func refused(service string, a answer) error {
 	return errs.Errorf("%s responded with status %d", service, a.status)
 }
 
-// maxRetryWait is the longest wait for a retry that a 429 may ask for. A longer one isn't
-// waited for, because it would hold up the target's other notifications.
 const maxRetryWait = 30 * time.Second
 
-// answer is the outcome of one attempt.
 type answer struct {
 	status int
-	// reason is why the endpoint refused the call, when it said (see refusal).
 	reason string
-	// wait is how long a 429 asked to wait before trying again, or 0.
-	wait time.Duration
-	err  error
+	wait   time.Duration
+	err    error
 }
 
 // retryWait reads how long a 429 asks to wait: the Retry-After header in seconds (Slack,
@@ -263,7 +233,6 @@ func retryWait(header http.Header, body []byte) time.Duration {
 	return 0
 }
 
-// maxReason is the longest reason for a refusal that is kept from a response.
 const maxReason = 300
 
 // refusal returns what an endpoint said about why it refused a call: Telegram's description
@@ -295,11 +264,8 @@ func refusal(body []byte, contentType string) string {
 	return logs.Redact(text)
 }
 
-// reErrorCode matches an error code on its own, as Slack answers: "no_service", "invalid_token".
 var reErrorCode = regexp.MustCompile(`^[a-z][a-z0-9]*(_[a-z0-9]+)+$`)
 
-// slackErrors explain the codes that Slack answers a webhook with when the webhook itself is the
-// problem, so that the target's error says what to do.
 var slackErrors = map[string]string{
 	"no_service":                        "the webhook was removed, or its URL is wrong",
 	"no_team":                           "the webhook's URL is wrong",
@@ -337,7 +303,6 @@ func (s *Service) postOnce(ctx context.Context, r request) answer {
 		}
 		return answer{err: err}
 	}
-	// Read part of the body, for a refusal's reason and so the connection can be reused.
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	_ = resp.Body.Close()
 	a := answer{status: resp.StatusCode}

@@ -13,15 +13,12 @@ func TestFailureText(t *testing.T) {
 	}{
 		{"1 of 1 operations failed", ssh, 0, "", ssh},
 		{"2 of 3 operations failed", ssh, 0, "", "2 of 3 operations failed: " + ssh},
-		// The step's own error comes before the files'.
 		{"1 of 1 operations failed", ssh, 1, file, ssh},
 		{"1 of 1 operations failed", "", 1, file, "1 file failed: " + file},
 		{"1 of 1 operations failed", "", 3, file, "3 files failed. The first error: " + file},
 		{"2 of 2 operations failed", "", 1000, file, "2 of 2 operations failed: at least 1000 files failed. The first error: " + file},
-		// Nothing more to say: the count alone.
 		{"1 of 2 operations failed", "", 0, "", "1 of 2 operations failed"},
 		{"2 of 3 operations failed", "2 of 3 operations failed", 0, "", "2 of 3 operations failed"},
-		// An error of its own is kept as it is.
 		{"directory not found", ssh, 1, file, "directory not found"},
 	} {
 		if got := failureText(words(c.err), words(c.general), c.files, c.fileErr).String(); got != c.want {
@@ -30,7 +27,6 @@ func TestFailureText(t *testing.T) {
 	}
 }
 
-// TestFailureTextReadsTheFiles: a transfer whose files failed gets the first one's error.
 func TestFailureTextReadsTheFiles(t *testing.T) {
 	f := newFixture(t)
 	f.seed("100-a", 100, map[string]any{"state": "failed", "error": "1 of 1 operations failed"})

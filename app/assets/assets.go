@@ -1,9 +1,3 @@
-// Package assets serves the pages (the Vite build) to the webviews. Release builds
-// (-tags production) embed app/assets/dist. The build fills that folder with the Vite output
-// compressed by tools/zstdassets, as <file>.zst, or as the original file when compressing didn't
-// save space. Each file is decompressed on each request. Other builds serve dist/ from disk, or
-// proxy Vite's dev server when FRONTEND_DEVSERVER_URL is set. A path without an extension that
-// doesn't name a file (including a folder) is treated as a route and gets index.html.
 package assets
 
 import (
@@ -17,14 +11,10 @@ import (
 	"time"
 )
 
-// ZstdSuffix marks a compressed file in the embedded tree.
 const ZstdSuffix = ".zst"
 
-// loader returns a file's bytes, or fs.ErrNotExist when there is no such file.
 type loader func(name string) ([]byte, error)
 
-// spa serves files by path, and index.html for any path without an extension (the pages' routes,
-// such as /settings or /startup). It sets the Content-Type from the extension.
 type spa struct {
 	load    loader
 	modTime time.Time
@@ -86,7 +76,6 @@ var types = map[string]string{
 	".webm":        "video/webm",
 }
 
-// ContentType returns a file's type from its extension, or else detects it from the file's bytes.
 func ContentType(name string, data []byte) string {
 	ext := strings.ToLower(path.Ext(name))
 	if t, ok := types[ext]; ok {

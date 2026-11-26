@@ -3,43 +3,21 @@ import { useCallback, useMemo } from 'react'
 import { prefs } from './core/api'
 import { coreKey } from './core/query'
 
-/** Every stored preference, as a JSON string by key. */
 type Values = { [key: string]: string | undefined }
 
-/** The query for every preference. One query serves the whole window. */
 const prefsQuery = {
     queryKey: coreKey('prefs', 'Get'),
     queryFn: (): Promise<Values> => prefs.Get([]),
 }
 
-/** Every preference key the pages use, with its default. */
 export const PREF_DEFAULTS = {
-    /** The app's theme, which either follows the system or is set to light or dark. */
     theme: 'dark' as 'light' | 'dark' | 'system',
-    /**
-     * The one-time things already done on this machine, so they don't happen again: the
-     * launcher-shortcut tip on the tray's Open (app/trayopen.go), Commander's intro (Intro) and
-     * activity tip (TransfersBar), and enabling the launcher's GNOME extension
-     * (app/launcher/view/linux/gnome/ensure_linux.go).
-     */
     acknowledgements: [] as string[],
-    /** Local disks and folders that are hidden from Places in the file panels. */
     hiddenLocalPaths: [] as string[],
-    /** Whether the file panels measure local folder sizes while they list them. */
     folderSizes: true as boolean,
-    /**
-     * Whether the file panels read the files' dates on S3, Swift and the other remotes where each
-     * date costs a request (see fileDates.ts).
-     */
     fileDates: false as boolean,
-    /** Whether the file panels show the files and folders whose names start with a dot. */
     hiddenFiles: false as boolean,
-    /**
-     * The folder that the last pick for a source was made in. An empty source field's picker
-     * opens there (see pickerMemory.ts). Empty until a source is picked.
-     */
     lastSourceFolder: '' as string,
-    /** The same for a destination: where an empty destination field's picker opens. */
     lastDestinationFolder: '' as string,
 }
 
@@ -86,7 +64,6 @@ export function usePref<K extends PrefKey>(
             try {
                 await prefs.Set(key, raw)
             } catch (error) {
-                // Restore only this key, so that a change to another key in the meantime is kept.
                 write(before)
                 throw error
             }

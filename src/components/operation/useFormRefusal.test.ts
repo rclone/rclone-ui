@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { refusalOf } from './useFormRefusal'
 
-/** A bound call's rejection, as Wails gives it, with the core's error as its cause. */
 function rejection(cause: object): Error {
     const e = new Error('rejected', { cause })
     e.name = 'RuntimeError'

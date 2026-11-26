@@ -24,16 +24,7 @@ import type { Platform } from '../../../lib/shell'
 import { plainText } from './text'
 import type { Guide } from './types'
 
-// The guides. Each one names the labels the user sees in the app in **bold**, so the steps can
-// be followed with the window open. A step's button opens the window it talks about.
-// guides.test.ts checks that every route and every related guide exists.
-//
-// Each title, paragraph, step and tip is one message, with its markup inside (text.tsx), so that
-// a translator can move a label or a key within the sentence. A label in bold names a button of
-// another window, and its translation is that window's. Typed text, in backticks, stays as it is.
-
 export const GUIDES: Guide[] = [
-    // Getting started
     {
         id: 'launcher',
         category: 'start',
@@ -176,7 +167,6 @@ export const GUIDES: Guide[] = [
         related: ['copy-move-sync', 'schedules'],
     },
 
-    // Moving files
     {
         id: 'copy-move-sync',
         category: 'files',
@@ -454,7 +444,6 @@ export const GUIDES: Guide[] = [
         related: ['schedules', 'copy-move-sync'],
     },
 
-    // Automating
     {
         id: 'schedules',
         category: 'automate',
@@ -656,7 +645,6 @@ export const GUIDES: Guide[] = [
         related: ['history', 'copy-move-sync'],
     },
 
-    // Drives and sharing
     {
         id: 'mount',
         category: 'drives',
@@ -814,7 +802,6 @@ export const GUIDES: Guide[] = [
         related: ['public-links', 'mount'],
     },
 
-    // Staying informed
     {
         id: 'notifications',
         category: 'app',
@@ -888,10 +875,6 @@ export function guideById(id: string): Guide | undefined {
     return GUIDES.find((g) => g.id === id)
 }
 
-/**
- * Every word of a guide that applies on `os`, for search. The search words are there in English
- * and in the app's language, so that English ones find a guide in every language.
- */
 function words(guide: Guide, os: Platform): string {
     const sections = guide.sections.filter((s) => !s.os || s.os.includes(os))
     const all = [
@@ -913,7 +896,6 @@ function words(guide: Guide, os: Platform): string {
 
 const RE_SPACES = /\s+/
 
-/** Whether a guide mentions every word of the query. An empty query matches every guide. */
 export function matches(guide: Guide, query: string, os: Platform): boolean {
     const terms = foldCase(query).split(RE_SPACES).filter(Boolean)
     if (terms.length === 0) return true

@@ -1,4 +1,3 @@
-// Package bustest records a bus's events for tests.
 package bustest
 
 import (
@@ -10,13 +9,8 @@ import (
 	"github.com/rclone/rclone-ui/core/bus"
 )
 
-// waitLimit is how long Wait waits before it fails the test. It only bounds a test that is
-// broken, so it is long.
 const waitLimit = 30 * time.Second
 
-// Recorder holds the events of one bus. It has no goroutine: it reads the subscription when it is
-// asked. Publish queues an event for every subscriber before it returns, so a read never misses
-// an event that was published before it.
 type Recorder struct {
 	t      testing.TB
 	sub    *bus.Sub
@@ -25,7 +19,6 @@ type Recorder struct {
 	closed bool
 }
 
-// Record subscribes to b until the test ends.
 func Record(t testing.TB, b *bus.Bus) *Recorder {
 	r := &Recorder{t: t, sub: b.Subscribe()}
 	t.Cleanup(func() {
@@ -37,13 +30,11 @@ func Record(t testing.TB, b *bus.Bus) *Recorder {
 	return r
 }
 
-// take moves the queued events into r.events. The caller holds r.mu.
 func (r *Recorder) take() {
 	for {
 		select {
 		case ev, ok := <-r.sub.C:
 			if !ok {
-				// The bus drops a subscriber whose queue is full.
 				if !r.closed {
 					r.closed = true
 					r.t.Error("bustest: the bus dropped the recorder, because too many events were published between two reads")
@@ -57,7 +48,6 @@ func (r *Recorder) take() {
 	}
 }
 
-// Events returns every event published so far, in order.
 func (r *Recorder) Events() []bus.Event {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -65,7 +55,6 @@ func (r *Recorder) Events() []bus.Event {
 	return slices.Clone(r.events)
 }
 
-// Named returns the events published so far that have the given name.
 func (r *Recorder) Named(name string) []bus.Event {
 	var out []bus.Event
 	for _, ev := range r.Events() {

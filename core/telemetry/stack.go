@@ -9,21 +9,14 @@ import (
 )
 
 const (
-	// framesMax is the most calls of a stack that are sent.
 	framesMax = 60
-	// crashRead is the most of crash.log that is read for one report.
 	crashRead = 256 << 10
 )
 
-// inApp reports whether a Go function is the app's own code, which PostHog shows first.
 func inApp(function string) bool {
 	return strings.HasPrefix(function, "github.com/rclone/rclone-ui/") || strings.HasPrefix(function, "main.")
 }
 
-// sourceFile returns a source file's path without what comes from the computer it was built on.
-// A release is built with -trimpath, so its paths start at the module ("core/browse/usage.go" in
-// "github.com/rclone/rclone-ui/core/browse/usage.go") and are kept. An absolute path keeps its
-// last folder and its name.
 func sourceFile(file string) string {
 	file = strings.ReplaceAll(file, `\`, "/")
 	if !strings.HasPrefix(file, "/") && !(len(file) > 1 && file[1] == ':') {
@@ -33,11 +26,6 @@ func sourceFile(file string) string {
 	return strings.Join(parts[max(0, len(parts)-2):], "/")
 }
 
-// goFrames reads the first goroutine of a Go traceback, as debug.Stack and a crash write it, into
-// frames with the outermost call first. The calls that only report the panic (debug.Stack, the
-// deferred function that recovered, and panic itself) are left out, so the last frame is where
-// it happened.
-//
 // A traceback lists each call as two lines, innermost first:
 //
 //	github.com/rclone/rclone-ui/core/browse.(*UsageTree).add(0x14000..., {0x0, 0x0, 0x0})
@@ -49,7 +37,7 @@ func goFrames(trace string) []Frame {
 		line := strings.TrimRight(lines[i], "\r")
 		if line == "" {
 			if len(frames) > 0 {
-				break // the end of the first goroutine
+				break
 			}
 			continue
 		}
@@ -58,7 +46,7 @@ func goFrames(trace string) []Frame {
 		}
 		at := strings.TrimSpace(strings.TrimRight(lines[i+1], "\r"))
 		if !strings.HasPrefix(lines[i+1], "\t") {
-			continue // not a call: a line of the panic's own text
+			continue
 		}
 		function := line
 		if rest, ok := strings.CutPrefix(function, "created by "); ok {
@@ -77,7 +65,6 @@ func goFrames(trace string) []Frame {
 		frames = append(frames, Frame{Function: function, File: sourceFile(file), Line: lineNo})
 		i++
 	}
-	// Everything up to panic itself only reports it.
 	for i, f := range frames[:min(len(frames), 8)] {
 		if f.Function == "panic" || f.Function == "runtime.gopanic" {
 			frames = frames[i+1:]
@@ -85,7 +72,7 @@ func goFrames(trace string) []Frame {
 		}
 	}
 	if len(frames) > 0 && frames[0].Function == "runtime/debug.Stack" {
-		frames = frames[min(len(frames), 2):] // and the function that called it
+		frames = frames[min(len(frames), 2):]
 	}
 	frames = frames[:min(len(frames), framesMax)]
 	slices.Reverse(frames)
@@ -100,8 +87,6 @@ var (
 	reOrigin      = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*://[^/]*/`)
 )
 
-// scriptFrames reads a page error's stack into frames with the outermost call first. A script is
-// named by its path in the app ("assets/index-B2x9.js"), without the address it was loaded from.
 func scriptFrames(stack string) []Frame {
 	var frames []Frame
 	for line := range strings.SplitSeq(stack, "\n") {
@@ -129,13 +114,6 @@ func scriptFrames(stack string) []Frame {
 	return frames
 }
 
-// crashOf reads a crash from the text that the Go runtime wrote when it ended the app: a panic
-// that nothing recovered, a fatal error, or a signal. It returns false when the text holds none.
-//
-//	panic: runtime error: index out of range [1] with length 1
-//
-//	goroutine 8 [running]:
-//	…
 func crashOf(text string) (Crash, bool) {
 	text = strings.TrimLeft(text, "\r\n")
 	if text == "" {
@@ -174,7 +152,7 @@ func (s *Service) CrashLog(path string) {
 		return
 	}
 	if size < sent {
-		sent = 0 // the file started over
+		sent = 0
 	}
 	defer func() { _ = os.WriteFile(mark, []byte(strconv.FormatInt(size, 10)), 0o600) }()
 	if client, _ := s.current(); client == nil {

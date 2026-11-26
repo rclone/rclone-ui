@@ -83,7 +83,6 @@ describe('operationLine', () => {
         ).toBe(
             'Each run deletes the files that are in /a, /b at that time, that match the filters.'
         )
-        // ignore_case changes how the rules apply, and selects nothing on its own.
         expect(
             operationLine(
                 form('delete', { sources: ['/a'], options: { filter: { ignore_case: true } } })

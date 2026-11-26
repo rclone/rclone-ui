@@ -20,10 +20,9 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// cliFlag is one flag on rclone's command line, as the child process reports it.
 type cliFlag struct {
 	Name, Short, Type string
-	Option            bool // the flag's value is an option in rclone's registry
+	Option            bool
 }
 
 const cliFlagsLine = "RCUI-CLI-FLAGS "
@@ -58,8 +57,6 @@ func rcloneCLIFlags(t *testing.T) []cliFlag {
 	return nil
 }
 
-// printCLIFlags runs in the child. It prints rclone's global flags as its command line defines
-// them.
 func printCLIFlags(t *testing.T) {
 	ci := fs.GetConfig(context.Background())
 	configflags.AddFlags(ci, pflag.CommandLine)
@@ -79,10 +76,6 @@ func printCLIFlags(t *testing.T) {
 	os.Stdout.WriteString("\n" + cliFlagsLine + string(raw) + "\n")
 }
 
-// TestCLIOnlyFlags checks that cliOnly holds exactly the flags on rclone's command line that
-// aren't options in its registry, each with its shorthand and kind. Cobra's help, which every
-// command has, is left out of the comparison. It also checks that every flag ParseCommand defines
-// for rclone's global blocks and backends matches the flag rclone defines.
 func TestCLIOnlyFlags(t *testing.T) {
 	if os.Getenv("RCUI_TEST_CLI_FLAGS") == "1" {
 		printCLIFlags(t)
@@ -102,7 +95,7 @@ func TestCLIOnlyFlags(t *testing.T) {
 		if !f.Option {
 			kind := f.Type
 			if kind != "bool" && kind != "count" && kind != "stringArray" {
-				kind = "string" // a single value, however rclone parses it
+				kind = "string"
 			}
 			theirs = append(theirs, f.Name+"/"+f.Short+"/"+kind)
 		}
@@ -121,7 +114,7 @@ func TestCLIOnlyFlags(t *testing.T) {
 			global = true
 		}
 		if !global {
-			continue // a command's own flags (mount, vfs, a serve): see TestFlagNames in core/operations
+			continue
 		}
 		f, ok := byName[name]
 		if !ok || !f.Option {

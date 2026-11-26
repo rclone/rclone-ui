@@ -6,8 +6,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// processStartTime returns the process's creation time (GetProcessTimes), in 100 ns units. A
-// process that has exited counts as gone, even while an open handle keeps its object alive.
+// A process that has exited counts as gone, even while an open handle keeps its object alive.
 func processStartTime(pid int) (int64, error) {
 	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
 	if errors.Is(err, windows.ERROR_INVALID_PARAMETER) {

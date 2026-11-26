@@ -36,13 +36,12 @@ import type { Entry, PaddingItem, VirtualizedEntry } from './types'
 import { dragStateRef, formatModTime } from './utils'
 
 /**
- * A row and the actions it offers. The list caches each row's element by its item (React
- * Stately's collection) and renders it again only for a new item. So everything a row shows must
- * be stored on the item, and never read from a prop at render time.
+ * The list caches each row's element by its item (React Stately's collection) and renders it
+ * again only for a new item. So everything a row shows must be stored on the item, and never
+ * read from a prop at render time.
  */
 type ListRow = VirtualizedEntry & {
     isDisabled: boolean
-    /** A file in a folder picker. It is shown greyed out and can't be picked or opened. */
     folderOnly: boolean
     draggable: boolean
     showFullPath: boolean
@@ -53,37 +52,24 @@ type ListRow = VirtualizedEntry & {
     canDelete: boolean
 }
 
-// By default, react-aria's list handles Tab itself and skips past all the rows at once. With this
-// option, Tab reaches the checkbox and the buttons in each row. HeroUI passes the option through
-// even though its types don't declare it.
+// HeroUI passes this option on to react-aria, even though its types don't declare it.
 const TAB_INTO_ROWS = { allowsTabNavigation: true }
 
-/** The height of a row, in px. The list is virtualized, so every row has this height. */
 export const ROW_HEIGHT = 36
 
-/**
- * A row's columns, which FilePanel sets on the panel (`--file-columns`), so they line up with the
- * header and follow Name's width. A narrow panel uses the compact ones, without Modified.
- */
 export const ROW_GRID = 'grid-cols-(--file-columns) @max-lg:grid-cols-(--file-columns-compact)'
 
-/** How wide the rows are at least: Name's width and the other columns. */
 export const ROWS_MIN_WIDTH = 'min-w-(--rows-min) @max-lg:min-w-(--rows-min-compact)'
 
 const ROW_ACTION = 'min-w-7 w-7 h-7 rounded-md text-default-600'
 
-// The size and date, which give their place to the row's actions while those show.
 const UNDER_ACTIONS =
     'transition-opacity duration-100 group-hover:opacity-0 group-has-focus-visible:opacity-0'
 
 const FOLDERS_ONLY = t`Only folders can be picked here.`
 
-/** How long a row is hovered before its hint opens, in ms. */
 const HINT_DELAY = 500
 
-// A favorite row is labeled "(remote) name" in a list with no path bar above it, so hovering it
-// shows the path it points to. Every other listing already shows its path. A file in a folder
-// picker explains why it can't be picked (`FolderOnlyHint`).
 function RowTooltip({
     path,
     folderOnly,
@@ -102,17 +88,8 @@ function RowTooltip({
     )
 }
 
-// Whether the hint of the row it is in is open. The row holds the state, and the hint is drawn
-// under its name (`HintAnchor`). It is null outside a row that can't be picked.
 const HintOpen = createContext<boolean | null>(null)
 
-/**
- * The hint of a file that a folder picker can't pick. A tooltip opens on hover only when the
- * mouse was the last thing pressed, and a press closes it. But a file is often hovered right
- * after typing a search, and clicked to see why it doesn't open. So this hint opens after any
- * 500 ms hover of the row, stays open through a click, and closes on Esc or when the pointer
- * leaves.
- */
 function FolderOnlyHint({ children }: { children: ReactElement<HTMLAttributes<HTMLElement>> }) {
     const [isOpen, setOpen] = useState(false)
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -141,8 +118,6 @@ function FolderOnlyHint({ children }: { children: ReactElement<HTMLAttributes<HT
     )
 }
 
-// A row's name. While the peek key is held, a name that is cut off shows in full, over the columns
-// beside it.
 function RowName({ label, title }: { label: string; title?: string }) {
     const wrapper = useRef<HTMLSpanElement>(null)
     const peek = usePeek()
@@ -171,7 +146,6 @@ function RowName({ label, title }: { label: string; title?: string }) {
     )
 }
 
-// The hint, under the name of the row that holds it open.
 function HintAnchor({ children }: { children: ReactElement }) {
     const isOpen = useContext(HintOpen)
     if (isOpen === null) return children
@@ -189,10 +163,6 @@ function HintAnchor({ children }: { children: ReactElement }) {
     )
 }
 
-/**
- * The virtualized list's own scroller, a div inside HeroUI's Listbox. This is the one place that
- * relies on the Listbox's markup.
- */
 function scrollerIn(root: HTMLElement | null): HTMLElement | null {
     for (const element of root?.querySelectorAll<HTMLElement>('div') ?? []) {
         if (element.style.overflow === 'auto') return element
@@ -227,20 +197,15 @@ export default function FileList({
     items: (VirtualizedEntry | PaddingItem)[]
     isLoading: boolean
     error: string | null
-    /** Lists the folder again, from the error's "Try again". */
     onRetry?: () => void
-    /** What an empty list says, and the action that fills it. */
     empty?: EmptyListing
     selectedKeys: Set<string>
     onToggleSelect: (entry: Entry) => void
     onNavigate: (entry: Entry) => void
     allowMultiple: boolean
-    /** For a folder picker. Files are greyed out and can't be picked or opened. */
     foldersOnly?: boolean
     onPreviewClick?: (entry: Entry) => void
-    /** Rows can be dragged onto a Commander panel. The items travel in the drag's data. */
     draggable?: boolean
-    /** Shows the row's full path in a tooltip, for the favorites list whose labels aren't paths. */
     showFullPath?: boolean
     onToggleFavorite?: (entry: Entry, isFavorited: boolean) => void
     onDownload?: (entry: Entry) => void
@@ -248,9 +213,7 @@ export default function FileList({
     onRename?: (entry: Entry) => void
     onDelete?: (entry: Entry) => void
     listHeight: number
-    /** The folder shown. Another folder starts at the top. */
     folder?: string | null
-    /** Where the list was scrolled when the panel was left, applied once the rows show. */
     restoreScrollTop?: number
     onScrollTopChange?: (scrollTop: number) => void
 }) {
@@ -274,13 +237,10 @@ export default function FileList({
                 path: e.fullPath,
                 type: e.isDir ? 'folder' : 'file',
             }))
-            // The items are included in the drag data, with their types, for drops into another
-            // window. A folder's path has no trailing slash, so the path alone can't show the type.
             event.dataTransfer.setData('application/json', JSON.stringify(dragStateRef.current))
             event.dataTransfer.effectAllowed = 'copyMove'
 
             const count = selectedEntries.length
-            // A pill in the window's blue that names what is dragged, and counts it.
             const dragPreview = document.createElement('div')
             dragPreview.style.cssText = `
                 position: fixed;
@@ -323,10 +283,6 @@ export default function FileList({
         [draggable, selectedKeys, items]
     )
 
-    // The panel's `drop` handler, in this window or another, handles the drop. The end of a drag
-    // only forgets the items. So a drag cancelled with Esc, or dropped where nothing accepts it,
-    // starts nothing, and a later drop from outside the app (which has no items) isn't mistaken
-    // for this one.
     const handleDragEnd = useCallback(() => {
         dragStateRef.current = null
     }, [])
@@ -341,7 +297,6 @@ export default function FileList({
                           ...item,
                           isDisabled: !allowMultiple && anySelected && !item.isSelected,
                           folderOnly: foldersOnly && !item.isDir,
-                          // A row that can't be picked offers nothing but its hint.
                           draggable: draggable && !(foldersOnly && !item.isDir),
                           showFullPath,
                           canFavorite: item.isDir && !!onToggleFavorite,
@@ -366,8 +321,8 @@ export default function FileList({
         ]
     )
 
-    // The handlers that a row calls, read at the time of the call. Row elements are cached by
-    // item (`ListRow`), so the handlers a row was rendered with may be several renders old.
+    // Row elements are cached by item (`ListRow`), so the handlers a row was rendered with may be
+    // several renders old.
     const latest = useRef({
         onToggleSelect,
         onNavigate,
@@ -393,8 +348,6 @@ export default function FileList({
         }
     })
 
-    // A row's action, from a click or Enter. Folders open in the panel, and files open the
-    // preview. Without a preview it falls back to onNavigate, which does nothing for files.
     const handleAction = useCallback(
         (key: Key) => {
             const entry = items.find((item) => !('padding' in item) && item.key === key)
@@ -407,10 +360,6 @@ export default function FileList({
         [items, foldersOnly]
     )
 
-    // The scroll position is reported as it changes. The one kept from before is applied when
-    // the rows show. The list measures itself and may scroll back to the top over its first
-    // frames, so the restore holds the position for a second (and again as more rows arrive),
-    // until the user scrolls. Another folder starts at the top.
     const rootRef = useRef<HTMLDivElement>(null)
     const listShown = !isLoading && !error && items.some((item) => !('padding' in item))
     const pendingScroll = useRef(restoreScrollTop || undefined)
@@ -422,8 +371,6 @@ export default function FileList({
         if (!listShown) return
         const scroller = scrollerIn(rootRef.current)
         if (!scroller) return
-        // While the restore holds the position, only the user's scrolls are reported, and they
-        // end it.
         const report = () => {
             if (pendingScroll.current === undefined) onScrollTop.current?.(scroller.scrollTop)
         }
@@ -456,8 +403,6 @@ export default function FileList({
                 frame = requestAnimationFrame(hold)
                 return
             }
-            // The list is as tall as it gets for now. Unless it is still too short, the restore
-            // is done.
             if (scroller && scroller.scrollHeight - scroller.clientHeight >= wanted) {
                 pendingScroll.current = undefined
                 onScrollTop.current?.(scroller.scrollTop)
@@ -470,7 +415,6 @@ export default function FileList({
     useEffect(() => {
         if (shownFolder.current === folder) return
         shownFolder.current = folder
-        // The pending scroll was for the first folder.
         pendingScroll.current = undefined
         const scroller = scrollerIn(rootRef.current)
         if (scroller) scroller.scrollTop = 0
@@ -479,7 +423,6 @@ export default function FileList({
     if (isLoading) return <SkeletonRows />
 
     if (error) {
-        // Show the full sentence, because a refused path explains what a name may contain.
         return (
             <ListState
                 icon={ExclamationTriangleIcon}
@@ -517,7 +460,6 @@ export default function FileList({
             items={rows}
             isVirtualized={true}
             virtualization={{
-                // The list sits 4 px under the column header (its container's padding).
                 maxListboxHeight: listHeight - 4,
                 itemHeight: ROW_HEIGHT,
             }}
@@ -577,11 +519,9 @@ export default function FileList({
                                     'relative grid items-center w-full h-full rounded-lg group cursor-pointer',
                                     ROW_GRID,
                                     entry.isSelected
-                                        ? // In the accent while the panel is the active one, grey otherwise.
-                                          'bg-default-200/70 dark:bg-white/10 group-data-[focused=true]/panel:bg-primary/12 dark:group-data-[focused=true]/panel:bg-primary/25'
+                                        ? 'bg-default-200/70 dark:bg-white/10 group-data-[focused=true]/panel:bg-primary/12 dark:group-data-[focused=true]/panel:bg-primary/25'
                                         : 'hover:bg-default-100 dark:hover:bg-white/6',
                                     entry.folderOnly && 'opacity-disabled cursor-not-allowed',
-                                    // The row that has keyboard focus.
                                     'group-data-[focus-visible=true]/row:ring-2 group-data-[focus-visible=true]/row:ring-inset group-data-[focus-visible=true]/row:ring-primary'
                                 )}
                                 aria-disabled={entry.folderOnly || undefined}
@@ -591,7 +531,6 @@ export default function FileList({
                             >
                                 <div
                                     className="flex items-center justify-end cursor-default"
-                                    // Clicking the checkbox shouldn't open the row.
                                     onPointerDown={(e) => e.stopPropagation()}
                                     onClick={(e) => e.stopPropagation()}
                                 >
@@ -647,9 +586,6 @@ export default function FileList({
                                 <div />
 
                                 {hasActions && (
-                                    // The row's actions, in place of its size and date while the row
-                                    // is hovered or has keyboard focus. They can be tabbed to while
-                                    // hidden, and show once one of them has focus.
                                     <div
                                         className={cn(
                                             'absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-px p-0.5 rounded-[10px]',
@@ -746,8 +682,6 @@ export default function FileList({
         </Listbox>
     )
 
-    // The panel sets the column template, so resizing Name also updates rows that are already
-    // rendered.
     return (
         <div ref={rootRef} className="relative w-full h-full pt-1">
             {list}
@@ -763,7 +697,6 @@ export type EmptyListing = {
     action?: ReactNode
 }
 
-/** A list with nothing to show: empty, or failed. It sits in the middle of the panel. */
 function ListState({
     icon,
     tone,
@@ -793,10 +726,8 @@ function ListState({
     )
 }
 
-// Name widths for the placeholder rows, so they read as names rather than a pattern.
 const SKELETON_WIDTHS = [62, 44, 71, 38, 55, 66, 47, 59, 35, 52, 68, 41]
 
-/** Rows shaped like the folder's, shown while it is listed. */
 function SkeletonRows() {
     return (
         <div

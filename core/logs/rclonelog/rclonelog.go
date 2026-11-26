@@ -28,10 +28,10 @@ func Install(l *logs.Log) {
 }
 
 type handler struct {
-	next     slog.Handler    // the app log's handler
-	backends map[string]bool // every backend's name, prefix and file name, as fs.Find matches them
-	pre      []slog.Attr     // from WithAttrs, already nested in the groups open at that time
-	groups   []string        // from WithGroup
+	next     slog.Handler
+	backends map[string]bool
+	pre      []slog.Attr
+	groups   []string
 }
 
 func newHandler(l *logs.Log) *handler {
@@ -57,7 +57,6 @@ func level() slog.Level {
 
 func (h *handler) Enabled(_ context.Context, l slog.Level) bool { return l >= level() }
 
-// watchers are the functions that Watch added, by a key of their own.
 var watchers struct {
 	sync.Mutex
 	next int
@@ -84,7 +83,6 @@ func Watch(fn func(level slog.Level, msg string)) (stop func()) {
 	}
 }
 
-// tell passes a line to the functions that Watch added.
 func tell(level slog.Level, msg string) {
 	watchers.Lock()
 	fns := make([]func(slog.Level, string), 0, len(watchers.fns))
@@ -145,7 +143,6 @@ func (h *handler) WithGroup(name string) slog.Handler {
 	return &next
 }
 
-// nest puts attrs inside groups, outermost first.
 func nest(groups []string, attrs []slog.Attr) []slog.Attr {
 	for i := len(groups) - 1; i >= 0 && len(attrs) > 0; i-- {
 		attrs = []slog.Attr{{Key: groups[i], Value: slog.GroupValue(attrs...)}}
@@ -153,8 +150,6 @@ func nest(groups []string, attrs []slog.Attr) []slog.Attr {
 	return attrs
 }
 
-// subcomponent returns the backend of the logged object. That is the package of its type (from
-// %T, such as *s3.Object) when it is a registered backend, and core otherwise.
 func (h *handler) subcomponent(objectType string) string {
 	pkg, _, ok := strings.Cut(strings.TrimLeft(objectType, "*[]"), ".")
 	switch {
@@ -166,11 +161,9 @@ func (h *handler) subcomponent(objectType string) string {
 	return logs.SubCore
 }
 
-// source returns the file:line in rclone that logged the line. Like rclone's own handler, it
-// keeps only the last two path elements.
 func source() string {
 	var pcs [32]uintptr
-	n := runtime.Callers(3, pcs[:]) // runtime.Callers, source, Handle
+	n := runtime.Callers(3, pcs[:])
 	frames := runtime.CallersFrames(pcs[:n])
 	for {
 		f, more := frames.Next()
@@ -183,8 +176,6 @@ func source() string {
 	}
 }
 
-// logFrame reports whether a frame is part of the logging code: slog, rclone's fs/log.go, or
-// the fs/log package.
 func logFrame(f runtime.Frame) bool {
 	return strings.HasPrefix(f.Function, "log/slog.") ||
 		strings.HasSuffix(f.File, "/fs/log.go") ||

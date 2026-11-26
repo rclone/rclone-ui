@@ -21,7 +21,7 @@ func mountPoints() (map[string]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	buf := make([]unix.Statfs_t, n+16) // room for mounts added in the meantime
+	buf := make([]unix.Statfs_t, n+16)
 	n, err = unix.Getfsstat(buf, unix.MNT_NOWAIT)
 	if err != nil {
 		return nil, err
@@ -33,8 +33,6 @@ func mountPoints() (map[string]bool, error) {
 	return points, nil
 }
 
-// MountPoints lists every mounted folder as the mount table writes it, without touching any of
-// them.
 func MountPoints() ([]string, error) {
 	points, err := mountPoints()
 	if err != nil {
@@ -43,7 +41,6 @@ func MountPoints() ([]string, error) {
 	return slices.Sorted(maps.Keys(points)), nil
 }
 
-// Mounted reports whether the mount table lists mountPoint, without touching the mount itself.
 func Mounted(mountPoint string) (bool, error) {
 	points, err := mountPoints()
 	if err != nil {
@@ -57,8 +54,6 @@ func Mounted(mountPoint string) (bool, error) {
 // (_PC_CASE_SENSITIVE in <unistd.h>).
 const pcCaseSensitive = 11
 
-// listed returns mountPoint as the mount table spells it, and whether the table lists it.
-//
 // The table writes a path as the disk has it. Most Macs' volumes ignore case, so a mount point
 // typed as ~/Rclone/box, where the folder on disk is ~/rclone, is listed as ~/rclone/box. An
 // exact lookup would miss it, and the mount would never count as ready. So when the exact
@@ -89,16 +84,11 @@ func listed(points map[string]bool, mountPoint string) (string, bool) {
 	return mp, false
 }
 
-// ignoresCase reports whether the volume that holds dir treats names that differ only by case
-// as the same name. When the volume can't say, it is taken to tell them apart.
 func ignoresCase(dir string) bool {
 	sensitive, err := unix.Pathconf(dir, pcCaseSensitive)
 	return err == nil && sensitive == 0
 }
 
-// brokenMounts returns the mount points that ClearLeftovers force-unmounts on macOS. It only
-// considers recorded mounts, and returns those still in the mount table whose NFS port no longer
-// answers. The folder itself is never touched.
 func brokenMounts(ctx context.Context, recs []Record, _ []string) []string {
 	points, err := mountPoints()
 	if err != nil {

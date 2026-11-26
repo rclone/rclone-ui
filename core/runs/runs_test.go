@@ -12,13 +12,11 @@ import (
 	"github.com/rclone/rclone-ui/core/transfers"
 )
 
-// fakeTransfers records the starts and stops. Its transfers stay open until the test closes them.
 type fakeTransfers struct {
 	mu     sync.Mutex
 	specs  []transfers.Spec
 	stops  []string
 	closed map[string]bool
-	// refuse makes the next start fail without recording anything.
 	refuse error
 }
 
@@ -46,7 +44,6 @@ func (ft *fakeTransfers) Open(_ context.Context, id string) (bool, error) {
 	return !ft.closed[id], nil
 }
 
-// close closes start i (from 0) without reporting its end.
 func (ft *fakeTransfers) close(i int) {
 	ft.mu.Lock()
 	defer ft.mu.Unlock()
@@ -68,7 +65,6 @@ func (ft *fakeTransfers) stopped() []string {
 	return slices.Clone(ft.stops)
 }
 
-// end reports the end of start i (from 0), as the transfer service does once it is written.
 func (ft *fakeTransfers) end(i int, state transfers.State) {
 	ft.close(i)
 	ft.mu.Lock()
@@ -77,24 +73,18 @@ func (ft *fakeTransfers) end(i int, state transfers.State) {
 	spec.Owner.Ended(transfers.Transfer{ID: fmt.Sprintf("t%d", i+1), State: state})
 }
 
-// fakeOwner starts its runs through a fakeTransfers and records what the engine tells it.
 type fakeOwner struct {
 	ft *fakeTransfers
 
-	mu sync.Mutex
-	// skip makes Start report that it didn't start the run.
-	skip bool
-	// afterStart, when set, runs in Start once the transfer service has answered.
-	afterStart func(end transfers.Owner, started transfers.Started)
-	// next and again are what Ended returns.
-	next  string
-	again bool
-	// holdEnd, when set, makes Ended wait for it to be closed. inEnd is then closed when Ended
-	// begins.
+	mu             sync.Mutex
+	skip           bool
+	afterStart     func(end transfers.Owner, started transfers.Started)
+	next           string
+	again          bool
 	holdEnd, inEnd chan struct{}
 
-	modes   []string // the mode of each run that Start started
-	started []string // the transfers that Started recorded
+	modes   []string
+	started []string
 	refused []error
 	ended   []transfers.Transfer
 	changed int
@@ -156,8 +146,6 @@ func (o *fakeOwner) Changed() {
 	o.changed++
 }
 
-// fixture is an engine over a fakeOwner and a fakeTransfers. Its starts run on their own
-// goroutines, which wait waits for.
 type fixture struct {
 	t     *testing.T
 	e     *Engine[string, int]
@@ -178,10 +166,8 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
-// wait waits for the starts in progress.
 func (f *fixture) wait() { f.goes.Wait() }
 
-// current returns the run of the item id, and whether it has one.
 func (f *fixture) current(id string) (Status[string], bool) {
 	st, ok := f.e.Current()[id]
 	return st, ok
@@ -193,8 +179,6 @@ func (f *fixture) modes() []string {
 	return slices.Clone(f.owner.modes)
 }
 
-// An item has one run at a time: while its run is in progress, Kick and Claim refuse another.
-// Another item runs alongside it.
 func TestNoOverlap(t *testing.T) {
 	f := newFixture(t)
 	if !f.e.Kick("a", "first") {
@@ -230,9 +214,6 @@ func TestNoOverlap(t *testing.T) {
 	}
 }
 
-// A run queued during another starts once that one ends, and a later Queue replaces it. With
-// nothing queued, the run that the end asks for starts. A Queue with no run in progress starts
-// at once.
 func TestQueuedRunAfterAnEnd(t *testing.T) {
 	f := newFixture(t)
 	f.e.Queue("a", "first")
@@ -255,9 +236,6 @@ func TestQueuedRunAfterAnEnd(t *testing.T) {
 	}
 }
 
-// A run that the owner didn't start, or that the transfer service refused, is freed, and so is the
-// run that waited for it. A refusal that recorded nothing is the owner's to record. A start during
-// a shutdown isn't.
 func TestReleaseOnARefusalAndOnShutdown(t *testing.T) {
 	f := newFixture(t)
 	f.owner.skip = true
@@ -287,8 +265,6 @@ func TestReleaseOnARefusalAndOnShutdown(t *testing.T) {
 	}
 }
 
-// After Shutdown, nothing claims or starts a run: not a kick, a queue, a claim, nor the run that
-// an end asks for. A run already claimed is freed rather than started.
 func TestNoKicksAfterShutdown(t *testing.T) {
 	f := newFixture(t)
 	f.e.Kick("a", "first")
@@ -318,8 +294,6 @@ func TestNoKicksAfterShutdown(t *testing.T) {
 	}
 }
 
-// A run whose end is never reported is freed on the second tick that finds its transfer closed,
-// and the run queued during it starts.
 func TestStaleRunIsFreed(t *testing.T) {
 	f := newFixture(t)
 	f.e.Kick("a", "first")
@@ -344,14 +318,12 @@ func TestStaleRunIsFreed(t *testing.T) {
 	}
 }
 
-// A run whose end is being recorded is never freed as stale, even when two ticks find its
-// transfer closed: the next run would read the item as it was before that end.
 func TestNeverFreedWhileTheEndIsRecorded(t *testing.T) {
 	f := newFixture(t)
 	f.e.Kick("a", "first")
 	f.wait()
 	f.ft.close(0)
-	f.e.FreeStale(f.ctx) // the first tick that finds it closed
+	f.e.FreeStale(f.ctx)
 	hold, in := make(chan struct{}), make(chan struct{})
 	f.owner.mu.Lock()
 	f.owner.holdEnd, f.owner.inEnd = hold, in
@@ -378,8 +350,6 @@ func TestNeverFreedWhileTheEndIsRecorded(t *testing.T) {
 	}
 }
 
-// A transfer that fails at once may report its end before its start returns. The run is then
-// freed by that end, and Started isn't called: the end has already recorded that it ended.
 func TestNoStartedAfterTheEnd(t *testing.T) {
 	f := newFixture(t)
 	f.owner.afterStart = func(end transfers.Owner, started transfers.Started) {
@@ -395,8 +365,6 @@ func TestNoStartedAfterTheEnd(t *testing.T) {
 	}
 }
 
-// A deleted item's run is stopped: at once when it has a transfer, or as soon as its start
-// returns. Without stop, its run goes on, and its end still reaches the owner.
 func TestADeletedItemsRunIsStopped(t *testing.T) {
 	f := newFixture(t)
 	f.e.Kick("a", "first")
@@ -409,7 +377,6 @@ func TestADeletedItemsRunIsStopped(t *testing.T) {
 		t.Error("the deleted item's run was kept")
 	}
 
-	// Deleted while its start hasn't returned.
 	starting, deleted := make(chan struct{}), make(chan struct{})
 	f.owner.afterStart = func(transfers.Owner, transfers.Started) {
 		close(starting)
@@ -428,7 +395,6 @@ func TestADeletedItemsRunIsStopped(t *testing.T) {
 	}
 	f.owner.afterStart = nil
 
-	// Without stop, the run goes on.
 	f.e.Kick("c", "first")
 	f.wait()
 	f.e.Forget(f.ctx, "c", false)

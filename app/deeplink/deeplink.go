@@ -1,5 +1,3 @@
-// Package deeplink parses `rclone://` links and registers the scheme on systems where no
-// installer does.
 package deeplink
 
 import (
@@ -9,11 +7,8 @@ import (
 
 const Scheme = "rclone"
 
-// Link is what a deep link asks for: either a route, which decides its window, or an update.
 type Link struct {
-	// URL is the route to open, such as "/templates?action=add&cmd=…".
-	URL string
-	// Update is an update that `rcui update` passes to the running app. It is nil for a route.
+	URL    string
 	Update *Update
 }
 
@@ -24,8 +19,6 @@ type Update struct {
 	Channel string
 }
 
-// UpdateLink returns the link that `rcui update` passes to the running app, asking it to install
-// version from channel.
 func UpdateLink(version, channel string) string {
 	q := url.Values{}
 	if version != "" {
@@ -42,7 +35,6 @@ func IsLink(s string) bool {
 	return strings.HasPrefix(strings.ToLower(s), Scheme+":")
 }
 
-// FromArgs returns the first deep link in args, or "".
 func FromArgs(args []string) string {
 	for _, a := range args {
 		if IsLink(a) {
@@ -64,7 +56,6 @@ func Parse(raw string) (Link, bool) {
 	domain, _, _ := strings.Cut(route, "/")
 	params, err := url.ParseQuery(query)
 	if err != nil {
-		// A malformed query still opens the window, without its fields.
 		params = url.Values{}
 	}
 	switch strings.ToLower(domain) {

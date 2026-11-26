@@ -98,8 +98,7 @@ type Proxy struct {
 
 type Updates struct {
 	// Channel is "stable" or "beta".
-	Channel string `json:"channel"`
-	// SkippedVersion is the release the user chose to skip.
+	Channel        string `json:"channel"`
 	SkippedVersion string `json:"skippedVersion"`
 }
 
@@ -123,8 +122,7 @@ type Patch struct {
 	AgentPort         *int      `json:"agentPort,omitempty"`
 	// NewAgentToken replaces the agents' token, so that clients set up with the old one stop
 	// working.
-	NewAgentToken bool `json:"newAgentToken,omitempty"`
-	// TelemetryEnabled is the user's choice about sharing usage data and crash reports.
+	NewAgentToken    bool  `json:"newAgentToken,omitempty"`
 	TelemetryEnabled *bool `json:"telemetryEnabled,omitempty"`
 }
 

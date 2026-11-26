@@ -9,13 +9,10 @@ import { hasLanguage, loadLanguage } from './languages'
 import { PreviewError, PreviewLoading, type PreviewViewerProps } from './previewStates'
 import usePreviewText from './usePreviewText'
 
-/** How much of a text file the viewer loads. Loading only the start keeps a large log responsive. */
 const TEXT_HEAD = 10 * 1024 * 1024
 
-// A fixed dark text color on white. The built-in `light` theme leaves the content color unset,
-// so in dark mode the text inherits the app's near-white color and is invisible on the white
-// editor. It is applied through `extensions`, which take priority over the `theme` prop.
-// Highlighted tokens keep their own darker colors.
+// The `light` theme of @uiw/react-codemirror sets only the background, so in dark mode the text
+// would inherit the app's near-white color.
 const LIGHT_CONTENT_THEME = EditorView.theme(
     {
         '&': { backgroundColor: '#ffffff', color: '#111827' },
@@ -25,10 +22,6 @@ const LIGHT_CONTENT_THEME = EditorView.theme(
     { dark: false }
 )
 
-/**
- * CodeMirror's own words (its search panel, Go to line, and the folding of code) in the app's
- * language. The viewer is read-only, so the words of its replace fields never show.
- */
 function editorPhrases(): Extension {
     // Every message writes its context out in full rather than sharing a constant, because the
     // extraction reads only literal text.
@@ -127,13 +120,9 @@ function editorPhrases(): Extension {
     })
 }
 
-// A read-only viewer that is always light, like the other preview viewers. basicSetup is trimmed
-// for a static view: syntax highlighting and line numbers, without active-line highlighting.
 export default function CodeMirrorPreview({ url, name, onDownload }: PreviewViewerProps) {
     const { text, error, progress, truncated } = usePreviewText(url, { maxBytes: TEXT_HEAD })
 
-    // The file's language loads alongside its text (`languages.ts`), and the viewer waits for
-    // both, so the text doesn't appear without colors first. Plain text has nothing to wait for.
     const [language, setLanguage] = useState<{ name: string; extension: Extension | null }>()
     useEffect(() => {
         if (!hasLanguage(name)) return
@@ -149,8 +138,6 @@ export default function CodeMirrorPreview({ url, name, onDownload }: PreviewView
     const lang = language?.name === name ? language.extension : null
 
     const extensions = useMemo(() => {
-        // Wrap long lines instead of scrolling horizontally, which reads better for logs, CSV and
-        // prose.
         const base = [EditorView.lineWrapping, LIGHT_CONTENT_THEME, editorPhrases()]
         return lang ? [...base, lang] : base
     }, [lang])
@@ -177,8 +164,6 @@ export default function CodeMirrorPreview({ url, name, onDownload }: PreviewView
                 foldGutter: true,
                 highlightActiveLine: false,
                 highlightActiveLineGutter: false,
-                // Search in the file. Cmd/Ctrl+F opens the search panel, and matches are
-                // highlighted.
                 searchKeymap: true,
                 highlightSelectionMatches: true,
             }}

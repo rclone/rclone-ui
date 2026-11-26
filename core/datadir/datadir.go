@@ -1,6 +1,3 @@
-// Package datadir manages the data directory. It knows the default location, which a portable
-// copy keeps next to its executable (Portable), the lock that allows only one core to use it, the
-// run directory and the folder for the sockets.
 package datadir
 
 import (
@@ -14,26 +11,23 @@ import (
 	"time"
 )
 
-// Identifier is the name of the app's folder inside the OS data directory.
 const Identifier = "org.rclone.ui"
 
-// The names of the app's files and folders inside the data directory.
 const (
 	AppDB      = "app.db"
-	AgentsFile = "agents.json" // where the agents' server listens, and its token (core/agents)
+	AgentsFile = "agents.json"
 	LockFile   = "core.lock"
-	LogsDir    = "logs" // rcui.log and rcui.log.1 (core/logs), and crash.log (app/crashlog.go)
+	LogsDir    = "logs"
 	RunDirName = "run"
-	CacheDir   = "cache" // rclone's cache dir (config.SetCacheDir)
+	CacheDir   = "cache"
 )
 
 var ErrLocked = errors.New("the data directory is in use by another copy of Rclone UI")
 
 // Default returns the OS local data directory joined with Identifier. That is
 // ~/Library/Application Support on macOS, $XDG_DATA_HOME (or ~/.local/share) on Linux, and
-// %LOCALAPPDATA% on Windows. The data here is tied to this machine (mount points, the run
-// directory), so it is never a roaming folder. A portable copy (see Portable) uses the data
-// folder next to its executable instead.
+// %LOCALAPPDATA% on Windows. A portable copy uses the data folder next to its executable
+// instead.
 func Default() (string, error) {
 	if root, ok := Portable(); ok {
 		return filepath.Join(root, PortableDir), nil
@@ -46,8 +40,8 @@ func Default() (string, error) {
 }
 
 // Lock creates dir (0700) if needed and takes an OS lock on <dir>/core.lock. It keeps trying until
-// wait has passed, because a restarted app can start while the previous one is still shutting
-// down. The lock is released when the process ends (or execs), so a crash never leaves it held.
+// wait has passed. The lock is released when the process ends (or execs), so a crash never leaves
+// it held.
 func Lock(ctx context.Context, dir string, wait time.Duration) (release func(), err error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
@@ -93,9 +87,8 @@ const (
 )
 
 // RunDir returns the folder for children.json and the children's one-time key files. It is
-// override when given, or else <data>/run, however long that path is. It stays in the data dir
-// because the list in children.json of what to start again must survive a reboot. The folder is
-// created with mode 0700 and must belong to this user.
+// override when given, or else <data>/run, however long that path is. The folder is created with
+// mode 0700 and must belong to this user.
 func RunDir(dataDir, override string) (string, error) {
 	dir := override
 	if dir == "" {
@@ -111,9 +104,8 @@ func RunDir(dataDir, override string) (string, error) {
 // SocketDir returns the folder for the children's sockets. It is override when given
 // ($APP_RUN_DIR), or else $XDG_RUNTIME_DIR/rcui-<8 hex>, or else <temp>/rcui-<uid>-<8 hex>. The
 // hex comes from a hash of the data dir's absolute path, so two data dirs never share a folder. A
-// socket's path there stays short however long the data dir's path is, and no socket outlives its
-// child. The folder is created with mode 0700 and must belong to this user, because anyone can
-// create the name first in a shared temp folder.
+// socket's path there stays short however long the data dir's path is. The folder is created with
+// mode 0700 and must belong to this user.
 func SocketDir(dataDir, override string) (string, error) {
 	dir := override
 	if dir == "" {
@@ -132,7 +124,6 @@ func SocketDir(dataDir, override string) (string, error) {
 	return privateDir(dir)
 }
 
-// privateDir creates dir with mode 0700 and checks that it belongs to this user.
 func privateDir(dir string) (string, error) {
 	dir, err := filepath.Abs(dir)
 	if err != nil {

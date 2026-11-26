@@ -13,11 +13,9 @@ import (
 )
 
 const (
-	maintainEvery   = 10 * time.Minute
-	optimizeEvery   = 24 * time.Hour
-	checkpointAbove = 16 << 20 // WAL bytes
-	// maintenanceBusyMS limits how long a checkpoint may hold writers back while it waits for
-	// readers. After that, it checkpoints what it can without waiting.
+	maintainEvery     = 10 * time.Minute
+	optimizeEvery     = 24 * time.Hour
+	checkpointAbove   = 16 << 20
 	maintenanceBusyMS = 100
 )
 
@@ -25,8 +23,6 @@ const (
 // 16 MB, and once a day it refreshes the query planner's statistics. Start it with the core's Go.
 func (d *DB) Maintain(ctx context.Context) {
 	log := logs.Logger(logs.CompDB, logs.SubMaintenance)
-	// Use a separate connection, not the writer, because the core's writes queue behind the
-	// writer.
 	m, err := sql.Open("sqlite", d.dsn(maintenanceBusyMS))
 	if err != nil {
 		log.ErrorContext(ctx, "maintenance connection", "error", err)
@@ -35,7 +31,7 @@ func (d *DB) Maintain(ctx context.Context) {
 	defer func() { _ = m.Close() }()
 	m.SetMaxOpenConns(1)
 
-	optimized := time.Now() // Open ran optimize=0x10002
+	optimized := time.Now()
 	tick := time.NewTicker(maintainEvery)
 	defer tick.Stop()
 	for {
@@ -56,9 +52,6 @@ func (d *DB) Maintain(ctx context.Context) {
 	}
 }
 
-// checkpoint runs wal_checkpoint(TRUNCATE) on m when the WAL is larger than above bytes. If a
-// reader is still on an older snapshot, it waits only for m's busy timeout and then falls back
-// to a passive checkpoint (and reports busy), instead of holding writers back.
 func (d *DB) checkpoint(ctx context.Context, m *sql.DB, above int64, log *slog.Logger) (busy bool, err error) {
 	info, err := os.Stat(d.Path + "-wal")
 	if errors.Is(err, fs.ErrNotExist) {

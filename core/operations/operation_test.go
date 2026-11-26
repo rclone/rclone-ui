@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-// The sources and destination shown on a transfer, read from each operation's form.
 // No remote has a one-letter name, because Windows reads `a:x` as a path on drive A.
 func TestEnds(t *testing.T) {
 	for _, tc := range []struct {
@@ -42,8 +41,6 @@ func TestEnds(t *testing.T) {
 	}
 }
 
-// Every operation is registered once with what BuildPlan needs, and each transfer is recorded as
-// one of the operations that a transfer row can show.
 func TestOperationSpecs(t *testing.T) {
 	var recorded []Operation
 	for name, spec := range operationSpecs {

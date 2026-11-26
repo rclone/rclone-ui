@@ -85,7 +85,6 @@ describe('hasFilters', () => {
             false
         )
         expect(hasFilters({ ignore_case: true })).toBe(false)
-        // The metadata group's other options don't select files.
         expect(hasFilters({}, { metadata: true })).toBe(false)
     })
 })

@@ -17,12 +17,10 @@ func (e *Engine) install(_ context.Context, a *Artifact) (func() error, error) {
 		return nil, fmt.Errorf("a %s download can't be installed on Windows", a.Kind)
 	}
 	if perUser(e.InstallLocation()) {
-		// A per-user install needs no administrator rights, so its update should show no UAC
-		// prompt. But the installer asks for the highest rights the user has, which for an
-		// administrator means a prompt. RunAsInvoker makes Windows start the installer with the
-		// user's own rights instead. ShellExecute passes this process's environment on, so the
-		// variable is set only while the installer starts. The installer clears it for the
-		// programs that it starts (project.nsi's .onInit).
+		// The installer asks for the highest rights the user has, which for an administrator means a
+		// UAC prompt, even for a per-user install. RunAsInvoker starts it with the user's own rights.
+		// ShellExecute passes this process's environment on, so the variable is set only while the
+		// installer starts.
 		restore, err := setEnv(compatLayer, "RunAsInvoker")
 		if err != nil {
 			return nil, err
@@ -35,7 +33,6 @@ func (e *Engine) install(_ context.Context, a *Artifact) (func() error, error) {
 	return noRelaunch, nil
 }
 
-// compatLayer is the environment variable that sets Windows' compatibility layers for a program.
 const compatLayer = "__COMPAT_LAYER"
 
 func setEnv(key, value string) (restore func(), err error) {
@@ -52,10 +49,6 @@ func setEnv(key, value string) (restore func(), err error) {
 	}, nil
 }
 
-// nsisArgs returns the installer's switches (see build/windows/nsis/project.nsi). /P runs it in
-// passive mode, with a progress window and no questions. /UPDATE updates the installed copy, with
-// no new shortcuts and no uninstall. /WAITPID waits for this process to exit. /R starts the app
-// when the installer is done.
 func nsisArgs(pid int, relaunch bool) string {
 	args := []string{"/P", "/UPDATE", fmt.Sprintf("/WAITPID=%d", pid)}
 	if relaunch {
@@ -64,8 +57,8 @@ func nsisArgs(pid int, relaunch bool) string {
 	return strings.Join(args, " ")
 }
 
-// runInstaller starts the installer, detached, through the shell. The shell shows the UAC prompt
-// that a per-machine install needs, where CreateProcess would fail with ERROR_ELEVATION_REQUIRED.
+// ShellExecute shows the UAC prompt that a per-machine install needs, where CreateProcess
+// would fail with ERROR_ELEVATION_REQUIRED.
 func runInstaller(installer, args string) error {
 	verb, err := windows.UTF16PtrFromString("open")
 	if err != nil {

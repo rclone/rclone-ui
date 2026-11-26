@@ -1,12 +1,3 @@
-// Command release writes the feed of a release (app/update's Feed, rclone-ui-update.json), and
-// checks the files that the release publishes.
-//
-//	release manifest -version V -base-url URL [-policy FILE] [-rclone V] [-notes TEXT] [-out FILE] DIR
-//	    Writes the feed for the files in DIR (named as package.sh names them). Every file must be
-//	    there, because leaving one out would stop updates on that platform. The policy is FILE
-//	    (build/release/policy.json), which is edited by hand.
-//	release check -version V DIR
-//	    Checks that DIR holds exactly the files that a release of V publishes (Published).
 package main
 
 import (
@@ -24,18 +15,13 @@ import (
 	"github.com/rclone/rclone-ui/app/update"
 )
 
-// artifact is a file of a release that an update installs.
 type artifact struct {
 	goos, goarch string
 	kind         update.Kind
 }
 
-// prefix starts the name of every file of a release, so that nothing that looks for another
-// app's file names finds them.
 func prefix(version string) string { return "Rclone-UI-" + version + "-" }
 
-// updateFiles returns the files of a release of version that an update installs, by the names
-// that package.sh gives them.
 func updateFiles(version string) map[string]artifact {
 	p := prefix(version)
 	return map[string]artifact{
@@ -52,10 +38,6 @@ func updateFiles(version string) map[string]artifact {
 	}
 }
 
-// Published returns every file that a release of version publishes, sorted: the update files, the
-// disk images, the Windows portable zips, the vendored sources and the Flathub manifest (the
-// release workflow's vendor job), and the feed. The portable zips aren't update files, because a
-// portable copy doesn't update itself.
 func Published(version string) []string {
 	p := prefix(version)
 	names := []string{p + "macos-arm64.dmg", p + "macos-x64.dmg",
@@ -92,7 +74,6 @@ func usage() {
 	os.Exit(2)
 }
 
-// versionFlag reads -version, without a leading v.
 func versionFlag(v string) (string, error) {
 	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
 	if v == "" {
@@ -161,8 +142,6 @@ func manifest(args []string) error {
 		names = append(names, name)
 	}
 	slices.Sort(names)
-	// Write a feed only when every file is there. A feed without one platform's file would stop
-	// updates on that platform, and the next release step would publish it.
 	var missing []string
 	for _, name := range names {
 		_, err := os.Stat(filepath.Join(dir, name))
@@ -198,7 +177,6 @@ func manifest(args []string) error {
 	return nil
 }
 
-// check fails unless DIR holds exactly Published(version): nothing missing, and nothing else.
 func check(args []string) error {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	versionArg := fs.String("version", "", "the release's version, without a v")

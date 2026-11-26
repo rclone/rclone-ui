@@ -12,25 +12,16 @@ import (
 	"github.com/rclone/rclone-ui/core/settings"
 )
 
-// uiSettings is the part of the core's settings that the UI role applies: the launcher's
-// shortcut, the tray icon, the startup window and the update channel. It is reloaded on every
-// settings.changed event.
 type uiSettings struct {
-	// load allows only one read and apply at a time. Otherwise two settings.changed events in a
-	// row would race, and the older read could be applied last, bringing back the launcher's old
-	// shortcut.
 	load sync.Mutex
 
 	mu     sync.Mutex
 	loaded bool
 	cur    settings.Settings
 
-	// language is the language that the tray, the menu bar and the launcher were last drawn in.
-	// It is read and written under load.
 	language string
 }
 
-// settings returns the settings last read from the core, or the defaults before the first read.
 func (u *ui) settings() settings.Settings {
 	u.applied.mu.Lock()
 	defer u.applied.mu.Unlock()
@@ -40,8 +31,6 @@ func (u *ui) settings() settings.Settings {
 	return u.applied.cur
 }
 
-// loadSettings reads the settings from the core and applies what changed. Reads run one at a
-// time, each after the previous one was applied, so the last one to run has the newest settings.
 func (u *ui) loadSettings(ctx context.Context) {
 	u.applied.load.Lock()
 	defer u.applied.load.Unlock()
@@ -72,9 +61,6 @@ func (u *ui) loadSettings(ctx context.Context) {
 	if first || prev.Appearance.TrayIcon != next.Appearance.TrayIcon {
 		u.tray.SetAppearance(trayAppearance(next.Appearance.TrayIcon))
 	}
-	// The core has already switched the language (core/settings), either as it started or before
-	// it reported that the settings changed. The tray and the menu bar may have been drawn in the
-	// system's language before that, so what the Go side shows is drawn again here.
 	if lang := i18n.Language(); lang != u.applied.language {
 		u.applied.language = lang
 		u.languageChanged()
@@ -82,17 +68,12 @@ func (u *ui) loadSettings(ctx context.Context) {
 	if next.General.HideStartup {
 		u.noStartup.Store(true)
 	}
-	// Starts, stops or restarts the agents' server when its settings changed.
 	u.agents.Apply(next.Agents)
-	// The app starts without a Dock icon (ActivationPolicyAccessory), so the first load only acts
-	// when the setting asks for the icon.
 	if first && next.General.ShowInDock || !first && prev.General.ShowInDock != next.General.ShowInDock {
 		showInDock(next.General.ShowInDock)
 	}
 }
 
-// trayAppearance converts a tray icon setting to the name the tray package uses. An unset value
-// gives the OS's default.
 func trayAppearance(icon settings.TrayIcon) string {
 	switch icon {
 	case settings.TrayIconSystem:
@@ -110,15 +91,12 @@ func trayAppearance(icon settings.TrayIcon) string {
 	return "system"
 }
 
-// skipVersion records a release that the user chose not to install, in the
-// updates.skipped_version setting.
 func (u *ui) skipVersion(ctx context.Context, v string) {
 	if _, err := u.apis.Settings.Update(ctx, settings.Patch{SkippedVersion: &v}); err != nil {
 		u.log.Warn("could not record the skipped version", "version", v, "error", err)
 	}
 }
 
-// hideStartupFromNow turns the "Show Startup screen" setting off.
 func (u *ui) hideStartupFromNow(ctx context.Context) {
 	hide := true
 	if _, err := u.apis.Settings.Update(ctx, settings.Patch{HideStartup: &hide}); err != nil {
@@ -126,8 +104,6 @@ func (u *ui) hideStartupFromNow(ctx context.Context) {
 	}
 }
 
-// checkProxy tests the proxy at startup. A proxy that can't connect is reported once, before
-// every remote fails through it. Choosing Exit quits the app.
 func (u *ui) checkProxy(ctx context.Context) {
 	proxy := u.settings().Proxy.URL
 	if proxy == "" {

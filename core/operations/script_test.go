@@ -8,10 +8,6 @@ import (
 	"testing"
 )
 
-// localPath returns a path in a folder on this computer, in two forms: the Fs string that a plan
-// opens it by, and the plain path that a script names it by. On Windows the folder is on a drive.
-// A path that starts with `/` there is on the drive that the app runs from, so it is not a full
-// path, and a script keeps it as an Fs string.
 func localPath(rel string) (fsString, plain string) {
 	home := "/home/me/"
 	if runtime.GOOS == "windows" {
@@ -20,9 +16,6 @@ func localPath(rel string) (fsString, plain string) {
 	return ":local:" + home + rel, filepath.FromSlash(home + rel)
 }
 
-// A plan's steps become one rclone command each. Every command has the plan's options, a step
-// that reads a folder has the filters too, and a file step names its file with copyto. A local
-// path is written as a plain path, without the local backend's name.
 func TestPlanCommands(t *testing.T) {
 	photosFs, photos := localPath("Photos/")
 	homeFs, _ := localPath("")
@@ -53,8 +46,6 @@ func TestPlanCommands(t *testing.T) {
 	}
 }
 
-// A bisync's parameters become the flags of rclone bisync. A switch that is off, and the share of
-// deletes at the command line's own default, are left out.
 func TestBisyncCommand(t *testing.T) {
 	p := Plan{
 		Steps: []Step{{Op: OpBisync, Src: "/home/me/Notes", Dst: "gdrive:Notes"}},
@@ -76,9 +67,6 @@ func TestBisyncCommand(t *testing.T) {
 	}
 }
 
-// A script's lines quote what each shell would read differently, and only a flag's value. A
-// serve's credentials are variables: in front of the command in a POSIX shell, and on a line of
-// their own in PowerShell. A config file other than rclone's default is named with --config.
 func TestScriptLines(t *testing.T) {
 	commands := []ScriptCommand{
 		{Args: []string{"copy", "/home/me/My Files", "gdrive:it's", "--exclude=*.tmp"}},
@@ -103,8 +91,6 @@ func TestScriptLines(t *testing.T) {
 	}
 }
 
-// A script's mount has the page's flags, but neither the NFS port nor the cache folder that the
-// app picks for its own mounts.
 func TestMountScript(t *testing.T) {
 	c, err := mountCommand(MountArgs{
 		Source:      "gdrive:photos",
@@ -127,8 +113,6 @@ func TestMountScript(t *testing.T) {
 	}
 }
 
-// A script's serve keeps its credentials out of the command line, as the app's own serve does,
-// and serves a local folder by its plain path.
 func TestServeScript(t *testing.T) {
 	_, shared := localPath("Shared")
 	_, sharedFolder := localPath("Shared/")
@@ -151,9 +135,6 @@ func TestServeScript(t *testing.T) {
 	}
 }
 
-// A plan's program runs each step as its API call, in the background, and waits for it. The
-// options are in _config and the filters in _filter, keyed by the fields of rclone's structs,
-// with each value in the JSON type that rclone reads.
 func TestPlanProgram(t *testing.T) {
 	photosFs, photos := localPath("Photos/")
 	homeFs, _ := localPath("")
@@ -180,14 +161,11 @@ func TestPlanProgram(t *testing.T) {
 			t.Errorf("program has no %q:\n%s", want, script.SDK)
 		}
 	}
-	// A file step has no filters.
 	if strings.Count(script.SDK, "_filter") != 1 {
 		t.Errorf("program:\n%s", script.SDK)
 	}
 }
 
-// A mount's program and a serve's are one call each, with their own options as parameters named
-// as rclone names them, and the serve's credentials among them.
 func TestMountAndServePrograms(t *testing.T) {
 	mount, err := MountScript(MountArgs{
 		Source:      "gdrive:photos",

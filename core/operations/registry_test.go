@@ -1,7 +1,5 @@
 package operations
 
-// rclone's option blocks and backends register themselves when their packages are linked in.
-// The app links these packages (main.go), so the tests link them too.
 import (
 	_ "github.com/rclone/rclone/backend/all"
 	_ "github.com/rclone/rclone/cmd/mountlib"

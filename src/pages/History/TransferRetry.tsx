@@ -21,14 +21,8 @@ import { BackBar, GeneralErrors, RetryRefused, TransferNotFound } from './Transf
 
 const ROW_HEIGHT = 56
 
-/** The list key of a retry item: the key that Retry sends back, as text. */
 const keyOf = (item: Transfers.RetryItem) => JSON.stringify(item.key)
 
-/**
- * Lists what failed in transfer `id`, so that the user can pick what to retry. One, some or all
- * of the failures run as a single new transfer. The core decides what can be retried
- * (Retryable). Once the retry starts, its details open.
- */
 export default function TransferRetry({
     id,
     onBack,
@@ -36,9 +30,7 @@ export default function TransferRetry({
     onStarted,
 }: {
     id: string
-    /** Goes back to the transfer's details. */
     onBack: () => void
-    /** Goes back to the list, when the transfer is gone. */
     onHistory: () => void
     onStarted: (id: string) => void
 }) {
@@ -46,12 +38,8 @@ export default function TransferRetry({
     const { retryable, query } = useRetryable(id)
     const transfer = detail?.transfer
     const items = retryable?.items ?? []
-    // When this version of the app refuses the retry, there is nothing to pick, so the reason
-    // is shown instead.
     const refused = retryable?.refused ?? ''
     const allKeys = useMemo(() => items.map(keyOf), [items])
-    // Everything starts selected, because retrying all of it is the common case and then takes
-    // one click.
     const [selected, setSelected] = useState<Set<string> | null>(null)
     const chosen = selected ?? new Set(allKeys)
     const [pending, setPending] = useState(false)
@@ -121,7 +109,6 @@ export default function TransferRetry({
             toastSuccess(t`Retry started as #${seq}`)
             onStarted(started.id)
         } catch (failure) {
-            // A retry that was recorded before it failed is shown, with why it failed.
             const recorded = coreError(failure)?.transfer
             if (recorded) {
                 onStarted(recorded.id)
@@ -223,11 +210,6 @@ export default function TransferRetry({
     )
 }
 
-/**
- * The failures to pick from. The list is virtualized, because a bad run can fail thousands of
- * files, so it needs to be given its height. The height is measured here, in a component that
- * mounts only after the failures have loaded, so the area to measure is already on screen.
- */
 function FailedFiles({
     items,
     chosen,
@@ -266,9 +248,6 @@ function FailedFiles({
                     <ListboxItem
                         key={keyOf(item)}
                         textValue={item.label}
-                        // The check mark is styled from the row's own `data-selected`, because
-                        // the virtualized list doesn't re-render its rows when the selection
-                        // changes.
                         startContent={
                             <span
                                 aria-hidden={true}
@@ -277,8 +256,6 @@ function FailedFiles({
                                 <CheckIcon className="hidden size-3.5 text-primary-foreground group-data-[selected=true]:block" />
                             </span>
                         }
-                        // A long path is shortened in its folders, never in the file name,
-                        // because the file name is what users pick a row by.
                         title={<PathLabel path={item.label} />}
                         description={<span title={item.error}>{errorReason(item.error)}</span>}
                         classNames={{

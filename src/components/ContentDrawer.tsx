@@ -15,17 +15,11 @@ import { platform } from '../../lib/shell'
 import { IconTile } from './look/IconTile'
 import type { Tone } from './look/tones'
 
-/** The drawer's surface: a little darker than the panels on it, so they stand out. */
 const DRAWER_CLASSNAMES = {
     base: 'bg-[#f5f5f7] dark:bg-[#161618]',
     backdrop: 'bg-black/30 dark:bg-black/60',
 }
 
-/**
- * A drawer's header. Use it in a DrawerContent of your own, or give ContentDrawer a `title` for
- * the whole shell. `inset` leaves room for the window's buttons, which macOS draws over a
- * full-height drawer.
- */
 export function DrawerShellHeader({
     icon,
     leading,
@@ -39,7 +33,6 @@ export function DrawerShellHeader({
     className,
 }: {
     icon?: ComponentType<{ className?: string }>
-    /** Drawn in place of the tile, such as a file's own icon. */
     leading?: ReactNode
     tone?: Tone
     title: ReactNode
@@ -105,7 +98,6 @@ export function DrawerShellFooter({
 }
 
 type ShellProps = {
-    /** With a title, the drawer draws the shell around its children, which are the body. */
     title?: ReactNode
     icon?: ComponentType<{ className?: string }>
     tone?: Tone
@@ -117,11 +109,6 @@ type ShellProps = {
     closeLabel?: string
 }
 
-/**
- * HeroUI's Drawer, with every prop it takes. Without a `title`, its children are a DrawerContent,
- * as with HeroUI's. With one, its children are the body, and the drawer draws the header (with
- * the tile of `icon` and `tone`), the scrolling body and the `footer` around them.
- */
 export default function ContentDrawer({
     title,
     icon,

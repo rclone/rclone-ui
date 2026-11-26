@@ -60,7 +60,6 @@ function isYoutubeUrl(url: string) {
     return url.includes('youtube.com') || url.includes('youtu.be')
 }
 
-/** The bar's sentence: what DOWNLOAD will save, and where. A file without a name yet is "the file". */
 function lineOf(filename: string | undefined, destination: string | undefined): BarLine {
     const name = filename?.trim()
     if (name) return downloadLine(name, destination)
@@ -68,12 +67,10 @@ function lineOf(filename: string | undefined, destination: string | undefined): 
     return { title: segments(t`Download the file to ${place}`) }
 }
 
-/** How long typing in the URL must pause before the link is looked up. */
 const LOOKUP_DELAY = 400
 
 export default function Download() {
     const start = usePageStart('download')
-    // When duplicating, the preset is the original download, including its filename.
     const presetArgs = start.preset?.download ?? undefined
 
     const [url, setUrl] = useState<string | undefined>(start.url || undefined)
@@ -83,19 +80,11 @@ export default function Download() {
     const [filename, setFilename] = useState<string | undefined>(
         () => presetArgs?.filename || undefined
     )
-    // The values the page opened with, and whether the user typed a filename (otherwise the
-    // lookup suggests one). If either changes, the form counts as edited.
     const [opened] = useState({ url, destination })
     const [filenameTyped, setFilenameTyped] = useState(false)
-    // The preset's URL. Its first lookup keeps the preset's filename instead of suggesting one.
     const keepFilename = useRef(presetArgs?.filename ? presetArgs.url : undefined)
-    // Whether the Filename field holds a name that the user typed. A lookup never replaces it.
-    // Emptying the field hands it back to the lookups.
     const typedName = useRef(false)
-    /** Whether a lookup of `url` must leave the Filename field as it is. */
     const keepsName = (url: string) => keepFilename.current === url || typedName.current
-    // Set from a press of DOWNLOAD until the start finishes, so a double-click starts only one
-    // download.
     const submitting = useRef(false)
 
     const sites = useLinkSites()
@@ -114,21 +103,13 @@ export default function Download() {
         | undefined
     >()
     const [isFetchingDownloadData, setIsFetchingDownloadData] = useState(false)
-    // Set when the lookup gave no file for a link that should have one. The link itself is then
-    // downloaded, which is most likely a web page, and the page says so.
     const [miss, setMiss] = useState<LookupMiss>()
-    // Counts the presses of "Try again", each of which looks the same link up once more.
     const [attempt, setAttempt] = useState(0)
 
     const submission = useOperationSubmission({
         operation: 'download',
         startLabel: t({ message: 'Download', comment: 'Button: starts the download.' }),
-        // Starts a recorded transfer (rclone's copyurl), which History lists like any other. It is
-        // submitted only once, because a retry would download the file twice. The transfer
-        // downloads the media found at the URL, but the preset keeps the URL that was typed, so
-        // Duplicate looks it up again.
         start: (args: Operations.DownloadArgs) => {
-            // `problem` skips the filename check while the lookup runs, so check it here.
             const problem = filenameProblem(args.filename ?? '')
             if (problem) throw new Error(problem)
             return startTransfer(
@@ -138,8 +119,6 @@ export default function Download() {
                 }
             )
         },
-        // The filename is checked only after the URL lookup is done, because the lookup suggests a
-        // filename.
         problem: () => {
             if (!url) return t`Please enter a URL`
             if (!isValidUrl(url)) return t`Invalid URL`
@@ -147,7 +126,6 @@ export default function Download() {
             if (isFetchingDownloadData) return undefined
             return filenameProblem(filename ?? '') || undefined
         },
-        // buildArgs runs only after `problem` passes, so the URL and the folder are set.
         buildArgs: () => ({
             url: url ?? '',
             filename: filename ?? '',
@@ -200,14 +178,11 @@ export default function Download() {
 
         let aborted = false
         startTransition(() => {
-            // Clear the result for the previous URL so it is never used for this one, even if
-            // this lookup fails.
             setDownloadData(undefined)
             setIsFetchingDownloadData(true)
             setMiss(undefined)
         })
 
-        // When no media is found, the page itself is downloaded under its own name.
         const keepPage = (kept: boolean) => {
             const pageName = fallbackFilename(url)
             startTransition(() => {
@@ -216,15 +191,11 @@ export default function Download() {
             })
         }
 
-        // The core asks the link service, through the same proxy that the download uses. It only
-        // asks for the sites that the service lists, and other URLs are downloaded as they are.
-        // The link is looked up once typing pauses, not for every key.
         let lookup: ReturnType<typeof resolveLink> | undefined
         const timer = setTimeout(() => {
             lookup = resolveLink(url)
             lookup
                 .then((link) => {
-                    // The URL changed since this lookup started, and a newer one handles it.
                     if (aborted) return
                     const kept = keepsName(url)
                     keepFilename.current = undefined
@@ -271,7 +242,6 @@ export default function Download() {
     const swap = useSwap()
     const paste = () => {
         setTimeout(() => {
-            // The promise rejects if the user dismisses the paste prompt.
             navigator.clipboard
                 .readText()
                 .then((text) => {
@@ -362,8 +332,6 @@ export default function Download() {
                             }}
                             fullWidth={true}
                             isDisabled={!url || !destination}
-                            // Only a name the core would refuse is shown here. An empty one is
-                            // asked for in the bar.
                             isInvalid={!!filenameError}
                             errorMessage={filenameError}
                             classNames={bareField(!!filenameError)}
@@ -404,8 +372,6 @@ export default function Download() {
                                 </span>
                             </Panel>
                         ) : miss ? (
-                            // The download still works, but saves the link itself, which is
-                            // most likely a web page. So this is a warning, not an error.
                             <Alert
                                 color="warning"
                                 variant="faded"

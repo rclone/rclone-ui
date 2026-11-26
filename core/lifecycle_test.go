@@ -10,8 +10,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/syncx"
 )
 
-// A one-shot goroutine that panics is recovered and not run again, because a boot run twice would
-// start the same mounts twice. A loop that panics is started again.
 func TestGoOnceRunsOnce(t *testing.T) {
 	c := &Core{backoff: children.Backoff{Min: time.Millisecond, Max: time.Millisecond, Reset: time.Minute}}
 	c.ctx, c.cancel = context.WithCancel(context.Background())

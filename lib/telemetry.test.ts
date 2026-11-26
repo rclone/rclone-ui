@@ -35,12 +35,9 @@ describe("a page's errors", () => {
     })
 
     it('leaves out what is an answer rather than a crash', () => {
-        // The core refused a form, or a remote needs a sign-in.
         reportPageError(coreFailure('invalid', 'Specify the folder to list.'))
-        // A call that the page cancelled itself.
         reportPageError(Object.assign(new Error('cancelled'), { name: 'CancelError' }))
         reportPageError(Object.assign(new Error('aborted'), { name: 'AbortError' }))
-        // Something thrown that isn't an error has no stack to report.
         reportPageError('a string')
         reportPageError(undefined)
         expect(sent.errors).toEqual([])

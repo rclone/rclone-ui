@@ -1,17 +1,3 @@
-// Package pathlink implements "Add rclone to PATH". It adds a command named rclone that runs rcui,
-// which acts as rclone when called by that name and uses the same config files as the app. It is
-// opt-in, it never replaces a user's own rclone, and it updates with the app because it points to
-// the app. The link lives in these places:
-//
-//   - macOS: /usr/local/bin/rclone → <data>/bin/rclone → the app's rcui. /usr/local/bin usually
-//     needs an administrator password, but the pointer in <data> doesn't, so the app can follow a
-//     moved bundle without asking again.
-//   - Linux: ~/.local/bin/rclone → <data>/bin/rclone → /usr/bin/rcui or $APPIMAGE.
-//   - Windows: the bin folder next to rcui.exe is added to the user's PATH. It holds the
-//     rclone.exe that the installer and the portable zip bring, a console program that runs
-//     rcui.exe (see build/windows/rclone-shim).
-//
-// The package doesn't import Wails. The UI role's PathService binds it for pages.
 package pathlink
 
 import (
@@ -45,17 +31,11 @@ type State struct {
 	Command string `json:"command,omitempty"`
 }
 
-// Errors that Enable returns, which errors.Is finds. The error itself says more, in words that
-// the page shows in the app's language (see refusal).
 var (
-	// ErrUnsupported means no link can work here. State.Reason explains why.
 	ErrUnsupported = errors.New("adding rclone to PATH isn't possible here")
-	// ErrForeign means that a file that doesn't belong to this app already has the link's name.
-	ErrForeign = errors.New("an rclone that isn't Rclone UI's is already there")
+	ErrForeign     = errors.New("an rclone that isn't Rclone UI's is already there")
 )
 
-// refusal is an error that the page shows (shown, made with core/errs, so that the page gets it
-// in the app's language) and that errors.Is matches with kind (ErrUnsupported, ErrForeign).
 type refusal struct{ shown, kind error }
 
 func (r refusal) Error() string   { return r.shown.Error() }
@@ -89,8 +69,7 @@ func Disable() (State, error) {
 	return l.Disable()
 }
 
-// Refresh keeps an enabled link pointing to this copy of the app. The UI calls it once at start,
-// so the link follows a moved app.
+// Refresh keeps an enabled link pointing to this copy of the app.
 func Refresh() error {
 	l, err := New()
 	if err != nil {

@@ -7,8 +7,6 @@ import (
 	"github.com/rclone/rclone-ui/core/internal/late"
 )
 
-// reName is an error's kind or a window's name: letters and digits, as in "TypeError" and
-// "Commander".
 var reName = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,40}$`)
 
 type API struct {
@@ -26,7 +24,6 @@ func (a *API) Track(ctx context.Context, event string, props map[string]any) err
 // error's kind ("TypeError"), and stack is its stack as the browser wrote it.
 func (a *API) PageError(ctx context.Context, window, name, message, stack string) error {
 	return a.s.Do(ctx, func(s *Service) error {
-		// Both come from the page, so only a plain name is taken: no free text.
 		if !reName.MatchString(name) {
 			name = "Error"
 		}

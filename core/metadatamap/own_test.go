@@ -7,9 +7,6 @@ import (
 	"testing"
 )
 
-// Own recognizes the app's own mapper with or without the executable in front, and returns it
-// without the path. Another program, another subcommand, and rules that don't parse are not the
-// app's own.
 func TestOwn(t *testing.T) {
 	exe := filepath.Join(t.TempDir(), "rcui")
 	if err := os.WriteFile(exe, nil, 0o700); err != nil {
@@ -38,7 +35,6 @@ func TestOwn(t *testing.T) {
 			t.Errorf("%s: %q %v, want %q", tc.name, got, ok, tc.want)
 		}
 	}
-	// Without an executable, only the subcommand form is the app's own.
 	if _, ok := Own([]string{exe, "metadata-map"}, ""); ok {
 		t.Error("the executable counted without one to compare with")
 	}

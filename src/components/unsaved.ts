@@ -2,7 +2,6 @@ import { t } from '@lingui/core/macro'
 import { useCallback, useEffect, useRef } from 'react'
 import { ask, currentWindow } from '../../lib/shell'
 
-/** Asks before unsaved changes are dropped. Resolves true when the user chose Leave. */
 export function confirmLeave(): Promise<boolean> {
     return ask(t`Leave without saving your changes?`, {
         title: t`Unsaved changes`,
@@ -12,15 +11,6 @@ export function confirmLeave(): Promise<boolean> {
     })
 }
 
-/**
- * Guards unsaved changes, for a drawer that edits something. While `edited` is true, closing the
- * window asks first ("Leave without saving your changes?"). The drawer calls `confirm` before it
- * closes, which asks the same and resolves true when there is nothing to lose or the user chose
- * Leave. After a save, `forget` drops the changes, so the close that follows doesn't ask.
- *
- *     const { confirm, forget } = useUnsavedChanges(isOpen && edited)
- *     <Drawer onClose={async () => { if (await confirm()) onClose() }}>
- */
 export function useUnsavedChanges(edited: boolean): {
     confirm: () => Promise<boolean>
     forget: () => void
@@ -54,12 +44,9 @@ export function useUnsavedChanges(edited: boolean): {
     return { confirm, forget }
 }
 
-// The window's close guard, shared by every useUnsavedChanges in the window. The window is guarded
-// while at least one of them holds changes.
 let held = 0
 let listening = false
 let asking = false
-// The calls to the app run in order, so a quick hold and release can't end with the guard on.
 let calls: Promise<unknown> = Promise.resolve()
 
 function guard(on: boolean) {
@@ -74,7 +61,6 @@ function hold() {
     listening = true
     currentWindow.onCloseAsked(async () => {
         if (asking) return
-        // With no changes left (the guard was turned off a moment ago), the window just closes.
         if (held > 0) {
             asking = true
             const leave = await confirmLeave()

@@ -23,7 +23,6 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// Every test shares one Init, as the app does. The remotes are in memory.
 func TestMain(m *testing.M) {
 	testutil.Main(m, func(dir string) error {
 		conf := filepath.Join(dir, "rclone.conf")
@@ -35,8 +34,6 @@ func TestMain(m *testing.M) {
 	})
 }
 
-// MakeTree writes files under a new temporary folder and returns its real path. files maps a
-// slash-separated path to its content, and a path ending in / is an empty folder.
 func MakeTree(t testing.TB, files map[string]string) string {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -61,11 +58,6 @@ func MakeTree(t testing.TB, files map[string]string) string {
 	return root
 }
 
-// Fixture sets how the test backend behaves. The `:browsetest,id=<n>:<path>` root returned by
-// AddFixture lists the Fs at Inner/<path> through the test backend. Hook runs before every List
-// or ListP of dir, for example to add a delay or a failure. With ListP set, the backend is paged.
-// With ListR set, it lists a whole tree at once, and stops at the first folder that fails. With
-// Dupes set, every List reports each entry twice.
 type Fixture struct {
 	Inner string
 	ListP bool
@@ -78,14 +70,11 @@ type Fixture struct {
 	groups                         []string
 }
 
-// Lists returns how many List or ListP calls were made. Most returns the largest number that
-// ran at the same time. Tranches returns how many pages a ListP delivered.
 func (fx *Fixture) Lists() int    { return int(fx.lists.Load()) }
 func (fx *Fixture) Most() int     { return int(fx.most.Load()) }
 func (fx *Fixture) Running() int  { return int(fx.running.Load()) }
 func (fx *Fixture) Tranches() int { return int(fx.tranches.Load()) }
 
-// Groups returns the stats groups that the listings ran in.
 func (fx *Fixture) Groups() []string {
 	fx.mu.Lock()
 	defer fx.mu.Unlock()
@@ -98,7 +87,6 @@ var (
 	fixtureSeq int
 )
 
-// AddFixture returns the root of fx as an fs string.
 func AddFixture(fx *Fixture) string {
 	fixturesMu.Lock()
 	defer fixturesMu.Unlock()
@@ -108,7 +96,6 @@ func AddFixture(fx *Fixture) string {
 	return ":browsetest,id=" + id + ":"
 }
 
-// Sleep waits for d or until ctx ends, like a request to a throttled backend.
 func Sleep(ctx context.Context, d time.Duration) error {
 	select {
 	case <-time.After(d):
@@ -138,10 +125,8 @@ type testFs struct {
 	features   *fs.Features
 }
 
-// testFsP is a paged backend, because it has ListP.
 type testFsP struct{ *testFs }
 
-// testFsR lists a whole tree at once, because it has ListR.
 type testFsR struct{ *testFs }
 
 func newTestFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, error) {
@@ -185,8 +170,6 @@ func (f *testFs) List(ctx context.Context, dir string) (fs.DirEntries, error) {
 	return entries, err
 }
 
-// ListP splits the inner listing into pages. It uses the inner backend's own pages when that
-// backend is paged (the memory backend uses 100 entries each), and pages of 100 otherwise.
 func (f *testFsP) ListP(ctx context.Context, dir string, callback fs.ListRCallback) error {
 	if err := f.fx.enter(ctx, dir); err != nil {
 		return err
@@ -213,8 +196,6 @@ func (f *testFsP) ListP(ctx context.Context, dir string, callback fs.ListRCallba
 	return nil
 }
 
-// ListR lists each folder below dir through List, so the hook runs for each, and sends each
-// listing on. It stops at the first error, as a bucket's listing does.
 func (f *testFsR) ListR(ctx context.Context, dir string, callback fs.ListRCallback) error {
 	entries, err := f.List(ctx, dir)
 	if err != nil {
@@ -233,7 +214,6 @@ func (f *testFsR) ListR(ctx context.Context, dir string, callback fs.ListRCallba
 	return nil
 }
 
-// enter counts a listing and runs the hook. On success, the caller must decrement running.
 func (fx *Fixture) enter(ctx context.Context, dir string) error {
 	fx.lists.Add(1)
 	if g, ok := accounting.StatsGroupFromContext(ctx); ok {

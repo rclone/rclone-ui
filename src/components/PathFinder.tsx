@@ -31,15 +31,7 @@ export interface PathOptions {
     allowedKeys?: AllowedKey[]
     showFiles?: boolean
     labelPlacement?: 'inside' | 'outside'
-    /**
-     * Returns what is wrong with the typed path (defaults to pathProblem). A mount point can be a
-     * drive letter, which isn't a path.
-     */
     problemOf?: (path: string) => string | undefined
-    /**
-     * The kind of field, a source or a destination. While the field is empty, its picker opens
-     * where the last pick for that kind was made (pickerMemory.ts). Other fields have none.
-     */
     remember?: PlaceKind
 }
 
@@ -61,14 +53,8 @@ const DESTINATION: PathOptions = {
     remember: 'destination',
 }
 
-// The route panel. An operation's places sit in one panel, as a route: the source on top, the
-// destination under it, joined by a line on the left in the page's tone. Pages with one place
-// (Delete, Purge, Serve) use the same panel with a single stop.
-
-/** Where a row sits on the route: its start, its end, a single place, or off the route. */
 export type Stop = 'from' | 'to' | 'single' | 'none'
 
-/** The line under a route: where the files land, a note, or a warning. */
 export interface RouteNote {
     kind: 'lands' | 'info' | 'warning' | 'danger'
     text: ReactNode
@@ -81,12 +67,9 @@ const NOTE_ICON = {
     danger: ExclamationTriangleIcon,
 } as const
 
-// Where a stop's dot sits: the middle of a 64 px field, or of a compact 36 px line.
 const DOT_Y = { field: 'top-8', compact: 'top-[18px]' } as const
-// The line above a destination's dot, which joins it to the line before it.
 const TO_LINE = { field: 'h-8', compact: 'h-[18px]' } as const
 
-/** The rail on the left of a row: the stop's dot, and the line that joins it to the next. */
 function Rail({
     stop,
     tone,
@@ -133,11 +116,6 @@ function Rail({
     )
 }
 
-/**
- * A row of a route panel: its place on the rail, then its field. The field is a bare PathField
- * or MultiPathField, or any field 64 px high (a URL, a filename). A compact row is a line of text
- * 36 px high, for a route that is only read (a transfer's report).
- */
 export function RouteRow({
     stop,
     tone,
@@ -147,7 +125,6 @@ export function RouteRow({
 }: {
     stop: Stop
     tone: Tone
-    /** Draws the start's dot filled, for a route that goes both ways (Bisync). */
     filled?: boolean
     compact?: boolean
     children: ReactNode
@@ -160,10 +137,6 @@ export function RouteRow({
     )
 }
 
-/**
- * The panel that holds an operation's places, with the note under them. Every gap in it is 12 px:
- * around the fields, between a field and the line under it, and above the note.
- */
 export function RoutePanel({
     tone,
     note,
@@ -187,8 +160,6 @@ export function RoutePanel({
                         note.kind === 'warning' && 'bg-warning-50/60 dark:bg-warning-50/20'
                     )}
                 >
-                    {/* As wide as the panel's padding and the rail, so the icon sits under the
-                        dots. */}
                     <span className="flex justify-center w-[60px] pt-px shrink-0">
                         <NoteIcon
                             className={cn(
@@ -216,12 +187,6 @@ export function RoutePanel({
     )
 }
 
-/**
- * The line between the source and the destination, with the button that swaps the paths. Without
- * `onSwap`, only the hairline is drawn. `disabledReason` disables the button and replaces its
- * tooltip. `buttons={false}` is for rows with no buttons on the right (a transfer's report). A
- * compact link sits between compact rows.
- */
 export function RouteLink({
     tone,
     onSwap,
@@ -245,12 +210,7 @@ export function RouteLink({
                     style={{ background: `rgb(${TONE_RGB[tone]} / 0.35)` }}
                 />
             </div>
-            {/* The hairline runs from where the fields' text starts (their 12 px padding) to
-                4 px inside the fields' right edge. */}
             <div className={cn('flex-1 h-px ml-3 bg-divider', buttons ? 'mr-2' : 'mr-3')} />
-            {/* As wide as the folder buttons, so the swap button sits between them. The 28 px
-                button reaches 2 px past the row on each side, and stays 6 px from the folder
-                buttons. */}
             {buttons && (
                 <div className="relative z-10 flex justify-center w-12 shrink-0">
                     {onSwap && (
@@ -301,11 +261,9 @@ export function PathFinder({
     destPath?: string
     setDestPath: (path: string | undefined) => void
     switchable?: boolean
-    /** The route goes both ways (Bisync): both stops are drawn alike. */
     bothWays?: boolean
     sourceOptions?: PathOptions
     destOptions?: PathOptions
-    /** The line under the route. Defaults to the destination's description, as a note. */
     note?: RouteNote
 }) {
     const { tone } = pageLook()
@@ -344,7 +302,6 @@ export function PathFinder({
     )
 }
 
-/** Like PathFinder, with several sources. The paths can be swapped while there is one source. */
 export function MultiPathFinder({
     sourcePaths = [],
     setSourcePaths,
@@ -362,7 +319,6 @@ export function MultiPathFinder({
     switchable?: boolean
     sourceOptions?: PathOptions
     destOptions?: PathOptions
-    /** The line under the route. Defaults to the destination's description, as a note. */
     note?: RouteNote
 }) {
     const { tone } = pageLook()
@@ -409,7 +365,6 @@ export function MultiPathFinder({
     )
 }
 
-/** The classes of a field in a route panel's row, which has no box of its own. */
 export function bareField(invalid = false) {
     return {
         inputWrapper: cn(
@@ -492,7 +447,6 @@ export function PathField({
     labelPlacement?: 'inside' | 'outside'
     problemOf?: (path: string) => string | undefined
     remember?: PlaceKind
-    /** Draws the field without a box of its own, for a row of a route panel. */
     bare?: boolean
 }) {
     const [isOpen, setIsOpen] = useState<boolean>(false)
@@ -538,13 +492,9 @@ export function PathField({
                         return
                     }
                     memory.remember(items, shown)
-                    // Use the path as picked. rclone decides whether it is a folder when it is
-                    // used.
                     setPath(item.path)
                 }}
                 isOpen={isOpen}
-                // A field with a path opens the picker there, and an empty one where the last
-                // pick for its kind was made.
                 initialPaths={path ? [path] : memory.start ? [memory.start] : []}
                 allowedKeys={allowedKeys}
                 mode={showFiles ? 'both' : 'folders'}
@@ -554,7 +504,6 @@ export function PathField({
     )
 }
 
-/** With the label outside, it stays above the "X and N more" box too. */
 function LabelledOutside({
     label,
     placement,
@@ -573,10 +522,6 @@ function LabelledOutside({
     )
 }
 
-/**
- * What a field with several paths shows: "X and N more". The first path is marked, so that the
- * field can show the rest of the sentence dimmed.
- */
 function severalWords(paths: readonly string[]): Segment[] {
     const first = stressed(paths[0])
     return segments(
@@ -587,10 +532,6 @@ function severalWords(paths: readonly string[]): Segment[] {
     )
 }
 
-/**
- * A field for one or more paths. A typed path is the only one. The picker adds paths, and with
- * several the field shows "X and N more", which lists each one with a remove button.
- */
 export function MultiPathField({
     paths,
     setPaths,
@@ -616,15 +557,12 @@ export function MultiPathField({
     showFiles?: boolean
     labelPlacement?: 'inside' | 'outside'
     remember?: PlaceKind
-    /** Draws the field without a box of its own, for a row of a route panel. */
     bare?: boolean
 }) {
     const [isOpen, setIsOpen] = useState<boolean>(false)
     const memory = usePickerMemory(remember, allowedKeys)
 
     const isMultipleSelected = paths.length > 1
-    // Several paths can only come from the picker, which never returns a path rclone refuses.
-    // A typed path is always the first and only one.
     const firstProblem = paths[0] ? pathProblem(paths[0]) : undefined
 
     return (
@@ -734,7 +672,6 @@ export function MultiPathField({
                         label={label}
                         labelPlacement={labelPlacement}
                         value={paths?.[0] || ''}
-                        // An emptied field means no source, not a source of ''.
                         onValueChange={(e) => setPaths(e ? [e] : [])}
                         placeholder={placeholder}
                         description={description}
@@ -769,8 +706,6 @@ export function MultiPathField({
                     setPaths(Array.from(newPaths))
                 }}
                 isOpen={isOpen}
-                // As in PathField: the field's first path, or where the last pick for its kind
-                // was made.
                 initialPaths={paths[0] ? paths : memory.start ? [memory.start] : []}
                 allowedKeys={allowedKeys}
                 mode={showFiles ? 'both' : 'folders'}

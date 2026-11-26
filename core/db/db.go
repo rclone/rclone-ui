@@ -1,6 +1,3 @@
-// Package db opens app.db, the core's single SQLite file. It sets the connection pragmas, keeps
-// one writer and a pool of readers, makes or checks the schema (schema.go) and maintains the
-// file. Only the core opens it.
 package db
 
 import (
@@ -14,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"modernc.org/sqlite" // driver "sqlite"
+	"modernc.org/sqlite"
 
 	"github.com/rclone/rclone-ui/core/errs"
 )
@@ -30,11 +27,11 @@ var (
 // DB is the database file. Every write goes through W, a single connection that takes the write
 // lock at BEGIN. Reads go through R, whose connections are query-only.
 type DB struct {
-	W    *sql.DB // writer: 1 connection, _txlock=immediate
-	R    *sql.DB // reader: query_only, 4 connections
+	W    *sql.DB
+	R    *sql.DB
 	Path string
 
-	extra []string // DSN parameters added to every connection (tests use them to pick a VFS)
+	extra []string
 }
 
 type options struct {
@@ -118,11 +115,6 @@ func (d *DB) Read(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	return dbError(inTx(ctx, d.R, &sql.TxOptions{ReadOnly: true}, fn))
 }
 
-// dbError marks a failure of SQLite or of database/sql as errs.Internal. The user couldn't have
-// prevented a full disk or a broken file by changing the request, and a page that tried again
-// would only fail again. The core's own errors and a canceled call pass unchanged, and so does
-// any other error that fn returned, such as one of rclone's. errors.Is and errors.As still see
-// the wrapped error.
 func dbError(err error) error {
 	if err == nil || errs.Of(err) != nil {
 		return err
@@ -191,13 +183,11 @@ func (d *DB) dsn(busyMS int, extra ...string) string {
 func fileURI(path string) string {
 	p := filepath.ToSlash(path)
 	if runtime.GOOS == "windows" && !strings.HasPrefix(p, "/") {
-		p = "/" + p // file:/C:/…
+		p = "/" + p
 	}
 	return "file:" + strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(p)
 }
 
-// reason is an error whose text is its whole message. errors.Is matches it to one of the
-// sentinel errors above, and to its cause if it has one.
 type reason struct {
 	kind  error
 	msg   string

@@ -5,7 +5,6 @@ import { SURFACE, SURFACE_HOVER } from '../../components/look/Panel'
 import { TONE_GRADIENT, TONE_RGB, type Tone } from '../../components/look/tones'
 import type { Choice } from './flow'
 
-/** The tone of a choice that has none of its own. */
 const NEUTRAL: Tone = 'blue'
 
 export default function OptionCards<K extends string>({

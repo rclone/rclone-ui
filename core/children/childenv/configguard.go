@@ -37,15 +37,13 @@ func GuardConfig() {
 // new. A file written in the few microseconds between the two checks is read only by rclone's
 // storage, which can lose an outside edit on its own anyway.
 type guardedConfig struct {
-	config.Storage // rclone's storage, which reads and writes the file
+	config.Storage
 
 	mu     sync.Mutex
-	read   os.FileInfo // the file as it was when last read or written
-	failed error       // why the last read of the file failed; nil once a read succeeds
+	read   os.FileInfo
+	failed error
 }
 
-// fresh reads the file again if it changed since it was last read or written, using the same
-// test as rclone (configfile.go:34-49). The caller holds g.mu.
 func (g *guardedConfig) fresh() {
 	path := config.GetConfigPath()
 	if path == "" {
@@ -53,22 +51,17 @@ func (g *guardedConfig) fresh() {
 	}
 	fi, err := os.Stat(path)
 	if err != nil {
-		return // rclone doesn't read a file it can't stat either
+		return
 	}
 	if g.read != nil && fi.ModTime().Equal(g.read.ModTime()) && fi.Size() == g.read.Size() {
 		return
 	}
-	_ = g.load(fi) // the error is kept in g.failed
+	_ = g.load(fi)
 	if g.failed != nil {
 		fs.Errorf(nil, "The config file changed and couldn't be read again: keeping the previous config, which won't be saved until the file reads: %v", g.failed)
 	}
 }
 
-// load reads the file into rclone's storage and records whether the read failed. A missing file
-// is not a failure, because rclone keeps its config and creates the file. fi is the file as it
-// was before the read, so a change made during the read is picked up next time. The caller holds
-// g.mu.
-//
 // If the file is plain while a key is held, another process removed its password. rclone reads a
 // plain file without using the key (crypt.go:57-86), but would encrypt its next save with that
 // key again. So load drops the key, and saves stay plain.
@@ -87,11 +80,8 @@ func (g *guardedConfig) load(fi os.FileInfo) error {
 	return err
 }
 
-// PlainConfig reports whether the config file at path has content and is not encrypted. That is,
-// its first line that isn't blank or a comment is not rclone's encryption header, checked the
-// way rclone's Decrypt does it (crypt.go:57-86). A reload uses this rule to decide whether to drop
-// rclone's key, both here and in the core's config store (core/rclone). An empty file proves
-// nothing, because an editor may empty a file before it writes it again, so the key is kept.
+// An empty file proves nothing, because an editor may empty a file before it writes it again,
+// so the key is kept.
 func PlainConfig(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
@@ -113,13 +103,11 @@ func PlainConfig(path string) bool {
 func (g *guardedConfig) Load() error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	fi, _ := os.Stat(config.GetConfigPath()) // nil when the file is missing; the next check reads it
+	fi, _ := os.Stat(config.GetConfigPath())
 	return g.load(fi)
 }
 
-// Save implements config.Storage. It refuses to save while the file can't be read, because the
-// save would write the copy that rclone had before the file changed, in plain text if rclone lost
-// its key. A refusal is logged and returns nil, because rclone's SaveConfig would only retry it.
+// A refusal is logged and returns nil, because rclone's SaveConfig would only retry it.
 func (g *guardedConfig) Save() error {
 	g.mu.Lock()
 	defer g.mu.Unlock()

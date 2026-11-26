@@ -5,10 +5,9 @@ import (
 	"log/slog"
 )
 
-// The components. They are a fixed list, so the lines of one area can be picked out of the file.
 const (
 	CompApp           = "app"
-	CompUI            = "ui" // the windows, the tray, the launcher, the pages' console lines
+	CompUI            = "ui"
 	CompDB            = "db"
 	CompRclone        = "rclone"
 	CompConfig        = "config"
@@ -20,22 +19,14 @@ const (
 	CompTunnel        = "tunnel"
 )
 
-// The fixed subcomponents. Other subcomponents are not fixed: rclone's lines use the backend's
-// name (or SubCore when there is none), a mount's lines use its mount point, and a serve's lines
-// use `<type>:<addr>`.
 const (
-	// app
-	SubStartup  = "startup"
-	SubShutdown = "shutdown"
-	// db
+	SubStartup     = "startup"
+	SubShutdown    = "shutdown"
 	SubOpen        = "open"
 	SubMaintenance = "maintenance"
-	// rclone
-	SubCore = "core"
-	// config
-	SubWatch = "watch"
-	// children
-	SubSupervisor = "supervisor"
+	SubCore        = "core"
+	SubWatch       = "watch"
+	SubSupervisor  = "supervisor"
 )
 
 // Logger returns slog's default logger with a component and subcomponent. The default is looked
@@ -45,7 +36,6 @@ func Logger(component, subcomponent string) *slog.Logger {
 	return slog.New(deferred{}).With("component", component, "subcomponent", subcomponent)
 }
 
-// deferred passes every record to the handler of slog.Default at the time it is logged.
 type deferred struct {
 	ops []func(slog.Handler) slog.Handler
 }

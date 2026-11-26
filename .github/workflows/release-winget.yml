@@ -27,7 +27,5 @@ jobs:
           fork-user: rclone
           version: ${{ inputs.version }}
           release-tag: v${{ inputs.version }}
-          # The installers only. The release's portable zips (-portable.zip) aren't installers,
-          # and the anchored pattern leaves them out.
           installers-regex: '^Rclone-UI-.+-windows-(x64|arm64)-setup\.exe$'
           token: ${{ secrets.WINGET_ACC_TOKEN }}

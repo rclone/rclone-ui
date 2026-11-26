@@ -8,20 +8,15 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// Navigation offers the app's own screens, GitHub and Quit.
 type Navigation struct{}
 
-// GitHubURL is the repository's page. The GitHub entry opens it here and in the tray menu.
 const GitHubURL = "https://github.com/rclone/rclone-ui"
 
-// screen is one of the rows that Navigation offers, with its title and its search words as
-// messages (see engine.Result.Say). A zero title keeps the row's own, which is a name.
 type screen struct {
 	row          engine.Result
 	title, words i18n.Text
 }
 
-// screens returns the rows of the app's screens, in the order that breaks their ties.
 func screens() []screen {
 	return []screen{{
 		row: engine.Result{ID: "nav:settings", Key: "nav:settings", Subtitle: i18n.T("Appearance, language, updates, proxy and more."), Icon: icons.Settings, Score: 34,
@@ -53,7 +48,6 @@ func screens() []screen {
 		// i18n: Search words for the launcher's Commander row, separated by commas. Add any word that people would type to find it.
 		words: i18n.M("commander, explorer, navigator, navigate, browse, files"),
 	}, {
-		// GitHub is a name, so its title isn't translated. Its search words are.
 		row: engine.Result{ID: "nav:github", Key: "nav:github", Title: "GitHub", Subtitle: i18n.T("Open an issue or star the GitHub repo (we appreciate it)."), Icon: icons.GitHub, Score: 32,
 			Actions: []engine.Action{{ID: "open", Name: i18n.T("Open GitHub"), Icon: icons.Browser, Run: func(_ context.Context, env engine.Env) error {
 				env.OpenURL(GitHubURL)
@@ -98,7 +92,6 @@ func screens() []screen {
 		// i18n: Search words for the launcher's Automounts row, separated by commas. Add any word that people would type to find it.
 		words: i18n.M("automounts, automount, auto mount, mount at login, startup"),
 	}, {
-		// no history key, so Quit is never suggested
 		row: engine.Result{ID: "nav:quit", Subtitle: i18n.T("Quit the application."), Icon: icons.Quit, Score: 20,
 			Actions: []engine.Action{{ID: "quit", Name: i18n.T("Quit"), Icon: icons.Quit, Run: func(_ context.Context, env engine.Env) error {
 				env.Quit()

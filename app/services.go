@@ -21,13 +21,10 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// services returns the services that pages call through lib/shell. The bindings are generated
-// from them. A development build adds its own services (see devServices).
 func (u *ui) services() []application.Service {
 	return append([]application.Service{
 		service(u, &WindowService{u: u}),
 		service(u, &LauncherService{u: u}),
-		// The launcher exists only once the app does, after the services are bound.
 		service(u, &linux.PageService{View: func() *linux.View { return u.launcher.Page() }}),
 		service(u, &CoreService{u: u}),
 		service(u, &SystemService{u: u}),
@@ -35,7 +32,6 @@ func (u *ui) services() []application.Service {
 		service(u, &UpdateService{u: u}),
 		service(u, &PathService{u: u}),
 		service(u, &AgentsService{u: u}),
-		// The core's APIs, one service per domain.
 		service(u, u.apis.Prefs),
 		service(u, u.apis.Settings),
 		service(u, u.apis.Favorites),
@@ -62,18 +58,11 @@ func (u *ui) services() []application.Service {
 	}, u.devServices()...)
 }
 
-// service binds one service, the shell's own or one of the core's APIs. Its errors reach the page
-// in the core's error format, with a code, a message and the details the page acts on (see
-// core/errs). Wails sets the error marshaller per service, because an app-wide one isn't used for
-// a service's methods.
+// Wails ignores the app-wide error marshaller for a service's methods, so each service sets one.
 func service[T any](u *ui, api *T) application.Service {
 	return application.NewServiceWithOptions(api, application.ServiceOptions{MarshalError: u.marshalError})
 }
 
-// marshalError converts a call's error into the form the page receives, with rclone.ErrorOf,
-// which gives every error its code. Internal errors and rclone's own failures are also logged.
-// Otherwise a full disk or a busy database would only show up as a toast in a window, and nothing
-// would appear in the log or in a bug report. (The log redacts credentials.)
 func (u *ui) marshalError(err error) []byte {
 	e := rclone.ErrorOf(err)
 	switch e.Code {
@@ -82,8 +71,6 @@ func (u *ui) marshalError(err error) []byte {
 	case errs.CodeFailed:
 		u.log.Warn("a call failed", "code", string(e.Code), "error", err)
 	}
-	// The page shows the message, so it gets it in the app's language. The log above has it in
-	// English.
 	b, jerr := json.Marshal(e.Localized())
 	if jerr != nil {
 		return nil // Wails then marshals the error itself
@@ -124,8 +111,7 @@ type LauncherService struct{ u *ui }
 func (s *LauncherService) Show() { s.u.launcher.Show() }
 
 // SetShortcut replaces the launcher's global shortcut. It uses the syntax that Settings stores,
-// such as "CmdOrCtrl+Shift+/", and "" removes the shortcut. Settings calls it before saving a
-// shortcut, so a shortcut that the OS refuses is never saved.
+// such as "CmdOrCtrl+Shift+/", and "" removes the shortcut.
 func (s *LauncherService) SetShortcut(shortcut string) error {
 	return s.u.launcher.SetShortcut(strings.TrimSpace(shortcut))
 }
@@ -219,12 +205,9 @@ func (s *SystemService) Relaunch(ctx context.Context, open string) bool {
 	return true
 }
 
-// DialogService saves the text that a page exports. The pages show their other dialogs
-// themselves (lib/shell), and the Open and Save panels for a path come from the Wails runtime.
+// DialogService saves the text that a page exports.
 type DialogService struct{ u *ui }
 
-// SaveOptions describes a save dialog. Filters use the runtime's own shape, so a page passes the
-// same filters as to its Open panel.
 type SaveOptions struct {
 	Title string `json:"title"`
 	// Directory is the folder the dialog opens in, and Filename is the name it suggests.
@@ -234,8 +217,7 @@ type SaveOptions struct {
 }
 
 // SaveText asks where to save, in a dialog over the calling window, and writes contents there. It
-// returns the path, or "" when the user cancelled. The page never names the path itself, so a
-// script in a page can't write a shell profile or a login item.
+// returns the path, or "" when the user cancelled.
 func (s *DialogService) SaveText(ctx context.Context, o SaveOptions, contents string) (string, error) {
 	opts := &application.SaveFileDialogOptions{
 		Title:                o.Title,
@@ -257,10 +239,7 @@ func (s *DialogService) SaveText(ctx context.Context, o SaveOptions, contents st
 	return path, nil
 }
 
-// writePrivate writes a file that only the user can read, because an exported template or config
-// can hold connection keys. A file that is replaced loses the wider mode it had. Windows has no
-// such mode: the file takes its folder's permissions, which in the user's own folders let only the
-// user and the administrators read it.
+// Chmod always fails on Windows, where the file takes its folder's permissions.
 func writePrivate(path, contents string) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
@@ -277,8 +256,6 @@ func writePrivate(path, contents string) error {
 	return f.Close()
 }
 
-// AgentsService tells Settings about the MCP server that lets AI agents use the app (core/agents).
-// The server is turned on and off, and given its port and a new token, through the settings.
 type AgentsService struct{ u *ui }
 
 type AgentsInfo struct {
@@ -294,8 +271,6 @@ func (s *AgentsService) Status() AgentsInfo {
 	return AgentsInfo{Status: s.u.agents.Status(), Command: s.u.exe}
 }
 
-// PathService provides "Add rclone to PATH" (see app/pathlink). It adds a command named rclone
-// that runs this app as rclone, with the same config files. It never replaces a user's own rclone.
 type PathService struct{ u *ui }
 
 func (s *PathService) Status() (pathlink.State, error) { return pathlink.Status() }
@@ -306,8 +281,6 @@ func (s *PathService) Enable() (pathlink.State, error) { return s.changed(pathli
 
 func (s *PathService) Disable() (pathlink.State, error) { return s.changed(pathlink.Disable()) }
 
-// changed tells every window the link's new state (EventPathLinkChanged), so that Settings and
-// the Mobile & Remote Control window agree.
 func (s *PathService) changed(st pathlink.State, err error) (pathlink.State, error) {
 	if err == nil {
 		s.u.app.Event.Emit(EventPathLinkChanged, st)

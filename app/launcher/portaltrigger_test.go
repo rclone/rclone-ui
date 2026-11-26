@@ -2,8 +2,6 @@ package launcher
 
 import "testing"
 
-// TestPortalTrigger: shortcuts from Settings, converted by Accelerator, become the portal's
-// preferred triggers.
 func TestPortalTrigger(t *testing.T) {
 	for _, c := range []struct{ shortcut, want string }{
 		{DefaultShortcut, "CTRL+SHIFT+slash"},

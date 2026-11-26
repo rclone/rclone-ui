@@ -40,7 +40,6 @@ const English = "en"
 // them was never marked for translation. Only a dev build offers it.
 const Pseudo = "pseudo"
 
-// current is the language that T, N and Local translate into.
 var current atomic.Pointer[string]
 
 func Language() string {
@@ -77,7 +76,6 @@ func Valid(setting string) bool {
 	return setting == "" || setting == Pseudo || slices.Contains(Languages(), setting)
 }
 
-// languages reads locales/languages.json once: the languages that the app offers.
 var languages = sync.OnceValue(func() []string {
 	b, err := locales.FS.ReadFile("languages.json")
 	if err != nil {
@@ -98,10 +96,8 @@ var languages = sync.OnceValue(func() []string {
 // Languages returns the languages that the app has, as their tags ("en", "es", "zh-CN").
 func Languages() []string { return languages() }
 
-// catalogs holds each language's messages, read from its core.po the first time it is used.
-var catalogs sync.Map // language -> *gotext.Po
+var catalogs sync.Map
 
-// catalog returns lang's messages, or nil for English, Pseudo and a language without a file.
 func catalog(lang string) *gotext.Po {
 	if lang == English || lang == Pseudo {
 		return nil
@@ -133,11 +129,11 @@ func N(singular, plural string, n int, args ...any) string {
 // values. The zero Text is empty.
 type Text struct {
 	format string
-	plural string // the plural message, for a message about a count
+	plural string
 	n      int
 	args   []any
-	words  bool   // the text is words that aren't translated (Plain): format is the words
-	ctx    string // the message's context, for a word that has another meaning elsewhere
+	words  bool
+	ctx    string
 }
 
 // M makes a Text from an English message with fmt's verbs, and its values. A value that is a
@@ -173,7 +169,6 @@ func (t Text) String() string { return t.in(English) }
 // Local returns the text in the app's language.
 func (t Text) Local() string { return t.in(Language()) }
 
-// in returns the text in lang. A message that lang doesn't have stays English.
 func (t Text) in(lang string) string {
 	if t.format == "" {
 		return ""
@@ -205,7 +200,6 @@ func (t Text) in(lang string) string {
 		format = get(t.format)
 	}
 	if len(t.args) == 0 {
-		// A message without values is not a format, so a "%" in it stays as it is.
 		return format
 	}
 	args := make([]any, len(t.args))
@@ -219,8 +213,6 @@ func (t Text) in(lang string) string {
 			args[i] = a
 		}
 	}
-	// A wrapped error (%w, or %[2]w in a translation that reorders) is a value like any other
-	// once the message is text.
 	out := fmt.Sprintf(wrapVerb.ReplaceAllString(format, "%${1}v"), args...)
 	if t.plural != "" {
 		// A form of a message about a count may leave the count out ("a transfer", or a
@@ -265,8 +257,6 @@ func Localize(err error) string {
 	return errorIn(err, Language())
 }
 
-// errorIn returns err's message in lang, when err itself is a Texter. An error that only wraps
-// one keeps its own words, because the words around the wrapped message are English.
 func errorIn(err error, lang string) string {
 	var t Texter
 	if errors.As(err, &t) && sameMessage(err, t) {
@@ -275,11 +265,8 @@ func errorIn(err error, lang string) string {
 	return err.Error()
 }
 
-// sameMessage reports whether err says exactly what the Texter found in its chain says, so that
-// translating the Texter translates all of err.
 func sameMessage(err error, t Texter) bool { return err.Error() == t.Text().String() }
 
-// supported are the app's languages as tags, for matching the system's.
 var supported = sync.OnceValue(func() map[string]language.Tag {
 	out := map[string]language.Tag{}
 	for _, l := range Languages() {
@@ -313,7 +300,6 @@ func Match(preferred []string) string {
 	return English
 }
 
-// normalize turns a POSIX locale ("zh_CN.UTF-8", "es_ES@euro") into a language tag ("zh-CN").
 func normalize(locale string) string {
 	if i := strings.IndexAny(locale, ".@"); i >= 0 {
 		locale = locale[:i]
@@ -322,12 +308,9 @@ func normalize(locale string) string {
 }
 
 // SystemEnv names an environment variable that takes the place of the system's language, such as
-// APP_LANGUAGE=es. The dev tools set it to en, because their scripts find buttons by their English
-// labels.
+// APP_LANGUAGE=es.
 const SystemEnv = "APP_LANGUAGE"
 
-// system reads the system's language once: it doesn't change while the app runs. Under `go test`
-// it is English, so that a test reads the same text on every machine.
 var system = sync.OnceValue(func() string {
 	if lang := os.Getenv(SystemEnv); lang != "" {
 		return Match([]string{lang})

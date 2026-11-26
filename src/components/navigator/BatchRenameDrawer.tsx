@@ -65,7 +65,6 @@ const APPLY_CASE: Record<CaseMode, (value: string) => string> = {
         ),
 }
 
-// Compiles the find pattern once per plan. Returns `error` when the user's regex doesn't parse.
 function compileFind(form: RenameForm): { find?: RegExp; error?: string } {
     if (!form.find) return {}
     try {
@@ -76,8 +75,6 @@ function compileFind(form: RenameForm): { find?: RegExp; error?: string } {
     }
 }
 
-// Builds the new name as prefix + (find/replace, then case) + suffix + number, and adds the
-// extension back at the end.
 function computeNewName(
     oldName: string,
     isDir: boolean,
@@ -85,8 +82,6 @@ function computeNewName(
     form: RenameForm,
     find?: RegExp
 ): string {
-    // Folders never have an extension. Files are split on the last dot unless the user chose to
-    // include the extension. `dot > 0` keeps dotfiles (".env") whole.
     const dot = isDir || form.includeExtension ? -1 : oldName.lastIndexOf('.')
     const ext = dot > 0 ? oldName.slice(dot) : ''
     let base = dot > 0 ? oldName.slice(0, dot) : oldName
@@ -102,17 +97,13 @@ function computeNewName(
 
 type PlanRow = {
     item: SelectItem
-    entry: Entry // for FileIcon
+    entry: Entry
     oldName: string
     newName: string
-    target: string // full path after the rename, used to check for collisions in each folder
+    target: string
     error?: string
 }
 
-// Maps the selection to old→new rows and flags anything that would make renaming them one by
-// one unsafe. That includes empty names, two items renamed to the same target, and a target that
-// is the current name of another selected item. With an invalid regex, every name is left
-// unchanged and the banner blocks Apply.
 function buildPlan(
     items: SelectItem[],
     form: RenameForm
@@ -160,7 +151,6 @@ const PREVIEW = t({
     comment: 'Heading: each name before and after the rename.',
 })
 
-// Free-text fields (names, patterns) must not be autocorrected by the browser.
 const PLAIN_TEXT = {
     autoCapitalize: 'off',
     autoComplete: 'off',
@@ -168,10 +158,8 @@ const PLAIN_TEXT = {
     spellCheck: 'false',
 } as const
 
-/** Why the renames failed: the error, and the transfer that ran them when there was one. */
 type Failure = { error: string; transferId?: string }
 
-/** What the drawer says about a batch that ended in `state` without completing. */
 function endedText(state: string): string {
     switch (state) {
         case 'failed':
@@ -185,7 +173,6 @@ function endedText(state: string): string {
     }
 }
 
-/** A transfer that ended without success. The drawer then shows how each rename went. */
 type Ended = { transferId: string; state: string; rows: PlanRow[] }
 
 export default function BatchRenameDrawer({
@@ -197,20 +184,14 @@ export default function BatchRenameDrawer({
     isOpen: boolean
     onClose: () => void
     items: SelectItem[]
-    /** Called when the renames start, with the id of the transfer that records them. */
     onDone: (transferId: string | undefined) => void
 }) {
     const [form, setForm] = useState<RenameForm>(INITIAL_FORM)
     const [failure, setFailure] = useState<Failure | null>(null)
     const [isStarting, setIsStarting] = useState(false)
-    // The transfer that runs the renames, until it ends, and the rows sent to it, in order.
     const [running, setRunning] = useState<{ transferId: string; rows: PlanRow[] } | null>(null)
     const [ended, setEnded] = useState<Ended | null>(null)
-    // The failures of the ended transfer, grouped by the rename that each belongs to.
     const { retryable, query: retryableQuery } = useRetryable(ended?.transferId)
-    // The renames made while the drawer is open, keyed by the item's path, with each new name.
-    // Apply sends only the remaining renames. The renames of the last transfer are added once its
-    // failures are known.
     const [renamed, setRenamed] = useState<ReadonlyMap<string, string>>(new Map())
     const done = useMemo(() => {
         const last = ended && retryable ? renamesDone(ended.state, ended.rows, retryable.items) : []
@@ -233,17 +214,12 @@ export default function BatchRenameDrawer({
     const { rows, regexError } = useMemo(() => buildPlan(items, form), [items, form])
     const left = rows.filter((row) => !done.has(row.item.path))
     const pending = left.filter((row) => !row.error && row.newName !== row.oldName)
-    // Apply stays disabled while the last transfer's failures are loading, because until then
-    // it isn't known which renames succeeded.
     const applyDisabled =
         !!regexError ||
         left.some((row) => row.error) ||
         pending.length === 0 ||
         (ended !== null && retryableQuery.isLoading)
 
-    // The core runs the plan as one recorded transfer. It renames one item at a time, which is
-    // what the collision checks assume. It refuses the whole batch up front when a new name is
-    // already taken.
     const apply = async () => {
         setIsStarting(true)
         setFailure(null)
@@ -268,10 +244,6 @@ export default function BatchRenameDrawer({
         }
     }
 
-    // Close the drawer once the transfer has done every rename. Otherwise keep it open, list the
-    // renames that failed and why, and link to the transfer. A small batch can end before the
-    // transfer id is returned, and `onTransferEnd` handles that case. If the core has no record of
-    // the transfer, say so, with no link.
     useEffect(() => {
         if (!running) return
         return onTransferEnd(running.transferId, (state) => {
@@ -351,7 +323,6 @@ export default function BatchRenameDrawer({
             }
         >
             <div className="grid h-full min-h-0 md:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-                {/* The rules, in the order they apply. */}
                 <ScrollShadow className="flex flex-col gap-5 px-5 py-5 overflow-y-auto md:border-r border-divider">
                     <RuleGroup title={t`Find and replace`}>
                         <div className="grid grid-cols-2 gap-3">
@@ -572,7 +543,6 @@ export default function BatchRenameDrawer({
 
                     <ScrollShadow className={cn('flex-1 min-h-0', SURFACE, 'rounded-xl')}>
                         {rows.map((row) => {
-                            // A completed rename shows its new name.
                             const made = done.get(row.item.path)
                             const newName = made ?? row.newName
                             const error = made === undefined ? row.error : undefined

@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-// stand replaces the SDK's login with fn for one test.
 func stand(t *testing.T, fn func(ctx context.Context, email, password, code string) (string, error)) {
 	t.Helper()
 	was := login
@@ -17,8 +16,6 @@ func stand(t *testing.T, fn func(ctx context.Context, email, password, code stri
 	t.Cleanup(func() { login = was })
 }
 
-// twoFactorAccount acts as an account with two-factor authentication. It returns the SDK's errors
-// with the same text as Filen's gateway.
 func twoFactorAccount(_ context.Context, email, password, code string) (string, error) {
 	switch {
 	case email != "me@example.com" || password != "hunter2":
@@ -74,7 +71,6 @@ func TestAPIKeySendsNoCodePlaceholder(t *testing.T) {
 	}
 }
 
-// Unexpected results from the SDK become a sentence for the user, never a crash or an empty key.
 func TestAPIKeyOddAnswers(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -100,7 +96,6 @@ func TestAPIKeyOddAnswers(t *testing.T) {
 	}
 }
 
-// A login that never answers, even one that ignores its context, is given up after the budget.
 func TestAPIKeyBudget(t *testing.T) {
 	was := budget
 	budget = 50 * time.Millisecond

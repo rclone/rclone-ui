@@ -9,10 +9,6 @@ import { Create as $Create } from "@wailsio/runtime";
 // @ts-ignore: Unused imports
 import * as view$0 from "../models.js";
 
-/**
- * Frame is what the page draws. Swap reports that the footer line animates in from the one before
- * (view.Swaps).
- */
 export class Frame {
     "snapshot": view$0.Snapshot;
     "layout": Layout;
@@ -58,9 +54,6 @@ export class Frame {
     }
 }
 
-/**
- * Geometry holds the launcher's sizes, in pixels, for the page.
- */
 export class Geometry {
     "width": number;
     "queryH": number;
@@ -146,10 +139,6 @@ export class Geometry {
     }
 }
 
-/**
- * Init is what the page needs when it loads. It includes what the view last sent, so a page that
- * loads after the launcher rendered still draws the same.
- */
 export class Init {
     "geometry": Geometry;
 
@@ -225,11 +214,6 @@ export class Init {
     }
 }
 
-/**
- * Layout is where the page puts things for one Snapshot, measured from the window's top-left
- * corner. The view works it out from the launcher's geometry (view/geometry.go), so the page
- * draws exactly what the window's size allows.
- */
 export class Layout {
     "height": number;
     "rowsTop": number;
@@ -281,19 +265,8 @@ export enum Mode {
      */
     $zero = "",
 
-    /**
-     * an X11 window, which the view places
-     */
     ModeX11 = "x11",
-
-    /**
-     * a Wayland layer surface
-     */
     ModeLayer = "layer-shell",
-
-    /**
-     * an ordinary Wayland window, which the desktop shell places
-     */
     ModeWayland = "wayland",
 };
 

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { keptOf, seedTemplate, TEMPLATE_GROUPS, templateGroups } from './templateOptions'
 
-// What the core's SortOptions returns for the options below. dry_run is a main option that a run
-// can set, so it goes to config. bwlimit applies to the whole app, and nope is unknown, so both
-// are skipped. Every serve type gets addr.
 const sorted = {
     groups: {
         config: { transfers: 8, dry_run: true },
@@ -58,8 +55,6 @@ describe('seedTemplate', () => {
 })
 
 describe('the app defaults that a template leaves out', () => {
-    // A page saved this template after the user removed the default transfers. The core sorts
-    // the null into its group, like any option.
     const leftOut = { transfers: null, checkers: 4 }
     const sortedLeftOut = { groups: { config: { transfers: null, checkers: 4 } }, skipped: [] }
 

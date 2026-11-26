@@ -18,7 +18,6 @@ import (
 // is read and thrown away, and the record says how many bytes were cut.
 const MaxLine = 64 << 10
 
-// maxPanic is the most text kept from one Go panic.
 const maxPanic = 1 << 20
 
 // ReadLines reads r line by line until it ends. It calls fn with each line, without its line
@@ -30,7 +29,6 @@ func ReadLines(r io.Reader, fn func(line string, cut int)) error {
 	for {
 		chunk, err := br.ReadSlice('\n')
 		if errors.Is(err, bufio.ErrBufferFull) {
-			// Cut at a character boundary.
 			keep := MaxLine
 			for keep > MaxLine-utf8.UTFMax && !utf8.RuneStart(chunk[keep]) {
 				keep--
@@ -57,7 +55,6 @@ func ReadLines(r io.Reader, fn func(line string, cut int)) error {
 	}
 }
 
-// Stream says which of a child's pipes a line came from.
 type Stream int
 
 const (
@@ -68,14 +65,8 @@ const (
 // LineParser turns one line that a child printed into a record. Returning false skips the line.
 type LineParser func(line string, stream Stream, now time.Time) (Record, bool)
 
-// panicStart matches the first line of what the Go runtime prints when a program dies: a panic,
-// a fatal error, or the dump after a fatal signal.
 var panicStart = regexp.MustCompile(`^(panic: |fatal error: |SIG[A-Z]+: )`)
 
-// ReadChild reads one of a child's pipes to the end. It turns each line into a record with
-// parse and passes it to emit, which is usually (*Log).Append. A Go panic, including its stack,
-// is kept whole in one error record. The panic text runs to the end of the stream, or to the next
-// JSON line if the child keeps logging. Blank lines are skipped.
 func ReadChild(r io.Reader, stream Stream, parse LineParser, emit func(Record)) error {
 	var (
 		dying  *Record
@@ -136,7 +127,6 @@ func isJSONObject(line string) bool {
 	return strings.HasPrefix(strings.TrimSpace(line), "{") && json.Valid([]byte(line))
 }
 
-// jsonLine decodes a line that holds a JSON object. ok is false for any other line.
 func jsonLine(line string) (map[string]any, bool) {
 	if !strings.HasPrefix(strings.TrimSpace(line), "{") {
 		return nil, false
@@ -153,8 +143,6 @@ func jsonLine(line string) (map[string]any, bool) {
 	return m, true
 }
 
-// take removes key from m and returns its value. It returns "" and leaves m alone when the key
-// is missing or its value isn't a string.
 func take(m map[string]any, key string) string {
 	v, ok := m[key]
 	if !ok {
@@ -168,8 +156,6 @@ func take(m map[string]any, key string) string {
 	return s
 }
 
-// fromJSON makes a record from a decoded JSON line. It reads the level, the time, and the
-// message from the first of messageKeys that is present. Everything else goes in Extra.
 func fromJSON(m map[string]any, component, subcomponent string, now time.Time, messageKeys ...string) Record {
 	rec := Record{Time: now, Level: slog.LevelInfo, Component: component, Subcomponent: subcomponent}
 	if s, ok := m["level"].(string); ok {

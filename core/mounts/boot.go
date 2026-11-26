@@ -16,23 +16,18 @@ import (
 )
 
 const (
-	// settleWait limits how long the shutdown waits for stops that users started to settle
-	// their caches.
 	settleWait = 5 * time.Second
-	// cleanWait limits how long the shutdown spends clearing what the children left mounted.
-	cleanWait = 10 * time.Second
+	cleanWait  = 10 * time.Second
 )
 
 // Boot starts the mounts when the app starts. It runs once, after rclone's init and the
-// supervisor. It first starts the mounts that were running before. These are the pending records
-// in children.json, kept by a planned restart or left by a previous run that crashed while they
-// were running. Then it starts every enabled automount that wasn't already started again. Each
-// of these waits until its source responds (see probeBoot).
+// supervisor. It first starts the mounts that were running before. Then it starts every enabled
+// automount that wasn't already started again. Each of these waits until its source responds.
 //
 // Failures are logged and notified, and the other mounts still start. On a computer that can't
 // mount, Boot logs this once and sends no notifications. If a shutdown happens during Boot (the
 // supervisor closes or ctx ends), Boot ends quietly and leaves the pending records to StopAll.
-// Boot takes seconds, so run it on its own goroutine (Core.Go).
+// Boot takes seconds, so run it on its own goroutine.
 func (s *Service) Boot(ctx context.Context) {
 	all, err := readStored(ctx, s.o.DB)
 	if err != nil {
@@ -65,7 +60,7 @@ func (s *Service) Boot(ctx context.Context) {
 		}
 		return err
 	}) {
-		return // the app is shutting down or restarting, and StopAll keeps the records it chose
+		return
 	}
 
 	if !sup.Supported {
@@ -86,10 +81,6 @@ func (s *Service) Boot(ctx context.Context) {
 	}
 }
 
-// startOnBoot handles one automount. It skips the mount when that source is already mounted
-// at that place, because it was started again after the restart. Otherwise it probes the source
-// and starts the mount. It returns false when the app is shutting down, so that no more mounts
-// are started. Nothing is reported in that case, because the mount didn't fail.
 func (s *Service) startOnBoot(ctx context.Context, am Automount) bool {
 	if ctx.Err() != nil {
 		return false
@@ -139,8 +130,6 @@ func (s *Service) startOnBoot(ctx context.Context, am Automount) bool {
 		}
 		return true
 	}
-	// The mount is up. A source that can't be listed now makes the folder look empty, so warn
-	// about a failed listing.
 	if err := s.listSource(ctx, remote, am.RemotePath); err != nil && ctx.Err() == nil {
 		s.log.WarnContext(ctx, "mounted at start, but listing the source failed", "source", a.Source, "error", err)
 		s.toastAs(ctx, i18n.T("Automount may look empty"),
@@ -150,20 +139,14 @@ func (s *Service) startOnBoot(ctx context.Context, am Automount) bool {
 	return true
 }
 
-// toast also shows a notification's message as a desktop notification, for automounts. The
-// notification targets get the message through Notify.
 func (s *Service) toast(ctx context.Context, event notifications.NotificationEvent, p notifications.Payload) {
 	s.o.Notifier.Desktop(ctx, event, p, notifications.Desktop{})
 }
 
-// toastAs shows a desktop notification only. No notification target receives it.
 func (s *Service) toastAs(ctx context.Context, title, body string) {
 	s.o.Notifier.Desktop(ctx, notifications.NotificationEventMountFailed, nil, notifications.Desktop{Title: title, Body: body})
 }
 
-// probeBoot probes an automount's source until it responds. It waits 1, 2, 4, 8 and then 15 s
-// between attempts, for about a minute in total, so that a network that is still coming up at
-// boot has time to connect. A source that is wrong (missing, or a file) isn't retried.
 func (s *Service) probeBoot(ctx context.Context, remote, remotePath string) (problem, err error) {
 	for attempt := 0; ; attempt++ {
 		problem, err = s.probeSource(ctx, remote, remotePath)
@@ -178,9 +161,6 @@ func (s *Service) probeBoot(ctx context.Context, remote, remotePath string) (pro
 	}
 }
 
-// keepIfWaiting handles a mount from the previous run that isn't started again. When its cache
-// holds uploads that rclone hadn't sent, it records the mount in stopped_mounts. It skips the
-// folder of an automount (in automount), because that mount comes back and sends them.
 func (s *Service) keepIfWaiting(ctx context.Context, r children.Record, m meta, automount map[string]bool) {
 	folder := cacheDirOf(r.Args)
 	if folder == "" || automount[filepath.Clean(folder)] {
@@ -190,8 +170,6 @@ func (s *Service) keepIfWaiting(ctx context.Context, r children.Record, m meta, 
 		waiting{folder: folder, args: m.Args, mountPoint: r.MountPoint}, -1)
 }
 
-// cacheDirOf returns the --cache-dir from a mount's recorded arguments, as built by
-// operations.MountCommand.
 func cacheDirOf(args []string) string {
 	for _, a := range args {
 		if v, ok := strings.CutPrefix(a, "--cache-dir="); ok {
@@ -204,17 +182,14 @@ func cacheDirOf(args []string) string {
 // Shutdown is the mounts' part of the core's shutdown. It runs after Supervisor.StopAll has
 // stopped every child.
 //
-// First it waits, for at most settleWait, for the stops that users started. Each of those
-// settles its own cache in the database, which the core closes next. Then it clears what the
-// children left mounted (cleanAll), whether or not the mounts come back.
+// First it waits, for at most settleWait, for the stops that users started. Then it clears what
+// the children left mounted, whether or not the mounts come back.
 //
 // When the mounts won't come back (restore is false, as in a plain quit), Shutdown handles each
 // mount that was started by hand, as a user's stop would. If the mount's cache folder holds
 // uploads that rclone hadn't sent, the mount is recorded in stopped_mounts and its cache is kept.
-// Those uploads are the items rclone marks dirty: queued, or open for writing when the mount
-// stopped. An automount is skipped, because it comes back anyway and sends them. This check
-// runs after the children have stopped, because reading the queue earlier would miss files that
-// were still open, and files closed in the meantime.
+// An automount is skipped. This check runs after the children have stopped, because reading the
+// queue earlier would miss files that were still open, and files closed in the meantime.
 func (s *Service) Shutdown(ctx context.Context, restore bool) {
 	if !s.reg.WaitStops(ctx, settleWait) {
 		s.log.WarnContext(ctx, "a mount being stopped had not settled its cache", "waited", settleWait)
@@ -224,7 +199,7 @@ func (s *Service) Shutdown(ctx context.Context, restore bool) {
 		return
 	}
 	var left []*child
-	for _, c := range s.reg.Live() { // a user's stop settles its own cache
+	for _, c := range s.reg.Live() {
 		if c.Unit() != nil && !c.Own.automount {
 			left = append(left, c)
 		}
@@ -243,12 +218,6 @@ func (s *Service) Shutdown(ctx context.Context, restore bool) {
 	}
 }
 
-// cleanAll force-unmounts what the stopped children left mounted. That happens when a child was
-// killed after its grace period (a dead NFS mount on macOS), or when the OS refused an unmount (a
-// shell inside the mount on Linux). The next start only clears the mount points that
-// children.json still records, and a quit records none. cleanAll handles every mount in the
-// registry at once, for at most cleanWait. It clears only the mount point, and leaves the record
-// and the cache so that an update's restart can bring the mount back.
 func (s *Service) cleanAll(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, cleanWait)
 	defer cancel()

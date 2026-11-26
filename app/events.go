@@ -13,15 +13,13 @@ import (
 	"github.com/rclone/rclone-ui/core/bus"
 )
 
-// The events that the UI sends to the pages. lib/shell listens for them.
 const (
 	// EventCoreState carries the core's status (CoreStatus) on every change.
 	EventCoreState = "core:state"
 	// EventUpdateState reports the progress of the update flow (UpdateState).
 	EventUpdateState = "update:state"
-	// EventAutostartChanged carries whether the app starts at login, after a window changed it.
-	// The other windows that show the switch then update. A change made in the OS's own settings
-	// sends nothing, and the pages read it again when their window gets the focus.
+	// EventAutostartChanged carries whether the app starts at login, after a window changed it. A
+	// change made in the OS's own settings sends nothing.
 	EventAutostartChanged = "autostart:changed"
 	// EventPathLinkChanged carries the state of "Add rclone to PATH" (pathlink.State), after a
 	// window turned it on or off.
@@ -31,10 +29,6 @@ const (
 	EventAgentsChanged = "agents:changed"
 )
 
-// The events are registered with their data types, so that the generated bindings give the pages
-// typed events. The core's events are its bus events, each with the payload that its publisher
-// puts on the bus. The last ones are events that a call sends back to the window that made it,
-// such as a listing's rows.
 func init() {
 	application.RegisterEvent[CoreStatus](EventCoreState)
 	application.RegisterEvent[string](windows.EventRoute)
@@ -73,8 +67,6 @@ func init() {
 	application.RegisterEvent[browse.UsageProgress](browse.EventUsage)
 }
 
-// relayCoreEvent passes one of the core's events on to every window, with its payload unchanged.
-// Desktop notifications are handled by the UI alone, so the windows don't get them.
 func (u *ui) relayCoreEvent(ev bus.Event) {
 	if ev.Name == bus.NotifyOS {
 		return
@@ -86,8 +78,6 @@ func (u *ui) relayCoreEvent(ev bus.Event) {
 	u.app.Event.Emit(ev.Name, ev.Data)
 }
 
-// emitToCaller sends an event from a call to the window that made the call (ctx is the call's
-// context). When the call didn't come from a window, the event goes to every window.
 func (u *ui) emitToCaller(ctx context.Context, name string, data any) {
 	if w, ok := windows.Caller(ctx); ok {
 		w.DispatchWailsEvent(&application.CustomEvent{Name: name, Data: data})

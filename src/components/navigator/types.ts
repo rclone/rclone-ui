@@ -24,18 +24,8 @@ export type PaddingItem = {
     padding: true
 }
 
-/**
- * A row as the list renders it. Anything that can change while the listing stays the same is
- * stored on the row itself. The collection rebuilds only when these objects change, so a flag
- * read from a prop would keep the value (and the handler) that the row was first rendered with.
- */
 export type VirtualizedEntry = Entry & { isSelected: boolean; isFavorited: boolean }
 
-/**
- * The sections that the sidebar offers. `LOCAL_FS` is the roots of the local disks and external
- * volumes. `LOCAL_FS_EXTRA` adds the home folder and the user's standard folders (Desktop,
- * Documents, Downloads, Music, Pictures and Movies).
- */
 export type AllowedKey = 'REMOTES' | 'LOCAL_FS' | 'LOCAL_FS_EXTRA' | 'FAVORITES'
 
 export type FilePanelHandle = {
@@ -46,8 +36,6 @@ export type FilePanelHandle = {
     selectAll: (type: 'files' | 'folders' | 'all') => void
     getCurrentPath: () => { remote: RemoteString; path: string }
     navigateUp: () => void
-    /** Puts the focus in the search field, when the panel shows one. */
     focusSearch: () => void
-    /** Opens the folder at a full path, as typing it in the path field does. */
     openPath: (path: string) => void
 }

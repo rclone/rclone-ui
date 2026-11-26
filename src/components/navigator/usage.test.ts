@@ -100,7 +100,6 @@ describe('the rows to read and draw', () => {
 
     it('draws the rows in view, and those leaving it, so they glide away', () => {
         const items = ['a', 'b', 'c', 'd'].map((key) => ({ key }) as UsageItem)
-        // d was at rank 1, in view, and dropped to rank 3, out of view.
         const was = new Map([
             ['a', 0],
             ['d', 1],

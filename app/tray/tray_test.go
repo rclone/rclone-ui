@@ -8,13 +8,11 @@ import (
 	"testing"
 )
 
-// The submenus that the UI adds while mounts and serves run (see SetRunning).
 var (
 	mounts = Item{Label: "Mounts (1)", Children: []Item{{Label: "gdrive: → /Volumes/gdrive", Children: []Item{{Label: "Open"}, {Label: "Unmount"}}}}}
 	serves = Item{Label: "Serves (2)", Children: []Item{{Label: "WEBDAV :8080"}, {Label: "HTTP :8081"}, {Separator: true}, {Label: "Stop All"}}}
 )
 
-// render writes a menu's items on one line, with "-" for a separator and "▸" after a submenu.
 func render(items []Item) string {
 	parts := make([]string, len(items))
 	for i, it := range items {
@@ -36,7 +34,7 @@ func TestLayout(t *testing.T) {
 		name  string
 		state state
 		want  string
-		at    int // the History item's index
+		at    int
 	}{
 		{"nothing active", state{},
 			"Open | - | Guide | GitHub | Quit", -1},
@@ -62,7 +60,6 @@ func TestLayout(t *testing.T) {
 			if it.Disabled {
 				t.Errorf("%s: %q is disabled", c.name, it.Label)
 			}
-			// The UI's submenus are shown as the UI gave them.
 			if it.Label == mounts.Label && render(it.Children) != render(mounts.Children) ||
 				it.Label == serves.Label && render(it.Children) != render(serves.Children) {
 				t.Errorf("%s: %q has %s", c.name, it.Label, render(it.Children))

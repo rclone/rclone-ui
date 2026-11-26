@@ -40,8 +40,6 @@ func mustParse(t *testing.T, args ...string) Rules {
 func TestTheThreeKindsTogether(t *testing.T) {
 	rules := mustParse(t, "--map", "mtime=modified", "--set", "owner=finance", "--drop", "btime")
 	out := rules.Apply(metadata(t, `{"mtime": "2026-01-01", "btime": "2020-01-01", "mode": "100644"}`))
-	// The mapped field is renamed and its old name is gone, the constant is added, the dropped
-	// field is missing, and a field no rule mentions is kept.
 	equalJSON(t, out, `{"modified": "2026-01-01", "owner": "finance", "mode": "100644"}`)
 }
 

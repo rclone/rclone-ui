@@ -34,7 +34,7 @@ func TestASiteIsItsHostNotAMentionOfIt(t *testing.T) {
 func TestEachAnswerGivesItsBestAddress(t *testing.T) {
 	for _, tc := range []struct {
 		endpoint, data string
-		title, url     string // an empty url means nothing was found
+		title, url     string
 	}{
 		{"igdl", `[{"thumbnail":"t"},{"url":"https://i/v.mp4?x=1&dl=1"}]`, "Instagram Video", "https://i/v.mp4?x=1"},
 		{"twitter", `{"title":"T","url":[{"sd":"sd"},{"hd":"hd"}]}`, "T", "hd"},
@@ -48,8 +48,6 @@ func TestEachAnswerGivesItsBestAddress(t *testing.T) {
 		{"kuaishou", `{"videoUrl":"k"}`, "Kuaishou Video", "k"},
 		{"douyin", `{"data":{"links":[{"url":"u"}]}}`, "Douyin Video", "u"},
 		{"spotify", `{"res_data":{"title":"Song","formats":[{"url":"s","ext":"m4a"}]}}`, "Song", "s"},
-		// This is what the service currently returns for a YouTube address: a status and
-		// nothing else.
 		{"youtube", `{"status":true}`, "", ""},
 		{"gdrive", `{"success":true,"message":"404"}`, "", ""},
 		{"no-such", `{}`, "", ""},
@@ -115,8 +113,6 @@ func TestATitleBecomesAStem(t *testing.T) {
 		stem, own string
 	}{
 		{`A: "quoted" / title?`, KindVideo, "A - 'quoted' - title", ""},
-		// HTML entities are decoded, including twice-encoded ones, and characters that some file
-		// system refuses become similar characters.
 		{"Tom &amp; Jerry &#39;Best Of&#39;", KindVideo, "Tom & Jerry 'Best Of'", ""},
 		{"Q&amp;amp;A &lt;live&gt;", KindVideo, "Q&A (live)", ""},
 		{"&quot;Hit&quot; | Artist&nbsp;Name", KindAudio, "'Hit' - Artist Name", ""},
@@ -125,8 +121,6 @@ func TestATitleBecomesAStem(t *testing.T) {
 		{strings.Repeat("é", 60), KindAudio, strings.Repeat("é", 42), ""},
 		{"Release v2.0", KindVideo, "Release v2.0", ""},
 		{"Google Drive File", KindFile, "Google Drive File", ""},
-		// A file name keeps its extension, whether or not it is a known one, so it never becomes
-		// `report.pdf.pdf`.
 		{"report.pdf", KindFile, "report", "pdf"},
 		{"data.parquet", KindFile, "data", "parquet"},
 		{"Song.mp3", KindAudio, "Song", "mp3"},
@@ -157,7 +151,6 @@ func TestSitesNameEveryHost(t *testing.T) {
 	}
 }
 
-// standIn plays both the link service and the media host, on one server.
 func standIn(t *testing.T) (*Resolver, string) {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -197,9 +190,6 @@ func standIn(t *testing.T) (*Resolver, string) {
 	return New(srv.Client(), srv.URL), srv.URL
 }
 
-// TestAServiceExtensionIsOneName checks that the extension the service reports is used only when
-// it could follow a name's dot. One with a separator in it is ignored, and the extension comes
-// from the address instead.
 func TestAServiceExtensionIsOneName(t *testing.T) {
 	r, _ := standIn(t)
 	for page, want := range map[string]string{"https://mediafire.com/a": "Archive.zip", "https://mediafire.com/b": "Archive.m4a"} {
@@ -214,20 +204,15 @@ func TestAPageAddressBecomesTheMediaBehindIt(t *testing.T) {
 	r, origin := standIn(t)
 	ctx := context.Background()
 
-	// The address has no extension, so the extension comes from the media host's Content-Type.
 	got, err := r.Resolve(ctx, "https://soundcloud.com/a/b")
 	want := Link{URL: origin + "/media?token=abc", Filename: "A track.mp3", Type: KindAudio}
 	if err != nil || got == nil || *got != want {
 		t.Fatalf("soundcloud: %+v (%v), want %+v", got, err, want)
 	}
-	// Google Drive already gives a file name, so the media host isn't contacted. (It doesn't even
-	// exist here.)
 	drive, err := r.Resolve(ctx, "https://drive.google.com/file/d/1")
 	if err != nil || drive == nil || drive.Filename != "GIF.png" || drive.Type != KindFile {
 		t.Fatalf("gdrive: %+v (%v)", drive, err)
 	}
-	// An address with nothing behind it, and one on a site that isn't listed (and so is never
-	// sent), are downloaded as they are.
 	for _, u := range []string{"https://youtu.be/1", "https://example.com/a.zip"} {
 		if nothing, err := r.Resolve(ctx, u); nothing != nil || err != nil {
 			t.Fatalf("%s: %+v (%v), want nothing", u, nothing, err)
@@ -244,9 +229,6 @@ func TestAPageAddressBecomesTheMediaBehindIt(t *testing.T) {
 	}
 }
 
-// The page gets a lookup without a file as a miss, with its reason, and never as an error: a
-// site's page with nothing behind it or an answer that can't be used, and a service that can't be
-// reached. An address that isn't a site's is a file's own, and is no miss.
 func TestTheAPISaysWhyThereIsNoFile(t *testing.T) {
 	r, _ := standIn(t)
 	api := NewAPI(late.Of(r))
@@ -268,18 +250,15 @@ func TestTheAPISaysWhyThereIsNoFile(t *testing.T) {
 		t.Errorf("a file's own address: %+v (%v), want no miss", got, err)
 	}
 
-	// A service that isn't there.
 	gone := httptest.NewServer(http.NotFoundHandler())
 	gone.Close()
 	away := NewAPI(late.Of(New(http.DefaultClient, gone.URL)))
 	if got, err := away.Resolve(ctx, "https://youtu.be/1"); err != nil || got.Found || got.Miss != MissUnreachable {
 		t.Errorf("no service: %+v (%v), want the miss %q", got, err, MissUnreachable)
 	}
-	// The error of a lookup doesn't name the address that was looked up.
 	if _, err := New(http.DefaultClient, gone.URL).Resolve(ctx, "https://youtu.be/private-post"); err == nil || strings.Contains(err.Error(), "private-post") {
 		t.Errorf("the error names the address: %v", err)
 	}
-	// The page stops a lookup when its address changes, which is no miss.
 	stopped, cancel := context.WithCancel(ctx)
 	cancel()
 	if got, err := away.Resolve(stopped, "https://youtu.be/1"); err == nil || got.Miss != "" {

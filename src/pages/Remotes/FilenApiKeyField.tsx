@@ -8,8 +8,6 @@ import { formatErrorMessage } from '../../../lib/errors'
 import { message } from '../../../lib/shell'
 import { generateFilenApiKey } from './filenKey'
 
-// A controlled version of the standard text RemoteField, with a "Generate" button. The button logs
-// in with the email and password already entered in the form, and fills in the API key it gets.
 export default function FilenApiKeyField({
     option,
     config,
@@ -21,7 +19,6 @@ export default function FilenApiKeyField({
 }: {
     option: Option
     config: Record<string, any>
-    /** When editing, rclone's stored password. It is obscured, so it can't be used to log in. */
     savedPassword?: string
     setConfig: (config: Record<string, any>) => void
     isDisabled?: boolean
@@ -33,8 +30,6 @@ export default function FilenApiKeyField({
 
     const email = (config?.email ?? '').trim()
     const password = config?.password ?? ''
-    // The core never reveals a saved password. The password in the form stays the obscured one
-    // until the user types it again.
     const passwordObscured = !!savedPassword && password === savedPassword
     const canGenerate = Boolean(email && password) && !passwordObscured
 

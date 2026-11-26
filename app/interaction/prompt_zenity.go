@@ -10,9 +10,7 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 )
 
-// prompt asks through ncruces/zenity. It uses osascript on macOS and a Win32 dialog on Windows.
-// Both would label their buttons in English (zenity's) or in the system's language (macOS's), so
-// the buttons are given the app's own labels.
+// zenity labels the buttons in English, and osascript in the system's language.
 func prompt(title, message, def string, sensitive bool) (string, bool, error) {
 	opts := []zenity.Option{
 		zenity.Title(title), zenity.EntryText(def),

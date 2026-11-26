@@ -18,11 +18,8 @@ import (
 )
 
 const (
-	// stopTimeout is the time limit for stopping all the services together. Each service sets
-	// its own shorter limits within it.
 	stopTimeout = 30 * time.Second
-	// goesWait is how long the shutdown waits for the goroutines started with Go to end.
-	goesWait = 5 * time.Second
+	goesWait    = 5 * time.Second
 )
 
 // Shutdown stops the core. Only the first call does anything. It stops the services in the order
@@ -42,12 +39,10 @@ func (c *Core) Shutdown(ctx context.Context, restart bool) {
 		log.InfoContext(ctx, "stopping", "restart", restart)
 		if c.built {
 			c.stopServices(ctx, restart)
-			// Sends what is waiting, for a moment at most.
 			c.telemetry.Close()
 		}
 
 		c.cancel()
-		// This wait has its own limit, however much of ctx the stops used.
 		if !syncx.Wait(context.Background(), &c.goes, goesWait) {
 			log.WarnContext(ctx, "some of the core's goroutines had not ended", "waited", goesWait)
 		}
@@ -69,10 +64,6 @@ func (c *Core) Shutdown(ctx context.Context, restart bool) {
 	})
 }
 
-// stopServices stops the services that have a lifetime, in the order of stopSteps. Each stop is
-// safe when the boot failed before starting that service. The supervisor, for one, leaves
-// children.json alone until it has begun, so the next start still finds what the previous run
-// left.
 func (c *Core) stopServices(ctx context.Context, restart bool) {
 	for _, st := range c.stopSteps() {
 		if st.shutdown != nil {
@@ -100,31 +91,19 @@ func (c *Core) StopAll(ctx context.Context) (StopSummary, error) {
 	return sum, errors.Join(errs...)
 }
 
-// stopStep is one step of stopping the core, in the list that both Shutdown and StopAll follow.
 type stopStep struct {
-	// shutdown is the step's part of Shutdown, or nil when it has none.
 	shutdown func(ctx context.Context, restart bool)
-	// stopAll is the step's part of StopAll, and records in stopped how much it stopped. It is
-	// nil for what StopAll leaves alone.
-	stopAll func(ctx context.Context, stopped *Running) error
+	stopAll  func(ctx context.Context, stopped *Running) error
 }
 
 func (c *Core) stopSteps() []stopStep {
 	return []stopStep{
-		// The media URLs stop first in a shutdown, which ends the previews' reads. StopAll leaves
-		// them, because they run nothing that the user started.
 		{shutdown: func(ctx context.Context, _ bool) { c.media.Shutdown(ctx) }},
-		// The tunnel stops before the children, because its own stop in a shutdown records it so
-		// it can start again after an update's restart.
 		{shutdown: c.tunnel.Shutdown, stopAll: c.stopTunnel},
-		// In a shutdown, the watchers and schedules start no run after this. StopAll leaves them
-		// on. Their runs in progress are transfers, which stop next.
 		{shutdown: func(context.Context, bool) {
 			c.watchers.Shutdown()
 			c.schedules.Shutdown()
 		}},
-		// The transfers stop before the serves and mounts, because a transfer that reads from a
-		// mount would fail when the mount goes.
 		{shutdown: c.transfers.Shutdown, stopAll: func(ctx context.Context, stopped *Running) error {
 			n, err := c.transfers.StopAll(ctx)
 			stopped.Transfers = n
@@ -140,8 +119,6 @@ func (c *Core) stopSteps() []stopStep {
 			stopped.Mounts = n
 			return err
 		}},
-		// A shutdown stops the serves and the mounts together through the supervisor, which can
-		// keep their records for an update's restart.
 		{shutdown: c.stopChildren},
 	}
 }

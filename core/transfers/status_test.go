@@ -8,7 +8,6 @@ import (
 	"github.com/rclone/rclone-ui/core/operations"
 )
 
-// copyPlan is a plan whose step labels are the subjects of the tests' errors.
 func copyPlan() operations.Plan {
 	return operations.Plan{V: 1, Steps: []operations.Step{
 		{Op: operations.OpCopy, Src: "/data/src/", Dst: "/data/dst"},
@@ -44,14 +43,11 @@ func TestOutcome(t *testing.T) {
 			if got := launchError(tc.jobErr, p, out); got != tc.launch {
 				t.Errorf("launch error %q, want %q", got, tc.launch)
 			}
-			// The row's error is the job's own, unless it is the ledger's summary.
 			if got := jobErrorOf(err, out).String(); got != tc.jobErr {
 				t.Errorf("job error of %q = %q, want %q", err, got, tc.jobErr)
 			}
 		})
 	}
-	// Anything that isn't in this build's format counts as no outcome: an empty value, a newer
-	// build's outcome, or something that isn't an outcome at all.
 	for _, raw := range []string{"", `{"v":99,"errors":["x"]}`, `{}`, "not json"} {
 		if _, ok := parseOutcome([]byte(raw)); ok {
 			t.Errorf("%q read as an outcome", raw)
@@ -110,8 +106,6 @@ func TestResumable(t *testing.T) {
 			t.Errorf("resumable(%s, %s) = %v", tc.operation, tc.origin, got)
 		}
 	}
-	// A transfer as the busy check sees it. Only an open one starts again. One that is being
-	// stopped (claimed, but without its end yet) won't be marked.
 	ended := int64(2)
 	for _, tc := range []struct {
 		name string
@@ -128,8 +122,6 @@ func TestResumable(t *testing.T) {
 	}
 }
 
-// A transfer's totals are stored as JSON (final_stats). Every later build reads them back, and
-// Retry reads the error count, so their keys must not change.
 func TestSummaryJSON(t *testing.T) {
 	raw, err := json.Marshal(Summary{Bytes: 1, TotalBytes: 2, Transfers: 3, Checks: 4, Errors: 5, Deletes: 7, Renames: 8, DurationMs: 6})
 	if err != nil {
@@ -140,7 +132,6 @@ func TestSummaryJSON(t *testing.T) {
 	}
 }
 
-// A dry run's preset loses its dry_run and keeps the rest. The preset itself doesn't change.
 func TestWithoutDryRun(t *testing.T) {
 	for in, want := range map[string]string{
 		`{"operation":"copy","copy":{"options":{"config":{"dry_run":true,"x":1}}}}`: `{"operation":"copy","copy":{"options":{"config":{"x":1}}}}`,
@@ -164,8 +155,6 @@ func TestWithoutDryRun(t *testing.T) {
 	}
 }
 
-// englishGeneral returns errors as the tests write them: their subjects and their English
-// messages.
 func englishGeneral(errors []GeneralError) []GeneralError {
 	out := make([]GeneralError, len(errors))
 	for i, g := range errors {

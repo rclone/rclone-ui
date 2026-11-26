@@ -10,8 +10,6 @@ import (
 	"github.com/rclone/rclone-ui/core/db"
 )
 
-// TestSchemaChangeOffersTheDataFolder uses the error that db.Open returns for a file without the
-// schema's hash, wrapped as the core's boot wraps it.
 func TestSchemaChangeOffersTheDataFolder(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "app.db")
 	d, err := db.Open(context.Background(), path)

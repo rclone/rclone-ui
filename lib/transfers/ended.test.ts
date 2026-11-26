@@ -32,7 +32,6 @@ const row = (n: number, endedAt = 1000 + n, extra: Partial<Transfers.Transfer> =
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-/** A core that answers from `rows`, as transfers.ListEnded does, and records what it was asked. */
 function core(rows: Transfers.Transfer[]) {
     const asked: EndedAsk[] = []
     const fetch = async (ask: EndedAsk) => {
@@ -55,8 +54,6 @@ function core(rows: Transfers.Transfer[]) {
 }
 
 describe('matches', () => {
-    // The same table is read by core/transfers' TestMatches, so the page's filter and the core's
-    // search find the same transfers.
     const { transfer, searches } = searchCases as {
         transfer: Partial<Transfers.Transfer>
         searches: { search: string; matches: boolean }[]
@@ -134,7 +131,6 @@ describe('EndedList', () => {
         list.newer()
         for (let i = 0; i < 5; i++) await flush()
         expect(list.snapshot().items.map((t) => t.seq)).toEqual([5, 4, 3, 2, 1])
-        // The end it asks after is shown again, so each page of 2 brings one more.
         expect(asked.map((a) => a.after)).toEqual([0, 1001, 1002, 1003, 1004])
         expect(list.snapshot().loading).toBe(false)
     })
@@ -224,7 +220,6 @@ describe('EndedList cursor and question time', () => {
         const list = new EndedList(fetch)
         list.setFilter({ state: '', search: '' })
         await flush()
-        // A long transfer that started before every row shown ends now.
         rows.push(row(0, 5000))
         list.newer()
         await flush()

@@ -74,7 +74,6 @@ export function RemoteCard({
     remote: string
     type: string | undefined
     health: HealthResult | undefined
-    /** The remote's color in the storage bar. */
     tone: Tone | undefined
     onEdit: () => void
     onDelete: () => void
@@ -96,7 +95,6 @@ export function RemoteCard({
         >
             <BackendTile type={type} alt={backendLabel(type)} size="xl" />
             <div className="flex flex-col flex-1 min-w-0 gap-1">
-                {/* The name stretches over the card, so the whole card edits the remote. */}
                 <button
                     type="button"
                     data-press={true}
@@ -261,7 +259,6 @@ function RemoteStatus({
                         'flex items-center min-w-0 gap-1.5',
                         status.kind === 'danger' && 'text-danger',
                         status.kind === 'warning' && 'text-warning-600 dark:text-warning',
-                        // Over the card's press area, so the full error shows on hover.
                         status.detail && 'relative z-10'
                     )}
                     title={status.detail}
@@ -277,7 +274,6 @@ function RemoteStatus({
     )
 }
 
-/** What a remote's last check found, in words. `detail` is the core's error message. */
 export function healthStatus(
     health: HealthResult | undefined
 ): { kind: StatusKind; label: string; detail?: string } | undefined {
@@ -316,7 +312,6 @@ export function healthStatus(
     }
 }
 
-/** Keeps its width when it has nothing to show, so the cards' columns line up. */
 function StorageMeter({
     remote,
     health,

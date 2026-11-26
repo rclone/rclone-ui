@@ -22,18 +22,16 @@ import (
 	"github.com/rclone/rclone-ui/core/rclone"
 )
 
-// Config sessions: rclone's config.CreateRemote and UpdateRemote block until an OAuth token
-// arrives, and they use one fixed listener (127.0.0.1:53682). So the core runs only one session
-// at a time, as an async rclone job, and the pages follow its steps.
+// rclone's config.CreateRemote and UpdateRemote block until an OAuth token arrives, and they use
+// one fixed listener (127.0.0.1:53682).
 const (
-	sessionIdle  = 15 * time.Minute       // a session ends after this long with no step or owner action
-	sessionPoll  = 500 * time.Millisecond // how often config/oauthstatus is polled while rclone works
-	finishedKept = 5 * time.Minute        // a finished session stays readable this long, or until cancelled
-	endWait      = 10 * time.Second       // how long to wait for an ended session's rclone call
+	sessionIdle  = 15 * time.Minute
+	sessionPoll  = 500 * time.Millisecond
+	finishedKept = 5 * time.Minute
+	endWait      = 10 * time.Second
 	strayWait    = 500 * time.Millisecond // wait after stopping a stray login, while its listener closes
 )
 
-// interactiveTypes are the providers that are configured one question at a time.
 var interactiveTypes = []string{"jottacloud", "onedrive", "zoho", "seafile", "sugarsync", "iclouddrive", "internxt"}
 
 var errNotWaiting = errs.Precondition("The session is not waiting for an answer.")
@@ -46,7 +44,7 @@ type Sessions struct {
 	idle time.Duration
 	poll time.Duration
 
-	startMu sync.Mutex // one Start at a time, so the previous session ends before the next begins
+	startMu sync.Mutex
 
 	mu       sync.Mutex
 	cur      *session
@@ -55,16 +53,16 @@ type Sessions struct {
 
 type session struct {
 	step        Step
-	typ         string // the backend
-	newName     string // for update: the new name to rename to once saved
+	typ         string
+	newName     string
 	interactive bool
 	values      map[string]any
-	job         *jobs.Job // the running call to rclone's config
-	rcState     string    // the question's state, sent back with the answer
-	notice      string    // a soft error, shown with the next question
-	wrote       bool      // rclone's config ran, so the config file may have changed
-	completing  bool      // rclone finished the session, so it is too late to cancel
-	active      time.Time // the time of the last step or action by the owner
+	job         *jobs.Job
+	rcState     string
+	notice      string
+	wrote       bool
+	completing  bool
+	active      time.Time
 	ended       time.Time
 }
 
@@ -99,7 +97,6 @@ func (ss *Sessions) Current(ctx context.Context) *Step {
 	return &step
 }
 
-// creating returns the name of the remote that a running create session is making, or "".
 func (ss *Sessions) creating() string {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
@@ -117,8 +114,6 @@ func (ss *Sessions) Start(ctx context.Context, req StartRequest) (Step, error) {
 	ss.mu.Lock()
 	prev := ss.cur
 	ss.mu.Unlock()
-	// End the previous session before the checks, because a create with the same name left a
-	// section that the cleanup removes.
 	if prev != nil {
 		if cleanup, ok := ss.finish(prev, StateCancelled, nil); ok {
 			cleanup()
@@ -142,7 +137,6 @@ func (ss *Sessions) Start(ctx context.Context, req StartRequest) (Step, error) {
 	return step, nil
 }
 
-// prepare checks a start request: the names, the type and the remote.
 func (ss *Sessions) prepare(ctx context.Context, req StartRequest) (*session, error) {
 	x := &session{
 		step:   Step{ID: ids.New(), Remote: req.Name, Kind: req.Kind, State: StateWorking},
@@ -184,7 +178,6 @@ func (ss *Sessions) prepare(ctx context.Context, req StartRequest) (*session, er
 	return x, nil
 }
 
-// begin makes the session's first call to rclone's config.
 func (ss *Sessions) begin(x *session) {
 	name := x.step.Remote
 	opt := config.UpdateRemoteOpt{Obscure: true, NonInteractive: x.interactive}
@@ -196,27 +189,23 @@ func (ss *Sessions) begin(x *session) {
 		})
 	case KindUpdate:
 		if len(x.values) == 0 {
-			ss.succeed(x) // nothing to save, so go straight to the rename, if any
+			ss.succeed(x)
 			return
 		}
-		// Send only the changed keys. Without Obscure, a plaintext password would be stored as
-		// if it were obscured.
 		params := withLogin(x.values)
 		if !x.interactive {
 			// An edit keeps the existing sign-in. Otherwise rclone would answer its own "Token
-			// already configured - replace it?" with yes and wait for a new login. Replacing the
-			// token is what a reconnect is for. (config_ keys are never stored.)
+			// already configured - replace it?" with yes and wait for a new login.
 			params["config_refresh_token"] = "false"
 		}
 		ss.run(x, func(ctx context.Context) (*fs.ConfigOut, error) {
 			return config.UpdateRemote(ctx, name, params, opt)
 		})
 	case KindReconnect:
-		// Run the backend's login again. The providers that are configured one question at a
-		// time ask their questions, because rclone stores no config_* answers (OneDrive's drive,
-		// Jottacloud's device), and answering with the defaults would point the remote somewhere
-		// else. Other backends' questions are answered with their defaults, which include the
-		// saved values.
+		// The providers that are configured one question at a time ask their questions, because
+		// rclone stores no config_* answers (OneDrive's drive, Jottacloud's device), and answering
+		// with the defaults would point the remote somewhere else. Other backends' questions are
+		// answered with their defaults, which include the saved values.
 		opt := config.UpdateRemoteOpt{}
 		if x.interactive {
 			opt.NonInteractive = true
@@ -228,7 +217,6 @@ func (ss *Sessions) begin(x *session) {
 	}
 }
 
-// cont sends the answer to rclone's question.
 func (ss *Sessions) cont(x *session, state, result string) {
 	name, typ := x.step.Remote, x.typ
 	opt := config.UpdateRemoteOpt{NonInteractive: true, Continue: true, State: state, Result: result}
@@ -244,8 +232,6 @@ func (ss *Sessions) cont(x *session, state, result string) {
 	})
 }
 
-// withLogin adds what every login needs: rclone must never open a browser itself. The key is
-// temporary and never stored.
 func withLogin(values map[string]any) rc.Params {
 	out := rc.Params{}
 	maps.Copy(out, values)
@@ -253,10 +239,6 @@ func withLogin(values map[string]any) rc.Params {
 	return out
 }
 
-// loginParams returns what a session's calls send besides the form's values. That is
-// withLogin's key, plus, on a reconnect, a yes to rclone's "Token already configured - replace
-// it?". Replacing the token is what a reconnect is for, so the user is never asked, however many
-// questions come first.
 func loginParams(x *session) rc.Params {
 	params := withLogin(nil)
 	if x.step.Kind == KindReconnect {
@@ -265,22 +247,15 @@ func loginParams(x *session) rc.Params {
 	return params
 }
 
-// configCall is one call to rclone's config state machine. It returns the result (nil when
-// rclone ran to the end) or an error.
 type configCall func(ctx context.Context) (*fs.ConfigOut, error)
 
-// callResult holds what a configCall returned. It is set before the call's job finishes.
 type callResult struct {
 	out *fs.ConfigOut
 	err error
 }
 
-// run starts a call to rclone's config as an async job, which the job's Stop cancels. When the
-// call ends, the session moves on to the next step.
 func (ss *Sessions) run(x *session, call configCall) {
 	res := &callResult{}
-	// Use a separate stats group, which jobDone and finish delete. The default group of an async
-	// job (job/<id>) would be left behind.
 	opts := rclone.CallOpts{Async: true, Group: rclone.UIGroup("config", x.step.ID)}
 	job, err := rclone.Run(context.Background(), opts, func(ctx context.Context) error {
 		res.out, res.err = call(ctx)
@@ -293,10 +268,6 @@ func (ss *Sessions) run(x *session, call configCall) {
 	ss.mu.Lock()
 	if ss.cur != x || x.finished() {
 		ss.mu.Unlock()
-		// The session ended just as this call began, from a cancel right after the start or
-		// after an answer. So when the session ended, there was no call to stop, and this call
-		// may still write a create's remote after the end removed it. Stop it and remove the
-		// remote again.
 		ss.stopCall(job, x.step.Remote)
 		if x.step.Kind == KindCreate {
 			ss.removeUnfinished(x.step.Remote)
@@ -309,8 +280,6 @@ func (ss *Sessions) run(x *session, call configCall) {
 	job.OnFinish(func() { ss.jobDone(x, job, res) })
 }
 
-// jobDone runs on rclone's goroutine when a session's call ends. The fields of a finished job
-// no longer change.
 func (ss *Sessions) jobDone(x *session, job *jobs.Job, res *callResult) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -318,8 +287,6 @@ func (ss *Sessions) jobDone(x *session, job *jobs.Job, res *callResult) {
 			ss.fail(x, errs.Errorf("internal error: %v", r))
 		}
 	}()
-	// A nonInteractive call returns a ConfigOut. Other calls return nil, because they run to
-	// the end.
 	out := res.out
 	if out == nil {
 		out = &fs.ConfigOut{}
@@ -327,8 +294,7 @@ func (ss *Sessions) jobDone(x *session, job *jobs.Job, res *callResult) {
 	asks := out.Option != nil
 	// An error with no state to go on from is rclone's last word: the setup can't be finished as
 	// it was asked ("Password can't be blank", "No Shared Drives found in your account").
-	// rclone's own command line prints it and stops. Taking it for the end of a setup that
-	// worked would hide it, and could leave a remote that can't sign in.
+	// rclone's own command line prints it and stops.
 	refused := job.Success && out.State == "" && out.Error != ""
 	// Otherwise, no state to go on from means done. So does a state with neither a question
 	// nor an error, because rclone follows such states itself.
@@ -339,14 +305,13 @@ func (ss *Sessions) jobDone(x *session, job *jobs.Job, res *callResult) {
 		return
 	}
 	x.job = nil
-	// From here on, a cancel would remove what was just created.
 	x.completing = done
 	ss.mu.Unlock()
 	rclone.DeleteGroup(context.Background(), job.Group)
 	switch {
 	case !job.Success:
 		// Use job.Error rather than res.err, because a fatal rclone error shows up as the job's
-		// recovered panic. It is rclone's text.
+		// recovered panic.
 		if cleanup, ok := ss.finishBusy(x, errors.New(job.Error), listenerBusy(res.err)); ok {
 			cleanup()
 		}
@@ -375,18 +340,12 @@ func (ss *Sessions) jobDone(x *session, job *jobs.Job, res *callResult) {
 	}
 }
 
-// setupError is the error that rclone ended a remote's setup with, in rclone's words. The API
-// gives the page rclone's text in the app's language, where the translations have it.
 type setupError string
 
 func (e setupError) Error() string { return string(e) }
 
-// unknownPort is Step.Busy when rclone didn't say which address its listener tried. The API
-// translates it.
 const unknownPort = "the sign-in port"
 
-// listenerBusy returns the address of rclone's sign-in listener when err says that its port is
-// taken by another program, so the page can name it. It returns "" for any other error.
 func listenerBusy(err error) string {
 	var op *net.OpError
 	if !errors.As(err, &op) || op.Op != "listen" || !errors.Is(op.Err, errAddrInUse) {
@@ -398,9 +357,6 @@ func listenerBusy(err error) string {
 	return unknownPort
 }
 
-// succeed ends the session as done. It checks that rclone's config was saved, runs the rename
-// that an edit asked for, and then the config change handling (Changed). When the config
-// couldn't be saved, the session fails instead.
 func (ss *Sessions) succeed(x *session) {
 	name := x.step.Remote
 	res := &StepResult{Name: name}
@@ -418,7 +374,6 @@ func (ss *Sessions) succeed(x *session) {
 				ss.s.Changed([]string{name})
 				err = errs.Errorf("The changes were saved, but the rename failed: %w", err)
 			}
-			// The edit form shows a failed rename under the name.
 			ss.mu.Lock()
 			if !x.finished() {
 				x.step.Field = "newName"
@@ -443,14 +398,12 @@ func (ss *Sessions) succeed(x *session) {
 	ss.publish(x)
 }
 
-// fail ends the session as failed with the error err, and cleans up as for a cancel.
 func (ss *Sessions) fail(x *session, err error) {
 	if cleanup, ok := ss.finish(x, StateFailed, err); ok {
 		cleanup()
 	}
 }
 
-// finishBusy ends the session as failed, and names what blocked it (Step.Busy).
 func (ss *Sessions) finishBusy(x *session, err error, busy string) (func(), bool) {
 	ss.mu.Lock()
 	if !x.finished() {
@@ -460,16 +413,10 @@ func (ss *Sessions) finishBusy(x *session, err error, busy string) (func(), bool
 	return ss.finish(x, StateFailed, err)
 }
 
-// finish marks the session as ended, with the error err for a failure, and returns the cleanup
-// that must follow, unless the session had already ended. The cleanup stops rclone's call and
-// waits for it, stops rclone's login, and for a create, removes the section that rclone wrote
-// before the login. A cancel leaves a completing session alone.
 func (ss *Sessions) finish(x *session, state string, err error) (func(), bool) {
 	return ss.end(x, state, err, state == StateCancelled)
 }
 
-// end does the work of finish. With spareCompleting, a session that rclone has finished is left
-// alone. That check happens under the same lock that ends the session.
 func (ss *Sessions) end(x *session, state string, err error, spareCompleting bool) (func(), bool) {
 	ss.mu.Lock()
 	if x.finished() || x.completing && spareCompleting {
@@ -494,7 +441,6 @@ func (ss *Sessions) end(x *session, state string, err error, spareCompleting boo
 	}, true
 }
 
-// stopCall stops a session's call to rclone and waits for it to end, up to endWait.
 func (ss *Sessions) stopCall(job *jobs.Job, name string) {
 	done := make(chan struct{})
 	stopListening := job.OnFinish(func() { close(done) })
@@ -508,7 +454,6 @@ func (ss *Sessions) stopCall(job *jobs.Job, name string) {
 	rclone.DeleteGroup(context.Background(), job.Group)
 }
 
-// removeUnfinished removes the section that a create session left behind.
 func (ss *Sessions) removeUnfinished(name string) {
 	if err := ss.s.deleteSection(name); err != nil {
 		ss.s.log.Error("remotes: removing an unfinished remote", "remote", name, "error", err)
@@ -516,7 +461,6 @@ func (ss *Sessions) removeUnfinished(name string) {
 	ss.s.Changed([]string{name})
 }
 
-// owned returns the current session when its ID is id.
 func (ss *Sessions) owned(_ context.Context, id string) (*session, error) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
@@ -557,10 +501,9 @@ func (ss *Sessions) Answer(ctx context.Context, id, value string) error {
 	return nil
 }
 
-// answer returns the value that rclone's state machine gets for an answer to q. A password is
-// obscured, as rclone's own config passes it on, because some backends reveal it (SugarSync,
-// Jottacloud's legacy login). Seafile's two-factor login takes its password as plain text and
-// obscures it itself. A blank answer stays blank.
+// A password is obscured, as rclone's own config passes it on, because some backends reveal it
+// (SugarSync, Jottacloud's legacy login). Seafile's two-factor login takes its password as plain
+// text and obscures it itself.
 func answer(typ string, q *fs.Option, value string) (string, error) {
 	if q == nil || !q.IsPassword || value == "" || typ == "seafile" && q.Name == "config_password" {
 		return value, nil
@@ -568,8 +511,8 @@ func answer(typ string, q *fs.Option, value string) (string, error) {
 	return obscure.Obscure(value)
 }
 
-// Cancel ends the session, because its page went away or the user cancelled, or forgets it if
-// it has already finished. The cleanup runs in the background.
+// Cancel ends the session, or forgets it if it has already finished. The cleanup runs in the
+// background.
 func (ss *Sessions) Cancel(ctx context.Context, id string) error {
 	x, err := ss.owned(ctx, id)
 	if err != nil {
@@ -602,7 +545,6 @@ func oauthStatus() (running bool, authURL string) {
 	return status == "running", authURL
 }
 
-// stopOAuth stops rclone's login, if one is running.
 func (ss *Sessions) stopOAuth() bool {
 	if running, _ := oauthStatus(); !running {
 		return false
@@ -618,8 +560,6 @@ func (ss *Sessions) stopOAuth() bool {
 	return true
 }
 
-// stopStray stops a login that nothing is waiting on any more, because it would keep holding the
-// listener's port.
 func (ss *Sessions) stopStray() {
 	if ss.stopOAuth() {
 		time.Sleep(strayWait)
@@ -633,8 +573,6 @@ func (ss *Sessions) publish(x *session) {
 	ss.s.bus.Publish(bus.RemotesSession, data)
 }
 
-// watch follows the current session while it runs. It tracks rclone's sign-in link while the
-// session waits for a sign-in, and enforces the idle limit.
 func (ss *Sessions) watch() {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
@@ -663,7 +601,6 @@ func (ss *Sessions) watchLoop(ctx context.Context) {
 	}
 }
 
-// tick checks the running session once. It returns false once there is no session.
 func (ss *Sessions) tick() bool {
 	ss.mu.Lock()
 	x := ss.cur
@@ -693,7 +630,6 @@ func (ss *Sessions) tick() bool {
 			x.step.State, x.step.AuthURL = StateAuthorize, authURL
 			x.active, changed = ss.s.now(), true
 		case !waiting && x.step.State == StateAuthorize:
-			// The code arrived, and rclone is exchanging it for a token.
 			x.step.State, x.step.AuthURL = StateWorking, ""
 			x.active, changed = ss.s.now(), true
 		}
