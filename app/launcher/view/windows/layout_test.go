@@ -29,9 +29,9 @@ func TestKeyFor(t *testing.T) {
 		{'B', false, false, false, view.KeyEvent{}, false},
 		{'Q', true, false, true, view.KeyEvent{}, false},
 		{0x70, true, false, false, view.KeyEvent{}, false},
-		{vkPeriod, true, false, false, view.KeyEvent{Key: view.KeyRow, Char: '.'}, true},
-		{vkPeriod, false, false, false, view.KeyEvent{}, false},
-		{vkPeriod, true, false, true, view.KeyEvent{}, false},
+		{vkOemPeriod, true, false, false, view.KeyEvent{Key: view.KeyRow, Char: view.StopAllChar}, true},
+		{vkOemPeriod, false, false, false, view.KeyEvent{}, false},
+		{vkOemPeriod, true, false, true, view.KeyEvent{}, false},
 	} {
 		got, ok := keyFor(c.vk, c.ctrl, c.shift, c.alt)
 		if ok != c.ok || got != c.want {
@@ -44,19 +44,19 @@ func TestBoldRanges(t *testing.T) {
 	for _, c := range []struct {
 		s    string
 		bold []int
-		want []textRange
+		want []utf16Range
 	}{
 		{"Move", nil, nil},
-		{"Move", []int{0, 1}, []textRange{{0, 2}}},
-		{"Show Remotes", []int{7, 8, 5}, []textRange{{5, 1}, {7, 2}}},
-		{"😀 docs", []int{0, 2, 3}, []textRange{{0, 2}, {3, 2}}},
-		{"ab", []int{5, -1, 1, 1}, []textRange{{1, 1}}},
+		{"Move", []int{0, 1}, []utf16Range{{0, 2}}},
+		{"Show Remotes", []int{7, 8, 5}, []utf16Range{{5, 1}, {7, 2}}},
+		{"😀 docs", []int{0, 2, 3}, []utf16Range{{0, 2}, {3, 2}}},
+		{"ab", []int{5, -1, 1, 1}, []utf16Range{{1, 1}}},
 	} {
 		if got := boldRanges(c.s, c.bold); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("boldRanges(%q, %v) = %v, want %v", c.s, c.bold, got, c.want)
 		}
 	}
-	if got := (textRange{start: 3, length: 2}).packed(); got != 3|2<<32 {
+	if got := (utf16Range{start: 3, length: 2}).packed(); got != 3|2<<32 {
 		t.Fatalf("packed = %#x", got)
 	}
 }
@@ -100,8 +100,8 @@ func TestLayoutCache(t *testing.T) {
 	next := uintptr(0)
 	build := func() uintptr { next++; made = append(made, next); return next }
 	c := layoutCache{release: func(l uintptr) { released = append(released, l) }}
-	a, b := newTextKey(1, "a", 10, 16, nil), newTextKey(1, "b", 10, 16, []textRange{{0, 1}})
-	if newTextKey(1, "b", 10, 16, nil) == b || newTextKey(2, "b", 10, 16, []textRange{{0, 1}}) == b {
+	a, b := newTextKey(1, "a", 10, 16, nil), newTextKey(1, "b", 10, 16, []utf16Range{{0, 1}})
+	if newTextKey(1, "b", 10, 16, nil) == b || newTextKey(2, "b", 10, 16, []utf16Range{{0, 1}}) == b {
 		t.Fatal("keys of different layouts are equal")
 	}
 

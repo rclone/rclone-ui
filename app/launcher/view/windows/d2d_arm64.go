@@ -19,12 +19,12 @@ func newByValueCalls() byValueCalls {
 }
 
 func (g *gfx) drawTextLayout(x, y float32, layout uintptr) {
-	bound(g.calls.byValue.drawTextLayout, method(g.rt, 28))(g.rt, x, y, layout, g.brush, 0)
+	bound(g.calls.byValue.drawTextLayout, method(g.rt, d2d1RenderTargetDrawTextLayout))(g.rt, x, y, layout, g.brush, 0)
 }
 
 func (g *gfx) createSvgDocument(stream uintptr, w, h float32) uintptr {
 	var doc uintptr
-	if hr := bound(g.calls.byValue.createSvg, method(g.dc5, 115))(g.dc5, stream, w, h, &doc); hr < 0 {
+	if hr := bound(g.calls.byValue.createSvg, method(g.dc5, d2d1DeviceContext5CreateSvgDocument))(g.dc5, stream, w, h, &doc); hr < 0 {
 		return 0
 	}
 	return doc

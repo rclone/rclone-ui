@@ -15,22 +15,24 @@ import (
 
 func px(dip, scale float64) int32 { return int32(math.Round(dip * scale)) }
 
+const userDefaultScreenDpi = 96
+
 func drawDpi(monitorDpi uint32, textScale float64, workW, workH int32) uint32 {
-	base := float64(monitorDpi) / 96
+	base := float64(monitorDpi) / userDefaultScreenDpi
 	scale := base * textScale
 	if workW > 0 && workH > 0 {
 		scale = min(scale, float64(workW)/view.Width, float64(workH)/view.FullHeight())
 	}
-	return uint32(math.Round(max(scale, base) * 96))
+	return uint32(math.Round(max(scale, base) * userDefaultScreenDpi))
 }
 
 const (
-	vkTab    = 0x09
-	vkReturn = 0x0D
-	vkEscape = 0x1B
-	vkUp     = 0x26
-	vkDown   = 0x28
-	vkPeriod = 0xBE
+	vkTab       = 0x09
+	vkReturn    = 0x0D
+	vkEscape    = 0x1B
+	vkUp        = 0x26
+	vkDown      = 0x28
+	vkOemPeriod = 0xBE
 )
 
 func keyFor(vk uint32, ctrl, shift, alt bool) (view.KeyEvent, bool) {
@@ -53,8 +55,8 @@ func keyFor(vk uint32, ctrl, shift, alt bool) (view.KeyEvent, bool) {
 		return view.KeyEvent{Key: view.KeyRow, Char: rune(vk)}, true
 	case vk >= 'A' && vk <= 'Z':
 		return view.KeyEvent{Key: view.KeyRow, Char: rune(vk-'A') + 'a'}, true
-	case vk == vkPeriod:
-		return view.KeyEvent{Key: view.KeyRow, Char: '.'}, true
+	case vk == vkOemPeriod:
+		return view.KeyEvent{Key: view.KeyRow, Char: view.StopAllChar}, true
 	}
 	return view.KeyEvent{}, false
 }
@@ -76,30 +78,35 @@ var onAccent = struct {
 	icon            string
 }{colorF{1, 1, 1, 1}, colorF{1, 1, 1, 0.8}, "#ffffff"}
 
+func rgb(rrggbb uint32) colorF {
+	c := func(shift uint) float32 { return float32(rrggbb>>shift&0xFF) / 255 }
+	return colorF{c(16), c(8), c(0), 1}
+}
+
 func paletteFor(dark bool) palette {
-	red := colorF{0.769, 0.169, 0.110, 1}
+	red := rgb(0xc42b1c)
 	if dark {
 		return palette{
-			surface:   colorF{0.125, 0.125, 0.125, 1},
+			surface:   rgb(0x202020),
 			text:      colorF{1, 1, 1, 1},
 			secondary: colorF{1, 1, 1, 0.6},
 			separator: colorF{1, 1, 1, 0.08},
 			icon:      "#e6e6e6",
 			muted:     "#a6a6a6",
-			critical:  colorF{1, 0.6, 0.643, 1},
-			success:   colorF{0.424, 0.796, 0.373, 1},
+			critical:  rgb(0xff99a4),
+			success:   rgb(0x6ccb5f),
 			danger:    red,
 		}
 	}
 	return palette{
-		surface:   colorF{0.976, 0.976, 0.976, 1},
+		surface:   rgb(0xf9f9f9),
 		text:      colorF{0.1, 0.1, 0.1, 1},
 		secondary: colorF{0, 0, 0, 0.6},
 		separator: colorF{0, 0, 0, 0.08},
 		icon:      "#1f1f1f",
 		muted:     "#646464",
 		critical:  red,
-		success:   colorF{0.059, 0.482, 0.059, 1},
+		success:   rgb(0x0f7b0f),
 		danger:    red,
 	}
 }
@@ -128,14 +135,14 @@ func announcement(s view.Snapshot) string {
 	return strings.Join(parts, ", ")
 }
 
-type textRange struct {
+type utf16Range struct {
 	start, length uint32
 }
 
 // packed returns the range as a DWRITE_TEXT_RANGE passed by value: two UINT32s in one register.
-func (r textRange) packed() uint64 { return uint64(r.start) | uint64(r.length)<<32 }
+func (r utf16Range) packed() uint64 { return uint64(r.start) | uint64(r.length)<<32 }
 
-func boldRanges(s string, bold []int) []textRange {
+func boldRanges(s string, bold []int) []utf16Range {
 	if len(bold) == 0 {
 		return nil
 	}
@@ -150,7 +157,7 @@ func boldRanges(s string, bold []int) []textRange {
 	}
 	idx := append([]int(nil), bold...)
 	sort.Ints(idx)
-	var out []textRange
+	var out []utf16Range
 	for _, i := range idx {
 		if i < 0 || i >= len(runes) {
 			continue
@@ -162,7 +169,7 @@ func boldRanges(s string, bold []int) []textRange {
 			}
 			continue
 		}
-		out = append(out, textRange{start: start, length: end - start})
+		out = append(out, utf16Range{start: start, length: end - start})
 	}
 	return out
 }
@@ -201,7 +208,7 @@ type textKey struct {
 	bold   string
 }
 
-func newTextKey(format uintptr, text string, w, h float32, bold []textRange) textKey {
+func newTextKey(format uintptr, text string, w, h float32, bold []utf16Range) textKey {
 	b := make([]byte, 0, 8*len(bold))
 	for _, r := range bold {
 		b = binary.LittleEndian.AppendUint32(b, r.start)
@@ -245,9 +252,14 @@ func swapProgress(elapsed time.Duration) float32 {
 	return float32(1 - math.Pow(1-t, 3))
 }
 
+const (
+	spinDots   = 8
+	spinRadius = 6.0
+)
+
 func spinnerDot(i int) (x, y float32) {
-	a := float64(i)*2*math.Pi/8 - math.Pi/2
-	return float32(6 * math.Cos(a)), float32(6 * math.Sin(a))
+	a := float64(i)*2*math.Pi/spinDots - math.Pi/2
+	return float32(spinRadius * math.Cos(a)), float32(spinRadius * math.Sin(a))
 }
 
 type variant struct {

@@ -3,6 +3,7 @@
 package windows
 
 import (
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -132,8 +133,6 @@ const (
 	htClient         = 1
 	htCaption        = 2
 	pmRemove         = 1
-	gwlpWndProc      = ^uintptr(3)
-	hwndTopmost      = ^uintptr(0)
 	idcArrow         = 32512
 	colorHighlight   = 13
 	mdtEffectiveDpi  = 0
@@ -150,10 +149,16 @@ const (
 	rdwInvalidate  = 0x0001
 	rdwUpdateNow   = 0x0100
 
-	eventObjectShow = 0x8002
-	objidWindow     = 0
-	gaRoot          = 2
-	gwlExStyle      = ^uintptr(19)
+	eventObjectShow      = 0x8002
+	wineventOutOfContext = 0x0000
+	objidWindow          = 0
+	gaRoot               = 2
+)
+
+const (
+	gwlpWndProc int32 = -4
+	gwlExStyle  int32 = -20
+	hwndTopmost int32 = -1
 )
 
 const (
@@ -243,6 +248,9 @@ type trackMouseEvent struct {
 	HoverTime uint32
 }
 
+// Go can't convert a negative constant to uintptr.
+func signed(n int32) uintptr { return uintptr(n) }
+
 // packPoint packs a POINT passed by value: two LONGs in one register, on both amd64 and arm64.
 func packPoint(p point) uintptr { return uintptr(uint32(p.X)) | uintptr(uint32(p.Y))<<32 }
 
@@ -287,6 +295,10 @@ func invalidate(hwnd uintptr, r *rect) {
 	_, _, _ = procInvalidateRect.Call(hwnd, uintptr(unsafe.Pointer(r)), 0)
 }
 
+func setTimer(hwnd, id uintptr, every time.Duration) {
+	_, _, _ = procSetTimer.Call(hwnd, id, uintptr(every.Milliseconds()), 0)
+}
+
 func keyDown(vk uintptr) bool {
 	r, _, _ := procGetKeyState.Call(vk)
 	return int16(r) < 0
@@ -327,23 +339,23 @@ func workArea(monitor uintptr) (rect, bool) {
 
 func monitorDpi(monitor uintptr) uint32 {
 	if procGetDpiForMonitor.Find() != nil {
-		return 96
+		return userDefaultScreenDpi
 	}
 	var x, y uint32
 	r, _, _ := procGetDpiForMonitor.Call(monitor, mdtEffectiveDpi, uintptr(unsafe.Pointer(&x)), uintptr(unsafe.Pointer(&y)))
 	if int32(r) < 0 || x == 0 {
-		return 96
+		return userDefaultScreenDpi
 	}
 	return x
 }
 
 func windowDpi(hwnd uintptr) uint32 {
 	if procGetDpiForWindow.Find() != nil {
-		return 96
+		return userDefaultScreenDpi
 	}
 	r, _, _ := procGetDpiForWindow.Call(hwnd)
 	if r == 0 {
-		return 96
+		return userDefaultScreenDpi
 	}
 	return uint32(r)
 }
@@ -388,7 +400,7 @@ func redrawNow(hwnd uintptr) {
 // unhook. The hook is out of context, so fn runs on this thread while it processes its messages.
 // It returns 0 when Windows refuses.
 func hookShows(fn uintptr) uintptr {
-	r, _, _ := procSetWinEventHook.Call(eventObjectShow, eventObjectShow, 0, fn, uintptr(windows.GetCurrentProcessId()), 0, 0)
+	r, _, _ := procSetWinEventHook.Call(eventObjectShow, eventObjectShow, 0, fn, uintptr(windows.GetCurrentProcessId()), 0, wineventOutOfContext)
 	return r
 }
 
@@ -402,7 +414,7 @@ func activatable(hwnd uintptr) bool {
 	if shown, _, _ := procIsWindowVisible.Call(hwnd); shown == 0 {
 		return false
 	}
-	ex, _, _ := procGetWindowLongPtrW.Call(hwnd, gwlExStyle)
+	ex, _, _ := procGetWindowLongPtrW.Call(hwnd, signed(gwlExStyle))
 	return ex&(wsExToolWindow|wsExNoActivate) == 0
 }
 
@@ -411,10 +423,10 @@ func sysColor(index uintptr) (r, g, b uint8) {
 	return uint8(c), uint8(c >> 8), uint8(c >> 16)
 }
 
-func queryFont(size float64, dpi uint32) uintptr {
+func queryFont(dips float64, dpi uint32) uintptr {
 	const fwNormal, defaultCharset, cleartype = 400, 1, 5
 	face, _ := windows.UTF16PtrFromString("Segoe UI")
-	h := -px(size, float64(dpi)/96)
+	h := -px(dips, float64(dpi)/userDefaultScreenDpi)
 	r, _, _ := procCreateFontW.Call(uintptr(h), 0, 0, 0, fwNormal, 0, 0, 0, defaultCharset, 0, 0, cleartype, 0,
 		uintptr(unsafe.Pointer(face)))
 	return r

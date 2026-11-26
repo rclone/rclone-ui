@@ -66,7 +66,7 @@ var (
 
 const (
 	handOffTimer = 4
-	handOffFor   = 5000
+	handOffFor   = 5 * time.Second
 )
 
 var logger = slog.Default()
@@ -74,15 +74,15 @@ var logger = slog.Default()
 func SetLog(l *slog.Logger) { logger = l }
 
 const (
-	className   = "RcuiLauncher"
-	spinTimer   = 1
-	mouseTimer  = 2
-	swapTimer   = 3
-	spinEvery   = 80
-	swapEvery   = 16
-	spinDots    = 8
-	editID      = 1
-	queryFontPt = 20.0
+	className     = "RcuiLauncher"
+	spinTimer     = 1
+	mouseTimer    = 2
+	swapTimer     = 3
+	spinEvery     = 80 * time.Millisecond
+	swapEvery     = 16 * time.Millisecond
+	mouseEvery    = 50 * time.Millisecond
+	editID        = 1
+	queryFontDips = 20.0
 )
 
 var transparent = colorF{}
@@ -95,7 +95,7 @@ func New(ev view.Events) (*View, error) {
 	if err != nil {
 		return nil, err
 	}
-	v := &View{ev: ev, g: g, dpi: 96}
+	v := &View{ev: ev, g: g, dpi: userDefaultScreenDpi}
 	current = v
 	if err := v.build(); err != nil {
 		current = nil
@@ -146,7 +146,7 @@ func (v *View) build() error {
 	if v.edit == 0 {
 		return fmt.Errorf("create the launcher's query box: %w", err)
 	}
-	v.editProc, _, _ = procSetWindowLongPtrW.Call(v.edit, gwlpWndProc, editProcCallback)
+	v.editProc, _, _ = procSetWindowLongPtrW.Call(v.edit, signed(gwlpWndProc), editProcCallback)
 	v.live = newLiveRegion(hwnd, instance)
 	_, _, _ = procDragAcceptFiles.Call(hwnd, 1)
 	v.setFont()
@@ -173,12 +173,12 @@ func (v *View) applyTheme() {
 
 func (v *View) setFont() {
 	old := v.font
-	v.font = queryFont(queryFontPt, v.dpi)
+	v.font = queryFont(queryFontDips, v.dpi)
 	sendMessage(v.edit, wmSetFont, v.font, 1)
 	deleteObject(old)
 }
 
-func (v *View) scale() float64 { return float64(v.dpi) / 96 }
+func (v *View) scale() float64 { return float64(v.dpi) / userDefaultScreenDpi }
 
 func (v *View) useMonitor(mon uintptr, monDpi uint32) {
 	v.monDpi = monDpi
@@ -275,7 +275,7 @@ func (v *View) awaitWindow() {
 	if v.showHook == 0 {
 		v.showHook = hookShows(windowShownCallback)
 	}
-	_, _, _ = procSetTimer.Call(v.hwnd, handOffTimer, handOffFor, 0)
+	setTimer(v.hwnd, handOffTimer, handOffFor)
 }
 
 func (v *View) stopAwaiting() {
@@ -321,7 +321,8 @@ func (v *View) SetQuery(text string, selectAll bool) {
 func (v *View) Render(s view.Snapshot) {
 	if s.Placeholder != v.snap.Placeholder {
 		if p, err := windows.UTF16PtrFromString(s.Placeholder); err == nil {
-			_, _, _ = procSendMessageW.Call(v.edit, emSetCueBanner, 1, uintptr(unsafe.Pointer(p)))
+			const drawFocused = 1
+			_, _, _ = procSendMessageW.Call(v.edit, emSetCueBanner, drawFocused, uintptr(unsafe.Pointer(p)))
 		}
 	}
 	v.snap = s
@@ -339,7 +340,7 @@ func (v *View) setLine(l view.Line) {
 		v.swapFrom, v.swapStart = v.line, time.Now()
 		if !v.swapping {
 			v.swapping = true
-			_, _, _ = procSetTimer.Call(v.hwnd, swapTimer, swapEvery, 0)
+			setTimer(v.hwnd, swapTimer, swapEvery)
 		}
 	}
 	v.line = l
@@ -359,7 +360,7 @@ func (v *View) tick() {
 	}
 	v.ticking = want
 	if want {
-		_, _, _ = procSetTimer.Call(v.hwnd, spinTimer, spinEvery, 0)
+		setTimer(v.hwnd, spinTimer, spinEvery)
 	} else {
 		_, _, _ = procKillTimer.Call(v.hwnd, spinTimer)
 	}
@@ -370,7 +371,7 @@ func (v *View) layout() {
 	w, h := px(view.Width, s), px(view.Height(v.snap), s)
 	v.settingFrame = true
 	if v.visible {
-		setWindowPos(v.hwnd, hwndTopmost, v.left, v.top, w, h, swpNoActivate)
+		setWindowPos(v.hwnd, signed(hwndTopmost), v.left, v.top, w, h, swpNoActivate)
 	} else {
 		setWindowPos(v.hwnd, 0, 0, 0, w, h, swpNoMove|swpNoZOrder|swpNoActivate)
 	}
@@ -382,17 +383,17 @@ func (v *View) layout() {
 	} else {
 		extendFrame(v.hwnd, margins{1, 1, 1, 1}) // a thin frame is enough for DWM's shadow
 	}
-	setWindowPos(v.edit, 0, px(18, s), px(view.FieldTop, s), px(view.FieldW, s), px(30, s), swpNoZOrder|swpNoActivate)
+	setWindowPos(v.edit, 0, px(view.Inset, s), px(view.FieldTop, s), px(view.FieldW, s), px(30, s), swpNoZOrder|swpNoActivate)
 }
 
 func spinnerBox(s view.Snapshot) rectF {
 	top := float32(view.FooterTop(s)) + 1
-	return rectF{Left: 18, Top: top, Right: 18 + view.SpinSize, Bottom: top + view.SpinSize}
+	return rectF{Left: view.Inset, Top: top, Right: view.Inset + view.SpinSize, Bottom: top + view.SpinSize}
 }
 
 func lineBox(s view.Snapshot) rectF {
 	top := float32(view.FooterTop(s))
-	return rectF{Left: 18, Top: top - view.Slide, Right: 18 + view.FooterW, Bottom: top + 18 + view.Slide}
+	return rectF{Left: view.Inset, Top: top - view.Slide, Right: view.Inset + view.FooterW, Bottom: top + view.LineH + view.Slide}
 }
 
 func stopBox(s view.Snapshot) rectF {
@@ -427,7 +428,7 @@ func (v *View) paint(dirty rectF) {
 		}
 		g.fillRounded(rectF{0, view.QueryH - 1, view.Width, view.QueryH}, 0, p.separator)
 	}
-	if header := (rectF{18, view.QueryH, view.Width - 18, view.QueryH + 16}); s.Header != "" && overlaps(dirty, header) {
+	if header := (rectF{view.Inset, view.QueryH, view.Width - view.Inset, view.QueryH + 16}); s.Header != "" && overlaps(dirty, header) {
 		g.text(g.small, s.Header, header, p.secondary, nil)
 	}
 	if list := (rectF{0, float32(view.RowsTop(s.Header != "")), view.Width, float32(view.ListBottom(s))}); overlaps(dirty, list) {
@@ -476,7 +477,7 @@ func (v *View) paintList(list, dirty rectF) {
 		}
 		if r.Group != "" {
 			label := y - view.GroupH + 5
-			g.text(g.label, r.Group, rectF{18, label, view.Width - 18, label + 16}, v.pal.secondary, nil)
+			g.text(g.label, r.Group, rectF{view.Inset, label, view.Width - view.Inset, label + 16}, v.pal.secondary, nil)
 		}
 		if y < list.Bottom {
 			v.paintRow(r, i == s.Selected, y)
@@ -528,7 +529,7 @@ func (v *View) paintFooter() {
 func (v *View) paintLine(l view.Line, dy, alpha float32) {
 	p := v.pal
 	top := float32(view.FooterTop(v.snap)) + dy
-	x, c, text := float32(18), p.secondary, l.Status.Text
+	x, c, text := float32(view.Inset), p.secondary, l.Status.Text
 	switch l.Status.Kind {
 	case view.StatusNone:
 		text = l.Hints
@@ -541,7 +542,7 @@ func (v *View) paintLine(l view.Line, dy, alpha float32) {
 		c = p.critical
 	}
 	c.A *= alpha
-	v.g.text(v.g.small, text, rectF{x, top, 18 + view.FooterW, top + 18}, c, nil)
+	v.g.text(v.g.small, text, rectF{x, top, view.Inset + view.FooterW, top + view.LineH}, c, nil)
 }
 
 func (v *View) paintStop() {
@@ -758,7 +759,7 @@ func wndProc(hwnd, m, wp, lp uintptr) (r uintptr) {
 			case !v.visible || v.ev.Blur == nil:
 			case mouseDown():
 				v.upAt = time.Time{}
-				_, _, _ = procSetTimer.Call(hwnd, mouseTimer, 50, 0)
+				setTimer(hwnd, mouseTimer, mouseEvery)
 			default:
 				v.ev.Blur()
 			}
@@ -864,6 +865,11 @@ func wndProc(hwnd, m, wp, lp uintptr) (r uintptr) {
 	return defWindowProc(hwnd, m, wp, lp)
 }
 
+const (
+	escapeChar        = 0x1B
+	ctrlBackspaceChar = 0x7F
+)
+
 func editProc(hwnd, m, wp, lp uintptr) (r uintptr) {
 	defer func() {
 		if p := recover(); p != nil {
@@ -888,9 +894,9 @@ func editProc(hwnd, m, wp, lp uintptr) (r uintptr) {
 		return 0
 	case wmChar:
 		switch wp {
-		case '\t', '\r', '\n', 0x1B: // keys the launcher handles; the box would beep
+		case '\t', '\r', '\n', escapeChar: // keys the launcher handles; the box would beep
 			return 0
-		case 0x7F:
+		case ctrlBackspaceChar:
 			v.deleteWord()
 			return 0
 		}

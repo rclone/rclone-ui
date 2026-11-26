@@ -16,13 +16,16 @@ var (
 
 const (
 	eventObjectLiveRegionChanged = 0x8019
-	objidClient                  = 0xFFFFFFFC
 	childidSelf                  = 0
 	liveAssertive                = 2
 	vtI4                         = 3
 	clsctxInprocServer           = 1
 	ssNoPrefix                   = 0x0080
+
+	accPropServicesSetHwndProp = 6
 )
+
+const objidClient int32 = -4
 
 type liveRegion struct {
 	hwnd   uintptr
@@ -51,7 +54,7 @@ func (l *liveRegion) say(text string) {
 		return
 	}
 	setWindowText(l.hwnd, text)
-	_, _, _ = procNotifyWinEvent.Call(eventObjectLiveRegionChanged, l.hwnd, objidClient, childidSelf)
+	_, _, _ = procNotifyWinEvent.Call(eventObjectLiveRegionChanged, l.hwnd, signed(objidClient), childidSelf)
 }
 
 func (l *liveRegion) forget() {
@@ -74,6 +77,6 @@ func (l *liveRegion) mark() bool {
 		}
 	}
 	v := variant{VT: vtI4, Val: liveAssertive}
-	l.marked = !failed(setHwndProp(l.props, l.hwnd, objidClient, childidSelf, &liveSettingProperty, &v))
+	l.marked = !failed(setHwndProp(l.props, l.hwnd, signed(objidClient), childidSelf, &liveSettingProperty, &v))
 	return l.marked
 }

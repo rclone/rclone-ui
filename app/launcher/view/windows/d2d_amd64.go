@@ -20,12 +20,12 @@ func pack2(a, b float32) uintptr {
 }
 
 func (g *gfx) drawTextLayout(x, y float32, layout uintptr) {
-	_, _, _ = syscall.SyscallN(method(g.rt, 28), g.rt, pack2(x, y), layout, g.brush, 0)
+	_, _, _ = syscall.SyscallN(method(g.rt, d2d1RenderTargetDrawTextLayout), g.rt, pack2(x, y), layout, g.brush, 0)
 }
 
 func (g *gfx) createSvgDocument(stream uintptr, w, h float32) uintptr {
 	var doc uintptr
-	hr, _, _ := syscall.SyscallN(method(g.dc5, 115), g.dc5, stream, pack2(w, h), uintptr(unsafe.Pointer(&doc)))
+	hr, _, _ := syscall.SyscallN(method(g.dc5, d2d1DeviceContext5CreateSvgDocument), g.dc5, stream, pack2(w, h), uintptr(unsafe.Pointer(&doc)))
 	if failed(hr) {
 		return 0
 	}

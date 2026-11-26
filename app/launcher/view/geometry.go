@@ -13,13 +13,17 @@ const (
 	Radius     = 14.0
 	IconSize   = 20.0
 	MaxListH   = MaxRows * RowH
+	Inset      = 18.0
 	FieldTop   = 14.0
-	FieldW     = Width - 36
+	FieldW     = Width - 2*Inset
 	StopSize   = 22.0
-	StopLeft   = Width - 12 - StopSize
-	FooterW    = StopLeft - 12 - 18
+	StopMargin = 12.0
+	StopLeft   = Width - StopMargin - StopSize
+	LineH      = 18.0
+	FooterW    = StopLeft - StopMargin - Inset
 	SpinSize   = 16.0
-	StatusLeft = 18 + SpinSize + 6
+	SpinGap    = 6.0
+	StatusLeft = Inset + SpinSize + SpinGap
 	Slide      = 8.0
 )
 
@@ -85,7 +89,7 @@ func RowAt(y float64, s Snapshot) int {
 
 func FooterTop(s Snapshot) float64 { return Height(s) - FooterH }
 
-func StopTop(s Snapshot) float64 { return FooterTop(s) + 9 - StopSize/2 }
+func StopTop(s Snapshot) float64 { return FooterTop(s) + LineH/2 - StopSize/2 }
 
 func InStop(x, y float64, s Snapshot) bool {
 	top := StopTop(s)
