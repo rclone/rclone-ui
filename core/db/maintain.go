@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	maintainEvery     = 10 * time.Minute
-	optimizeEvery     = 24 * time.Hour
-	checkpointAbove   = 16 << 20
-	maintenanceBusyMS = 100
+	maintainEvery           = 10 * time.Minute
+	optimizeEvery           = 24 * time.Hour
+	checkpointAboveWALBytes = 16 << 20
+	maintenanceBusyMS       = 100
 )
 
 // Maintain blocks until ctx ends. Every 10 minutes it truncates the WAL if it has grown over
@@ -40,7 +40,7 @@ func (d *DB) Maintain(ctx context.Context) {
 			return
 		case <-tick.C:
 		}
-		if _, err := d.checkpoint(ctx, m, checkpointAbove, log); err != nil && ctx.Err() == nil {
+		if _, err := d.checkpoint(ctx, m, checkpointAboveWALBytes, log); err != nil && ctx.Err() == nil {
 			log.WarnContext(ctx, "checkpoint", "error", err)
 		}
 		if time.Since(optimized) >= optimizeEvery {
