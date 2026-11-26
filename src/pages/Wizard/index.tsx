@@ -5,7 +5,15 @@ import {
     ArrowLeftSmall as ArrowLeftSmallIcon,
     ArrowRightSmall as ArrowRightSmallIcon,
 } from '@zappicon/react'
-import { type ReactNode, useEffect, useId, useReducer, useRef, useState } from 'react'
+import {
+    type CSSProperties,
+    type ReactNode,
+    useEffect,
+    useId,
+    useReducer,
+    useRef,
+    useState,
+} from 'react'
 import { useFlags } from '../../../lib/catalog'
 import { reportError } from '../../../lib/errors'
 import { pathProblem } from '../../../lib/paths'
@@ -565,7 +573,8 @@ function Progress({
             aria-valuemin={1}
             aria-valuemax={segments}
             aria-valuenow={index + 1}
-            className="flex gap-1.5"
+            className="flex"
+            style={{ gap: SEGMENT_GAP }}
         >
             {Array.from({ length: segments }, (_, at) => (
                 <span
@@ -576,10 +585,21 @@ function Progress({
                             ? `bg-linear-to-r ${TONE_GRADIENT[tone]}`
                             : 'bg-default-200/80 dark:bg-default-100'
                     )}
+                    style={at <= index ? sliceOfBar(at, segments) : undefined}
                 />
             ))}
         </div>
     )
+}
+
+const SEGMENT_GAP = '0.375rem'
+
+/** The gradient is as wide as the whole bar, and each filled segment shows the part under it. */
+function sliceOfBar(at: number, segments: number): CSSProperties {
+    return {
+        backgroundSize: `calc(${segments} * 100% + ${segments - 1} * ${SEGMENT_GAP}) 100%`,
+        backgroundPositionX: segments > 1 ? `${(at / (segments - 1)) * 100}%` : '0%',
+    }
 }
 
 function usePlan(storageKey: string, answers: Answers, onReset: () => void) {
