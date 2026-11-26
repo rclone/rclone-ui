@@ -17,6 +17,9 @@ var (
 	dRE    = regexp.MustCompile(`d: "([^"]+)"`)
 )
 
+// The same stroke that src/global.css adds to Zappicon's paths.
+const strokeWidth = "0.5"
+
 func main() {
 	// go generate runs in app/launcher/icons.
 	src, err := os.ReadFile("icons.go")
@@ -71,7 +74,7 @@ func svg(f string) (string, error) {
 		if strings.Contains(e, `fillRule: "evenodd"`) {
 			rule = "evenodd"
 		}
-		fmt.Fprintf(&b, `<path fill="#000" fill-rule="%s" stroke="#000" stroke-width="0.5" stroke-linejoin="round" d="%s"/>`, rule, d[1])
+		fmt.Fprintf(&b, `<path fill="#000" fill-rule="%s" stroke="#000" stroke-width="%s" stroke-linejoin="round" d="%s"/>`, rule, strokeWidth, d[1])
 		paths++
 	}
 	if paths == 0 {
