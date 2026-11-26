@@ -162,8 +162,9 @@ func (h *handler) subcomponent(objectType string) string {
 }
 
 func source() string {
+	const fromHandleCaller = 3
 	var pcs [32]uintptr
-	n := runtime.Callers(3, pcs[:])
+	n := runtime.Callers(fromHandleCaller, pcs[:])
 	frames := runtime.CallersFrames(pcs[:n])
 	for {
 		f, more := frames.Next()
