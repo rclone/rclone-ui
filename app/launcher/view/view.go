@@ -116,4 +116,6 @@ type Hint struct {
 
 const RowLetters = "bdefgijlnoprstu"
 
+const StopAllChar = '.'
+
 const MaxRows = 8

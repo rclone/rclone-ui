@@ -419,7 +419,7 @@ func (l *Launcher) onKey(k view.KeyEvent) bool {
 			l.openPanel()
 		}
 	case view.KeyRow:
-		if k.Char == '.' {
+		if k.Char == view.StopAllChar {
 			l.onStopAll()
 			break
 		}
