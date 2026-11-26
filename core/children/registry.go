@@ -145,7 +145,7 @@ func (r *Registry[T]) Reserve(c *Child[T], id string, check func(others []*Child
 	}
 	if id == "" {
 		for id == "" || r.entries[id] != nil || taken[id] {
-			id = ids.Hex(4)
+			id = ids.Hex(idBytes)
 		}
 	} else if r.entries[id] != nil {
 		return fmt.Errorf("a %s with id %s is running", r.kind, id)

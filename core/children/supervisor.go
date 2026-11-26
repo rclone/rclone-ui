@@ -18,6 +18,8 @@ import (
 
 const stopGrace = 10 * time.Second
 
+const idBytes = 4
+
 var ErrClosed = errors.New("children: the supervisor is stopping")
 
 var errNotBegun = errors.New("children: the supervisor hasn't begun")
@@ -260,7 +262,7 @@ func sortedRecords(m map[string]Record) []Record {
 
 func (s *Supervisor) newIDLocked() string {
 	for {
-		id := ids.Hex(4)
+		id := ids.Hex(idBytes)
 		if !s.ids[id] {
 			if _, ok := s.pending[id]; !ok {
 				return id
@@ -270,7 +272,7 @@ func (s *Supervisor) newIDLocked() string {
 }
 
 func validID(id string) bool {
-	if len(id) != 8 {
+	if len(id) != hex.EncodedLen(idBytes) {
 		return false
 	}
 	_, err := hex.DecodeString(id)
