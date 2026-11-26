@@ -65,7 +65,7 @@ type TransferProgress struct {
 	Bytes        int64              `json:"bytes"`
 	TotalBytes   int64              `json:"totalBytes"`
 	Speed        float64            `json:"speed"`
-	Eta          *int64             `json:"eta"` // seconds; null when unknown
+	ETASeconds   *int64             `json:"eta"` // seconds; null when unknown
 	Pct          int                `json:"pct"`
 	Files        int64              `json:"files"`
 	TotalFiles   int64              `json:"totalFiles"`

@@ -199,7 +199,7 @@ func TestTransfersAreActive(t *testing.T) {
 func TestTransfersSayHowFar(t *testing.T) {
 	d := data()
 	d.Transfers = []transfers.Transfer{{ID: "t1", State: "running", Operation: "sync", Sources: []string{"/tmp/photos"},
-		Destination: "gdrive:Photos", Live: &bus.TransferProgress{Bytes: 42 << 20, TotalBytes: 100 << 20, Speed: 12 << 20, Eta: eta(170)}}}
+		Destination: "gdrive:Photos", Live: &bus.TransferProgress{Bytes: 42 << 20, TotalBytes: 100 << 20, Speed: 12 << 20, ETASeconds: eta(170)}}}
 	rs := run(t, "", d, nil)
 	if rs[0].Title != "Sync /tmp/photos → gdrive:Photos" || rs[0].Subtitle != "42% · 12 MB/s · 3 min left" {
 		t.Errorf("one: %q, %q", rs[0].Title, rs[0].Subtitle)

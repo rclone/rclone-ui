@@ -146,9 +146,9 @@ func progressOf(seq int64, stats *accounting.StatsInfo, done []accounting.Transf
 		Transferring: []bus.TransferringFile{}, Checking: []bus.CheckingFile{},
 		Transferred: []bus.TransferredFile{},
 	}
-	if st.Eta != nil {
-		e := int64(math.Round(*st.Eta))
-		p.Eta = &e
+	if st.ETASeconds != nil {
+		e := int64(math.Round(*st.ETASeconds))
+		p.ETASeconds = &e
 	}
 	if p.TotalBytes > 0 {
 		p.Pct = int(min(100, p.Bytes*100/p.TotalBytes))

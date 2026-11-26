@@ -10,7 +10,7 @@ type Stats struct {
 	TotalTransfers int64           `json:"totalTransfers"`
 	Listed         int64           `json:"listed"`
 	Speed          float64         `json:"speed"`
-	Eta            *float64        `json:"eta"`
+	ETASeconds     *float64        `json:"eta"`
 	Checking       []string        `json:"checking"`
 	Transferring   []StatsTransfer `json:"transferring"`
 }

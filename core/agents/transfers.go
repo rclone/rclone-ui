@@ -618,7 +618,7 @@ func transferRowOf(t transfers.Transfer) transferRow {
 	if p := t.Live; p != nil && t.EndedAt == nil {
 		row.Progress = &transferProgress{
 			Percent: p.Pct, Bytes: p.Bytes, TotalBytes: p.TotalBytes, BytesPerSecond: int64(p.Speed),
-			ETASeconds: p.Eta, Files: p.Files, TotalFiles: p.TotalFiles, Errors: p.Errors,
+			ETASeconds: p.ETASeconds, Files: p.Files, TotalFiles: p.TotalFiles, Errors: p.Errors,
 		}
 	}
 	return row

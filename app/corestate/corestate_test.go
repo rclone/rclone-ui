@@ -221,10 +221,10 @@ func TestWithProgress(t *testing.T) {
 
 func TestSumProgress(t *testing.T) {
 	eta := int64(9)
-	if got := SumProgress([]*bus.TransferProgress{{Bytes: 1, TotalBytes: 4, Eta: &eta}, {}}); got.Pct != 25 || got.Left != 0 || got.Running != 2 {
+	if got := SumProgress([]*bus.TransferProgress{{Bytes: 1, TotalBytes: 4, ETASeconds: &eta}, {}}); got.Pct != 25 || got.Left != 0 || got.Running != 2 {
 		t.Errorf("an unknown ETA: %+v", got)
 	}
-	if got := SumProgress([]*bus.TransferProgress{{Bytes: 1, TotalBytes: 4, Eta: &eta}}); got.Left != 9*time.Second {
+	if got := SumProgress([]*bus.TransferProgress{{Bytes: 1, TotalBytes: 4, ETASeconds: &eta}}); got.Left != 9*time.Second {
 		t.Errorf("a known ETA: %+v", got)
 	}
 	if got := SumProgress([]*bus.TransferProgress{{}, nil}); got.Pct != -1 || got.Running != 1 {

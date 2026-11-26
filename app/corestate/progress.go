@@ -28,8 +28,8 @@ func SumProgress(ps []*bus.TransferProgress) Sum {
 		done += p.Bytes
 		total += p.TotalBytes
 		out.Speed += p.Speed
-		if p.Eta != nil {
-			eta = max(eta, *p.Eta)
+		if p.ETASeconds != nil {
+			eta = max(eta, *p.ETASeconds)
 		} else {
 			known = false
 		}

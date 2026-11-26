@@ -35,7 +35,7 @@ func TestStatsAreRclones(t *testing.T) {
 	keysOf(t, reflect.TypeFor[Stats](), out, "")
 
 	st := ReadStats(out)
-	if st.TotalBytes != 100 || st.TotalTransfers != 1 || st.Eta != nil && *st.Eta < 0 {
+	if st.TotalBytes != 100 || st.TotalTransfers != 1 || st.ETASeconds != nil && *st.ETASeconds < 0 {
 		t.Errorf("totals: %+v", st)
 	}
 	if len(st.Transferring) != 1 || st.Transferring[0].Name != "moving.bin" ||
