@@ -22,15 +22,15 @@ var commonSetup = []string{"fs", "lib/oauthutil"}
 type setupCall struct{ name, help, items int }
 
 var setupCalls = map[string]setupCall{
-	"ConfigConfirm":              {2, 3, -1},
-	"ConfigInput":                {1, 2, -1},
-	"ConfigInputOptional":        {1, 2, -1},
-	"ConfigPassword":             {1, 2, -1},
-	"ConfigChoose":               {1, 2, -1},
-	"ConfigChooseExclusive":      {1, 2, -1},
+	"ConfigConfirm":              {2, 3, noArg},
+	"ConfigInput":                {1, 2, noArg},
+	"ConfigInputOptional":        {1, 2, noArg},
+	"ConfigPassword":             {1, 2, noArg},
+	"ConfigChoose":               {1, 2, noArg},
+	"ConfigChooseExclusive":      {1, 2, noArg},
 	"ConfigChooseFixed":          {1, 2, 3},
 	"ConfigChooseExclusiveFixed": {1, 2, 3},
-	"ConfigError":                {-1, 1, -1},
+	"ConfigError":                {noArg, 1, noArg},
 }
 
 type setupTexts struct {
@@ -362,11 +362,11 @@ func (p *sourcePkg) call(r *sourceReader, st *setupTexts, at *site, fn string, c
 	if len(c.Args) <= max(spec.name, spec.help, spec.items) {
 		return ""
 	}
-	if spec.name >= 0 && at.param(c.Args[spec.name]) || at.param(c.Args[spec.help]) {
+	if spec.name != noArg && at.param(c.Args[spec.name]) || at.param(c.Args[spec.help]) {
 		return ""
 	}
 	name := ""
-	if spec.name >= 0 {
+	if spec.name != noArg {
 		v, ok := r.read(p, at, c.Args[spec.name])
 		if !ok || v.format {
 			return "the name of a question (" + fn + ") can't be read: " + types.ExprString(c.Args[spec.name])
@@ -402,7 +402,7 @@ func (p *sourcePkg) call(r *sourceReader, st *setupTexts, at *site, fn string, c
 	if !slices.Contains(st.questions[name], format) {
 		st.questions[name] = append(st.questions[name], format)
 	}
-	if spec.items >= 0 {
+	if spec.items != noArg {
 		return p.choices(r, st, at, name, c.Args[spec.items])
 	}
 	return ""
@@ -587,12 +587,14 @@ func (s *site) inBlockOf(stack []ast.Node) bool {
 	return true
 }
 
+const maxReadDepth = 20
+
 func (r *sourceReader) read(p *sourcePkg, at *site, e ast.Expr) (setupValue, bool) {
 	return r.readDepth(p, at, e, 0)
 }
 
 func (r *sourceReader) readDepth(p *sourcePkg, at *site, e ast.Expr, depth int) (setupValue, bool) {
-	if depth > 20 {
+	if depth > maxReadDepth {
 		return setupValue{}, false
 	}
 	switch v := e.(type) {

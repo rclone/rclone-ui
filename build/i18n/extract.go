@@ -18,17 +18,19 @@ const (
 	errsPath = "github.com/rclone/rclone-ui/core/errs"
 )
 
+const noArg = -1
+
 type call struct{ format, plural, ctx int }
 
 var calls = map[string]map[string]call{
 	i18nPath: {
-		"T": {0, -1, -1}, "M": {0, -1, -1},
-		"N": {0, 1, -1}, "MN": {0, 1, -1},
-		"TC": {1, -1, 0}, "MC": {1, -1, 0},
+		"T": {0, noArg, noArg}, "M": {0, noArg, noArg},
+		"N": {0, 1, noArg}, "MN": {0, 1, noArg},
+		"TC": {1, noArg, 0}, "MC": {1, noArg, 0},
 	},
 	errsPath: {
-		"New": {0, -1, -1}, "Errorf": {0, -1, -1}, "Precondition": {0, -1, -1}, "Canceled": {0, -1, -1},
-		"Field": {1, -1, -1}, "NotFound": {1, -1, -1}, "Unsupported": {1, -1, -1}, "Violation": {1, -1, -1},
+		"New": {0, noArg, noArg}, "Errorf": {0, noArg, noArg}, "Precondition": {0, noArg, noArg}, "Canceled": {0, noArg, noArg},
+		"Field": {1, noArg, noArg}, "NotFound": {1, noArg, noArg}, "Unsupported": {1, noArg, noArg}, "Violation": {1, noArg, noArg},
 	},
 }
 
@@ -202,7 +204,7 @@ func (x *extraction) file(fset *token.FileSet, f *ast.File, rel string, consts m
 			return true
 		}
 		ctx := ""
-		if spec.ctx >= 0 {
+		if spec.ctx != noArg {
 			if ctx, ok = constant(c.Args[spec.ctx], consts); !ok {
 				x.problems = append(x.problems, where+": the context of "+fn+" is not a string constant")
 				return true
@@ -213,7 +215,7 @@ func (x *extraction) file(fset *token.FileSet, f *ast.File, rel string, consts m
 			return true
 		}
 		plural := ""
-		if spec.plural >= 0 {
+		if spec.plural != noArg {
 			if len(c.Args) <= spec.plural {
 				return true
 			}
