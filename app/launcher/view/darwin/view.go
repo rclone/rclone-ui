@@ -229,9 +229,9 @@ func (v *View) build() {
 		r.title = label(15)
 		r.sub = label(12)
 		r.tail = label(12)
-		msg(r.tail, "setAlignment:", 2)
+		msg(r.tail, "setAlignment:", textAlignmentRight)
 		r.hint = label(12)
-		msg(r.hint, "setAlignment:", 2)
+		msg(r.hint, "setAlignment:", textAlignmentRight)
 		inner := view.Width - 2*view.Padding
 		msg(r.title, "setFrame:", rect(46, 4, inner-46-250, 20))
 		msg(r.sub, "setFrame:", rect(46, 24, inner-46-250, 16))
