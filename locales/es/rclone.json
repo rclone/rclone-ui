@@ -118,7 +118,7 @@
           "help": "Descripción del remoto."
         },
         "directory_markers": {
-          "help": "Subir un objeto vacío terminado en barra al crear una carpeta nueva\n\nLos remotos basados en buckets no admiten carpetas vacías; esta opción\ncrea un objeto vacío que termina en \"/\" para conservar la carpeta.\n\nEste objeto también tiene los metadatos \"hdi_isfolder = true\" para cumplir\ncon el estándar de Microsoft.\n "
+          "help": "Subir un objeto vacío terminado en barra al crear una carpeta nueva\n\nLos remotos basados en buckets no admiten carpetas vacías; esta opción\ncrea un objeto vacío que termina en \"/\" para conservar la carpeta.\n\nEste objeto también tiene los metadatos \"hdi_isfolder = true\" para cumplir\ncon el estándar de Microsoft.\n\nNo hace falta en las cuentas de almacenamiento con espacio de nombres\njerárquico (consulta la opción hns), ya que estas siempre admiten carpetas vacías.\n "
         },
         "disable_checksum": {
           "help": "No guardar la suma de comprobación MD5 en los metadatos del objeto.\n\nNormalmente rclone calcula la suma de comprobación MD5 de los datos antes de\nsubirlos para poder añadirla a los metadatos del objeto. Es muy útil para\ncomprobar la integridad de los datos, pero puede hacer que los archivos\ngrandes tarden mucho en empezar a subirse."
@@ -135,6 +135,9 @@
         "env_auth": {
           "help": "Leer las credenciales del entorno de ejecución (variables de entorno, CLI o MSI).\n\nConsulta la [documentación sobre la autenticación](/azureblob#authentication) para más información."
         },
+        "hns": {
+          "help": "Indica si la cuenta de almacenamiento tiene un espacio de nombres jerárquico.\n\nLas cuentas de almacenamiento con el espacio de nombres jerárquico activado\n(Azure Data Lake Storage Gen2) tienen carpetas reales, que pueden estar vacías.\n\nSi no se establece, rclone lo leerá de la cuenta de almacenamiento\ny lo guardará en el archivo de configuración.\n"
+        },
         "key": {
           "help": "Clave compartida de la cuenta de almacenamiento.\n\nDéjala en blanco para usar una URL de SAS o el emulador."
         },
@@ -142,7 +145,7 @@
           "help": "Tamaño de la lista de blobs.\n\nEstablece el número de blobs solicitados en cada fragmento de listado. Por\ndefecto es el máximo, 5000. Las peticiones \"List blobs\" tienen 2 minutos\npor megabyte para completarse. Si una operación está tardando más de 2\nminutos por megabyte de media, sufrirá timeout (\n[fuente](https://docs.microsoft.com/en-us/rest/api/storageservices/setting-timeouts-for-blob-service-operations#exceptions-to-default-timeout-interval)\n). Esto puede usarse para limitar el número de blobs a devolver, evitando el timeout."
         },
         "list_parallelism": {
-          "help": "Número de particiones paralelas con las que listar una carpeta.\n\nEXPERIMENTAL. Si es mayor que 1, el espacio de nombres de los blobs de cada\ncarpeta se divide en este número de rangos, que se listan a la vez\ncon los parámetros de rango startFrom/endBefore de Arrow. Esto puede\nacelerar mucho el listado de contenedores con millones de objetos, tanto en\nlos listados recursivos (ListR) como en los de una sola carpeta.\n\nNo tiene efecto si no se activa también \"use_arrow_list\", ya que Arrow es la\núnica forma de listar que admite rangos de nombres en el servidor. El valor predeterminado,\n0 (o 1), lista de forma secuencial."
+          "help": "Número de particiones paralelas con las que listar una carpeta.\n\nSi es mayor que 1, el espacio de nombres de los blobs de cada carpeta se\ndivide en rangos, que se listan a la vez con los parámetros de rango\nstartFrom/endBefore de Arrow. Esto puede acelerar mucho el listado de\ncontenedores con millones de objetos, tanto en los listados recursivos\n(ListR) como en los de una sola carpeta. La velocidad sigue mejorando hasta\nun paralelismo de unos 30.\n\nNo tiene efecto si no se activa también \"use_arrow_list\", ya que Arrow es la\núnica forma de listar que admite rangos de nombres en el servidor. Si la\ncuenta no admite listar por rangos (p. ej., si tiene un espacio de nombres\njerárquico), el listado se hace de forma secuencial. El valor predeterminado,\n0 (o 1), lista de forma secuencial."
         },
         "memory_pool_flush_time": {
           "help": "Con qué frecuencia se vacían los pools de buffers de memoria internos. (ya no se usa)"
@@ -198,7 +201,7 @@
           "help": "Límite para cambiar a subida fragmentada (<= 256 MiB) (obsoleto)."
         },
         "use_arrow_list": {
-          "help": "Usar el formato de listado experimental Apache Arrow.\n\nSi se activa, los listados de carpetas se obtienen con el formato de respuesta Apache\nArrow de ListBlobs en lugar de XML. Puede ser más rápido con contenedores muy\ngrandes.\n\nEs EXPERIMENTAL y requiere que la función en versión preliminar \"Blob Listing with Apache Arrow\"\nesté activada en la cuenta de almacenamiento. NO es compatible con cuentas que tienen\nespacio de nombres jerárquico (ADLS Gen2), que devuelven un error 409. Si la función no\nestá activada, el servidor devuelve XML y el listado vuelve de forma transparente a la vía XML\nnormal (queda registrado en el nivel debug).\n\nNo es compatible con la autenticación connection_string: en ese caso se usa el\nlistado normal."
+          "help": "Usar el formato de listado Apache Arrow.\n\nSi se activa, los listados de carpetas se obtienen con el formato de respuesta Apache\nArrow de ListBlobs en lugar de XML. Las respuestas de Arrow son más pequeñas y\nmucho menos costosas de procesar, así que los listados de contenedores grandes son\nvarias veces más rápidos. Combínalo con \"list_parallelism\" para conseguir la mayor mejora.\n\n\"Blob Listing with Apache Arrow\" está en versión preliminar pública en Microsoft\ny solo es compatible con cuentas con espacio de nombres plano. En las cuentas que tienen\nespacio de nombres jerárquico (ADLS Gen2), o en las que la función no está disponible\npor otro motivo, el servidor devuelve XML y el listado vuelve de forma transparente a la vía XML\nnormal (queda registrado en el nivel debug)."
         },
         "use_az": {
           "help": "Usar la herramienta az de la CLI de Azure para autenticarse\n\nActívalo para usar la [herramienta az de la CLI de Azure](https://learn.microsoft.com/en-us/cli/azure/)\ncomo único medio de autenticación.\n\nPuede ser útil si quieres usar la CLI az en un host con una identidad\nadministrada por el sistema (System Managed Identity) que no quieres usar.\n\nNo actives env_auth al mismo tiempo.\n"
@@ -224,7 +227,7 @@
           "help": "Nombre de la cuenta de Azure Storage.\n\nEscribe aquí el nombre de la cuenta de Azure Storage que se usa.\n\nDéjalo en blanco para usar una URL de SAS o el emulador; si no, es obligatorio.\n\nSi está en blanco y env_auth está activado, se leerá de la variable de entorno\n`AZURE_STORAGE_ACCOUNT_NAME` si es posible.\n"
         },
         "chunk_size": {
-          "help": "Tamaño del fragmento de subida.\n\nTen en cuenta que se guarda en memoria y que puede haber hasta\n\"--transfers\" * \"--azurefile-upload-concurrency\" fragmentos en memoria\na la vez."
+          "help": "Tamaño del fragmento de subida.\n\nTen en cuenta que se guarda en memoria y que puede haber hasta\n\"--transfers\" * \"--azurefiles-upload-concurrency\" fragmentos en memoria\na la vez."
         },
         "client_certificate_password": {
           "help": "Contraseña del archivo de certificado (opcional).\n\nConfigúrala, si quieres, cuando uses\n- Entidad de servicio con certificado\n\nY el certificado tenga contraseña.\n"
@@ -290,7 +293,7 @@
           "help": "ID del inquilino (tenant) de la entidad de servicio, también llamado ID de directorio.\n\nConfigúralo si usas\n- Entidad de servicio con secreto de cliente\n- Entidad de servicio con certificado\n- Usuario con nombre de usuario y contraseña\n"
         },
         "upload_concurrency": {
-          "help": "Concurrencia para las subidas multiparte.\n\nEs el número de fragmentos del mismo archivo que se suben a la vez.\n\nSi subes pocos archivos grandes por conexiones de alta velocidad y estas\nsubidas no aprovechan todo tu ancho de banda, aumentar este valor puede\nacelerar las transferencias.\n\nTen en cuenta que los fragmentos se guardan en memoria y que puede haber\nhasta \"--transfers\" * \"--azurefile-upload-concurrency\" fragmentos en memoria\na la vez."
+          "help": "Concurrencia para las subidas multiparte.\n\nEs el número de fragmentos del mismo archivo que se suben a la vez.\n\nSi subes pocos archivos grandes por conexiones de alta velocidad y estas\nsubidas no aprovechan todo tu ancho de banda, aumentar este valor puede\nacelerar las transferencias.\n\nTen en cuenta que los fragmentos se guardan en memoria y que puede haber\nhasta \"--transfers\" * \"--azurefiles-upload-concurrency\" fragmentos en memoria\na la vez."
         },
         "use_az": {
           "help": "Usar la herramienta az de la CLI de Azure para autenticarse\n\nActívalo para usar la [herramienta az de la CLI de Azure](https://learn.microsoft.com/en-us/cli/azure/)\ncomo único medio de autenticación.\n\nPuede ser útil si quieres usar la CLI az en un host con una identidad\nadministrada por el sistema (System Managed Identity) que no quieres usar.\n\nNo actives env_auth al mismo tiempo.\n"
@@ -344,7 +347,7 @@
           "help": "Tiempo antes de que expire el token de autorización del enlace público, en segundos o con sufijo ms|s|m|h|d.\n\nEsto se usa en combinación con \"rclone link\" para hacer accesibles los\narchivos al público y establece la duración antes de que expire el token\nde autorización de descarga.\n\nEl valor mínimo es 1 segundo. El valor máximo es una semana."
         },
         "download_url": {
-          "help": "Endpoint personalizado para las descargas.\n\nNormalmente se configura con una URL de la CDN de Cloudflare, ya que Backblaze\nno cobra el tráfico de salida de los datos descargados a través de la red de\nCloudflare. Rclone funciona con buckets privados enviando una cabecera\n\"Authorization\". Si el endpoint personalizado reescribe las peticiones de\nautenticación, p. ej. en Cloudflare Workers, esta cabecera debe tratarse\ncorrectamente. Déjalo en blanco si quieres usar el endpoint que ofrece\nBackblaze.\n\nLa URL que indiques aquí DEBE incluir el protocolo y NO DEBE terminar en\nbarra ni especificar la subruta /file/bucket, ya que rclone pedirá los\narchivos con \"{download_url}/file/{bucket_name}/{path}\".\n\nEjemplo:\n> https://mysubdomain.mydomain.tld\n(Sin \"/\", \"file\" ni \"bucket\" al final)"
+          "help": "Endpoint personalizado para las descargas.\n\nNormalmente se configura con una URL de la CDN de Cloudflare, ya que Backblaze\nno cobra el tráfico de salida de los datos descargados a través de la red de\nCloudflare. Rclone funciona con buckets privados enviando una cabecera\n\"Authorization\". Si el endpoint personalizado reescribe las peticiones de\nautenticación, p. ej. en Cloudflare Workers, esta cabecera debe tratarse\ncorrectamente. Déjalo en blanco si quieres usar el endpoint que ofrece\nBackblaze.\n\nRclone no seguirá ninguna redirección de este endpoint que pase de HTTPS a\nHTTP, y no enviará la cabecera \"Authorization\" ni las cabeceras de la clave\nSSE-C una vez que una redirección haya salido del host y el puerto de este\nendpoint.\n\nLa URL que indiques aquí DEBE incluir el protocolo y NO DEBE terminar en\nbarra ni especificar la subruta /file/bucket, ya que rclone pedirá los\narchivos con \"{download_url}/file/{bucket_name}/{path}\".\n\nEjemplo:\n> https://mysubdomain.mydomain.tld\n(Sin \"/\", \"file\" ni \"bucket\" al final)"
         },
         "encoding": {
           "help": "La codificación del backend.\n\nConsulta la [sección sobre codificación de la descripción general](/overview/#encoding) para más información."
@@ -384,7 +387,7 @@
               "help": "Ninguno"
             }
           },
-          "help": "Para usar SSE-C, puedes indicar la clave secreta de cifrado, codificada en una cadena compatible con UTF-8, para cifrar y descifrar tus datos.\n\nTambién puedes indicar --sse-customer-key-base64."
+          "help": "Para usar SSE-C, puedes indicar la clave secreta de cifrado, codificada en una cadena compatible con UTF-8, para cifrar y descifrar tus datos.\n\nTambién puedes indicar --b2-sse-customer-key-base64."
         },
         "sse_customer_key_base64": {
           "example": {
@@ -392,7 +395,7 @@
               "help": "Ninguno"
             }
           },
-          "help": "Para usar SSE-C, puedes indicar la clave secreta de cifrado, codificada en Base64, para cifrar y descifrar tus datos.\n\nTambién puedes indicar --sse-customer-key."
+          "help": "Para usar SSE-C, puedes indicar la clave secreta de cifrado, codificada en Base64, para cifrar y descifrar tus datos.\n\nTambién puedes indicar --b2-sse-customer-key."
         },
         "sse_customer_key_md5": {
           "example": {
@@ -902,6 +905,29 @@
         }
       }
     },
+    "dosya": {
+      "description": "dosya.dev",
+      "option": {
+        "api_key": {
+          "help": "Tu clave de API; puedes obtenerla en la sección \"API keys\" de https://dosya.dev/profile."
+        },
+        "api_url": {
+          "help": "URL base de la API."
+        },
+        "description": {
+          "help": "Descripción del remoto."
+        },
+        "encoding": {
+          "help": "La codificación del backend.\n\nConsulta la [sección sobre la codificación en la descripción general](/overview/#encoding) para más información."
+        },
+        "upload_concurrency": {
+          "help": "Concurrencia para las subidas multiparte.\n\nEs el número de partes del mismo archivo que se suben a la vez. La primera\nparte siempre se sube sola, porque el servidor crea la subida cuando la\nrecibe.\n\nCada parte que se está subiendo se guarda en memoria, así que el uso de\nmemoria crece con este valor multiplicado por el tamaño de parte que elige el servidor.\n\nSi subes archivos grandes por conexiones de alta velocidad y estas\nsubidas no aprovechan todo tu ancho de banda, aumentar este valor puede\nacelerar las transferencias."
+        },
+        "workspace_id": {
+          "help": "ID de tu espacio de trabajo.\n\nDéjalo en blanco para usar el único espacio de trabajo al que tiene acceso la\nclave de API, que es el caso de una clave limitada a un solo espacio de trabajo.\nSi la clave tiene acceso a varios, rclone no continuará y mostrará sus ID para\nque elijas uno."
+        }
+      }
+    },
     "drime": {
       "description": "Drime",
       "option": {
@@ -1209,7 +1235,7 @@
           "help": "Mostrar en los listados todos los documentos de Google, incluidos los no exportables.\n\nSi intentas hacer una copia en el servidor de un formulario de Google sin esta\nopción, obtendrás este error:\n\n    No export formats found for \"application/vnd.google-apps.form\"\n\nEn cambio, si añades esta opción, el formulario se podrá copiar en el servidor.\n\nTen en cuenta que, en este modo, rclone no añade extensiones a los nombres\nde archivo de los documentos de Google.\n\n**No** uses esta opción si quieres descargar documentos de Google; rclone no\npodrá descargarlos.\n"
         },
         "size_as_quota": {
-          "help": "Mostrar los tamaños como uso de la cuota de almacenamiento, no como tamaño real.\n\nMuestra el tamaño de un archivo como la cuota de almacenamiento que usa. Es la\nversión actual más las versiones antiguas que se hayan marcado para\nconservarse para siempre.\n\n**ADVERTENCIA**: esta opción puede tener consecuencias inesperadas.\n\nNo se recomienda establecer esta opción en tu configuración; lo recomendable\nes usarla como --drive-size-as-quota solo al ejecutar rclone ls/lsl/lsf/lsjson/etc.\n\nSi usas esta opción al sincronizar (no se recomienda), también tendrás que\nusar --ignore size."
+          "help": "Mostrar los tamaños como uso de la cuota de almacenamiento, no como tamaño real.\n\nMuestra el tamaño de un archivo como la cuota de almacenamiento que usa. Es la\nversión actual más las versiones antiguas que se hayan marcado para\nconservarse para siempre.\n\n**ADVERTENCIA**: esta opción puede tener consecuencias inesperadas.\n\nNo se recomienda establecer esta opción en tu configuración; lo recomendable\nes usarla como --drive-size-as-quota solo al ejecutar rclone ls/lsl/lsf/lsjson/etc.\n\nSi usas esta opción al sincronizar (no se recomienda), también tendrás que\nusar --ignore-size."
         },
         "skip_checksum_gphotos": {
           "help": "Omitir las sumas de comprobación solo en las fotos y los videos de Google Photos.\n\nUsa esta opción si obtienes errores de suma de comprobación al transferir\nfotos o videos de Google Photos.\n\nSi activas esta opción, las fotos y los videos de Google Photos devolverán\nsumas de comprobación vacías.\n\nLas fotos de Google Photos se identifican porque están en el espacio \"photos\".\n\nLas sumas de comprobación dañadas se deben a que Google modifica la imagen o\nel video sin actualizar su suma de comprobación."
@@ -2125,13 +2151,19 @@
           "help": "Descripción del remoto."
         },
         "headers": {
-          "help": "Establecer cabeceras HTTP para todas las transacciones.\n\nÚsalo para establecer cabeceras HTTP adicionales en todas las transacciones.\n\nEl formato de entrada es una lista separada por comas de pares clave,valor. Se puede usar\nla [codificación CSV](https://godoc.org/encoding/csv) estándar.\n\nPor ejemplo, para establecer una cookie usa 'Cookie,name=value' o '\"Cookie\",\"name=value\"'.\n\nPuedes establecer varias cabeceras, p. ej., '\"Cookie\",\"name=value\",\"Authorization\",\"xxx\"'.\n\nLas cabeceras solo se envían al host de la URL configurada. Si el\nservidor redirige a otro host (incluido un subdominio o un puerto\ndistinto), las cabeceras no se le envían, ni a ningún salto posterior de esa\ncadena de redirecciones. Si hay cabeceras establecidas, se rechaza cualquier redirección de https a http,\nya que las enviaría sin cifrar."
+          "help": "Establecer cabeceras HTTP para todas las transacciones.\n\nÚsalo para establecer cabeceras HTTP adicionales en todas las transacciones.\n\nEl formato de entrada es una lista separada por comas de pares clave,valor. Se puede usar\nla [codificación CSV](https://godoc.org/encoding/csv) estándar.\n\nPor ejemplo, para establecer una cookie usa 'Cookie,name=value' o '\"Cookie\",\"name=value\"'.\n\nPuedes establecer varias cabeceras, p. ej., '\"Cookie\",\"name=value\",\"Authorization\",\"xxx\"'.\n\nLas cabeceras solo se envían al host de la URL configurada. Si el\nservidor redirige a otro host (incluido un subdominio o un puerto\ndistinto), las cabeceras no se le envían, ni a ningún salto posterior de esa\ncadena de redirecciones. Si hay cabeceras establecidas, se rechaza cualquier redirección de https a http,\nya que las enviaría sin cifrar, incluso con\n--allow-https-downgrade."
         },
         "no_escape": {
           "help": "No escapar los metacaracteres URL en los nombres de ruta."
         },
         "no_head": {
           "help": "No usar solicitudes HEAD.\n\nLas solicitudes HEAD se usan sobre todo para saber el tamaño de los\narchivos en los listados de carpetas.\nSi tu sitio tarda mucho en cargar, puedes probar esta opción.\nNormalmente rclone hace una solicitud HEAD por cada posible archivo de un\nlistado de carpeta para:\n\n- saber su tamaño\n- comprobar que existe de verdad\n- comprobar si es una carpeta\n\nSi activas esta opción, rclone no hará la solicitud HEAD. Así, los listados\nde carpetas serán mucho más rápidos, pero rclone no tendrá las horas ni los\ntamaños de los archivos, y pueden aparecer en el listado algunos archivos\nque no existen."
+        },
+        "no_head_size": {
+          "help": "Establecer el tamaño de archivo que se indica con --http-no-head.\n\nCuando las solicitudes HEAD están desactivadas, rclone normalmente indica que el tamaño\ndel archivo es desconocido. Establece esta opción en un valor no negativo, incluido 0,\npara indicar ese tamaño en todos los archivos. Déjala sin establecer (el valor\npredeterminado, que se muestra como \"off\") para seguir indicando un tamaño desconocido.\n\nrclone da por bueno el tamaño configurado. Si no coincide con el tamaño real del\narchivo, las transferencias pueden fallar en la comprobación del tamaño y reintentarse,\nsalvo que se use --ignore-size. También puede hacer que las transferencias multihilo\npidan rangos incorrectos y que los archivos montados no se puedan leer más allá del\ntamaño indicado."
+        },
+        "no_head_time": {
+          "help": "Establecer una hora de modificación predeterminada para --http-no-head.\n\nCuando las solicitudes HEAD están desactivadas, rclone normalmente no indica ninguna\nhora de modificación. Establece esta opción para indicar en su lugar la hora\nespecificada en todos los archivos. Si después cambias la hora configurada, una\nsincronización verá todos los archivos como modificados."
         },
         "no_slash": {
           "help": "Actívalo si el sitio no termina las carpetas con /.\n\nÚsalo si el sitio web de destino no pone / al final de las carpetas.\n\nUna / al final de una ruta es la forma normal en que rclone distingue\nentre archivos y carpetas. Si esta opción está activada, rclone tratará\ntodos los archivos con Content-Type: text/html como carpetas y leerá\nlas URL que contienen en lugar de descargarlos.\n\nTen en cuenta que esto puede hacer que rclone confunda archivos HTML\nde verdad con carpetas."
@@ -2526,6 +2558,44 @@
         }
       }
     },
+    "kdrive": {
+      "description": "Infomaniak kDrive",
+      "option": {
+        "auth_url": {
+          "help": "URL del servidor de autenticación.\n\nDéjala en blanco para usar los valores predeterminados del proveedor."
+        },
+        "chunk_size": {
+          "help": "Los archivos mayores que este tamaño se suben en fragmentos de este tamaño.\n\nLa API de kDrive acepta fragmentos de entre 1 MB y 1 GB, hasta 10.000\nfragmentos por archivo y un tamaño total de archivo de 1 TiB. En los archivos\nmuy grandes, el tamaño del fragmento se aumenta automáticamente para no superar\nel límite de 10.000 fragmentos."
+        },
+        "client_id": {
+          "help": "ID de cliente OAuth.\n\nNormalmente, déjalo en blanco."
+        },
+        "description": {
+          "help": "Descripción del remoto."
+        },
+        "drive_id": {
+          "help": "ID del kDrive que se usará.\n\nAl ver una carpeta en kdrive, puedes encontrar el drive_id aquí:\nhttps://ksuite.infomaniak.com/{account_id}/kdrive/app/drive/{drive_id}/files/..."
+        },
+        "encoding": {
+          "help": "La codificación del backend.\n\nConsulta la [sección sobre la codificación en la descripción general](/overview/#encoding) para más información."
+        },
+        "endpoint": {
+          "help": "El endpoint de la API que se usará.\n\nNormalmente, déjalo en blanco. No hay motivo para cambiar el endpoint salvo para uso interno o pruebas beta."
+        },
+        "root_folder_id": {
+          "help": "La carpeta que se usará como raíz.\n\nPuedes usar uno de los atajos [private o common]\no un ID de carpeta concreto.\n\n- private: tu carpeta privada de usuario\n- common: la carpeta común de kDrive, compartida entre los usuarios"
+        },
+        "token": {
+          "help": "Token de acceso OAuth como blob JSON."
+        },
+        "token_url": {
+          "help": "URL del servidor de tokens.\n\nDéjala en blanco para usar los valores predeterminados del proveedor."
+        },
+        "upload_concurrency": {
+          "help": "Concurrencia para las subidas fragmentadas."
+        }
+      }
+    },
     "koofr": {
       "description": "Koofr, Digi Storage y otros proveedores de almacenamiento compatibles con Koofr",
       "option": {
@@ -2610,7 +2680,7 @@
           }
         },
         "metadatainfo": {
-          "help": "Según el sistema operativo, el backend local puede devolver solo una parte\nde los metadatos del sistema. Se pueden establecer metadatos del sistema en todos\nlos sistemas operativos, pero los metadatos de usuario solo se pueden establecer en linux, freebsd,\nnetbsd, macOS y Solaris. **Todavía no** es posible en Windows\n([consulta pkg/attrs#47](https://github.com/pkg/xattr/issues/47)).\n\nLos metadatos de usuario se guardan como atributos extendidos (que puede que no\nadmitan todos los sistemas de archivos) con el prefijo \"user.*\".\n\nSe admiten metadatos en archivos y carpetas.\n\nAl restaurar metadatos con `--metadata`, rclone aplica el\n\"mode\", el \"uid\" y el \"gid\" del origen. Estos valores vienen del remoto de\norigen, que puede no ser de confianza, así que restaurar metadatos como root desde un\norigen que no es de confianza puede cambiar el propietario de los archivos y no se recomienda.\nLos bits setuid, setgid y sticky no se restauran de forma predeterminada: consulta la\nopción `--local-metadata-restore-special-bits`.\n",
+          "help": "Según el sistema operativo, el backend local puede devolver solo una parte\nde los metadatos del sistema. Se pueden establecer metadatos del sistema en todos\nlos sistemas operativos, pero los metadatos de usuario solo se pueden establecer en linux, freebsd,\nnetbsd, macOS y Solaris. **Todavía no** es posible en Windows\n([consulta pkg/attrs#47](https://github.com/pkg/xattr/issues/47)).\n\nLos metadatos de usuario se guardan como atributos extendidos (que puede que no\nadmitan todos los sistemas de archivos) con el prefijo \"user.*\".\n\nSe admiten metadatos en archivos y carpetas.\n\nAl restaurar metadatos con `--metadata`, rclone aplica el\n\"mode\", el \"uid\" y el \"gid\" del origen. Estos valores vienen del remoto de\norigen, que puede no ser de confianza, así que restaurar metadatos como root desde un\norigen que no es de confianza puede cambiar el propietario de los archivos y no se recomienda.\nUn usuario que no sea root conserva su propio uid y solo asigna como gid un grupo\nal que pertenece, como hace rsync.\nLos bits setuid, setgid y sticky no se restauran de forma predeterminada: consulta la\nopción `--local-metadata-restore-special-bits`.\n",
           "system": {
             "atime": {
               "help": "Hora del último acceso"
@@ -2653,7 +2723,7 @@
           "help": "La codificación del backend.\n\nConsulta la [sección sobre codificación de la descripción general](/overview/#encoding) para más información."
         },
         "fatal_if_no_space": {
-          "help": "Hacer que los errores por falta de espacio sean fatales durante las transferencias.\n\nSi se activa, un error ENOSPC durante una escritura devuelve un error fatal para\nque rclone se detenga en lugar de reintentar la operación. Es útil en\nscripts de copia de seguridad que deben detenerse y avisar claramente cuando el disco se llena, en lugar de\nquedarse reintentando."
+          "help": "Hacer que los errores por falta de espacio sean fatales durante las transferencias.\n\nSi se activa, un error por falta de espacio al escribir, al crear una carpeta o al\ncrear un archivo devuelve un error fatal para que rclone se detenga en lugar de\nreintentar la operación. Es útil en scripts de copia de seguridad que deben\ndetenerse y avisar claramente cuando el disco se llena, en lugar de quedarse\nreintentando."
         },
         "hashes": {
           "help": "Lista separada por comas de los tipos de suma de comprobación admitidos."
@@ -2668,7 +2738,7 @@
           "help": "No comprobar si los archivos cambian durante la subida.\n\nNormalmente, rclone comprueba el tamaño y la hora de modificación de los\narchivos mientras se suben, y se detiene con un mensaje que empieza por\n\"can't copy - source file is being updated\" si el archivo cambia durante\nla subida.\n\nSin embargo, en algunos sistemas de archivos esta comprobación de la hora de\nmodificación puede fallar (p. ej.\n[Glusterfs #2206](https://github.com/rclone/rclone/issues/2206)), así que\nse puede desactivar con esta opción.\n\nSi esta opción está activada, rclone hará todo lo posible por transferir un\narchivo que se está actualizando. Si al archivo solo se le añade contenido\nal final (p. ej. un log), rclone transferirá el archivo de log con el\ntamaño que tenía la primera vez que lo vio.\n\nSi el archivo se modifica por completo (no solo se le añade contenido al\nfinal), la transferencia puede fallar en la comprobación del hash.\n\nEn detalle, una vez que se ha llamado a stat() sobre el archivo por primera\nvez:\n\n- Solo se transfiere el tamaño que dio stat\n- Solo se calcula la suma de comprobación del tamaño que dio stat\n- No se actualiza la información de stat del archivo\n\n**Nota:** no uses esta opción en una instantánea de volumen de Windows (VSS).\nPor algún motivo desconocido, los archivos de una VSS a veces muestran tamaños\ndistintos en el listado de la carpeta (de donde sale el valor inicial de stat\nen Windows) y cuando se llama a stat directamente sobre ellos. Otras\nherramientas de copia siempre usan el valor directo de stat, y esta opción\nimpide usarlo.\n"
         },
         "no_clone": {
-          "help": "Desactiva la clonación por reflink en las copias en el servidor.\n\nNormalmente, en las transferencias de local a local, rclone \"clona\" el archivo\ncuando puede y solo recurre a \"copiar\" cuando no se admite la clonación.\n\nClonar crea una copia superficial (o \"reflink\") que al principio comparte\nbloques con el archivo original. A diferencia de un \"enlace duro\", los dos\narchivos son independientes y ninguno afecta al otro si después se modifica.\n\nClonar suele ser preferible a copiar, ya que es mucho más rápido y se\ndeduplica de forma predeterminada (es decir, tener dos archivos idénticos no\nocupa más espacio que tener uno solo). Sin embargo, cuando se prefiere la\nredundancia de datos, se puede usar --local-no-clone para desactivar la\nclonación y forzar copias \"profundas\".\n\nPor ahora, la clonación solo se admite con APFS en macOS (en el futuro se\npodría admitir en otras plataformas)."
+          "help": "Desactiva la clonación por reflink en las copias en el servidor.\n\nNormalmente, en las transferencias de local a local, rclone \"clona\" el archivo\ncuando puede y solo recurre a \"copiar\" cuando no se admite la clonación.\n\nClonar crea una copia superficial (o \"reflink\") que al principio comparte\nbloques con el archivo original. A diferencia de un \"enlace duro\", los dos\narchivos son independientes y ninguno afecta al otro si después se modifica.\n\nClonar suele ser preferible a copiar, ya que es mucho más rápido y se\ndeduplica de forma predeterminada (es decir, tener dos archivos idénticos no\nocupa más espacio que tener uno solo). Sin embargo, cuando se prefiere la\nredundancia de datos, se puede usar --local-no-clone para desactivar la\nclonación y forzar copias \"profundas\".\n\nClonar también conserva los metadatos propios de macOS, como los atributos\nextendidos, que una copia normal no conserva, así que estos metadatos se\npierden si se desactiva la clonación.\n\nSi el archivo de destino ya existe, la clonación lo reemplaza por un archivo\nnuevo, incluso con --inplace, así que se rompen los enlaces duros que apuntan a\nél. Usa --local-no-clone para actualizar los archivos existentes en su sitio.\n\nPor ahora, la clonación solo se admite con APFS en macOS (en el futuro se\npodría admitir en otras plataformas)."
         },
         "no_preallocate": {
           "help": "Desactiva la preasignación de espacio en disco para los archivos transferidos.\n\nLa preasignación de espacio en disco ayuda a evitar la fragmentación del\nsistema de archivos. Sin embargo, algunas capas de sistemas de archivos\nvirtuales (como Google Drive File Stream) pueden fijar por error el tamaño\nreal del archivo en el espacio preasignado, lo que hace fallar la\nverificación de la suma de comprobación y del tamaño del archivo. Usa esta\nopción para desactivar la preasignación."
@@ -2922,7 +2992,7 @@
           "help": "OneDrive admite metadatos del sistema (no metadatos de usuario, en el momento de escribir esto)\ntanto en archivos como en carpetas. Gran parte de los metadatos son de solo\nlectura, y hay algunas diferencias entre OneDrive Personal y Business (consulta la\ntabla de abajo para más detalles).\n\nTambién se admiten los permisos, si se establece `--onedrive-metadata-permissions`. Los\nvalores aceptados para `--onedrive-metadata-permissions` son \"`read`\", \"`write`\",\n\"`read,write`\" y \"`off`\" (el valor predeterminado). \"`write`\" permite añadir permisos nuevos,\nactualizar el \"role\" de los permisos existentes y eliminar permisos. Para actualizar\ny eliminar hay que conocer el ID del permiso, así que se recomienda usar\n\"`read,write`\" en lugar de \"`write`\" si quieres actualizar o eliminar permisos.\n\nLos permisos se leen y se escriben en formato JSON con el mismo esquema que la\n[API de OneDrive](https://learn.microsoft.com/en-us/onedrive/developer/rest-api/resources/permission?view=odsp-graph-online),\nque es un poco distinto en OneDrive Personal y en Business.\n\nEjemplo para OneDrive Personal:\n```json\n[\n\t{\n\t\t\"id\": \"1234567890ABC!123\",\n\t\t\"grantedTo\": {\n\t\t\t\"user\": {\n\t\t\t\t\"id\": \"ryan@contoso.com\"\n\t\t\t},\n\t\t\t\"application\": {},\n\t\t\t\"device\": {}\n\t\t},\n\t\t\"invitation\": {\n\t\t\t\"email\": \"ryan@contoso.com\"\n\t\t},\n\t\t\"link\": {\n\t\t\t\"webUrl\": \"https://1drv.ms/t/s!1234567890ABC\"\n\t\t},\n\t\t\"roles\": [\n\t\t\t\"read\"\n\t\t],\n\t\t\"shareId\": \"s!1234567890ABC\"\n\t}\n]\n```\n\nEjemplo para OneDrive Business:\n```json\n[\n\t{\n\t\t\"id\": \"48d31887-5fad-4d73-a9f5-3c356e68a038\",\n\t\t\"grantedToIdentities\": [\n\t\t\t{\n\t\t\t\t\"user\": {\n\t\t\t\t\t\"displayName\": \"ryan@contoso.com\"\n\t\t\t\t},\n\t\t\t\t\"application\": {},\n\t\t\t\t\"device\": {}\n\t\t\t}\n\t\t],\n\t\t\"link\": {\n\t\t\t\"type\": \"view\",\n\t\t\t\"scope\": \"users\",\n\t\t\t\"webUrl\": \"https://contoso.sharepoint.com/:w:/t/design/a577ghg9hgh737613bmbjf839026561fmzhsr85ng9f3hjck2t5s\"\n\t\t},\n\t\t\"roles\": [\n\t\t\t\"read\"\n\t\t],\n\t\t\"shareId\": \"u!LKj1lkdlals90j1nlkascl\"\n\t},\n\t{\n\t\t\"id\": \"5D33DD65C6932946\",\n\t\t\"grantedTo\": {\n\t\t\t\"user\": {\n\t\t\t\t\"displayName\": \"John Doe\",\n\t\t\t\t\"id\": \"efee1b77-fb3b-4f65-99d6-274c11914d12\"\n\t\t\t},\n\t\t\t\"application\": {},\n\t\t\t\"device\": {}\n\t\t},\n\t\t\"roles\": [\n\t\t\t\"owner\"\n\t\t],\n\t\t\"shareId\": \"FWxc1lasfdbEAGM5fI7B67aB5ZMPDMmQ11U\"\n\t}\n]\n```\n\nPara escribir permisos, pasa una clave de metadatos \"permissions\" con este mismo\nformato. La herramienta [`--metadata-mapper`](https://rclone.org/docs/#metadata-mapper) puede\nser muy útil para esto.\n\nAl añadir permisos, puedes indicar una dirección de correo electrónico en las propiedades `User.ID` o\n`DisplayName` de `grantedTo` o `grantedToIdentities`. También\npuedes indicar un ObjectID en `User.ID`. Para añadir un permiso a un usuario, hay que\nindicar al menos un destinatario válido. También se puede crear un enlace público\nsi `Link.Scope` se establece en `\"anonymous\"`.\n\nEjemplo de petición para añadir un permiso \"read\" con `--metadata-mapper`:\n\n```json\n{\n    \"Metadata\": {\n        \"permissions\": \"[{\\\"grantedToIdentities\\\":[{\\\"user\\\":{\\\"id\\\":\\\"ryan@contoso.com\\\"}}],\\\"roles\\\":[\\\"read\\\"]}]\"\n    }\n}\n```\n\nTen en cuenta que añadir un permiso puede fallar si ya existe un permiso\nen conflicto para el archivo o la carpeta.\n\nPara actualizar un permiso existente, incluye tanto el ID del permiso como los nuevos\n`roles` que quieras asignar. `roles` es la única propiedad que se puede cambiar.\n\nPara eliminar permisos, pasa un objeto JSON que contenga solo los permisos que quieras\nconservar (puede estar vacío, para eliminarlos todos). Ten en cuenta que el rol `owner` se\nignora, ya que no se puede eliminar.\n\nTen en cuenta que tanto leer como escribir permisos requiere llamadas adicionales a la API,\nasí que, si no necesitas leer ni escribir permisos, se recomienda omitir\n`--onedrive-metadata-permissions`.\n\nLos metadatos y los permisos se admiten tanto en las carpetas como en los\narchivos. Ten en cuenta que establecer `mtime` o `btime` en una carpeta requiere una\nllamada adicional a la API, solo en OneDrive Business.\n\nPor ahora, OneDrive no admite metadatos de usuario. Al escribir metadatos, solo\nse escriben las propiedades del sistema que admiten escritura; las claves de solo lectura\no no reconocidas que se pasen se ignoran.\n\nCONSEJO: para ver los metadatos y los permisos de cualquier archivo o carpeta, ejecuta:\n\n```\nrclone lsjson remote:path --stat -M --onedrive-metadata-permissions read\n```",
           "system": {
             "btime": {
-              "help": "Hora de creación (nacimiento) del archivo con precisión de segundos (milisegundos para OneDrive Personal)."
+              "help": "Hora de creación (nacimiento) del archivo con precisión de segundos."
             },
             "content-type": {
               "help": "El tipo MIME del archivo."
@@ -2949,7 +3019,7 @@
               "help": "Si OneDrive ha detectado que el elemento contiene malware."
             },
             "mtime": {
-              "help": "Hora de la última modificación con precisión de segundos (milisegundos para OneDrive Personal)."
+              "help": "Hora de la última modificación con precisión de segundos."
             },
             "package-type": {
               "help": "Si está presente, indica que este elemento es un paquete y no una carpeta o un archivo. Los paquetes se tratan como archivos en algunos contextos y como carpetas en otros."
@@ -2967,10 +3037,10 @@
               "help": "Si está compartido, indica el ámbito con el que se comparte el elemento: anonymous, organization o users."
             },
             "shared-time": {
-              "help": "Hora en la que se compartió el elemento, con precisión de segundos (milisegundos para OneDrive Personal)."
+              "help": "Hora en la que se compartió el elemento, con precisión de segundos."
             },
             "utime": {
-              "help": "Hora de subida con precisión de segundos (milisegundos para OneDrive Personal)."
+              "help": "Hora de subida con precisión de segundos."
             }
           }
         }
@@ -3009,7 +3079,7 @@
           "help": "Secreto de cliente OAuth.\n\nNormalmente, déjalo en blanco."
         },
         "delta": {
-          "help": "Si se activa, rclone usará el listado delta para implementar los listados recursivos.\n\nSi esta opción está activada, el backend onedrive anunciará que admite `ListR`\npara los listados recursivos.\n\nActivar esta opción acelera mucho operaciones como estas:\n\n    rclone lsf -R onedrive:\n    rclone size onedrive:\n    rclone rc vfs/refresh recursive=true\n\n**Sin embargo**, la API de listado delta **solo** funciona en la raíz de la\nunidad. Si la usas fuera de la raíz, recorre todo desde la raíz y descarta\nlos datos que no estén dentro de la carpeta que pediste. Así que el\nresultado será correcto, pero puede que no sea muy eficiente.\n\nPor eso esta opción no está activada de forma predeterminada.\n\nComo regla general, si casi todos tus datos están dentro de la carpeta raíz de\nrclone (el `root/directory` de `onedrive:root/directory`), usar esta opción\nmejorará mucho el rendimiento. Si la mayoría de tus datos no están dentro de\nla raíz, usar esta opción lo empeorará mucho.\n\nSe recomienda si montas tu OneDrive en la raíz (o cerca de la raíz\nal usar crypt) y usas rclone `rc vfs/refresh`.\n"
+          "help": "Si se activa, rclone usará el listado delta para implementar los listados recursivos.\n\nSi esta opción está activada, el backend onedrive anunciará que admite `ListR`\npara los listados recursivos.\n\nActivar esta opción acelera mucho operaciones como estas:\n\n    rclone lsf -R onedrive:\n    rclone size onedrive:\n    rclone rc vfs/refresh recursive=true\n\nRclone pide el listado delta de la carpeta que se está listando. Si la\nunidad solo admite listados delta en su raíz (como pasa con algunas\nunidades antiguas de OneDrive for Business y SharePoint), rclone lista\ndesde la raíz y descarta los datos que no estén dentro de la carpeta que\npediste. Así que el resultado será correcto, pero puede que no sea muy\neficiente.\n"
         },
         "description": {
           "help": "Descripción del remoto."
@@ -3030,7 +3100,7 @@
           "help": "Actívalo para que los archivos de OneNote aparezcan en los listados de carpetas.\n\nDe forma predeterminada, rclone oculta los archivos de OneNote en los listados\nde carpetas porque operaciones como \"Open\" y \"Update\" no funcionan con ellos.\nPero este comportamiento también puede impedir que los elimines. Si quieres\neliminar archivos de OneNote o quieres que aparezcan en los listados de\ncarpetas por otro motivo, activa esta opción."
         },
         "hard_delete": {
-          "help": "Eliminar los archivos definitivamente al borrarlos.\n\nNormalmente, los archivos se envían a la papelera de reciclaje al eliminarlos.\nEsta opción hace que se eliminen definitivamente. Úsala con cuidado.\n\nLas cuentas personales de OneDrive no admiten la API permanentDelete; solo\nse aplica a OneDrive for Business y a las bibliotecas de documentos de SharePoint.\n"
+          "help": "Eliminar los archivos definitivamente al borrarlos.\n\nNormalmente, los archivos se envían a la papelera de reciclaje al eliminarlos.\nEsta opción hace que se eliminen definitivamente. Úsala con cuidado.\n\nFunciona con OneDrive for Business, con las bibliotecas de documentos de SharePoint y con las cuentas personales de OneDrive, incluidas las gratuitas.\n"
         },
         "hash_type": {
           "example": {
@@ -3056,7 +3126,7 @@
           "help": "Indicar el hash que usa el backend.\n\nIndica el tipo de hash que se usa. Si se establece en \"auto\", se usará el\nhash predeterminado, que es QuickXorHash.\n\nAntes de rclone 1.62, se usaba de forma predeterminada un hash SHA1 en OneDrive\nPersonal. Desde la 1.62, el valor predeterminado es QuickXorHash en todos los\ntipos de OneDrive. Si quieres un hash SHA1, establece esta opción como\ncorresponda.\n\nA partir de julio de 2023, QuickXorHash será el único hash disponible tanto en\nOneDrive for Business como en OneDrive Personal.\n\nSe puede establecer en \"none\" para no usar ningún hash.\n\nSi el hash solicitado no existe en el objeto, se devolverá como una cadena\nvacía, que rclone trata como un hash ausente.\n"
         },
         "link_password": {
-          "help": "Establecer la contraseña para los enlaces creados por el comando link.\n\nEn el momento de escribir esto, solo funciona con cuentas de pago de OneDrive Personal.\n"
+          "help": "Establecer la contraseña para los enlaces creados por el comando link.\n\nEn el momento de escribir esto, funciona con OneDrive for Business y con\nlas cuentas de pago de OneDrive Personal.\n\nLas cuentas gratuitas de OneDrive Personal no pueden establecer una contraseña\nni una fecha de caducidad (con --expire) en los enlaces.\n"
         },
         "link_scope": {
           "example": {
@@ -3075,7 +3145,7 @@
               "help": "Crea un enlace de lectura y escritura al elemento."
             },
             "embed": {
-              "help": "Crea un enlace insertable al elemento."
+              "help": "Crea un enlace insertable al elemento.\nSolo disponible en OneDrive Personal."
             },
             "view": {
               "help": "Crea un enlace de solo lectura al elemento."
@@ -3107,7 +3177,7 @@
           "help": "Controla si los permisos se leen o se escriben en los metadatos.\n\nLeer los metadatos de permisos de los archivos es rápido, pero no siempre\nconviene establecer los permisos a partir de los metadatos.\n"
         },
         "no_versions": {
-          "help": "Eliminar todas las versiones en las operaciones que modifican archivos.\n\nOneDrive for Business crea versiones cuando rclone sube archivos nuevos\nque sobrescriben uno existente y cuando establece la hora de modificación.\n\nEstas versiones ocupan espacio de la cuota.\n\nEsta opción busca versiones después de subir el archivo y de establecer la\nhora de modificación, y elimina todas salvo la última.\n\n**Nota:** por ahora, OneDrive Personal no puede eliminar versiones, así que\nno uses esta opción allí.\n"
+          "help": "Eliminar todas las versiones en las operaciones que modifican archivos.\n\nOneDrive crea versiones cuando rclone sube archivos nuevos\nque sobrescriben uno existente y cuando establece la hora de modificación.\n\nEstas versiones ocupan espacio de la cuota.\n\nEsta opción busca versiones después de subir el archivo y de establecer la\nhora de modificación, y elimina todas salvo la última.\n"
         },
         "region": {
           "example": {
@@ -3135,8 +3205,11 @@
         "tenant": {
           "help": "ID del inquilino (tenant) de la entidad de servicio. También se llama ID de directorio.\n\nEstablécelo si usas\n- el flujo de credenciales de cliente\n"
         },
+        "tenant_api_version": {
+          "help": "La versión de la API de SharePoint que se usará con tenant_url.\n\nEstablécela en la versión de la API de SharePoint que corresponda al token de\nacceso extraído del navegador. Por ejemplo, usa v2.1 con un token driveAccessTokenV21.\n\nSolo se aplica si tenant_url está establecido."
+        },
         "tenant_url": {
-          "help": "La URL del inquilino para acceder a OneDrive sin ser administrador.\n\nEstablécela con la URL de tu inquilino de SharePoint para usar el endpoint de la API de SharePoint v2.0\nen lugar de la API estándar de Microsoft Graph. Así puedes\nacceder a OneDrive para empresas sin el consentimiento de un administrador.\n\nPuedes encontrar la URL en las herramientas para desarrolladores del navegador buscando\n\"driveAccessToken\" en las peticiones de red. Busca el campo\n\".driveUrl\", que contiene la URL del inquilino y el ID de la unidad.\n\nEjemplo: https://your-tenant.sharepoint.com/_api"
+          "help": "La URL del inquilino para acceder a OneDrive sin ser administrador.\n\nEstablécela con la URL de tu inquilino de SharePoint para usar el endpoint de la API de SharePoint\nen lugar de la API estándar de Microsoft Graph. Así puedes\nacceder a OneDrive para empresas sin el consentimiento de un administrador.\n\nPuedes encontrar la URL en las herramientas para desarrolladores del navegador buscando\n\"driveAccessToken\" en las peticiones de red. Busca el campo\n\".driveUrl\", que contiene la URL del inquilino y el ID de la unidad.\n\nEjemplo: https://your-tenant.sharepoint.com/_api"
         },
         "token": {
           "help": "Token de acceso OAuth como objeto JSON."
@@ -3467,7 +3540,7 @@
           "help": "La codificación del backend.\n\nConsulta la [sección sobre la codificación en la descripción general](/overview/#encoding) para más información."
         },
         "hash_memory_limit": {
-          "help": "Los archivos mayores que esto se cachearán en disco para calcular el hash si es necesario."
+          "help": "Los archivos mayores que esto se cachearán en disco para calcular el hash si es necesario.\n\nLos archivos de tamaño desconocido siempre se cachean en disco."
         },
         "no_media_link": {
           "help": "Usar los enlaces originales del archivo en lugar de los enlaces de medios.\n\nEsto evita problemas causados por enlaces de medios inválidos, pero puede reducir las velocidades de descarga."
@@ -3732,7 +3805,7 @@
       }
     },
     "s3": {
-      "description": "Proveedores de almacenamiento compatibles con Amazon S3, como AWS, Alibaba, ArvanCloud, BizflyCloud, Ceph, ChinaMobile, Cloudflare, Cubbit, DigitalOcean, Dreamhost, Exaba, Fastly, FileLu, FlashBlade, GCS, HCP, Hetzner, HuaweiOBS, IBMCOS, IDrive, ImpossibleCloud, Intercolo, IONOS, Leviia, Liara, Linode, LyveCloud, Magalu, Mega, Minio, Netease, Outscale, OVHcloud, Petabox, Qiniu, Rabata, RackCorp, Rclone, Scaleway, Scality, SeaweedFS, Selectel, Servercore, SpectraLogic, Storj, Synology, TencentCOS, US3, Wasabi, Zadara, Zata, ZeroServices y otros",
+      "description": "Proveedores de almacenamiento compatibles con Amazon S3, como AWS, Alibaba, ArvanCloud, Autonomys, BizflyCloud, Cellar, Ceph, ChinaMobile, Cloudflare, Cubbit, DigitalOcean, Dreamhost, Exaba, Fastly, FileLu, FlashBlade, GCS, HCP, Hetzner, HuaweiOBS, IBMCOS, IDrive, ImpossibleCloud, Infomaniak, Intercolo, IONOS, Leviia, Liara, Linode, LyveCloud, Magalu, Mega, Minio, Neon, Netease, Outscale, OVHcloud, Petabox, Qiniu, Rabata, RackCorp, Rclone, RelAix, Scaleway, Scality, SeaweedFS, Selectel, Servercore, SpectraLogic, Storj, Synology, TencentCOS, US3, Wasabi, Zadara, Zata, ZeroServices y otros",
       "extra": {
         "commandhelp": {
           "cleanup": {
@@ -3742,6 +3815,10 @@
           "cleanup-hidden": {
             "long": "Este comando elimina las versiones antiguas ocultas de los archivos\nen un bucket con control de versiones.\n\nTen en cuenta que puedes usar --interactive/-i o --dry-run con este comando para ver\nlo que haría.\n\nEjemplo de uso:\n\n```console\nrclone backend cleanup-hidden s3:bucket/path/to/dir\n```",
             "short": "Eliminar las versiones antiguas de los archivos."
+          },
+          "link": {
+            "long": "Este comando genera un enlace de descarga firmado para un archivo, con la opción\nde personalizar las cabeceras de la respuesta HTTP. Pasa la ruta del archivo como\nun argumento aparte, relativa a la ruta del remoto.\n\nEjemplos de uso:\n\n```console\nrclone backend link s3:bucket path/to/file -o expire=1h\nrclone backend link s3:bucket path/to/file -o response-expires=\"Thu, 01 Jan 1970 00:00:00 GMT\"\nrclone backend link s3:bucket path/to/file -o response-content-disposition='attachment; filename=\"download.txt\"'\n```\n\nDe forma predeterminada, el enlace caduca a los 7 días. Usa `-o expire=1h` para\ncambiar su duración. La duración debe ser de al menos 1 segundo; los valores de más\nde 7 días se limitan a 7 días, igual que con `rclone link`.\n\nLa opción `response-expires` establece la cabecera Expires de la respuesta HTTP,\nno la duración del enlace firmado. Debe ser una fecha HTTP, como\n`Thu, 01 Jan 1970 00:00:00 GMT`.\n\nLas cabeceras personalizadas se incluyen en la firma y no se deben cambiar en la\nURL devuelta. No modifican los metadatos guardados del objeto.",
+            "short": "Generar un enlace firmado con cabeceras de respuesta personalizadas."
           },
           "list-multipart-uploads": {
             "long": "Este comando lista en formato JSON las subidas multiparte sin terminar.\n\nEjemplos de uso:\n\n```console\nrclone backend list-multipart s3:bucket/path/to/object\n```\n\nDevuelve un diccionario de buckets cuyos valores son listas de subidas\nmultiparte sin terminar.\n\nPuedes llamarlo sin bucket, y entonces lista todos los buckets, con\nun bucket o con un bucket y una ruta.\n\n```json\n{\n    \"rclone\": [\n        {\n            \"Initiated\": \"2020-06-26T14:20:36Z\",\n            \"Initiator\": {\n                \"DisplayName\": \"XXX\",\n                \"ID\": \"arn:aws:iam::XXX:user/XXX\"\n            },\n            \"Key\": \"KEY\",\n            \"Owner\": {\n                \"DisplayName\": null,\n                \"ID\": \"XXX\"\n            },\n            \"StorageClass\": \"STANDARD\",\n            \"UploadId\": \"XXX\"\n        }\n    ],\n    \"rclone-1000files\": [],\n    \"rclone-dst\": []\n}\n```",
@@ -3809,6 +3886,43 @@
         },
         "acl": {
           "provider": {
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,Scality,SeaweedFS,TencentCOS,US3,Wasabi,Zata,ZeroServices,Other": {
+              "help": "ACL predefinida (canned ACL) que se usa al crear buckets y al guardar o copiar objetos.\n\nEsta ACL se usa al crear objetos y, si bucket_acl no está establecido, también al crear buckets.\n\nPara más información, visita https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl\n\nTen en cuenta que esta ACL se aplica al copiar objetos en el servidor, ya que S3\nno copia la ACL del origen, sino que escribe una nueva.\n\nSi acl es una cadena vacía, no se añade la cabecera X-Amz-Acl: y se usa el valor\npredeterminado (private).\n"
+            },
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,Scality,SeaweedFS,TencentCOS,US3,Wasabi,Zata,ZeroServices,Other": {
+              "example": {
+                "public-read": {
+                  "help": "El propietario obtiene FULL_CONTROL.\nEl grupo AllUsers obtiene acceso READ."
+                }
+              }
+            },
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,Scality,SeaweedFS,TencentCOS,Wasabi,Zata,ZeroServices,Other": {
+              "example": {
+                "authenticated-read": {
+                  "help": "El propietario obtiene FULL_CONTROL.\nEl grupo AuthenticatedUsers obtiene acceso READ."
+                },
+                "public-read-write": {
+                  "help": "El propietario obtiene FULL_CONTROL.\nEl grupo AllUsers obtiene acceso READ y WRITE.\nPor lo general, no se recomienda concederlo en un bucket."
+                }
+              }
+            },
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,Scality,SeaweedFS,US3,Wasabi,Zata,ZeroServices,Other": {
+              "example": {
+                "private": {
+                  "help": "El propietario obtiene FULL_CONTROL.\nNadie más tiene derechos de acceso (valor predeterminado)."
+                }
+              }
+            },
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,Scality,SeaweedFS,TencentCOS,Wasabi,Zata,ZeroServices,Other": {
+              "example": {
+                "bucket-owner-full-control": {
+                  "help": "Tanto el propietario del objeto como el propietario del bucket obtienen FULL_CONTROL sobre el objeto.\nSi indicas esta ACL predefinida al crear un bucket, Amazon S3 la ignora."
+                },
+                "bucket-owner-read": {
+                  "help": "El propietario del objeto obtiene FULL_CONTROL.\nEl propietario del bucket obtiene acceso READ.\nSi indicas esta ACL predefinida al crear un bucket, Amazon S3 la ignora."
+                }
+              }
+            },
             "AWS,Alibaba,ArvanCloud,BizflyCloud,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,IDrive,ImpossibleCloud,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,Scaleway,Scality,SeaweedFS,TencentCOS,US3,Wasabi,Zata,ZeroServices,Other": {
               "help": "ACL predefinida (canned ACL) que se usa al crear buckets y al guardar o copiar objetos.\n\nEsta ACL se usa al crear objetos y, si bucket_acl no está establecido, también al crear buckets.\n\nPara más información, visita https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl\n\nTen en cuenta que esta ACL se aplica al copiar objetos en el servidor, ya que S3\nno copia la ACL del origen, sino que escribe una nueva.\n\nSi acl es una cadena vacía, no se añade la cabecera X-Amz-Acl: y se usa el valor\npredeterminado (private).\n"
             },
@@ -3873,6 +3987,23 @@
         },
         "bucket_acl": {
           "provider": {
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Mega,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,SeaweedFS,Servercore,TencentCOS,US3,Wasabi,Zata,ZeroServices,Other": {
+              "example": {
+                "authenticated-read": {
+                  "help": "El propietario obtiene FULL_CONTROL.\nEl grupo AuthenticatedUsers obtiene acceso READ."
+                },
+                "private": {
+                  "help": "El propietario obtiene FULL_CONTROL.\nNadie más tiene derechos de acceso (valor predeterminado)."
+                },
+                "public-read": {
+                  "help": "El propietario obtiene FULL_CONTROL.\nEl grupo AllUsers obtiene acceso READ."
+                },
+                "public-read-write": {
+                  "help": "El propietario obtiene FULL_CONTROL.\nEl grupo AllUsers obtiene acceso READ y WRITE.\nPor lo general, no se recomienda concederlo en un bucket."
+                }
+              },
+              "help": "ACL predefinida (canned ACL) que se usa al crear buckets.\n\nPara más información, visita https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl\n\nTen en cuenta que esta ACL solo se aplica al crear buckets. Si no está\nestablecida, se usa \"acl\" en su lugar.\n\nSi \"acl\" y \"bucket_acl\" son cadenas vacías, no se añade la cabecera X-Amz-Acl:\ny se usa el valor predeterminado (private).\n"
+            },
             "AWS,Alibaba,ArvanCloud,BizflyCloud,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,IDrive,ImpossibleCloud,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Mega,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,Scaleway,SeaweedFS,Servercore,TencentCOS,US3,Wasabi,Zata,ZeroServices,Other": {
               "example": {
                 "authenticated-read": {
@@ -3934,6 +4065,9 @@
         },
         "endpoint": {
           "provider": {
+            "AWS,Alibaba,ArvanCloud,Autonomys,BizflyCloud,Cellar,Ceph,ChinaMobile,Cloudflare,Cubbit,DigitalOcean,Dreamhost,Exaba,Fastly,FileLu,FlashBlade,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Mega,Minio,Neon,Netease,Outscale,OVHcloud,Petabox,Qiniu,Rabata,RackCorp,Rclone,RelAix,Scaleway,Scality,SeaweedFS,Selectel,Servercore,SpectraLogic,Storj,Synology,TencentCOS,US3,Wasabi,Zadara,Zata,ZeroServices,Other": {
+              "help": "Endpoint para la API de S3.\n\nRequerido al usar un clon de S3."
+            },
             "AWS,Alibaba,ArvanCloud,BizflyCloud,Ceph,ChinaMobile,Cloudflare,Cubbit,DigitalOcean,Dreamhost,Exaba,Fastly,FileLu,FlashBlade,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,ImpossibleCloud,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Mega,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,Rabata,RackCorp,Rclone,Scaleway,Scality,SeaweedFS,Selectel,Servercore,SpectraLogic,Storj,Synology,TencentCOS,US3,Wasabi,Zadara,Zata,ZeroServices,Other": {
               "help": "Endpoint para la API de S3.\n\nRequerido al usar un clon de S3."
             },
@@ -4026,6 +4160,13 @@
                 }
               }
             },
+            "Autonomys": {
+              "example": {
+                "s3.auto-drive.autonomys.xyz": {
+                  "help": "Endpoint S3 de la mainnet de Auto Drive"
+                }
+              }
+            },
             "BizflyCloud": {
               "example": {
                 "hcm.ss.bfcplatform.vn": {
@@ -4033,6 +4174,13 @@
                 },
                 "hn.ss.bfcplatform.vn": {
                   "help": "Endpoint de Hanói"
+                }
+              }
+            },
+            "Cellar": {
+              "example": {
+                "cellar-c2.services.clever-cloud.com": {
+                  "help": "París, Francia"
                 }
               }
             },
@@ -4186,6 +4334,9 @@
                 "au-east-1.object.fastlystorage.app": {
                   "help": "Australia Este 1"
                 },
+                "eu-central-1.object.fastlystorage.app": {
+                  "help": "Europa Central 1"
+                },
                 "eu-central.object.fastlystorage.app": {
                   "help": "Europa Central"
                 },
@@ -4259,6 +4410,9 @@
             },
             "HuaweiOBS": {
               "example": {
+                "obs.af-north-1.myhuaweicloud.com": {
+                  "help": "África-El Cairo"
+                },
                 "obs.af-south-1.myhuaweicloud.com": {
                   "help": "África-Johannesburgo"
                 },
@@ -4271,20 +4425,68 @@
                 "obs.ap-southeast-3.myhuaweicloud.com": {
                   "help": "Asia-Pacífico-Singapur"
                 },
+                "obs.ap-southeast-4.myhuaweicloud.com": {
+                  "help": "Asia-Pacífico-Yakarta"
+                },
+                "obs.ap-southeast-5.myhuaweicloud.com": {
+                  "help": "Asia-Pacífico-Manila"
+                },
                 "obs.cn-east-2.myhuaweicloud.com": {
                   "help": "China Este-Shanghái 2"
                 },
                 "obs.cn-east-3.myhuaweicloud.com": {
                   "help": "China Este-Shanghái 1"
                 },
+                "obs.cn-east-4.myhuaweicloud.com": {
+                  "help": "China Este-Qingdao"
+                },
+                "obs.cn-east-5.myhuaweicloud.com": {
+                  "help": "China Este-Suzhou"
+                },
                 "obs.cn-north-1.myhuaweicloud.com": {
                   "help": "China Norte-Pekín 1"
+                },
+                "obs.cn-north-11.myhuaweicloud.com": {
+                  "help": "China Norte-Hebei"
+                },
+                "obs.cn-north-12.myhuaweicloud.com": {
+                  "help": "China Norte-Hohhot"
+                },
+                "obs.cn-north-2.myhuaweicloud.com": {
+                  "help": "China Norte-Pekín 2"
                 },
                 "obs.cn-north-4.myhuaweicloud.com": {
                   "help": "China Norte-Pekín 4"
                 },
+                "obs.cn-north-9.myhuaweicloud.com": {
+                  "help": "China Norte-Ulanqab"
+                },
                 "obs.cn-south-1.myhuaweicloud.com": {
                   "help": "China Sur-Cantón"
+                },
+                "obs.cn-south-2.myhuaweicloud.com": {
+                  "help": "China Sur-Shenzhen"
+                },
+                "obs.cn-south-4.myhuaweicloud.com": {
+                  "help": "China Sur-Cantón (solo con invitación)"
+                },
+                "obs.cn-southwest-2.myhuaweicloud.com": {
+                  "help": "China Suroeste-Guiyang 1"
+                },
+                "obs.cn-southwest-3.myhuaweicloud.com": {
+                  "help": "China Suroeste-Chongqing"
+                },
+                "obs.eu-west-101.myhuaweicloud.eu": {
+                  "help": "Europa-Dublín"
+                },
+                "obs.la-north-2.myhuaweicloud.com": {
+                  "help": "Latinoamérica-Ciudad de México 2"
+                },
+                "obs.la-south-2.myhuaweicloud.com": {
+                  "help": "Latinoamérica-Santiago"
+                },
+                "obs.me-east-1.myhuaweicloud.com": {
+                  "help": "Oriente Medio-Riad"
                 },
                 "obs.na-mexico-1.myhuaweicloud.com": {
                   "help": "Latinoamérica-Ciudad de México 1"
@@ -4303,6 +4505,9 @@
                 },
                 "obs.sa-peru-1.myhuaweicloud.com": {
                   "help": "Latinoamérica-Lima 1"
+                },
+                "obs.tr-west-1.myhuaweicloud.com": {
+                  "help": "Turquía-Estambul"
                 }
               }
             },
@@ -4540,6 +4745,22 @@
                 },
                 "us-east-1.storage.impossibleapi.net": {
                   "help": "Nueva York, EE. UU."
+                }
+              }
+            },
+            "Infomaniak": {
+              "example": {
+                "s3.swiss-backup01.infomaniak.com": {
+                  "help": "Swiss Backup, ubicación 01"
+                },
+                "s3.swiss-backup02.infomaniak.com": {
+                  "help": "Swiss Backup, ubicación 02"
+                },
+                "s3.swiss-backup03.infomaniak.com": {
+                  "help": "Swiss Backup, ubicación 03"
+                },
+                "s3.swiss-backup04.infomaniak.com": {
+                  "help": "Swiss Backup, ubicación 04"
                 }
               }
             },
@@ -4886,10 +5107,23 @@
                 }
               }
             },
+            "RelAix": {
+              "example": {
+                "s3-gw1.relaix.net": {
+                  "help": "Aquisgrán-1, Alemania"
+                },
+                "s3-gw2.relaix.net": {
+                  "help": "Aquisgrán-2, Alemania"
+                }
+              }
+            },
             "Scaleway": {
               "example": {
                 "s3.fr-par.scw.cloud": {
                   "help": "Endpoint de París"
+                },
+                "s3.it-mil.scw.cloud": {
+                  "help": "Endpoint de Milán"
                 },
                 "s3.nl-ams.scw.cloud": {
                   "help": "Endpoint de Ámsterdam"
@@ -5308,6 +5542,9 @@
                 }
               }
             },
+            "AWS,ArvanCloud,Ceph,ChinaMobile,DigitalOcean,Dreamhost,Exaba,GCS,HCP,Hetzner,IBMCOS,ImpossibleCloud,Infomaniak,LyveCloud,Minio,Netease,Qiniu,Rabata,RackCorp,Scality,SeaweedFS,Synology,Wasabi,Zata,ZeroServices,Other": {
+              "help": "Restricción de ubicación: debe coincidir con la región.\n\nDéjalo en blanco si no estás seguro. Solo se usa al crear buckets."
+            },
             "AWS,ArvanCloud,Ceph,ChinaMobile,DigitalOcean,Dreamhost,Exaba,GCS,HCP,Hetzner,IBMCOS,ImpossibleCloud,LyveCloud,Minio,Netease,Qiniu,Rabata,RackCorp,Scality,SeaweedFS,Synology,Wasabi,Zata,ZeroServices,Other": {
               "help": "Restricción de ubicación: debe coincidir con la región.\n\nDéjalo en blanco si no estás seguro. Solo se usa al crear buckets."
             },
@@ -5705,8 +5942,14 @@
             "ArvanCloud": {
               "help": "Arvan Cloud Object Storage (AOS)"
             },
+            "Autonomys": {
+              "help": "Autonomys Auto Drive"
+            },
             "BizflyCloud": {
               "help": "Bizfly Cloud Simple Storage"
+            },
+            "Cellar": {
+              "help": "Clever Cloud Cellar Object Storage"
             },
             "Ceph": {
               "help": "Ceph Object Storage"
@@ -5762,6 +6005,9 @@
             "ImpossibleCloud": {
               "help": "Impossible Cloud Object Storage"
             },
+            "Infomaniak": {
+              "help": "Infomaniak Swiss Backup"
+            },
             "Intercolo": {
               "help": "Intercolo Object Storage"
             },
@@ -5785,6 +6031,9 @@
             },
             "Minio": {
               "help": "Minio Object Storage"
+            },
+            "Neon": {
+              "help": "Neon Object Storage"
             },
             "Netease": {
               "help": "Netease Object Storage (NOS)"
@@ -5812,6 +6061,9 @@
             },
             "Rclone": {
               "help": "Servidor S3 de rclone"
+            },
+            "RelAix": {
+              "help": "RelAix.Storage"
             },
             "Scaleway": {
               "help": "Scaleway Object Storage"
@@ -5942,6 +6194,9 @@
                 }
               }
             },
+            "AWS,BizflyCloud,Ceph,Cloudflare,Cubbit,DigitalOcean,Dreamhost,Exaba,Fastly,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,LyveCloud,Minio,Neon,Netease,Outscale,OVHcloud,Petabox,Qiniu,Rabata,RackCorp,Scaleway,Scality,SeaweedFS,Selectel,Servercore,Synology,Wasabi,Zadara,Zata,ZeroServices,Other": {
+              "help": "Región a la que conectarse.\n\nDéjalo en blanco si usas un clon de S3 y no tienes región."
+            },
             "AWS,BizflyCloud,Ceph,Cloudflare,Cubbit,DigitalOcean,Dreamhost,Exaba,Fastly,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,ImpossibleCloud,Intercolo,IONOS,Leviia,LyveCloud,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,Rabata,RackCorp,Scaleway,Scality,SeaweedFS,Selectel,Servercore,Synology,Wasabi,Zadara,Zata,ZeroServices,Other": {
               "help": "Región a la que conectarse.\n\nDéjalo en blanco si usas un clon de S3 y no tienes región."
             },
@@ -5986,6 +6241,9 @@
                 },
                 "eu-central": {
                   "help": "Europa Central"
+                },
+                "eu-central-1": {
+                  "help": "Europa Central 1"
                 },
                 "eu-south-1": {
                   "help": "Europa Sur 1"
@@ -6050,6 +6308,9 @@
             },
             "HuaweiOBS": {
               "example": {
+                "af-north-1": {
+                  "help": "África-El Cairo"
+                },
                 "af-south-1": {
                   "help": "África-Johannesburgo"
                 },
@@ -6062,20 +6323,68 @@
                 "ap-southeast-3": {
                   "help": "Asia-Pacífico-Singapur"
                 },
+                "ap-southeast-4": {
+                  "help": "Asia-Pacífico-Yakarta"
+                },
+                "ap-southeast-5": {
+                  "help": "Asia-Pacífico-Manila"
+                },
                 "cn-east-2": {
                   "help": "China Este-Shanghái 2"
                 },
                 "cn-east-3": {
                   "help": "China Este-Shanghái 1"
                 },
+                "cn-east-4": {
+                  "help": "China Este-Qingdao"
+                },
+                "cn-east-5": {
+                  "help": "China Este-Suzhou"
+                },
                 "cn-north-1": {
                   "help": "China Norte-Pekín 1"
+                },
+                "cn-north-11": {
+                  "help": "China Norte-Hebei"
+                },
+                "cn-north-12": {
+                  "help": "China Norte-Hohhot"
+                },
+                "cn-north-2": {
+                  "help": "China Norte-Pekín 2"
                 },
                 "cn-north-4": {
                   "help": "China Norte-Pekín 4"
                 },
+                "cn-north-9": {
+                  "help": "China Norte-Ulanqab"
+                },
                 "cn-south-1": {
                   "help": "China Sur-Cantón"
+                },
+                "cn-south-2": {
+                  "help": "China Sur-Shenzhen"
+                },
+                "cn-south-4": {
+                  "help": "China Sur-Cantón (solo con invitación)"
+                },
+                "cn-southwest-2": {
+                  "help": "China Suroeste-Guiyang 1"
+                },
+                "cn-southwest-3": {
+                  "help": "China Suroeste-Chongqing"
+                },
+                "eu-west-101": {
+                  "help": "Europa-Dublín"
+                },
+                "la-north-2": {
+                  "help": "Latinoamérica-Ciudad de México 2"
+                },
+                "la-south-2": {
+                  "help": "Latinoamérica-Santiago"
+                },
+                "me-east-1": {
+                  "help": "Oriente Medio-Riad"
                 },
                 "na-mexico-1": {
                   "help": "Latinoamérica-Ciudad de México 1"
@@ -6094,6 +6403,9 @@
                 },
                 "sa-peru-1": {
                   "help": "Latinoamérica-Lima 1"
+                },
+                "tr-west-1": {
+                  "help": "Turquía-Estambul"
                 }
               }
             },
@@ -6148,10 +6460,41 @@
                 }
               }
             },
+            "Infomaniak": {
+              "example": {
+                "us-east-1": {
+                  "help": "Región predeterminada por compatibilidad.\nTodos los datos se guardan en Suiza."
+                }
+              }
+            },
             "Intercolo": {
               "example": {
                 "de-fra": {
                   "help": "Fráncfort, Alemania"
+                }
+              }
+            },
+            "Neon": {
+              "example": {
+                "us-east-2": {
+                  "help": "EE. UU. Este (Ohio)"
+                }
+              }
+            },
+            "Neon,Petabox": {
+              "example": {
+                "ap-southeast-1": {
+                  "help": "Asia-Pacífico (Singapur)"
+                },
+                "eu-central-1": {
+                  "help": "Europa (Fráncfort)"
+                }
+              }
+            },
+            "Neon,Petabox,Rabata": {
+              "example": {
+                "us-east-1": {
+                  "help": "EE. UU. Este (Virginia del Norte)"
                 }
               }
             },
@@ -6344,6 +6687,9 @@
                 "fr-par": {
                   "help": "París, Francia"
                 },
+                "it-mil": {
+                  "help": "Milán, Italia"
+                },
                 "nl-ams": {
                   "help": "Ámsterdam, Países Bajos"
                 },
@@ -6494,6 +6840,17 @@
         },
         "sse_customer_algorithm": {
           "provider": {
+            "AWS,Cellar,Ceph,ChinaMobile,Minio": {
+              "example": {
+                "AES256": {
+                  "help": "AES256"
+                },
+                "__empty__": {
+                  "help": "Ninguno"
+                }
+              },
+              "help": "Si usas SSE-C, el algoritmo de cifrado en el servidor que se usa al guardar este objeto en S3."
+            },
             "AWS,Ceph,ChinaMobile,Minio": {
               "example": {
                 "AES256": {
@@ -6509,6 +6866,14 @@
         },
         "sse_customer_key": {
           "provider": {
+            "AWS,Cellar,Ceph,ChinaMobile,Minio": {
+              "example": {
+                "__empty__": {
+                  "help": "Ninguno"
+                }
+              },
+              "help": "Para usar SSE-C, puedes indicar la clave secreta de cifrado que se usa para cifrar y descifrar tus datos.\n\nTambién puedes indicar --s3-sse-customer-key-base64."
+            },
             "AWS,Ceph,ChinaMobile,Minio": {
               "example": {
                 "__empty__": {
@@ -6521,6 +6886,14 @@
         },
         "sse_customer_key_base64": {
           "provider": {
+            "AWS,Cellar,Ceph,ChinaMobile,Minio": {
+              "example": {
+                "__empty__": {
+                  "help": "Ninguno"
+                }
+              },
+              "help": "Si usas SSE-C, debes indicar la clave secreta de cifrado codificada en base64 para cifrar y descifrar tus datos.\n\nTambién puedes indicar --s3-sse-customer-key."
+            },
             "AWS,Ceph,ChinaMobile,Minio": {
               "example": {
                 "__empty__": {
@@ -6533,6 +6906,14 @@
         },
         "sse_customer_key_md5": {
           "provider": {
+            "AWS,Cellar,Ceph,ChinaMobile,Minio": {
+              "example": {
+                "__empty__": {
+                  "help": "Ninguno"
+                }
+              },
+              "help": "Si usas SSE-C, puedes indicar la suma de comprobación MD5 de la clave secreta de cifrado (opcional).\n\nSi lo dejas en blanco, se calcula automáticamente a partir de la sse_customer_key indicada.\n"
+            },
             "AWS,Ceph,ChinaMobile,Minio": {
               "example": {
                 "__empty__": {
@@ -6874,6 +7255,9 @@
         "md5sum_command": {
           "help": "El comando que se usa para leer los hashes MD5.\n\nDéjalo en blanco para detectarlo automáticamente."
         },
+        "multithread_upload": {
+          "help": "Actívalo para usar subidas multihilo (con varias conexiones).\n\nNormalmente rclone sube un archivo grande por una sola conexión SFTP.\nCon esta opción, rclone sube los archivos grandes por varias conexiones SFTP\na la vez (una por fragmento), lo que mejora mucho el rendimiento en conexiones\nde alta latencia, igual que ya ocurre con las descargas multihilo. Cada\nconexión escribe un rango de bytes distinto del archivo, sin solaparse con los\ndemás, así que hace falta un servidor que permita abrir el mismo archivo varias\nveces a la vez y escribir en posiciones arbitrarias, como hace OpenSSH.\n\nEstá desactivado de forma predeterminada porque muchos servidores SFTP solo\naceptan escrituras secuenciales (por ejemplo, algunos gateways SFTP sobre\nalmacenamiento de objetos) y harían fallar las subidas grandes con errores del\ntipo \"truncate failed\" o \"invalid offset\".\n\nSe ignora (las subidas siguen usando un solo hilo) cuando se usa\n--sftp-disable-concurrent-writes o --sftp-connections.\n"
+        },
         "pass": {
           "help": "Contraseña de SSH; déjala en blanco para usar ssh-agent."
         },
@@ -7114,7 +7498,10 @@
           "help": "Usar autenticación Kerberos.\n\nSi se establece, rclone usará autenticación Kerberos en lugar de NTLM. Esto\nrequiere que estén disponibles una configuración Kerberos válida y una caché\nde credenciales, ya sea en las ubicaciones predeterminadas o tal como las\nespecifiquen las variables de entorno KRB5_CONFIG y KRB5CCNAME.\n"
         },
         "user": {
-          "help": "Nombre de usuario SMB."
+          "help": "Nombre de usuario SMB.\n\nDéjalo en blanco para usar el nombre del usuario actual."
+        },
+        "workstation": {
+          "help": "Nombre de la estación de trabajo que se envía en la autenticación NTLM.\n\nEl nombre NetBIOS que se envía como estación de trabajo del cliente en el mensaje\nNTLM AUTHENTICATE. Algunos servidores (p. ej., servidores Windows unidos a un\ndominio con restricciones de estación de trabajo por cuenta o con listas de\npermitidos de NTLM) exigen que coincida con un nombre concreto. Déjalo en blanco\npara no enviar ningún nombre de estación de trabajo (el valor predeterminado).\n"
         }
       }
     },
@@ -7251,6 +7638,18 @@
             },
             "https://lon.auth.api.rackspacecloud.com/v1.0": {
               "help": "Rackspace Reino Unido"
+            },
+            "https://swiss-backup01.infomaniak.com/identity/v3": {
+              "help": "Infomaniak Swiss Backup, ubicación 01"
+            },
+            "https://swiss-backup02.infomaniak.com/identity/v3": {
+              "help": "Infomaniak Swiss Backup, ubicación 02"
+            },
+            "https://swiss-backup03.infomaniak.com/identity/v3": {
+              "help": "Infomaniak Swiss Backup, ubicación 03"
+            },
+            "https://swiss-backup04.infomaniak.com/identity/v3": {
+              "help": "Infomaniak Swiss Backup, ubicación 04"
             }
           },
           "help": "URL de autenticación del servidor (OS_AUTH_URL)."
@@ -7490,7 +7889,7 @@
           "help": "La codificación del backend.\n\nConsulta la [sección sobre codificación de la descripción general](/overview/#encoding) para más información.\n\nLa codificación predeterminada es Slash,LtGt,DoubleQuote,Colon,Question,Asterisk,Pipe,Hash,Percent,BackSlash,Del,Ctl,LeftSpace,LeftTilde,RightSpace,RightPeriod,InvalidUtf8 para sharepoint-ntlm; en otros casos es identity."
         },
         "headers": {
-          "help": "Establece cabeceras HTTP para todas las transacciones.\n\nUsa esta opción para añadir cabeceras HTTP a todas las transacciones.\n\nEl formato de entrada es una lista de pares clave,valor separados por comas.\nSe puede usar la [codificación CSV estándar](https://godoc.org/encoding/csv).\n\nPor ejemplo, para establecer una cookie, usa 'Cookie,name=value' o '\"Cookie\",\"name=value\"'.\n\nPuedes establecer varias cabeceras, p. ej. '\"Cookie\",\"name=value\",\"Authorization\",\"xxx\"'.\n"
+          "help": "Establece cabeceras HTTP para todas las transacciones.\n\nUsa esta opción para añadir cabeceras HTTP a todas las transacciones.\n\nEl formato de entrada es una lista de pares clave,valor separados por comas.\nSe puede usar la [codificación CSV estándar](https://godoc.org/encoding/csv).\n\nPor ejemplo, para establecer una cookie, usa 'Cookie,name=value' o '\"Cookie\",\"name=value\"'.\n\nPuedes establecer varias cabeceras, p. ej. '\"Cookie\",\"name=value\",\"Authorization\",\"xxx\"'.\n\nLas cabeceras solo se envían al host de la URL configurada. Si el\nservidor redirige a otro host (incluido un subdominio o un puerto\ndistinto), las cabeceras no se le envían, ni a ningún salto posterior de esa\ncadena de redirecciones. La excepción son las peticiones de listado de carpetas\ny de descarga de archivos cuando auth_redirect está activado, ya que esta opción\nconserva todas las credenciales en las redirecciones.\n"
         },
         "nextcloud_chunk_size": {
           "help": "Tamaño del fragmento de subida de Nextcloud.\n\nTe recomendamos configurar tu instancia de NextCloud para aumentar el tamaño máximo de fragmento a 1 GB y mejorar el rendimiento de las subidas.\nConsulta https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/big_file_upload_configuration.html#adjust-chunk-size-on-nextcloud-side\n\nEstablece 0 para desactivar la subida por fragmentos.\n"
@@ -7550,6 +7949,9 @@
     "yandex": {
       "description": "Yandex Disk",
       "option": {
+        "app_folder": {
+          "help": "Usar la carpeta de la aplicación como raíz.\n\nSi registraste tu propia aplicación OAuth en Yandex solo con el permiso\n\"Application Folder\" (cloud_api:disk.app_folder) en lugar del acceso\ncompleto al disco, rclone tiene que usar rutas con el prefijo \"app:/\" en\nlugar del prefijo habitual \"disk:/\"; si no, todas las peticiones fallan con\nun error 403 Forbidden.\n\nEstablécelo en true si tu token OAuth solo tiene acceso a la\ncarpeta de la aplicación."
+        },
         "auth_url": {
           "help": "URL del servidor de autenticación.\n\nDéjala en blanco para usar los valores predeterminados del proveedor."
         },
@@ -7877,6 +8279,9 @@
     },
     "main": {
       "option": {
+        "allow_https_downgrade": {
+          "help": "Seguir las redirecciones de HTTPS a HTTP (inseguro)"
+        },
         "ask_password": {
           "help": "Permitir que se pida la contraseña de la configuración cifrada"
         },
@@ -8410,19 +8815,19 @@
           "help": "Nombre de usuario desde una cabecera HTTP definida"
         },
         "rc_web_fetch_url": {
-          "help": "URL de la que se obtienen las versiones de la webgui"
+          "help": "URL de la que se obtienen las versiones de la webgui **OBSOLETO**"
         },
         "rc_web_gui": {
-          "help": "Lanzar la WebGUI en localhost"
+          "help": "Lanzar la WebGUI en localhost **OBSOLETO**"
         },
         "rc_web_gui_force_update": {
-          "help": "Forzar la actualización a la última versión de la web gui"
+          "help": "Forzar la actualización a la última versión de la web gui **OBSOLETO**"
         },
         "rc_web_gui_no_open_browser": {
-          "help": "No abrir el navegador automáticamente"
+          "help": "No abrir el navegador automáticamente **OBSOLETO**"
         },
         "rc_web_gui_update": {
-          "help": "Comprobar y actualizar a la última versión de la web gui"
+          "help": "Comprobar y actualizar a la última versión de la web gui **OBSOLETO**"
         }
       }
     },
@@ -8513,6 +8918,9 @@
         "client_ca": {
           "help": "Autoridad de certificación de cliente con la que se verifica a los clientes"
         },
+        "directory_markers": {
+          "help": "Listar cada carpeta como un objeto marcador de carpeta"
+        },
         "disable_multipart_streaming": {
           "help": "Guardar las subidas multiparte en un búfer de memoria en lugar de transmitirlas al backend"
         },
@@ -8531,17 +8939,26 @@
         "max_header_bytes": {
           "help": "Tamaño máximo de la cabecera de la petición"
         },
+        "metadata_max_objects": {
+          "help": "Número máximo de objetos de un usuario cuyos metadatos se guardan en memoria (0 para no poner límite)"
+        },
         "min_tls_version": {
           "help": "Versión mínima de TLS aceptable"
         },
         "multipart_expiry": {
           "help": "Cancelar las subidas multiparte incompletas que lleven inactivas más de este tiempo (0 para conservarlas siempre)"
         },
+        "multipart_max_uploads": {
+          "help": "Número máximo de subidas multiparte transmitidas que un usuario puede tener en curso a la vez (0 para no poner límite)"
+        },
         "multipart_streaming_buffer_limit": {
           "help": "Memoria máxima del búfer por cada subida multiparte transmitida, para las partes que llegan desordenadas (0 para no poner límite)"
         },
+        "multipart_streaming_buffer_total": {
+          "help": "Memoria máxima del búfer de todas las subidas multiparte transmitidas de un usuario, para las partes que llegan desordenadas (0 para no poner límite)"
+        },
         "no_cleanup": {
-          "help": "No limpiar la carpeta vacía después de eliminar el objeto"
+          "help": "Obsoleto: usa --directory-markers en su lugar"
         },
         "pass": {
           "help": "Contraseña para la autenticación"

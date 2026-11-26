@@ -166,6 +166,7 @@ type BisyncArgs SyncArgs
 type BisyncSwitches struct {
 	DryRun                bool   `json:"dryRun,omitempty"`
 	MaxDelete             *int   `json:"maxDelete,omitempty"`
+	MaxDeleteRenamesAware bool   `json:"maxDeleteRenamesAware,omitempty"`
 	Resync                bool   `json:"resync,omitempty"`
 	CheckAccess           bool   `json:"checkAccess,omitempty"`
 	Force                 bool   `json:"force,omitempty"`

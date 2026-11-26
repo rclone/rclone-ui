@@ -46,6 +46,7 @@ export class BisyncArgs {
 export class BisyncSwitches {
     "dryRun"?: boolean;
     "maxDelete"?: number | null;
+    "maxDeleteRenamesAware"?: boolean;
     "resync"?: boolean;
     "checkAccess"?: boolean;
     "force"?: boolean;

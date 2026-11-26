@@ -118,7 +118,7 @@
           "help": "远程存储的描述。"
         },
         "directory_markers": {
-          "help": "创建新目录时上传一个以斜杠结尾的空对象\n\n基于存储桶的远程存储不支持空文件夹；启用此项后，\n会创建以 \"/\" 结尾的空对象来保留该文件夹。\n\n该对象还会带有元数据 \"hdi_isfolder = true\"，\n以符合 Microsoft 的规范。\n "
+          "help": "创建新目录时上传一个以斜杠结尾的空对象\n\n基于存储桶的远程存储不支持空文件夹；启用此项后，\n会创建以 \"/\" 结尾的空对象来保留该文件夹。\n\n该对象还会带有元数据 \"hdi_isfolder = true\"，\n以符合 Microsoft 的规范。\n\n启用了分层命名空间（参见 hns 选项）的存储账户不需要此项，\n因为这类账户始终支持空目录。\n "
         },
         "disable_checksum": {
           "help": "不在对象元数据中存储 MD5 校验和。\n\nrclone 默认会在上传前计算输入的 MD5 校验和，\n以便加入对象元数据。这对数据完整性校验很有帮助，\n但对于大文件可能导致开始上传前出现较长延迟。"
@@ -135,6 +135,9 @@
         "env_auth": {
           "help": "在运行时从环境变量、CLI 或 MSI 读取凭据。\n\n完整说明请参阅[认证文档](/azureblob#authentication)。"
         },
+        "hns": {
+          "help": "当存储账户启用了分层命名空间时设置此项。\n\n启用了分层命名空间的存储账户（Azure Data Lake Storage Gen2）\n拥有真正的目录，目录可以为空。\n\n如果未设置，rclone 会从存储账户读取此值，\n并保存到配置文件中。\n"
+        },
         "key": {
           "help": "存储账户共享密钥。\n\n使用 SAS URL 或本地模拟器时可留空。"
         },
@@ -142,7 +145,7 @@
           "help": "blob 列表的大小。\n\n该选项设置每个列表分块请求的 blob 数量，默认为最大值 5000。\n\"List blobs\" 请求每兆字节允许 2 分钟完成。如果操作平均\n每兆字节超过 2 分钟，会超时\n（[来源](https://docs.microsoft.com/en-us/rest/api/storageservices/setting-timeouts-for-blob-service-operations#exceptions-to-default-timeout-interval)\n）。可使用此项限制返回的 blob 项数，避免超时。"
         },
         "list_parallelism": {
-          "help": "用于列出目录的并行分片数。\n\n实验性功能。设为大于 1 的值时，每个目录的 blob 名称键空间会被拆分成这么多个范围，并通过 Arrow 的 startFrom/endBefore 范围参数并发列出。对于包含数百万个对象的容器，这能大幅加快列出速度，递归列出（ListR）和单个目录列出都适用。\n\n只有同时设置了 \"use_arrow_list\" 才会生效，因为 Arrow 是唯一支持服务端名称范围的列出方式。默认值 0（或 1）表示按顺序列出。"
+          "help": "用于列出目录的并行分片数。\n\n设为大于 1 的值时，每个目录的 blob 名称键空间会被拆分成多个范围，并通过 Arrow 的 startFrom/endBefore 范围参数并发列出。对于包含数百万个对象的容器，这能大幅加快列出速度，递归列出（ListR）和单个目录列出都适用。并行数增加到 30 左右之前，速度都会持续提升。\n\n只有同时设置了 \"use_arrow_list\" 才会生效，因为 Arrow 是唯一支持服务端名称范围的列出方式。如果账户不支持按范围列出（例如启用了分层命名空间），会回退为按顺序列出。默认值 0（或 1）表示按顺序列出。"
         },
         "memory_pool_flush_time": {
           "help": "内部内存缓冲池的清空频率。（已不再使用）"
@@ -198,7 +201,7 @@
           "help": "切换到分块上传的阈值（<= 256 MiB）（已弃用）。"
         },
         "use_arrow_list": {
-          "help": "使用实验性的 Apache Arrow 列表格式。\n\n设置后，目录列表会以 ListBlobs 的 Apache Arrow 响应格式获取，而不是 XML。对于非常大的容器，这可能更快。\n\n这是实验性功能，需要在存储账户上启用 \"Blob Listing with Apache Arrow\" 预览功能。启用了分层命名空间（ADLS Gen2）的账户不支持此功能，这类账户会返回 409 错误。如果未启用该功能，服务器会返回 XML，列出操作会自动回退到普通的 XML 方式（在 debug 级别记录日志）。\n\n使用 connection_string 认证时不支持，会回退到普通的列出方式。"
+          "help": "使用 Apache Arrow 列表格式。\n\n设置后，目录列表会以 ListBlobs 的 Apache Arrow 响应格式获取，而不是 XML。Arrow 响应更小，解析开销也低得多，能让大型容器的列出速度提高数倍。与 \"list_parallelism\" 配合使用，效果最好。\n\n\"Blob Listing with Apache Arrow\" 目前在 Microsoft 处于公开预览阶段，且仅支持平面命名空间的账户。对于启用了分层命名空间（ADLS Gen2）的账户，或因其他原因无法使用该功能时，服务器会返回 XML，列出操作会自动回退到普通的 XML 方式（在 debug 级别记录日志）。"
         },
         "use_az": {
           "help": "使用 Azure CLI 工具 az 进行认证\n\n设置后将仅使用 [Azure CLI 工具 az](https://learn.microsoft.com/en-us/cli/azure/)\n作为认证方式。\n\n当主机已具有系统托管标识但你不希望使用它，而希望改用\naz CLI 时，这会很有用。\n\n请勿同时设置 env_auth。\n"
@@ -224,7 +227,7 @@
           "help": "Azure 存储账户名。\n\n请设置为正在使用的 Azure 存储账户名。\n\n使用 SAS URL 或本地模拟器时可留空，否则必须设置。\n\n留空且启用了 env_auth 时，会尽可能从环境变量\n`AZURE_STORAGE_ACCOUNT_NAME` 读取。\n"
         },
         "chunk_size": {
-          "help": "上传分块大小。\n\n注意：分块会保留在内存中，任意时刻内存中最多可同时存有\n\"--transfers\" * \"--azurefile-upload-concurrency\" 个分块。"
+          "help": "上传分块大小。\n\n注意：分块会保留在内存中，任意时刻内存中最多可同时存有\n\"--transfers\" * \"--azurefiles-upload-concurrency\" 个分块。"
         },
         "client_certificate_password": {
           "help": "证书文件的密码（可选）。\n\n以下场景可选设置：\n- 使用带证书的服务主体\n\n且证书设有密码。\n"
@@ -290,7 +293,7 @@
           "help": "服务主体所属租户的 ID（也称作目录 ID）。\n\n以下场景需要设置：\n- 使用带客户端密钥的服务主体\n- 使用带证书的服务主体\n- 使用用户名和密码的用户认证\n"
         },
         "upload_concurrency": {
-          "help": "分段上传的并发数。\n\n即同一文件被并发上传的分块数量。\n\n如果你在高速链路上上传少量大文件，但带宽未被充分利用，\n增加此值可能有助于提升传输速度。\n\n注意：分块会保留在内存中，任意时刻内存中最多可同时存有\n\"--transfers\" * \"--azurefile-upload-concurrency\" 个分块。"
+          "help": "分段上传的并发数。\n\n即同一文件被并发上传的分块数量。\n\n如果你在高速链路上上传少量大文件，但带宽未被充分利用，\n增加此值可能有助于提升传输速度。\n\n注意：分块会保留在内存中，任意时刻内存中最多可同时存有\n\"--transfers\" * \"--azurefiles-upload-concurrency\" 个分块。"
         },
         "use_az": {
           "help": "使用 Azure CLI 工具 az 进行认证\n\n设置后将仅使用 [Azure CLI 工具 az](https://learn.microsoft.com/en-us/cli/azure/)\n作为认证方式。\n\n当主机已具有系统托管标识但你不希望使用它，而希望改用\naz CLI 时，这会很有用。\n\n请勿同时设置 env_auth。\n"
@@ -344,7 +347,7 @@
           "help": "公开链接授权令牌的过期时间，单位为秒，也可使用后缀 ms|s|m|h|d。\n\n此项与 \"rclone link\" 配合使用，用于公开分享文件，\n并设定下载授权令牌的过期时间。\n\n最小值为 1 秒，最大值为 1 周。"
         },
         "download_url": {
-          "help": "下载使用的自定义端点。\n\n通常设为 Cloudflare CDN URL，因为通过 Cloudflare 网络下载数据时，\nBackblaze 不收取出口流量费用。\nrclone 通过发送 \"Authorization\" 头来访问私有存储桶。\n如果自定义端点会为认证而重写请求（例如在\nCloudflare Workers 中），需要正确处理该头。\n如果想使用 Backblaze 提供的端点，请留空。\n\n此处提供的 URL 必须包含协议，不能以斜杠结尾，\n也不能指定 /file/bucket 子路径，因为 rclone 会以\n\"{download_url}/file/{bucket_name}/{path}\" 的形式请求文件。\n\n示例：\n> https://mysubdomain.mydomain.tld\n（末尾不带 \"/\"、\"file\" 或 \"bucket\"）"
+          "help": "下载使用的自定义端点。\n\n通常设为 Cloudflare CDN URL，因为通过 Cloudflare 网络下载数据时，\nBackblaze 不收取出口流量费用。\nrclone 通过发送 \"Authorization\" 头来访问私有存储桶。\n如果自定义端点会为认证而重写请求（例如在\nCloudflare Workers 中），需要正确处理该头。\n如果想使用 Backblaze 提供的端点，请留空。\n\nrclone 不会跟随此端点把 HTTPS 降级为 HTTP 的重定向；\n一旦重定向离开了此端点的主机和端口，rclone 也不会再发送\n\"Authorization\" 头或 SSE-C 密钥头。\n\n此处提供的 URL 必须包含协议，不能以斜杠结尾，\n也不能指定 /file/bucket 子路径，因为 rclone 会以\n\"{download_url}/file/{bucket_name}/{path}\" 的形式请求文件。\n\n示例：\n> https://mysubdomain.mydomain.tld\n（末尾不带 \"/\"、\"file\" 或 \"bucket\"）"
         },
         "encoding": {
           "help": "后端使用的编码。\n\n详见[概述中的编码章节](/overview/#encoding)。"
@@ -384,7 +387,7 @@
               "help": "无"
             }
           },
-          "help": "若使用 SSE-C，可提供以 UTF-8 兼容字符串编码的加密密钥，\n用于加密/解密数据。\n\n也可改用 --sse-customer-key-base64 提供。"
+          "help": "若使用 SSE-C，可提供以 UTF-8 兼容字符串编码的加密密钥，\n用于加密/解密数据。\n\n也可改用 --b2-sse-customer-key-base64 提供。"
         },
         "sse_customer_key_base64": {
           "example": {
@@ -392,7 +395,7 @@
               "help": "无"
             }
           },
-          "help": "若使用 SSE-C，可提供 Base64 编码的加密密钥，\n用于加密/解密数据。\n\n也可改用 --sse-customer-key 提供。"
+          "help": "若使用 SSE-C，可提供 Base64 编码的加密密钥，\n用于加密/解密数据。\n\n也可改用 --b2-sse-customer-key 提供。"
         },
         "sse_customer_key_md5": {
           "example": {
@@ -902,6 +905,29 @@
         }
       }
     },
+    "dosya": {
+      "description": "dosya.dev",
+      "option": {
+        "api_key": {
+          "help": "你的 API 密钥，可在 https://dosya.dev/profile 的 \"API keys\" 下获取。"
+        },
+        "api_url": {
+          "help": "API 基础 URL。"
+        },
+        "description": {
+          "help": "远程存储的描述。"
+        },
+        "encoding": {
+          "help": "后端使用的编码。\n\n详见[概述中的编码章节](/overview/#encoding)。"
+        },
+        "upload_concurrency": {
+          "help": "分段上传的并发数。\n\n即同一文件被并发上传的分段数量。第一个分段总是单独上传，\n因为服务器收到它时才会创建这次上传。\n\n每个正在上传的分段都保存在内存中，所以内存占用会随此值增长，\n约为此值乘以服务器所选的分段大小。\n\n如果你在高速链路上上传大文件，但带宽未被充分利用，\n增加此值可能有助于提升传输速度。"
+        },
+        "workspace_id": {
+          "help": "你的工作区 ID。\n\n留空则使用该 API 密钥能访问的唯一工作区，适用于仅限单个工作区的密钥。\n如果该密钥能访问多个工作区，rclone 会拒绝继续，并列出它们的 ID\n供你选择。"
+        }
+      }
+    },
     "drime": {
       "description": "Drime",
       "option": {
@@ -1209,7 +1235,7 @@
           "help": "在列表中显示所有 Google Docs，包括无法导出的。\n\n如果在未使用此选项时对 Google Form 进行服务端复制，会出现以下错误：\n\n    No export formats found for \"application/vnd.google-apps.form\"\n\n加上此选项后，就可以对该表单进行服务端复制。\n\n注意：在此模式下，rclone 不会为 Google Docs 文件名添加扩展名。\n\n下载 Google Docs 时**不要**使用此选项，否则 rclone 会下载失败。\n"
         },
         "size_as_quota": {
-          "help": "将大小显示为占用的存储配额，而不是实际大小。\n\n以占用的存储配额作为文件大小，即当前版本加上所有\n被设为永久保留的旧版本。\n\n**警告**：此选项可能会带来一些意想不到的后果。\n\n不建议在配置中设置此选项，推荐的用法是只在运行\nrclone ls/lsl/lsf/lsjson 等命令时使用 --drive-size-as-quota 选项。\n\n如果确实要在同步时使用此选项（不推荐），还需要同时使用 --ignore size。"
+          "help": "将大小显示为占用的存储配额，而不是实际大小。\n\n以占用的存储配额作为文件大小，即当前版本加上所有\n被设为永久保留的旧版本。\n\n**警告**：此选项可能会带来一些意想不到的后果。\n\n不建议在配置中设置此选项，推荐的用法是只在运行\nrclone ls/lsl/lsf/lsjson 等命令时使用 --drive-size-as-quota 选项。\n\n如果确实要在同步时使用此选项（不推荐），还需要同时使用 --ignore-size。"
         },
         "skip_checksum_gphotos": {
           "help": "仅对 Google Photos 的照片和视频跳过校验和。\n\n如果在传输 Google Photos 的照片或视频时遇到校验和错误，可以使用此选项。\n\n设置此选项后，Google Photos 的照片和视频将返回空的校验和。\n\nGoogle Photos 的照片通过位于 \"photos\" 空间来识别。\n\n校验和损坏是因为 Google 修改了图片/视频，却没有更新校验和。"
@@ -2125,13 +2151,19 @@
           "help": "远程存储的描述。"
         },
         "headers": {
-          "help": "为所有请求设置 HTTP 请求头。\n\n用它为所有请求添加额外的 HTTP 请求头。\n\n输入格式是以逗号分隔的 key,value 对列表。可以使用标准的 [CSV 编码](https://godoc.org/encoding/csv)。\n\n例如，要设置 Cookie，可以使用 'Cookie,name=value' 或 '\"Cookie\",\"name=value\"'。\n\n可以设置多个请求头，例如 '\"Cookie\",\"name=value\",\"Authorization\",\"xxx\"'。\n\n这些请求头只会发送给配置的 URL 中的主机。如果服务器重定向到其他主机（包括子域名或不同端口），请求头不会发送给它，也不会发送给该重定向链中后续的任何一跳。设置了请求头时，从 https 到 http 的重定向会被拒绝，因为那样会以明文发送请求头。"
+          "help": "为所有请求设置 HTTP 请求头。\n\n用它为所有请求添加额外的 HTTP 请求头。\n\n输入格式是以逗号分隔的 key,value 对列表。可以使用标准的 [CSV 编码](https://godoc.org/encoding/csv)。\n\n例如，要设置 Cookie，可以使用 'Cookie,name=value' 或 '\"Cookie\",\"name=value\"'。\n\n可以设置多个请求头，例如 '\"Cookie\",\"name=value\",\"Authorization\",\"xxx\"'。\n\n这些请求头只会发送给配置的 URL 中的主机。如果服务器重定向到其他主机（包括子域名或不同端口），请求头不会发送给它，也不会发送给该重定向链中后续的任何一跳。设置了请求头时，即使使用了 --allow-https-downgrade，从 https 到 http 的重定向也会被拒绝，因为那样会以明文发送请求头。"
         },
         "no_escape": {
           "help": "不对路径名中的 URL 元字符进行转义。"
         },
         "no_head": {
           "help": "不使用 HEAD 请求。\n\nHEAD 请求主要用于在目录列表中获取文件大小。\n如果你的站点加载非常缓慢，可以尝试此选项。\nrclone 默认会对目录列表中的每个潜在文件发起 HEAD 请求，用于：\n\n- 获取文件大小\n- 确认文件确实存在\n- 判断它是否为目录\n\n设置此选项后，rclone 将不再发起 HEAD 请求。这会让目录列表更快，\n但 rclone 将无法获得任何文件的时间或大小信息，且列表中可能\n包含实际不存在的文件。"
+        },
+        "no_head_size": {
+          "help": "为 --http-no-head 设置报告的文件大小。\n\n禁用 HEAD 请求后，rclone 通常会报告文件大小未知。\n将此选项设为非负值（包括 0），即可对每个文件都报告该大小。\n不设置此选项（默认值，显示为 \"off\"）则继续报告未知大小。\n\nrclone 会完全以所配置的大小为准。如果它与实际文件大小不符，\n传输可能无法通过大小校验而重试，除非使用了 --ignore-size。\n它还可能让多线程传输请求错误的范围，并导致挂载的文件\n超出所报告大小的部分无法读取。"
+        },
+        "no_head_time": {
+          "help": "为 --http-no-head 设置默认的修改时间。\n\n禁用 HEAD 请求后，rclone 通常会将修改时间报告为未设置。\n设置此选项后，会改为对每个文件都报告指定的时间。\n之后如果更改所配置的时间，同步时所有文件都会被视为已修改。"
         },
         "no_slash": {
           "help": "当站点的目录路径不以 / 结尾时设置此项。\n\n如果目标网站的目录不以 / 结尾，请使用此项。\n\nrclone 通常依据路径末尾的 / 来区分文件和目录。\n设置此选项后，rclone 会将所有 Content-Type: text/html 的\n文件视为目录，并从中读取 URL，而不是下载它们。\n\n注意：这可能会让 rclone 将真正的 HTML 文件误判为目录。"
@@ -2526,6 +2558,44 @@
         }
       }
     },
+    "kdrive": {
+      "description": "Infomaniak kDrive",
+      "option": {
+        "auth_url": {
+          "help": "认证服务器 URL。\n\n留空使用服务方默认值。"
+        },
+        "chunk_size": {
+          "help": "大于此值的文件将按此大小分块上传。\n\nkDrive API 接受 1 MB 到 1 GB 之间的分块，每个文件最多 10,000 个分块，\n文件总大小最多 1 TiB。对于非常大的文件，分块大小会自动调大，\n以保持在 10,000 个分块的上限以内。"
+        },
+        "client_id": {
+          "help": "OAuth 客户端 ID。\n\n通常留空。"
+        },
+        "description": {
+          "help": "远程存储的描述。"
+        },
+        "drive_id": {
+          "help": "要使用的 kDrive 的 ID。\n\n在 kdrive 上查看某个文件夹时，可以在以下地址中找到 drive_id：\nhttps://ksuite.infomaniak.com/{account_id}/kdrive/app/drive/{drive_id}/files/..."
+        },
+        "encoding": {
+          "help": "后端使用的编码。\n\n详见[概述中的编码章节](/overview/#encoding)。"
+        },
+        "endpoint": {
+          "help": "要使用的 API 端点。\n\n通常留空。除非用于内部用途或 beta 测试，否则没有理由更改端点。"
+        },
+        "root_folder_id": {
+          "help": "用作根目录的文件夹。\n\n可以使用便捷写法 [private 或 common] 之一，\n也可以使用明确的文件夹 ID。\n\n- private：你自己的私有文件夹\n- common：kDrive 的公共文件夹，在用户之间共享"
+        },
+        "token": {
+          "help": "JSON 格式的 OAuth 访问令牌。"
+        },
+        "token_url": {
+          "help": "令牌服务器 URL。\n\n留空使用服务方默认值。"
+        },
+        "upload_concurrency": {
+          "help": "分块上传的并发数。"
+        }
+      }
+    },
     "koofr": {
       "description": "Koofr、Digi Storage 及其他兼容 Koofr 的存储服务商",
       "option": {
@@ -2610,7 +2680,7 @@
           }
         },
         "metadatainfo": {
-          "help": "根据所用的操作系统，local 后端可能只返回部分系统元数据。所有操作系统都支持设置系统元数据，但只有 linux、freebsd、netbsd、macOS 和 Solaris 支持设置用户元数据。Windows 目前**还不**支持（[参见 pkg/attrs#47](https://github.com/pkg/xattr/issues/47)）。\n\n用户元数据以扩展属性（并非所有文件系统都支持）的形式存储在 \"user.*\" 前缀下。\n\n文件和文件夹都支持元数据。\n\n使用 `--metadata` 恢复元数据时，rclone 会应用源中的 \"mode\"、\"uid\" 和 \"gid\"。它们来自源远程存储，而源可能不可信，因此以 root 身份从不可信的源恢复元数据可能会改变文件的所有权，不建议这样做。默认不恢复 setuid、setgid 和 sticky 位，参见 `--local-metadata-restore-special-bits` 选项。\n",
+          "help": "根据所用的操作系统，local 后端可能只返回部分系统元数据。所有操作系统都支持设置系统元数据，但只有 linux、freebsd、netbsd、macOS 和 Solaris 支持设置用户元数据。Windows 目前**还不**支持（[参见 pkg/attrs#47](https://github.com/pkg/xattr/issues/47)）。\n\n用户元数据以扩展属性（并非所有文件系统都支持）的形式存储在 \"user.*\" 前缀下。\n\n文件和文件夹都支持元数据。\n\n使用 `--metadata` 恢复元数据时，rclone 会应用源中的 \"mode\"、\"uid\" 和 \"gid\"。它们来自源远程存储，而源可能不可信，因此以 root 身份从不可信的源恢复元数据可能会改变文件的所有权，不建议这样做。非 root 用户会保留自己的 uid，并且只会把 gid 设为自己所属的组，与 rsync 的做法相同。默认不恢复 setuid、setgid 和 sticky 位，参见 `--local-metadata-restore-special-bits` 选项。\n",
           "system": {
             "atime": {
               "help": "最后一次访问的时间"
@@ -2653,7 +2723,7 @@
           "help": "后端使用的编码。\n\n详见[概述中的编码章节](/overview/#encoding)。"
         },
         "fatal_if_no_space": {
-          "help": "传输时把磁盘空间不足错误视为致命错误。\n\n启用后，写入时发生的 ENOSPC 错误会返回致命错误，让 rclone 中止操作，而不是重试。适合备份脚本：磁盘写满时明确报错并停止，而不是不停重试。"
+          "help": "传输时把磁盘空间不足错误视为致命错误。\n\n启用后，写入、创建文件夹或创建文件时发生的空间不足错误会返回致命错误，让 rclone 中止操作，而不是重试。适合备份脚本：磁盘写满时明确报错并停止，而不是不停重试。"
         },
         "hashes": {
           "help": "支持的校验和类型，以逗号分隔。"
@@ -2668,7 +2738,7 @@
           "help": "不检查文件在上传期间是否发生变化。\n\n正常情况下，rclone 会在上传过程中检查文件的大小和修改时间，\n如果文件在上传期间发生变化，会以 \"can't copy -\nsource file is being updated\" 开头的消息中止。\n\n但在某些文件系统上，这一修改时间检查可能失败（例如\n[Glusterfs #2206](https://github.com/rclone/rclone/issues/2206)），\n此时可使用此选项禁用该检查。\n\n如果设置了此选项，rclone 会尽力传输正在被更新的文件。如果\n该文件只是追加内容（例如日志文件），rclone 会按它首次看到\n该文件时的大小进行传输。\n\n如果文件不仅是追加而是被整体修改，传输可能因哈希校验\n失败而中止。\n\n具体来说，在文件首次被 stat() 之后，我们会：\n\n- 仅传输 stat 给出的大小\n- 仅按 stat 给出的大小计算校验和\n- 不更新文件的 stat 信息\n\n**注意** 请勿在 Windows 卷影副本（VSS）上使用此选项。由于某些\n未知原因，VSS 中的文件在目录列表（Windows 上初始 stat 值的来源）\n中显示的大小有时与直接对其调用 stat 时不同。其他复制工具总是\n使用直接 stat 的值，而设置此选项会禁用该行为。\n"
         },
         "no_clone": {
-          "help": "在服务端复制时禁用 reflink 克隆。\n\n对于本地到本地的传输，rclone 通常会尽可能“克隆”文件，\n仅在不支持克隆时才回退到“复制”。\n\n克隆会创建一个浅副本（或称 \"reflink\"），最初与原文件共享数据块。\n与“硬链接”不同，这两个文件相互独立，后续任一文件被修改\n都不会影响另一个。\n\n克隆通常优于复制，因为它快得多且默认会去重（即两个相同文件\n占用的存储空间不会比一个更多）。然而，在希望保持数据冗余的\n场景下，可以使用 --local-no-clone 禁用克隆并强制执行“深”复制。\n\n目前，克隆仅在 macOS 上的 APFS 文件系统中受支持（未来可能会\n增加对其他平台的支持）。"
+          "help": "在服务端复制时禁用 reflink 克隆。\n\n对于本地到本地的传输，rclone 通常会尽可能“克隆”文件，\n仅在不支持克隆时才回退到“复制”。\n\n克隆会创建一个浅副本（或称 \"reflink\"），最初与原文件共享数据块。\n与“硬链接”不同，这两个文件相互独立，后续任一文件被修改\n都不会影响另一个。\n\n克隆通常优于复制，因为它快得多且默认会去重（即两个相同文件\n占用的存储空间不会比一个更多）。然而，在希望保持数据冗余的\n场景下，可以使用 --local-no-clone 禁用克隆并强制执行“深”复制。\n\n克隆还会保留 macOS 特有的元数据（如扩展属性），而普通复制不会，\n因此禁用克隆后这些元数据会丢失。\n\n如果目标文件已存在，即使使用了 --inplace，克隆也会用新文件替换它，\n因此指向它的硬链接会断开。如需原地更新已有文件，请使用 --local-no-clone。\n\n目前，克隆仅在 macOS 上的 APFS 文件系统中受支持（未来可能会\n增加对其他平台的支持）。"
         },
         "no_preallocate": {
           "help": "禁用为传输文件预分配磁盘空间。\n\n预分配磁盘空间有助于防止文件系统碎片化。\n但某些虚拟文件系统层（如 Google Drive File Stream）\n可能错误地将实际文件大小设为预分配空间大小，\n导致校验和与文件大小检查失败。\n使用此选项可禁用预分配。"
@@ -2922,7 +2992,7 @@
           "help": "OneDrive 支持文件和文件夹的系统元数据（截至撰写本文时，还不支持用户元数据）。\n大部分元数据为只读，且 OneDrive Personal 与 Business 之间存在差异\n（详见下方表格）。\n\n如果设置了 `--onedrive-metadata-permissions`，还支持权限。\n`--onedrive-metadata-permissions` 可选值为 \"`read`\"、\"`write`\"、\n\"`read,write`\" 和 \"`off`\"（默认）。\"`write`\" 支持新增权限、\n更新已有权限的 \"role\"，以及移除权限。更新和移除需要知道权限的 ID，\n因此如果希望更新/移除权限，建议使用 \"`read,write`\" 而不是 \"`write`\"。\n\n权限以 JSON 格式读取/写入，使用与\n[OneDrive API](https://learn.microsoft.com/en-us/onedrive/developer/rest-api/resources/permission?view=odsp-graph-online)\n相同的结构，该结构在 OneDrive Personal 与 Business 之间略有不同。\n\nOneDrive Personal 示例：\n```json\n[\n\t{\n\t\t\"id\": \"1234567890ABC!123\",\n\t\t\"grantedTo\": {\n\t\t\t\"user\": {\n\t\t\t\t\"id\": \"ryan@contoso.com\"\n\t\t\t},\n\t\t\t\"application\": {},\n\t\t\t\"device\": {}\n\t\t},\n\t\t\"invitation\": {\n\t\t\t\"email\": \"ryan@contoso.com\"\n\t\t},\n\t\t\"link\": {\n\t\t\t\"webUrl\": \"https://1drv.ms/t/s!1234567890ABC\"\n\t\t},\n\t\t\"roles\": [\n\t\t\t\"read\"\n\t\t],\n\t\t\"shareId\": \"s!1234567890ABC\"\n\t}\n]\n```\n\nOneDrive Business 示例：\n```json\n[\n\t{\n\t\t\"id\": \"48d31887-5fad-4d73-a9f5-3c356e68a038\",\n\t\t\"grantedToIdentities\": [\n\t\t\t{\n\t\t\t\t\"user\": {\n\t\t\t\t\t\"displayName\": \"ryan@contoso.com\"\n\t\t\t\t},\n\t\t\t\t\"application\": {},\n\t\t\t\t\"device\": {}\n\t\t\t}\n\t\t],\n\t\t\"link\": {\n\t\t\t\"type\": \"view\",\n\t\t\t\"scope\": \"users\",\n\t\t\t\"webUrl\": \"https://contoso.sharepoint.com/:w:/t/design/a577ghg9hgh737613bmbjf839026561fmzhsr85ng9f3hjck2t5s\"\n\t\t},\n\t\t\"roles\": [\n\t\t\t\"read\"\n\t\t],\n\t\t\"shareId\": \"u!LKj1lkdlals90j1nlkascl\"\n\t},\n\t{\n\t\t\"id\": \"5D33DD65C6932946\",\n\t\t\"grantedTo\": {\n\t\t\t\"user\": {\n\t\t\t\t\"displayName\": \"John Doe\",\n\t\t\t\t\"id\": \"efee1b77-fb3b-4f65-99d6-274c11914d12\"\n\t\t\t},\n\t\t\t\"application\": {},\n\t\t\t\"device\": {}\n\t\t},\n\t\t\"roles\": [\n\t\t\t\"owner\"\n\t\t],\n\t\t\"shareId\": \"FWxc1lasfdbEAGM5fI7B67aB5ZMPDMmQ11U\"\n\t}\n]\n```\n\n写入权限时，请以同样的格式传入 \"permissions\" 元数据键。使用\n[`--metadata-mapper`](https://rclone.org/docs/#metadata-mapper) 工具\n对此非常有帮助。\n\n新增权限时，可在 `grantedTo` 或 `grantedToIdentities` 的 `User.ID`\n或 `DisplayName` 属性中提供邮箱地址，也可以在 `User.ID` 中提供 ObjectID。\n为某用户新增权限时必须至少提供一个有效收件人。\n将 `Link.Scope` 设为 `\"anonymous\"` 时还可创建公开链接。\n\n使用 `--metadata-mapper` 新增 \"read\" 权限的请求示例：\n\n```json\n{\n    \"Metadata\": {\n        \"permissions\": \"[{\\\"grantedToIdentities\\\":[{\\\"user\\\":{\\\"id\\\":\\\"ryan@contoso.com\\\"}}],\\\"roles\\\":[\\\"read\\\"]}]\"\n    }\n}\n```\n\n注意：如果该文件/文件夹已存在冲突的权限，新增权限可能会失败。\n\n更新现有权限时，请同时提供权限 ID 和要分配的新 `roles`。\n`roles` 是唯一可修改的属性。\n\n移除权限时，传入一个只包含你想保留的权限的数据块（为空则移除全部）。\n注意：`owner` 角色无法移除，因此会被忽略。\n\n注意：读取和写入权限都需要额外的 API 调用，因此如果不需要\n读取或写入权限，建议省略 `--onedrive-metadata-permissions`。\n\n文件和文件夹都支持元数据和权限。\n注意：仅在 OneDrive Business 上，为文件夹设置 `mtime` 或 `btime`\n需要额外调用一次 API。\n\nOneDrive 目前不支持用户元数据。写入元数据时，只会写入可写的系统属性，\n传入的只读键或无法识别的键都会被忽略。\n\n提示：要查看任意文件或文件夹的元数据和权限，可以运行：\n\n```\nrclone lsjson remote:path --stat -M --onedrive-metadata-permissions read\n```",
           "system": {
             "btime": {
-              "help": "文件的创建时间，精确到秒（OneDrive Personal 精确到毫秒）。"
+              "help": "文件的创建时间，精确到秒。"
             },
             "content-type": {
               "help": "文件的 MIME 类型。"
@@ -2949,7 +3019,7 @@
               "help": "OneDrive 是否检测到该项包含恶意软件。"
             },
             "mtime": {
-              "help": "最后修改时间，精确到秒（OneDrive Personal 精确到毫秒）。"
+              "help": "最后修改时间，精确到秒。"
             },
             "package-type": {
               "help": "如果存在，表示该项是一个包（package），而不是文件夹或文件。包在某些场景下被视为文件，在另一些场景下被视为文件夹。"
@@ -2967,10 +3037,10 @@
               "help": "如已共享，表示共享范围：anonymous、organization 或 users。"
             },
             "shared-time": {
-              "help": "该项被共享的时间，精确到秒（OneDrive Personal 精确到毫秒）。"
+              "help": "该项被共享的时间，精确到秒。"
             },
             "utime": {
-              "help": "上传时间，精确到秒（OneDrive Personal 精确到毫秒）。"
+              "help": "上传时间，精确到秒。"
             }
           }
         }
@@ -3009,7 +3079,7 @@
           "help": "OAuth 客户端密钥。\n\n通常留空。"
         },
         "delta": {
-          "help": "设置后，rclone 将使用增量（delta）列表来实现递归列表。\n\n设置此选项后，onedrive 后端会声明支持 `ListR`（递归列表）。\n\n设置此选项可以大大加快以下操作：\n\n    rclone lsf -R onedrive:\n    rclone size onedrive:\n    rclone rc vfs/refresh recursive=true\n\n**但是**，delta 列表 API **只能**在 drive 的根目录使用。如果不在根目录使用，\n它会从根目录开始递归，然后丢弃所请求文件夹之外的全部数据。\n结果是正确的，但效率可能不高。\n\n因此此选项默认不启用。\n\n经验法则：如果你的数据几乎都位于 rclone 的根文件夹下\n（即 `onedrive:root/directory` 中的 `root/directory`），\n使用此选项会大幅提升性能。如果数据大多不在该根文件夹下，\n使用此选项会大幅降低性能。\n\n如果你将 onedrive 挂载在根目录（使用 crypt 时挂载在靠近根目录的位置），\n并使用 rclone `rc vfs/refresh`，建议启用此选项。\n"
+          "help": "设置后，rclone 将使用增量（delta）列表来实现递归列表。\n\n设置此选项后，onedrive 后端会声明支持 `ListR`（递归列表）。\n\n设置此选项可以大大加快以下操作：\n\n    rclone lsf -R onedrive:\n    rclone size onedrive:\n    rclone rc vfs/refresh recursive=true\n\nrclone 会请求正在列出的文件夹的 delta 列表。如果该 drive 只支持在其根目录\n获取 delta 列表（一些较旧的 OneDrive for Business 和 SharePoint drive 就是如此），\nrclone 会从根目录开始列出，然后丢弃所请求文件夹之外的全部数据。\n结果是正确的，但效率可能不高。\n"
         },
         "description": {
           "help": "远程存储的描述。"
@@ -3030,7 +3100,7 @@
           "help": "在目录列表中显示 OneNote 文件。\n\nrclone 默认会在目录列表中隐藏 OneNote 文件，因为对其执行的\n\"Open\"、\"Update\" 等操作无法生效。但这同样会让你无法删除它们。\n如希望删除 OneNote 文件或让它们出现在目录列表中，请设置此选项。"
         },
         "hard_delete": {
-          "help": "删除时永久删除文件。\n\n默认删除时文件会被放入回收站。设置此选项会使其被永久删除。\n请谨慎使用。\n\nOneDrive personal 账号不支持 permanentDelete API，\n该选项仅适用于 OneDrive for Business 和 SharePoint 文档库。\n"
+          "help": "删除时永久删除文件。\n\n默认删除时文件会被放入回收站。设置此选项会使其被永久删除。\n请谨慎使用。\n\n该选项适用于 OneDrive for Business、SharePoint 文档库和 OneDrive personal 账号（包括免费账号）。\n"
         },
         "hash_type": {
           "example": {
@@ -3056,7 +3126,7 @@
           "help": "指定该后端使用的哈希。\n\n此项指定所用的哈希类型。设为 \"auto\" 将使用默认哈希，即 QuickXorHash。\n\nrclone 1.62 之前，OneDrive Personal 默认使用 SHA1 哈希。\n从 1.62 起，所有类型的 OneDrive 默认都使用 QuickXorHash。\n如果需要 SHA1 哈希，请相应地设置此选项。\n\n从 2023 年 7 月起，OneDrive for Business 和 OneDrive Personal\n都将只支持 QuickXorHash。\n\n设为 \"none\" 则不使用任何哈希。\n\n如果对象上不存在所请求的哈希，将返回空字符串，\nrclone 会将其视为没有哈希。\n"
         },
         "link_password": {
-          "help": "为 link 命令创建的链接设置密码。\n\n截至撰写本文，该功能仅适用于 OneDrive personal 付费账号。\n"
+          "help": "为 link 命令创建的链接设置密码。\n\n截至撰写本文，该功能适用于 OneDrive for Business 和\nOneDrive personal 付费账号。\n\nOneDrive personal 免费账号无法为链接设置密码或过期时间\n（通过 --expire 设置）。\n"
         },
         "link_scope": {
           "example": {
@@ -3075,7 +3145,7 @@
               "help": "为该项创建可读写链接。"
             },
             "embed": {
-              "help": "为该项创建可嵌入的链接。"
+              "help": "为该项创建可嵌入的链接。\n仅在 OneDrive personal 中可用。"
             },
             "view": {
               "help": "为该项创建只读链接。"
@@ -3107,7 +3177,7 @@
           "help": "控制是否在元数据中读取或写入权限。\n\n从文件读取权限元数据很快，但并不总是希望\n根据元数据设置权限。\n"
         },
         "no_versions": {
-          "help": "在修改操作时移除所有版本。\n\n当 rclone 上传新文件覆盖已有文件，以及设置修改时间时，\nOneDrive for Business 都会创建版本。\n\n这些版本会占用配额空间。\n\n此选项会在上传文件和设置修改时间后检查版本，\n并移除除最新版本以外的所有版本。\n\n**注意** OneDrive Personal 目前无法删除版本，因此不要在其上\n使用此选项。\n"
+          "help": "在修改操作时移除所有版本。\n\n当 rclone 上传新文件覆盖已有文件，以及设置修改时间时，\nOneDrive 都会创建版本。\n\n这些版本会占用配额空间。\n\n此选项会在上传文件和设置修改时间后检查版本，\n并移除除最新版本以外的所有版本。\n"
         },
         "region": {
           "example": {
@@ -3135,8 +3205,11 @@
         "tenant": {
           "help": "服务主体所属租户的 ID（也称作 directory ID）。\n\n以下场景需要设置：\n- 使用 Client Credential 流程\n"
         },
+        "tenant_api_version": {
+          "help": "与 tenant_url 一起使用的 SharePoint API 版本。\n\n把它设为与从浏览器中提取的访问令牌相匹配的 SharePoint API 版本。例如，对 driveAccessTokenV21 令牌使用 v2.1。\n\n仅在设置了 tenant_url 时生效。"
+        },
         "tenant_url": {
-          "help": "用于非管理员 OneDrive 访问的租户 URL。\n\n把它设为你的 SharePoint 租户 URL，即可使用 SharePoint v2.0 API 端点，而不是标准的 Microsoft Graph API。这样无需管理员同意即可访问企业版 OneDrive。\n\n可以在浏览器的开发者工具中，在网络请求里搜索 \"driveAccessToken\" 找到此 URL。找到 \".driveUrl\" 字段，其中包含租户 URL 和 drive ID。\n\n示例：https://your-tenant.sharepoint.com/_api"
+          "help": "用于非管理员 OneDrive 访问的租户 URL。\n\n把它设为你的 SharePoint 租户 URL，即可使用 SharePoint API 端点，而不是标准的 Microsoft Graph API。这样无需管理员同意即可访问企业版 OneDrive。\n\n可以在浏览器的开发者工具中，在网络请求里搜索 \"driveAccessToken\" 找到此 URL。找到 \".driveUrl\" 字段，其中包含租户 URL 和 drive ID。\n\n示例：https://your-tenant.sharepoint.com/_api"
         },
         "token": {
           "help": "OAuth 访问令牌，JSON 格式。"
@@ -3467,7 +3540,7 @@
           "help": "后端使用的编码。\n\n详见[概述中的编码章节](/overview/#encoding)。"
         },
         "hash_memory_limit": {
-          "help": "大于此值的文件，在需要计算哈希时将缓存到磁盘。"
+          "help": "大于此值的文件，在需要计算哈希时将缓存到磁盘。\n\n大小未知的文件总是会缓存到磁盘。"
         },
         "no_media_link": {
           "help": "使用原始文件链接，而不是媒体链接。\n\n可避免无效媒体链接引起的问题，但可能降低下载速度。"
@@ -3732,7 +3805,7 @@
       }
     },
     "s3": {
-      "description": "兼容 Amazon S3 的存储服务商，包括 AWS、Alibaba、ArvanCloud、BizflyCloud、Ceph、ChinaMobile、Cloudflare、Cubbit、DigitalOcean、Dreamhost、Exaba、Fastly、FileLu、FlashBlade、GCS、HCP、Hetzner、HuaweiOBS、IBMCOS、IDrive、ImpossibleCloud、Intercolo、IONOS、Leviia、Liara、Linode、LyveCloud、Magalu、Mega、Minio、Netease、Outscale、OVHcloud、Petabox、Qiniu、Rabata、RackCorp、Rclone、Scaleway、Scality、SeaweedFS、Selectel、Servercore、SpectraLogic、Storj、Synology、TencentCOS、US3、Wasabi、Zadara、Zata、ZeroServices 及其他",
+      "description": "兼容 Amazon S3 的存储服务商，包括 AWS、Alibaba、ArvanCloud、Autonomys、BizflyCloud、Cellar、Ceph、ChinaMobile、Cloudflare、Cubbit、DigitalOcean、Dreamhost、Exaba、Fastly、FileLu、FlashBlade、GCS、HCP、Hetzner、HuaweiOBS、IBMCOS、IDrive、ImpossibleCloud、Infomaniak、Intercolo、IONOS、Leviia、Liara、Linode、LyveCloud、Magalu、Mega、Minio、Neon、Netease、Outscale、OVHcloud、Petabox、Qiniu、Rabata、RackCorp、Rclone、RelAix、Scaleway、Scality、SeaweedFS、Selectel、Servercore、SpectraLogic、Storj、Synology、TencentCOS、US3、Wasabi、Zadara、Zata、ZeroServices 及其他",
       "extra": {
         "commandhelp": {
           "cleanup": {
@@ -3742,6 +3815,10 @@
           "cleanup-hidden": {
             "long": "此命令会删除已启用版本控制的存储桶中，文件所有旧的隐藏版本。\n\n注意，你可以对此命令使用 --interactive/-i 或 --dry-run，先看看它会做什么。\n\n用法示例：\n\n```console\nrclone backend cleanup-hidden s3:bucket/path/to/dir\n```",
             "short": "删除文件的旧版本。"
+          },
+          "link": {
+            "long": "此命令为单个文件生成签名下载链接，并可选择覆盖 HTTP 响应头。文件路径作为单独的参数传入，相对于远程存储路径。\n\n用法示例：\n\n```console\nrclone backend link s3:bucket path/to/file -o expire=1h\nrclone backend link s3:bucket path/to/file -o response-expires=\"Thu, 01 Jan 1970 00:00:00 GMT\"\nrclone backend link s3:bucket path/to/file -o response-content-disposition='attachment; filename=\"download.txt\"'\n```\n\n链接默认在 7 天后过期。使用 `-o expire=1h` 可以更改其有效期。时长至少为 1 秒；超过 7 天的值会被限制为 7 天，与 `rclone link` 相同。\n\n`response-expires` 选项设置的是 HTTP Expires 响应头，而不是签名链接的有效期。它必须是 HTTP 日期，例如 `Thu, 01 Jan 1970 00:00:00 GMT`。\n\n这些覆盖值包含在签名中，不能在返回的 URL 中更改。它们不会修改对象已存储的元数据。",
+            "short": "生成可覆盖响应头的签名链接。"
           },
           "list-multipart-uploads": {
             "long": "此命令以 JSON 格式列出未完成的分段上传。\n\n用法示例：\n\n```console\nrclone backend list-multipart s3:bucket/path/to/object\n```\n\n它返回一个以存储桶为键的字典，值为各存储桶中未完成分段上传的列表。\n\n调用时可以不指定存储桶（此时列出所有存储桶），也可以指定存储桶，或者同时指定存储桶和路径。\n\n```json\n{\n    \"rclone\": [\n        {\n            \"Initiated\": \"2020-06-26T14:20:36Z\",\n            \"Initiator\": {\n                \"DisplayName\": \"XXX\",\n                \"ID\": \"arn:aws:iam::XXX:user/XXX\"\n            },\n            \"Key\": \"KEY\",\n            \"Owner\": {\n                \"DisplayName\": null,\n                \"ID\": \"XXX\"\n            },\n            \"StorageClass\": \"STANDARD\",\n            \"UploadId\": \"XXX\"\n        }\n    ],\n    \"rclone-1000files\": [],\n    \"rclone-dst\": []\n}\n```",
@@ -3809,6 +3886,43 @@
         },
         "acl": {
           "provider": {
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,Scality,SeaweedFS,TencentCOS,US3,Wasabi,Zata,ZeroServices,Other": {
+              "help": "创建存储桶以及存储或复制对象时使用的预设 ACL（canned ACL）。\n\n此 ACL 用于创建对象；如果未设置 bucket_acl，也用于创建存储桶。\n\n详情请访问 https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl\n\n注意：服务端复制对象时也会应用此 ACL，因为 S3\n不会从源复制 ACL，而是写入一个新的 ACL。\n\n如果 acl 为空字符串，则不会添加 X-Amz-Acl: 头，\n并使用默认值（private）。\n"
+            },
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,Scality,SeaweedFS,TencentCOS,US3,Wasabi,Zata,ZeroServices,Other": {
+              "example": {
+                "public-read": {
+                  "help": "所有者获得 FULL_CONTROL 权限。\nAllUsers 组获得 READ 权限。"
+                }
+              }
+            },
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,Scality,SeaweedFS,TencentCOS,Wasabi,Zata,ZeroServices,Other": {
+              "example": {
+                "authenticated-read": {
+                  "help": "所有者获得 FULL_CONTROL 权限。\nAuthenticatedUsers 组获得 READ 权限。"
+                },
+                "public-read-write": {
+                  "help": "所有者获得 FULL_CONTROL 权限。\nAllUsers 组获得 READ 和 WRITE 权限。\n通常不建议对存储桶授予此权限。"
+                }
+              }
+            },
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,Scality,SeaweedFS,US3,Wasabi,Zata,ZeroServices,Other": {
+              "example": {
+                "private": {
+                  "help": "所有者获得 FULL_CONTROL 权限。\n其他人无访问权限（默认）。"
+                }
+              }
+            },
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,Scality,SeaweedFS,TencentCOS,Wasabi,Zata,ZeroServices,Other": {
+              "example": {
+                "bucket-owner-full-control": {
+                  "help": "对象所有者和存储桶所有者都获得对该对象的 FULL_CONTROL 权限。\n如果在创建存储桶时指定此预设 ACL，Amazon S3 会忽略它。"
+                },
+                "bucket-owner-read": {
+                  "help": "对象所有者获得 FULL_CONTROL 权限。\n存储桶所有者获得 READ 权限。\n如果在创建存储桶时指定此预设 ACL，Amazon S3 会忽略它。"
+                }
+              }
+            },
             "AWS,Alibaba,ArvanCloud,BizflyCloud,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,IDrive,ImpossibleCloud,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,Scaleway,Scality,SeaweedFS,TencentCOS,US3,Wasabi,Zata,ZeroServices,Other": {
               "help": "创建存储桶以及存储或复制对象时使用的预设 ACL（canned ACL）。\n\n此 ACL 用于创建对象；如果未设置 bucket_acl，也用于创建存储桶。\n\n详情请访问 https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl\n\n注意：服务端复制对象时也会应用此 ACL，因为 S3\n不会从源复制 ACL，而是写入一个新的 ACL。\n\n如果 acl 为空字符串，则不会添加 X-Amz-Acl: 头，\n并使用默认值（private）。\n"
             },
@@ -3873,6 +3987,23 @@
         },
         "bucket_acl": {
           "provider": {
+            "AWS,Alibaba,ArvanCloud,BizflyCloud,Cellar,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,IDrive,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Mega,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,RelAix,Scaleway,SeaweedFS,Servercore,TencentCOS,US3,Wasabi,Zata,ZeroServices,Other": {
+              "example": {
+                "authenticated-read": {
+                  "help": "所有者获得 FULL_CONTROL 权限。\nAuthenticatedUsers 组获得 READ 权限。"
+                },
+                "private": {
+                  "help": "所有者获得 FULL_CONTROL 权限。\n其他人无访问权限（默认）。"
+                },
+                "public-read": {
+                  "help": "所有者获得 FULL_CONTROL 权限。\nAllUsers 组获得 READ 权限。"
+                },
+                "public-read-write": {
+                  "help": "所有者获得 FULL_CONTROL 权限。\nAllUsers 组获得 READ 和 WRITE 权限。\n通常不建议对存储桶授予此权限。"
+                }
+              },
+              "help": "创建存储桶时使用的预设 ACL（canned ACL）。\n\n详情请访问 https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl\n\n注意：此 ACL 仅在创建存储桶时应用。如果未设置，\n则改用 \"acl\"。\n\n如果 \"acl\" 和 \"bucket_acl\" 都为空字符串，则不会添加\nX-Amz-Acl: 头，并使用默认值（private）。\n"
+            },
             "AWS,Alibaba,ArvanCloud,BizflyCloud,Ceph,ChinaMobile,Cubbit,DigitalOcean,Dreamhost,Exaba,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,IDrive,ImpossibleCloud,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Mega,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,RackCorp,Scaleway,SeaweedFS,Servercore,TencentCOS,US3,Wasabi,Zata,ZeroServices,Other": {
               "example": {
                 "authenticated-read": {
@@ -3934,6 +4065,9 @@
         },
         "endpoint": {
           "provider": {
+            "AWS,Alibaba,ArvanCloud,Autonomys,BizflyCloud,Cellar,Ceph,ChinaMobile,Cloudflare,Cubbit,DigitalOcean,Dreamhost,Exaba,Fastly,FileLu,FlashBlade,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Mega,Minio,Neon,Netease,Outscale,OVHcloud,Petabox,Qiniu,Rabata,RackCorp,Rclone,RelAix,Scaleway,Scality,SeaweedFS,Selectel,Servercore,SpectraLogic,Storj,Synology,TencentCOS,US3,Wasabi,Zadara,Zata,ZeroServices,Other": {
+              "help": "S3 API 的端点。\n\n使用 S3 兼容服务时必填。"
+            },
             "AWS,Alibaba,ArvanCloud,BizflyCloud,Ceph,ChinaMobile,Cloudflare,Cubbit,DigitalOcean,Dreamhost,Exaba,Fastly,FileLu,FlashBlade,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,ImpossibleCloud,Intercolo,IONOS,Leviia,Liara,Linode,LyveCloud,Magalu,Mega,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,Rabata,RackCorp,Rclone,Scaleway,Scality,SeaweedFS,Selectel,Servercore,SpectraLogic,Storj,Synology,TencentCOS,US3,Wasabi,Zadara,Zata,ZeroServices,Other": {
               "help": "S3 API 的端点。\n\n使用 S3 兼容服务时必填。"
             },
@@ -4026,6 +4160,13 @@
                 }
               }
             },
+            "Autonomys": {
+              "example": {
+                "s3.auto-drive.autonomys.xyz": {
+                  "help": "Auto Drive 主网 S3 端点"
+                }
+              }
+            },
             "BizflyCloud": {
               "example": {
                 "hcm.ss.bfcplatform.vn": {
@@ -4033,6 +4174,13 @@
                 },
                 "hn.ss.bfcplatform.vn": {
                   "help": "河内端点"
+                }
+              }
+            },
+            "Cellar": {
+              "example": {
+                "cellar-c2.services.clever-cloud.com": {
+                  "help": "法国巴黎"
                 }
               }
             },
@@ -4186,6 +4334,9 @@
                 "au-east-1.object.fastlystorage.app": {
                   "help": "澳大利亚东部 1"
                 },
+                "eu-central-1.object.fastlystorage.app": {
+                  "help": "欧洲中部 1"
+                },
                 "eu-central.object.fastlystorage.app": {
                   "help": "欧洲中部"
                 },
@@ -4259,6 +4410,9 @@
             },
             "HuaweiOBS": {
               "example": {
+                "obs.af-north-1.myhuaweicloud.com": {
+                  "help": "非洲-开罗"
+                },
                 "obs.af-south-1.myhuaweicloud.com": {
                   "help": "非洲-约翰内斯堡"
                 },
@@ -4271,20 +4425,68 @@
                 "obs.ap-southeast-3.myhuaweicloud.com": {
                   "help": "亚太-新加坡"
                 },
+                "obs.ap-southeast-4.myhuaweicloud.com": {
+                  "help": "亚太-雅加达"
+                },
+                "obs.ap-southeast-5.myhuaweicloud.com": {
+                  "help": "亚太-马尼拉"
+                },
                 "obs.cn-east-2.myhuaweicloud.com": {
                   "help": "华东-上海二"
                 },
                 "obs.cn-east-3.myhuaweicloud.com": {
                   "help": "华东-上海一"
                 },
+                "obs.cn-east-4.myhuaweicloud.com": {
+                  "help": "华东-青岛"
+                },
+                "obs.cn-east-5.myhuaweicloud.com": {
+                  "help": "华东-苏州"
+                },
                 "obs.cn-north-1.myhuaweicloud.com": {
                   "help": "华北-北京一"
+                },
+                "obs.cn-north-11.myhuaweicloud.com": {
+                  "help": "华北-河北"
+                },
+                "obs.cn-north-12.myhuaweicloud.com": {
+                  "help": "华北-呼和浩特"
+                },
+                "obs.cn-north-2.myhuaweicloud.com": {
+                  "help": "华北-北京二"
                 },
                 "obs.cn-north-4.myhuaweicloud.com": {
                   "help": "华北-北京四"
                 },
+                "obs.cn-north-9.myhuaweicloud.com": {
+                  "help": "华北-乌兰察布"
+                },
                 "obs.cn-south-1.myhuaweicloud.com": {
                   "help": "华南-广州"
+                },
+                "obs.cn-south-2.myhuaweicloud.com": {
+                  "help": "华南-深圳"
+                },
+                "obs.cn-south-4.myhuaweicloud.com": {
+                  "help": "华南-广州-友好用户环境"
+                },
+                "obs.cn-southwest-2.myhuaweicloud.com": {
+                  "help": "西南-贵阳一"
+                },
+                "obs.cn-southwest-3.myhuaweicloud.com": {
+                  "help": "西南-重庆"
+                },
+                "obs.eu-west-101.myhuaweicloud.eu": {
+                  "help": "欧洲-都柏林"
+                },
+                "obs.la-north-2.myhuaweicloud.com": {
+                  "help": "拉美-墨西哥城二"
+                },
+                "obs.la-south-2.myhuaweicloud.com": {
+                  "help": "拉美-圣地亚哥"
+                },
+                "obs.me-east-1.myhuaweicloud.com": {
+                  "help": "中东-利雅得"
                 },
                 "obs.na-mexico-1.myhuaweicloud.com": {
                   "help": "拉美-墨西哥城一"
@@ -4303,6 +4505,9 @@
                 },
                 "obs.sa-peru-1.myhuaweicloud.com": {
                   "help": "拉美-利马一"
+                },
+                "obs.tr-west-1.myhuaweicloud.com": {
+                  "help": "土耳其-伊斯坦布尔"
                 }
               }
             },
@@ -4540,6 +4745,22 @@
                 },
                 "us-east-1.storage.impossibleapi.net": {
                   "help": "美国纽约"
+                }
+              }
+            },
+            "Infomaniak": {
+              "example": {
+                "s3.swiss-backup01.infomaniak.com": {
+                  "help": "Swiss Backup 位置 01"
+                },
+                "s3.swiss-backup02.infomaniak.com": {
+                  "help": "Swiss Backup 位置 02"
+                },
+                "s3.swiss-backup03.infomaniak.com": {
+                  "help": "Swiss Backup 位置 03"
+                },
+                "s3.swiss-backup04.infomaniak.com": {
+                  "help": "Swiss Backup 位置 04"
                 }
               }
             },
@@ -4886,10 +5107,23 @@
                 }
               }
             },
+            "RelAix": {
+              "example": {
+                "s3-gw1.relaix.net": {
+                  "help": "德国亚琛-1"
+                },
+                "s3-gw2.relaix.net": {
+                  "help": "德国亚琛-2"
+                }
+              }
+            },
             "Scaleway": {
               "example": {
                 "s3.fr-par.scw.cloud": {
                   "help": "巴黎端点"
+                },
+                "s3.it-mil.scw.cloud": {
+                  "help": "米兰端点"
                 },
                 "s3.nl-ams.scw.cloud": {
                   "help": "阿姆斯特丹端点"
@@ -5308,6 +5542,9 @@
                 }
               }
             },
+            "AWS,ArvanCloud,Ceph,ChinaMobile,DigitalOcean,Dreamhost,Exaba,GCS,HCP,Hetzner,IBMCOS,ImpossibleCloud,Infomaniak,LyveCloud,Minio,Netease,Qiniu,Rabata,RackCorp,Scality,SeaweedFS,Synology,Wasabi,Zata,ZeroServices,Other": {
+              "help": "位置约束，必须与区域匹配。\n\n不确定时留空。仅在创建存储桶时使用。"
+            },
             "AWS,ArvanCloud,Ceph,ChinaMobile,DigitalOcean,Dreamhost,Exaba,GCS,HCP,Hetzner,IBMCOS,ImpossibleCloud,LyveCloud,Minio,Netease,Qiniu,Rabata,RackCorp,Scality,SeaweedFS,Synology,Wasabi,Zata,ZeroServices,Other": {
               "help": "位置约束，必须与区域匹配。\n\n不确定时留空。仅在创建存储桶时使用。"
             },
@@ -5705,8 +5942,14 @@
             "ArvanCloud": {
               "help": "Arvan Cloud 对象存储（AOS）"
             },
+            "Autonomys": {
+              "help": "Autonomys Auto Drive"
+            },
             "BizflyCloud": {
               "help": "Bizfly Cloud Simple Storage"
+            },
+            "Cellar": {
+              "help": "Clever Cloud Cellar 对象存储"
             },
             "Ceph": {
               "help": "Ceph 对象存储"
@@ -5762,6 +6005,9 @@
             "ImpossibleCloud": {
               "help": "Impossible Cloud 对象存储"
             },
+            "Infomaniak": {
+              "help": "Infomaniak Swiss Backup"
+            },
             "Intercolo": {
               "help": "Intercolo 对象存储"
             },
@@ -5785,6 +6031,9 @@
             },
             "Minio": {
               "help": "Minio 对象存储"
+            },
+            "Neon": {
+              "help": "Neon 对象存储"
             },
             "Netease": {
               "help": "网易对象存储（NOS）"
@@ -5812,6 +6061,9 @@
             },
             "Rclone": {
               "help": "Rclone S3 服务器"
+            },
+            "RelAix": {
+              "help": "RelAix.Storage"
             },
             "Scaleway": {
               "help": "Scaleway 对象存储"
@@ -5942,6 +6194,9 @@
                 }
               }
             },
+            "AWS,BizflyCloud,Ceph,Cloudflare,Cubbit,DigitalOcean,Dreamhost,Exaba,Fastly,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,ImpossibleCloud,Infomaniak,Intercolo,IONOS,Leviia,LyveCloud,Minio,Neon,Netease,Outscale,OVHcloud,Petabox,Qiniu,Rabata,RackCorp,Scaleway,Scality,SeaweedFS,Selectel,Servercore,Synology,Wasabi,Zadara,Zata,ZeroServices,Other": {
+              "help": "要连接的区域。\n\n如果你使用的是 S3 兼容服务，并且没有区域，请留空。"
+            },
             "AWS,BizflyCloud,Ceph,Cloudflare,Cubbit,DigitalOcean,Dreamhost,Exaba,Fastly,FileLu,GCS,HCP,Hetzner,HuaweiOBS,IBMCOS,ImpossibleCloud,Intercolo,IONOS,Leviia,LyveCloud,Minio,Netease,Outscale,OVHcloud,Petabox,Qiniu,Rabata,RackCorp,Scaleway,Scality,SeaweedFS,Selectel,Servercore,Synology,Wasabi,Zadara,Zata,ZeroServices,Other": {
               "help": "要连接的区域。\n\n如果你使用的是 S3 兼容服务，并且没有区域，请留空。"
             },
@@ -5986,6 +6241,9 @@
                 },
                 "eu-central": {
                   "help": "欧洲中部"
+                },
+                "eu-central-1": {
+                  "help": "欧洲中部 1"
                 },
                 "eu-south-1": {
                   "help": "欧洲南部 1"
@@ -6050,6 +6308,9 @@
             },
             "HuaweiOBS": {
               "example": {
+                "af-north-1": {
+                  "help": "非洲-开罗"
+                },
                 "af-south-1": {
                   "help": "非洲-约翰内斯堡"
                 },
@@ -6062,20 +6323,68 @@
                 "ap-southeast-3": {
                   "help": "亚太-新加坡"
                 },
+                "ap-southeast-4": {
+                  "help": "亚太-雅加达"
+                },
+                "ap-southeast-5": {
+                  "help": "亚太-马尼拉"
+                },
                 "cn-east-2": {
                   "help": "华东-上海二"
                 },
                 "cn-east-3": {
                   "help": "华东-上海一"
                 },
+                "cn-east-4": {
+                  "help": "华东-青岛"
+                },
+                "cn-east-5": {
+                  "help": "华东-苏州"
+                },
                 "cn-north-1": {
                   "help": "华北-北京一"
+                },
+                "cn-north-11": {
+                  "help": "华北-河北"
+                },
+                "cn-north-12": {
+                  "help": "华北-呼和浩特"
+                },
+                "cn-north-2": {
+                  "help": "华北-北京二"
                 },
                 "cn-north-4": {
                   "help": "华北-北京四"
                 },
+                "cn-north-9": {
+                  "help": "华北-乌兰察布"
+                },
                 "cn-south-1": {
                   "help": "华南-广州"
+                },
+                "cn-south-2": {
+                  "help": "华南-深圳"
+                },
+                "cn-south-4": {
+                  "help": "华南-广州-友好用户环境"
+                },
+                "cn-southwest-2": {
+                  "help": "西南-贵阳一"
+                },
+                "cn-southwest-3": {
+                  "help": "西南-重庆"
+                },
+                "eu-west-101": {
+                  "help": "欧洲-都柏林"
+                },
+                "la-north-2": {
+                  "help": "拉美-墨西哥城二"
+                },
+                "la-south-2": {
+                  "help": "拉美-圣地亚哥"
+                },
+                "me-east-1": {
+                  "help": "中东-利雅得"
                 },
                 "na-mexico-1": {
                   "help": "拉美-墨西哥城一"
@@ -6094,6 +6403,9 @@
                 },
                 "sa-peru-1": {
                   "help": "拉美-利马一"
+                },
+                "tr-west-1": {
+                  "help": "土耳其-伊斯坦布尔"
                 }
               }
             },
@@ -6148,10 +6460,41 @@
                 }
               }
             },
+            "Infomaniak": {
+              "example": {
+                "us-east-1": {
+                  "help": "为兼容而设的默认区域。\n所有数据都存储在瑞士。"
+                }
+              }
+            },
             "Intercolo": {
               "example": {
                 "de-fra": {
                   "help": "德国法兰克福"
+                }
+              }
+            },
+            "Neon": {
+              "example": {
+                "us-east-2": {
+                  "help": "美国东部（俄亥俄）"
+                }
+              }
+            },
+            "Neon,Petabox": {
+              "example": {
+                "ap-southeast-1": {
+                  "help": "亚太（新加坡）"
+                },
+                "eu-central-1": {
+                  "help": "欧洲（法兰克福）"
+                }
+              }
+            },
+            "Neon,Petabox,Rabata": {
+              "example": {
+                "us-east-1": {
+                  "help": "美国东部（弗吉尼亚北部）"
                 }
               }
             },
@@ -6344,6 +6687,9 @@
                 "fr-par": {
                   "help": "法国巴黎"
                 },
+                "it-mil": {
+                  "help": "意大利米兰"
+                },
                 "nl-ams": {
                   "help": "荷兰阿姆斯特丹"
                 },
@@ -6494,6 +6840,17 @@
         },
         "sse_customer_algorithm": {
           "provider": {
+            "AWS,Cellar,Ceph,ChinaMobile,Minio": {
+              "example": {
+                "AES256": {
+                  "help": "AES256"
+                },
+                "__empty__": {
+                  "help": "无"
+                }
+              },
+              "help": "若使用 SSE-C，在 S3 中存储该对象时使用的服务端加密算法。"
+            },
             "AWS,Ceph,ChinaMobile,Minio": {
               "example": {
                 "AES256": {
@@ -6509,6 +6866,14 @@
         },
         "sse_customer_key": {
           "provider": {
+            "AWS,Cellar,Ceph,ChinaMobile,Minio": {
+              "example": {
+                "__empty__": {
+                  "help": "无"
+                }
+              },
+              "help": "若使用 SSE-C，可提供用于加密/解密数据的加密密钥。\n\n也可改用 --s3-sse-customer-key-base64 提供。"
+            },
             "AWS,Ceph,ChinaMobile,Minio": {
               "example": {
                 "__empty__": {
@@ -6521,6 +6886,14 @@
         },
         "sse_customer_key_base64": {
           "provider": {
+            "AWS,Cellar,Ceph,ChinaMobile,Minio": {
+              "example": {
+                "__empty__": {
+                  "help": "无"
+                }
+              },
+              "help": "若使用 SSE-C，必须提供 base64 编码的加密密钥用于加密/解密数据。\n\n也可改用 --s3-sse-customer-key 提供。"
+            },
             "AWS,Ceph,ChinaMobile,Minio": {
               "example": {
                 "__empty__": {
@@ -6533,6 +6906,14 @@
         },
         "sse_customer_key_md5": {
           "provider": {
+            "AWS,Cellar,Ceph,ChinaMobile,Minio": {
+              "example": {
+                "__empty__": {
+                  "help": "无"
+                }
+              },
+              "help": "若使用 SSE-C，可提供加密密钥的 MD5 校验和（可选）。\n\n留空则会根据所提供的 sse_customer_key 自动计算。\n"
+            },
             "AWS,Ceph,ChinaMobile,Minio": {
               "example": {
                 "__empty__": {
@@ -6874,6 +7255,9 @@
         "md5sum_command": {
           "help": "用于读取 MD5 哈希的命令。\n\n留空表示自动检测。"
         },
+        "multithread_upload": {
+          "help": "设置此项以使用多线程（多连接）上传。\n\n通常，rclone 只通过一个 SFTP 连接上传一个大文件。\n设置此项后，rclone 会同时通过多个 SFTP 连接上传大文件（每个分块一个连接），\n就像现有的多线程下载那样，能在高延迟链路上大幅提升吞吐量。\n每个连接写入文件中互不重叠的不同字节范围，因此要求服务器允许\n对同一文件打开多个句柄，并在任意偏移处写入，OpenSSH 支持这样做。\n\n此项默认关闭，因为许多 SFTP 服务器只接受顺序写入（例如某些\n基于对象存储的 SFTP 网关），上传大文件时会因 \"truncate failed\"\n或 \"invalid offset\" 之类的错误而失败。\n\n使用 --sftp-disable-concurrent-writes 或 --sftp-connections 时，\n此项会被忽略（上传仍为单线程）。\n"
+        },
         "pass": {
           "help": "SSH 密码，留空则使用 ssh-agent。"
         },
@@ -7114,7 +7498,10 @@
           "help": "使用 Kerberos 认证。\n\n设置后，rclone 将使用 Kerberos 认证而非 NTLM。这要求\n存在可用的 Kerberos 配置和凭据缓存，位于默认位置或由\nKRB5_CONFIG 与 KRB5CCNAME 环境变量指定的位置。\n"
         },
         "user": {
-          "help": "SMB 用户名。"
+          "help": "SMB 用户名。\n\n留空则使用当前用户名。"
+        },
+        "workstation": {
+          "help": "NTLM 认证时发送的工作站名称。\n\n在 NTLM AUTHENTICATE 消息中作为客户端工作站发送的 NetBIOS 名称。\n某些服务器（例如对每个账户设有工作站限制或 NTLM 允许列表的、\n已加入域的 Windows 服务器）要求它与特定名称匹配。\n留空则不发送工作站名称（默认）。\n"
         }
       }
     },
@@ -7251,6 +7638,18 @@
             },
             "https://lon.auth.api.rackspacecloud.com/v1.0": {
               "help": "Rackspace 英国"
+            },
+            "https://swiss-backup01.infomaniak.com/identity/v3": {
+              "help": "Infomaniak Swiss Backup 位置 01"
+            },
+            "https://swiss-backup02.infomaniak.com/identity/v3": {
+              "help": "Infomaniak Swiss Backup 位置 02"
+            },
+            "https://swiss-backup03.infomaniak.com/identity/v3": {
+              "help": "Infomaniak Swiss Backup 位置 03"
+            },
+            "https://swiss-backup04.infomaniak.com/identity/v3": {
+              "help": "Infomaniak Swiss Backup 位置 04"
             }
           },
           "help": "服务器的认证 URL（OS_AUTH_URL）。"
@@ -7490,7 +7889,7 @@
           "help": "后端使用的编码。\n\n详见[概述中的编码章节](/overview/#encoding)。\n\nsharepoint-ntlm 的默认编码为 Slash,LtGt,DoubleQuote,Colon,Question,Asterisk,Pipe,Hash,Percent,BackSlash,Del,Ctl,LeftSpace,LeftTilde,RightSpace,RightPeriod,InvalidUtf8；其他情况下为 identity。"
         },
         "headers": {
-          "help": "为所有事务设置 HTTP 头。\n\n使用此项可为所有事务添加额外的 HTTP 头\n\n输入格式为以逗号分隔的 key,value 对，可使用标准的\n[CSV 编码](https://godoc.org/encoding/csv)。\n\n例如，要设置 Cookie 可使用 'Cookie,name=value' 或 '\"Cookie\",\"name=value\"'。\n\n可设置多个头，例如 '\"Cookie\",\"name=value\",\"Authorization\",\"xxx\"'。\n"
+          "help": "为所有事务设置 HTTP 头。\n\n使用此项可为所有事务添加额外的 HTTP 头\n\n输入格式为以逗号分隔的 key,value 对，可使用标准的\n[CSV 编码](https://godoc.org/encoding/csv)。\n\n例如，要设置 Cookie 可使用 'Cookie,name=value' 或 '\"Cookie\",\"name=value\"'。\n\n可设置多个头，例如 '\"Cookie\",\"name=value\",\"Authorization\",\"xxx\"'。\n\n这些头只会发送给配置的 URL 中的主机。如果服务器重定向到\n其他主机（包括子域名或不同端口），这些头不会发送给它，\n也不会发送给该重定向链中后续的任何一跳。例外情况是设置了\nauth_redirect 时的目录列表请求和文件下载请求，因为该选项会在\n重定向时保留所有凭据。\n"
         },
         "nextcloud_chunk_size": {
           "help": "Nextcloud 上传分块大小。\n\n建议将你的 NextCloud 实例最大分块大小调整为 1 GB，以提升上传性能。\n参见 https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/big_file_upload_configuration.html#adjust-chunk-size-on-nextcloud-side\n\n设为 0 可禁用分块上传。\n"
@@ -7550,6 +7949,9 @@
     "yandex": {
       "description": "Yandex Disk",
       "option": {
+        "app_folder": {
+          "help": "将应用文件夹用作根目录。\n\n如果你在 Yandex 注册了自己的 OAuth 应用，并且只授予了\n\"Application Folder\" 权限（cloud_api:disk.app_folder），而不是完整的磁盘访问权限，\n那么 rclone 需要用 \"app:/\" 前缀而不是通常的 \"disk:/\" 前缀来访问路径，\n否则所有请求都会因 403 Forbidden 错误而失败。\n\n如果你的 OAuth 令牌只能访问应用文件夹，请将此项设为 true。"
+        },
         "auth_url": {
           "help": "认证服务器 URL。\n\n留空使用服务方默认值。"
         },
@@ -7877,6 +8279,9 @@
     },
     "main": {
       "option": {
+        "allow_https_downgrade": {
+          "help": "跟随从 HTTPS 到 HTTP 的重定向（不安全）"
+        },
         "ask_password": {
           "help": "允许为加密配置提示输入密码"
         },
@@ -8410,19 +8815,19 @@
           "help": "从指定的 HTTP 头获取用户名"
         },
         "rc_web_fetch_url": {
-          "help": "获取 webgui 发布版的 URL"
+          "help": "获取 webgui 发布版的 URL **已弃用**"
         },
         "rc_web_gui": {
-          "help": "在 localhost 启动 WebGUI"
+          "help": "在 localhost 启动 WebGUI **已弃用**"
         },
         "rc_web_gui_force_update": {
-          "help": "强制更新到最新版 web gui"
+          "help": "强制更新到最新版 web gui **已弃用**"
         },
         "rc_web_gui_no_open_browser": {
-          "help": "不自动打开浏览器"
+          "help": "不自动打开浏览器 **已弃用**"
         },
         "rc_web_gui_update": {
-          "help": "检查并更新到最新版 web gui"
+          "help": "检查并更新到最新版 web gui **已弃用**"
         }
       }
     },
@@ -8513,6 +8918,9 @@
         "client_ca": {
           "help": "用于校验客户端证书的 CA"
         },
+        "directory_markers": {
+          "help": "将每个目录都列为目录标记对象"
+        },
         "disable_multipart_streaming": {
           "help": "在内存中缓冲分段上传，而不是以流式传输到后端"
         },
@@ -8531,17 +8939,26 @@
         "max_header_bytes": {
           "help": "请求头的最大大小"
         },
+        "metadata_max_objects": {
+          "help": "每个用户在内存中保留元数据的最大对象数，0 表示不限制"
+        },
         "min_tls_version": {
           "help": "可接受的最低 TLS 版本"
         },
         "multipart_expiry": {
           "help": "中止空闲时间超过此值的未完成分段上传，设为 0 则永久保留"
         },
+        "multipart_max_uploads": {
+          "help": "每个用户可同时进行的流式分段上传的最大数量，0 表示不限制"
+        },
         "multipart_streaming_buffer_limit": {
           "help": "对于乱序到达的分段，每个流式分段上传最多缓冲的内存大小，0 表示不限制"
         },
+        "multipart_streaming_buffer_total": {
+          "help": "对于乱序到达的分段，一个用户的所有流式分段上传合计最多缓冲的内存大小，0 表示不限制"
+        },
         "no_cleanup": {
-          "help": "对象删除后不清理空文件夹"
+          "help": "已弃用：请改用 --directory-markers"
         },
         "pass": {
           "help": "认证使用的密码"
