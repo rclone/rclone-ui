@@ -86,17 +86,18 @@ func Compare(ctx context.Context, left, right string, fileDates, hidden bool) (C
 	for i := range r.items {
 		rightByName[r.items[i].name] = &r.items[i]
 	}
-	var byClass [4][]Pair
+	byClass := map[Class][]Pair{}
+	add := func(p Pair) { byClass[p.Class] = append(byClass[p.Class], p) }
 	for i := range l.items {
 		li := &l.items[i]
 		ri := rightByName[li.name]
 		switch {
 		case ri == nil:
-			byClass[0] = append(byClass[0], Pair{Class: OnlyLeft, Name: li.name, Left: &li.side})
+			add(Pair{Class: OnlyLeft, Name: li.name, Left: &li.side})
 		case sameByHash(ctx, li.obj, ri.obj):
-			byClass[3] = append(byClass[3], Pair{Class: SameByHash, Name: li.name, Left: &li.side, Right: &ri.side})
+			add(Pair{Class: SameByHash, Name: li.name, Left: &li.side, Right: &ri.side})
 		default:
-			byClass[2] = append(byClass[2], Pair{Class: SameByName, Name: li.name, Left: &li.side, Right: &ri.side})
+			add(Pair{Class: SameByName, Name: li.name, Left: &li.side, Right: &ri.side})
 		}
 		if ri != nil {
 			ri.paired = true
@@ -104,10 +105,10 @@ func Compare(ctx context.Context, left, right string, fileDates, hidden bool) (C
 	}
 	for i := range r.items {
 		if ri := &r.items[i]; !ri.paired {
-			byClass[1] = append(byClass[1], Pair{Class: OnlyRight, Name: ri.name, Right: &ri.side})
+			add(Pair{Class: OnlyRight, Name: ri.name, Right: &ri.side})
 		}
 	}
-	return Comparison{Pairs: slices.Concat(byClass[:]...), Capped: l.capped || r.capped}, nil
+	return Comparison{Pairs: slices.Concat(byClass[OnlyLeft], byClass[OnlyRight], byClass[SameByName], byClass[SameByHash]), Capped: l.capped || r.capped}, nil
 }
 
 type side struct {
