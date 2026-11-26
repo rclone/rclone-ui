@@ -24,6 +24,8 @@ const horizon = 5 * 366 * 24 * time.Hour
 
 const lookBack = 400 * 24 * time.Hour
 
+const zoneProbe = 24 * time.Hour
+
 type when struct {
 	minute, hour, dom, month, dow uint64
 }
@@ -87,8 +89,8 @@ func civilOf(t time.Time) civil {
 }
 
 func instants(c civil, loc *time.Location) (out []time.Time, skipped bool) {
-	_, before := c.Add(-24 * time.Hour).In(loc).Zone()
-	_, after := c.Add(24 * time.Hour).In(loc).Zone()
+	_, before := c.Add(-zoneProbe).In(loc).Zone()
+	_, after := c.Add(zoneProbe).In(loc).Zone()
 	for _, off := range []int{before, after} {
 		t := c.Add(-time.Duration(off) * time.Second).In(loc)
 		if civilOf(t).Equal(c) && !slices.ContainsFunc(out, t.Equal) {
