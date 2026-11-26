@@ -43,7 +43,7 @@ func TestPairing(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSuffix(qrBlocks(code.Size, code.Black), "\n"), "\n")
-	n := code.Size + 2*quiet
+	n := code.Size + 2*quietZoneModules
 	if len(lines) != (n+1)/2 {
 		t.Fatalf("%d lines for %d rows", len(lines), n)
 	}
@@ -56,8 +56,8 @@ func TestPairing(t *testing.T) {
 			top := c == '█' || c == '▀'
 			bottom := c == '█' || c == '▄'
 			y := 2 * row
-			if top != code.Black(x-quiet, y-quiet) || bottom != code.Black(x-quiet, y+1-quiet) {
-				t.Fatalf("module (%d, %d) drawn as %q", x-quiet, y-quiet, c)
+			if top != code.Black(x-quietZoneModules, y-quietZoneModules) || bottom != code.Black(x-quietZoneModules, y+1-quietZoneModules) {
+				t.Fatalf("module (%d, %d) drawn as %q", x-quietZoneModules, y-quietZoneModules, c)
 			}
 		}
 	}

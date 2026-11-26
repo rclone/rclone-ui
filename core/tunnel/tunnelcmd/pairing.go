@@ -31,11 +31,11 @@ func printPairing(url, user, pass string) {
 	terminal.WriteString(out.String())
 }
 
-const quiet = 2
+const quietZoneModules = 2
 
 func qrBlocks(size int, black func(x, y int) bool) string {
-	dark := func(x, y int) bool { return black(x-quiet, y-quiet) }
-	n := size + 2*quiet
+	dark := func(x, y int) bool { return black(x-quietZoneModules, y-quietZoneModules) }
+	n := size + 2*quietZoneModules
 	var b strings.Builder
 	for y := 0; y < n; y += 2 {
 		b.WriteString(terminal.BlackFg + terminal.HiWhiteBg)
