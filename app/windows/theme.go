@@ -19,12 +19,20 @@ func darkTitleBar(theme string, systemDark bool) bool {
 	return systemDark
 }
 
-func themeMode(theme string) int {
+type appearance int
+
+const (
+	appearanceSystem appearance = iota
+	appearanceDark
+	appearanceLight
+)
+
+func themeMode(theme string) appearance {
 	switch theme {
 	case "dark":
-		return 1
+		return appearanceDark
 	case "light":
-		return 2
+		return appearanceLight
 	}
-	return 0
+	return appearanceSystem
 }
