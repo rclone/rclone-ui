@@ -15,7 +15,7 @@ export async function generateFilenApiKey({
     password: string
 }): Promise<string | null> {
     let code = ''
-    for (;;) {
+    while (true) {
         try {
             return await filenApiKey(email, password, code)
         } catch (error) {
