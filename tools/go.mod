@@ -7,7 +7,7 @@ tool (
 	github.com/wailsapp/wails/v3/cmd/wails3
 )
 
-require github.com/klauspost/compress v1.20.0
+require github.com/klauspost/compress v1.20.5
 
 require (
 	al.essio.dev/pkg/shellescape v1.6.0 // indirect
