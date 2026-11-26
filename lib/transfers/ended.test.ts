@@ -1,4 +1,4 @@
-import { describe, expect, it, test } from 'vitest'
+import { describe, expect, it, test, vi } from 'vitest'
 import searchCases from '../../testdata/transfer_search_cases.json'
 import type { Transfers } from '../core/types'
 import {
@@ -215,4 +215,43 @@ test('a transfer is found by its operation as History names it', () => {
     expect(matches(transfer, 'eliminar carpeta', 'Eliminar carpeta')).toBe(true)
     expect(matches(transfer, 'delete-folder', 'Eliminar carpeta')).toBe(true)
     expect(matches(transfer, 'eliminar carpeta')).toBe(false)
+})
+
+describe('EndedList cursor and question time', () => {
+    it('starts an older page after the last page, when a late row is at the end', async () => {
+        const rows = Array.from({ length: 300 }, (_, i) => row(i + 1))
+        const { fetch, asked } = core(rows)
+        const list = new EndedList(fetch)
+        list.setFilter({ state: '', search: '' })
+        await flush()
+        // A long transfer that started before every row shown ends now.
+        rows.push(row(0, 5000))
+        list.newer()
+        await flush()
+        expect(list.snapshot().items.at(-1)?.seq).toBe(0)
+        list.older()
+        await flush()
+        expect(asked.at(-1)?.before).toBe(row(101).id)
+        expect(
+            list
+                .snapshot()
+                .items.map((t) => t.seq)
+                .sort((a, b) => a - b)
+        ).toEqual(Array.from({ length: 301 }, (_, i) => i))
+    })
+
+    it('records when it asked, not when the answer arrived', async () => {
+        let answer: (page: { items: Transfers.Transfer[]; more: boolean }) => void = () => {}
+        const list = new EndedList(() => new Promise((resolve) => (answer = resolve)))
+        const now = vi.spyOn(Date, 'now').mockReturnValue(1000)
+        try {
+            list.setFilter({ state: '', search: '' })
+            now.mockReturnValue(5000)
+            answer({ items: [row(1)], more: false })
+            await flush()
+            expect(list.snapshot().askedAt).toBe(1000)
+        } finally {
+            now.mockRestore()
+        }
+    })
 })

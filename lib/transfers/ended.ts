@@ -39,8 +39,8 @@ export interface EndedSnapshot {
     error: unknown
     /** Whether the error came from loading older rows, so that Retry asks for them again. */
     olderFailed: boolean
-    /** When the list last had an answer, in ms. */
-    updatedAt: number
+    /** When the question of the latest answer was sent, in ms. */
+    askedAt: number
 }
 
 /** Sorts by creation time, newest first, which is the order of the core's pages. */
@@ -108,7 +108,7 @@ const INITIAL: EndedSnapshot = {
     settled: false,
     error: null,
     olderFailed: false,
-    updatedAt: 0,
+    askedAt: 0,
 }
 
 type Direction = 'first' | 'older' | 'newer'
@@ -126,6 +126,8 @@ export class EndedList {
     private queue: Direction[] = []
     /** Counts the filter changes, so that an answer for an older filter is dropped. */
     private generation = 0
+    /** The last row of the newest and the older pages. The next older page starts after it. */
+    private cursor = ''
 
     constructor(
         private readonly fetch: EndedFetch,
@@ -153,7 +155,7 @@ export class EndedList {
         this.generation += 1
         this.inFlight = null
         this.queue = []
-        this.set({ ...INITIAL, updatedAt: this.state.updatedAt })
+        this.set({ ...INITIAL, askedAt: this.state.askedAt })
         this.request('first')
     }
 
@@ -195,17 +197,18 @@ export class EndedList {
         const { items } = this.state
         const ask: EndedAsk = {
             ...this.filter,
-            before: direction === 'older' ? (items.at(-1)?.id ?? '') : '',
+            before: direction === 'older' ? this.cursor : '',
             after: direction === 'newer' ? latestEnd(items) : 0,
             limit: this.limit,
         }
         this.inFlight = direction
+        const askedAt = Date.now()
         this.set({ loading: true })
         let more = false
         try {
             const page = await this.fetch(ask)
             if (generation !== this.generation) return
-            this.take(direction, page.items, page.more)
+            this.take(direction, page.items, page.more, askedAt)
             // Follow only a page that moved the latest end on, so that many ends in the same
             // millisecond can't keep asking for the same page.
             more = page.more && latestEnd(this.state.items) > ask.after
@@ -227,16 +230,18 @@ export class EndedList {
         }
     }
 
-    private take(direction: Direction, fresh: Transfer[], more: boolean) {
+    private take(direction: Direction, fresh: Transfer[], more: boolean, askedAt: number) {
         const held = this.state
-        const answered = { error: null, olderFailed: false, settled: true, updatedAt: Date.now() }
+        const answered = { error: null, olderFailed: false, settled: true, askedAt }
         if (direction === 'first') {
             const items = fresh.slice(0, this.cap)
+            this.cursor = items.at(-1)?.id ?? ''
             this.set({ ...answered, items, hasOlder: more || fresh.length > this.cap })
             return
         }
         const { items, cut } = mergeRows(held.items, fresh, this.cap)
         if (direction === 'older') {
+            this.cursor = fresh.at(-1)?.id ?? this.cursor
             // At the cap, older rows are no longer loaded.
             this.set({ ...answered, items, hasOlder: more && !cut && items.length < this.cap })
             return

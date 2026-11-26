@@ -112,7 +112,7 @@ export default function HistoryList({
         { state: endedStateOf(status), search: asked },
         status !== 'running'
     )
-    const leaving = useHandoff(active, ended.items, ended.updatedAt)
+    const leaving = useHandoff(active, ended.items, ended.askedAt)
     const progress = useLiveNumbers()
     const now = useNow()
     const runningId = useId()
