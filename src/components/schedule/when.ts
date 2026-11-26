@@ -27,8 +27,12 @@ export const WHEN_CHOICES: { kind: WhenKind; label: string }[] = [
     },
 ]
 
+const A_SUNDAY = new Date(2024, 0, 7)
+
 function weekdayName(day: number): string {
-    return formatDate(new Date(2024, 0, 7 + day), { weekday: 'long' })
+    const date = new Date(A_SUNDAY)
+    date.setDate(A_SUNDAY.getDate() + day)
+    return formatDate(date, { weekday: 'long' })
 }
 
 export const WEEKDAYS = [1, 2, 3, 4, 5, 6, 0].map((day) => ({ day, name: weekdayName(day) }))
