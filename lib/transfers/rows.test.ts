@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { Bus } from '../core/types'
-import { isLive, phaseOf } from './rows'
+import { isLive, percent, phaseOf } from './rows'
 
 const progress = (patch: Partial<Bus.TransferProgress>): Bus.TransferProgress => ({
     seq: 1,
@@ -39,4 +39,14 @@ test('only a running transfer has a phase and live numbers', () => {
         expect(isLive(state)).toBe(false)
         expect(phaseOf(state, progress({ bytes: 5 }))).toBeNull()
     }
+})
+
+test('a percentage is rounded down, so 100 means that every byte moved', () => {
+    expect(percent(995, 1000)).toBe(99)
+    expect(percent(29, 100)).toBe(29)
+    expect(percent(2, 3)).toBe(66)
+    expect(percent(1000, 1000)).toBe(100)
+    expect(percent(1200, 1000)).toBe(100)
+    expect(percent(0, 1000)).toBe(0)
+    expect(percent(5, 0)).toBe(0)
 })

@@ -165,7 +165,7 @@ func progressOf(seq int64, stats *accounting.StatsInfo, done []accounting.Transf
 		p.Eta = &e
 	}
 	if p.TotalBytes > 0 {
-		p.Pct = int(min(100, math.Round(float64(p.Bytes)*100/float64(p.TotalBytes))))
+		p.Pct = int(min(100, p.Bytes*100/p.TotalBytes))
 	}
 	for _, tr := range st.Transferring {
 		p.Transferring = append(p.Transferring, bus.TransferringFile{

@@ -36,6 +36,24 @@ func TestProgressOf(t *testing.T) {
 	}
 }
 
+// TestProgressRoundsDown checks that the percentage is 100 only when every byte moved.
+func TestProgressRoundsDown(t *testing.T) {
+	ctx := context.Background()
+	for _, c := range []struct{ done, want int64 }{{995, 99}, {29, 2}, {1000, 100}} {
+		stats := accounting.NewStats(ctx)
+		tr := stats.NewTransferRemoteSize("file.bin", 1000, nil, nil)
+		acc := tr.Account(ctx, io.NopCloser(strings.NewReader(strings.Repeat("x", 1000))))
+		if _, err := io.CopyN(io.Discard, acc, c.done); err != nil {
+			t.Fatal(err)
+		}
+		if p := progressOf(1, stats, nil); int64(p.Pct) != c.want {
+			t.Errorf("%d of 1000: pct %d, want %d", c.done, p.Pct, c.want)
+		}
+		_ = acc.Close()
+		tr.Done(ctx, nil)
+	}
+}
+
 // TestNoProgressAfterTheEnd checks a tick that read a transfer's numbers before its end was
 // written. The tick must not publish the transfer as live, because its end may already have been
 // reported. It must not record the transfer's files after the end recorded its own.

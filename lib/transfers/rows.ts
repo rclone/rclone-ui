@@ -28,9 +28,12 @@ export const ENDED: Partial<
     },
 }
 
-/** Whole percent of `totalBytes`, or 0 while the total is unknown. */
+/**
+ * Whole percent of `totalBytes`, rounded down so that 100 means that every byte moved, or 0 while
+ * the total is unknown.
+ */
 export function percent(bytes: number, totalBytes: number) {
-    return totalBytes > 0 ? Math.min(100, Math.round((bytes / totalBytes) * 100)) : 0
+    return totalBytes > 0 ? Math.min(100, Math.floor((bytes * 100) / totalBytes)) : 0
 }
 
 /** Whether live numbers (`transfers.progress`) arrive for a transfer. That is only while it runs. */
