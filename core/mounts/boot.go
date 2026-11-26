@@ -13,6 +13,7 @@ import (
 	"github.com/rclone/rclone-ui/core/i18n"
 	"github.com/rclone/rclone-ui/core/internal/syncx"
 	"github.com/rclone/rclone-ui/core/notifications"
+	"github.com/rclone/rclone-ui/core/operations"
 )
 
 const (
@@ -87,7 +88,7 @@ func (s *Service) startOnBoot(ctx context.Context, am Automount) bool {
 	}
 	remote := am.Remote
 	a := am.args()
-	m, err := s.o.command(a, s.env(1))
+	m, err := s.o.command(a, s.env(operations.PlaceholderNFSPort))
 	if err != nil {
 		s.log.ErrorContext(ctx, "an automount cannot be built", "remote", remote, "error", err)
 		s.o.Notifier.Notify(ctx, notifications.NotificationEventMountFailed,

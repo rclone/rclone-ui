@@ -150,7 +150,7 @@ func (a *API) Check(ctx context.Context, args operations.MountArgs) error {
 		if err := operations.StoreMapper(&args.Options); err != nil {
 			return err
 		}
-		_, err := operations.MountCommand(args, s.env(1))
+		_, err := operations.MountCommand(args, s.env(operations.PlaceholderNFSPort))
 		return err
 	})
 }

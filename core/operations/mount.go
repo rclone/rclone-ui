@@ -24,6 +24,10 @@ type MountEnv struct {
 	NFSPort int
 }
 
+const PlaceholderNFSPort = 1
+
+const MountPointArg = 2
+
 type Mount struct {
 	Args       []string
 	Source     string

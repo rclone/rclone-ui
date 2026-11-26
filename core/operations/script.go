@@ -161,7 +161,7 @@ func bisyncFlag(name string) string {
 
 func mountCommand(a MountArgs, env MountEnv) (ScriptCommand, error) {
 	if env.NFSPort <= 0 {
-		env.NFSPort = 1
+		env.NFSPort = PlaceholderNFSPort
 	}
 	m, err := MountCommand(a, env)
 	if err != nil {

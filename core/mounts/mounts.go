@@ -301,8 +301,8 @@ func onDrive(m operations.Mount, mountPoint string) operations.Mount {
 		return m
 	}
 	m.Args = slices.Clone(m.Args)
-	if len(m.Args) > 2 && m.Args[2] == "*" {
-		m.Args[2] = mountPoint
+	if i := operations.MountPointArg; len(m.Args) > i && m.Args[i] == "*" {
+		m.Args[i] = mountPoint
 	}
 	m.MountPoint = mountPoint
 	return m

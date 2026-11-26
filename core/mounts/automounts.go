@@ -39,7 +39,7 @@ func (s *Service) Automounts(ctx context.Context) ([]AutomountRow, error) {
 	out := make([]AutomountRow, len(all))
 	for i, a := range all {
 		out[i] = AutomountRow{Automount: a, RemoteMissing: !slices.Contains(names, a.Remote)}
-		m, err := s.o.command(a.args(), s.env(1))
+		m, err := s.o.command(a.args(), s.env(operations.PlaceholderNFSPort))
 		if err != nil {
 			continue
 		}
@@ -90,7 +90,7 @@ func (s *Service) SaveAutomount(ctx context.Context, a Automount) (Automount, er
 			}
 		}
 	}
-	if _, err := s.o.command(a.args(), s.env(1)); err != nil {
+	if _, err := s.o.command(a.args(), s.env(operations.PlaceholderNFSPort)); err != nil {
 		return Automount{}, err
 	}
 	if a.Enabled {
@@ -296,7 +296,7 @@ func AutomountPoints(ctx context.Context, d *db.DB, goos string) ([]string, erro
 	}
 	var out []string
 	for _, a := range enabled(all) {
-		m, err := operations.MountCommand(a.args(), operations.MountEnv{OS: goos, NFSPort: 1})
+		m, err := operations.MountCommand(a.args(), operations.MountEnv{OS: goos, NFSPort: operations.PlaceholderNFSPort})
 		if err == nil && m.MountPoint != "*" {
 			out = append(out, m.MountPoint)
 		}
@@ -313,7 +313,7 @@ func (s *Service) automountFolders(ctx context.Context) (folders map[string]bool
 	}
 	folders = map[string]bool{}
 	for _, a := range enabled(all) {
-		if m, err := s.o.command(a.args(), s.env(1)); err == nil {
+		if m, err := s.o.command(a.args(), s.env(operations.PlaceholderNFSPort)); err == nil {
 			folders[filepath.Clean(m.CacheDir)] = true
 		}
 	}

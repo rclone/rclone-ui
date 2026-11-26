@@ -113,7 +113,7 @@ func (s Step) apiCall(bisync map[string]any) (string, jsObject, error) {
 
 func sdkMount(a MountArgs, env MountEnv) (sdkCall, error) {
 	if env.NFSPort <= 0 {
-		env.NFSPort = 1
+		env.NFSPort = PlaceholderNFSPort
 	}
 	m, err := MountCommand(a, env)
 	if err != nil {
