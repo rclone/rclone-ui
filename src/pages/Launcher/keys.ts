@@ -43,13 +43,22 @@ export function rowAt(y: number, rowTops: number[], rowH: number, listBottom: nu
     return rowTops.findIndex((top) => y >= top && y < top + rowH)
 }
 
+const DOM_DELTA_LINE = 1
+const DOM_DELTA_PAGE = 2
+const LINES_PER_WHEEL_CLICK = 3
+
 export function wheelRows(
     carried: number,
     deltaY: number,
     deltaMode: number,
     rowH: number
 ): { rows: number; carried: number } {
-    const amount = deltaMode === 1 ? deltaY / 3 : deltaMode === 2 ? deltaY : deltaY / rowH
+    const amount =
+        deltaMode === DOM_DELTA_LINE
+            ? deltaY / LINES_PER_WHEEL_CLICK
+            : deltaMode === DOM_DELTA_PAGE
+              ? deltaY
+              : deltaY / rowH
     const total = carried + amount
     const rows = Math.trunc(total)
     return { rows, carried: total - rows }
