@@ -1,39 +1,37 @@
 module github.com/rclone/rclone-ui
 
-go 1.26.0
-
-toolchain go1.26.11
+go 1.27.4
 
 godebug x509negativeserial=1
 
 require (
 	github.com/FilenCloudDienste/filen-sdk-go v0.0.39
-	github.com/cloudflare/cloudflared v0.0.0-20260924153110-96d39adbc812
+	github.com/cloudflare/cloudflared v0.0.0-20261124140001-ead8b814f22d
 	github.com/coreos/go-semver v0.3.1
-	github.com/ebitengine/purego v0.11.1
-	github.com/godbus/dbus/v5 v5.2.2
+	github.com/ebitengine/purego v0.11.3
+	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.20.5
-	github.com/leonelquinteros/gotext v1.7.2
+	github.com/leonelquinteros/gotext v1.8.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/ncruces/zenity v0.10.14
-	github.com/posthog/posthog-go v1.42.2
+	github.com/ncruces/zenity v0.10.15
+	github.com/posthog/posthog-go v1.44.1
 	github.com/rclone/gofakes3 v0.0.12
 	github.com/rclone/rclone v1.76.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/unknwon/goconfig v1.0.0
 	github.com/urfave/cli/v2 v2.24.4
 	github.com/wailsapp/wails/v3 v3.1.0
-	github.com/wneessen/go-mail v0.8.1
+	github.com/wneessen/go-mail v0.8.2
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/crypto v0.59.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sys v0.50.0
 	golang.org/x/term v0.48.0
 	golang.org/x/text v0.44.0
-	modernc.org/sqlite v1.60.0
+	modernc.org/sqlite v1.63.0
 	rsc.io/qr v0.2.0
 )
 
@@ -121,12 +119,12 @@ require (
 	github.com/creasty/defaults v1.8.0 // indirect
 	github.com/cronokirby/saferith v0.33.1-0.20250226174546-1f11f94ce488 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
-	github.com/dchest/jsmin v0.0.0-20220218165748-59f39799265f // indirect
+	github.com/dchest/jsmin v1.0.0 // indirect
 	github.com/diskfs/go-diskfs v1.9.4 // indirect
 	github.com/dromara/dongle v1.0.1 // indirect
 	github.com/dropbox/dropbox-sdk-go-unofficial/v6 v6.6.2 // indirect
 	github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/emersion/go-message v0.18.2 // indirect
 	github.com/emersion/go-vcard v0.0.0-20260618161152-d854b7e0e2d3 // indirect
 	github.com/facebookgo/grace v0.0.0-20180706040059-75cf19382434 // indirect
@@ -154,8 +152,7 @@ require (
 	github.com/go-resty/resty/v2 v2.17.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
-	github.com/gobwas/pool v0.2.1 // indirect
-	github.com/gobwas/ws v1.2.1 // indirect
+	github.com/gobwas/ws v1.5.0 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -169,7 +166,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.26.2 // indirect
 	github.com/gopherjs/gopherjs v1.21.0 // indirect
 	github.com/gorilla/schema v1.4.1 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/hanwen/go-fuse/v2 v2.11.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -215,7 +212,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/ncruces/go-strftime v1.0.0 // indirect
+	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/ncw/swift/v2 v2.0.5 // indirect
 	github.com/nwaples/rardecode/v2 v2.2.5 // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
@@ -238,7 +235,7 @@ require (
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/putdotio/go-putio/putio v0.0.0-20200123120452-16d982cac2b8 // indirect
 	github.com/quic-go/quic-go v0.60.0 // indirect
-	github.com/randall77/makefat v0.0.0-20210315173500-7ddd0e42c844 // indirect
+	github.com/randall77/makefat v0.0.0-20260406194835-1b91746796b7 // indirect
 	github.com/rasky/go-xdr v0.0.0-20170124162913-1a41d1a06c93 // indirect
 	github.com/rclone/Proton-API-Bridge v1.0.5 // indirect
 	github.com/rclone/go-proton-api v1.0.4 // indirect
@@ -285,7 +282,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 // indirect
 	go.opentelemetry.io/contrib/propagators v0.22.0 // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.47.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	go.opentelemetry.io/otel/metric v1.47.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.47.0 // indirect
@@ -310,7 +307,7 @@ require (
 	gopkg.in/validator.v2 v2.0.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	modernc.org/libc v1.77.1 // indirect
+	modernc.org/libc v1.80.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 	moul.io/http2curl/v2 v2.3.0 // indirect
