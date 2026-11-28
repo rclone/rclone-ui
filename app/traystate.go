@@ -19,7 +19,7 @@ func (u *ui) showInTray(changed corestate.Part) {
 		u.tray.SetRunning(runningItems(s.Mounts, s.Serves, u.runningAction))
 	}
 	if changed&(corestate.Transfers|corestate.Progress) != 0 {
-		u.tray.SetTransfers(trayTransfersLabel(s.Live))
+		u.tray.SetTransfers(trayTransfersLabel(s.Live), trayTransferDetails(s.Live))
 	}
 }
 
@@ -28,7 +28,7 @@ func (u *ui) showInTray(changed corestate.Part) {
 // (lib/i18n.ts). Dialogs and toasts are translated as they show.
 func (u *ui) languageChanged() {
 	s := u.store.Snapshot()
-	u.tray.SetTransfers(trayTransfersLabel(s.Live))
+	u.tray.SetTransfers(trayTransfersLabel(s.Live), trayTransferDetails(s.Live))
 	// SetRunning builds the menu again, with its own labels in the new language.
 	u.tray.SetRunning(runningItems(s.Mounts, s.Serves, u.runningAction))
 	// AppKit builds the menu bar on the main thread.

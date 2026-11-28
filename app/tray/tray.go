@@ -12,6 +12,7 @@ import (
 	"image/png"
 	"math"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -25,10 +26,14 @@ import (
 var icons embed.FS
 
 type Item struct {
-	Label string
+	Label   string
+	Tooltip string
 	// Separator draws a line instead of an item.
 	Separator bool
 	Disabled  bool
+	Hidden    bool
+	// detailSlots marks the transfer submenu, whose rows update in place.
+	detailSlots bool
 	// Children make the item a submenu.
 	Children []Item
 	// OnClick runs when the item is chosen. It is called directly from the menu's click handler,
@@ -67,12 +72,14 @@ type Tray struct {
 	rebuild    sync.Mutex
 	cur        *application.Menu
 	curHistory *application.MenuItem
+	curDetails []*application.MenuItem
 }
 
 type state struct {
 	// transfers is the History item's label while transfers run, such as
 	// "History (2 running · 42%)". It is "" when none runs.
 	transfers string
+	details   TransferDetails
 	// running are the Mounts and Serves submenus that the UI adds, while any of them run.
 	running []Item
 }
@@ -99,6 +106,10 @@ func layout(s state, a Actions) (items []Item, history int) {
 	if s.transfers != "" {
 		history = len(items)
 		items = append(items, Item{Label: s.transfers, OnClick: func() { a.OpenWindow("/history") }})
+		if s.details.Summary != "" {
+			items = append(items, Item{Label: i18n.T("Transfers"), detailSlots: true,
+				Children: detailItems(s.details, func() { a.OpenWindow("/history") })})
+		}
 	}
 	items = append(items, s.running...)
 	if len(items) > section {
@@ -134,7 +145,7 @@ func New(app *application.App, actions Actions, linuxMint bool) *Tray {
 		t.st.SetTooltip("Rclone UI")
 	}
 	t.applyIcon()
-	t.cur, t.curHistory = t.menu()
+	t.cur, t.curHistory, t.curDetails = t.menu()
 	t.st.SetMenu(t.cur)
 	switch runtime.GOOS {
 	case "darwin":
@@ -168,10 +179,10 @@ const destroyGrace = time.Minute
 func (t *Tray) setMenu() {
 	t.rebuild.Lock()
 	defer t.rebuild.Unlock()
-	m, history := t.menu()
+	m, history, details := t.menu()
 	t.st.SetMenu(m)
 	old := t.cur
-	t.cur, t.curHistory = m, history
+	t.cur, t.curHistory, t.curDetails = m, history, details
 	if old != nil {
 		time.AfterFunc(destroyGrace, func() { application.InvokeAsync(old.Destroy) })
 	}
@@ -181,25 +192,35 @@ func (t *Tray) setMenu() {
 // transfer runs. When the first transfer starts or the last one ends, the menu is rebuilt and the
 // icon is changed. Both happen in the background, because they wait for the main thread, and the
 // caller may hold a lock that the main thread needs. While transfers keep running, the label is
-// changed in place. It changes every second, and a menu replaced that often would close under the
-// pointer, because Windows destroys the menu that was replaced.
-func (t *Tray) SetTransfers(label string) {
+// changed in place, together with the fixed transfer-detail rows. A menu replaced every second
+// would close under the pointer, because Windows destroys the menu that was replaced.
+func (t *Tray) SetTransfers(label string, details TransferDetails) {
 	// Hold rebuild, so that a menu being built either picks up this label or is relabelled here.
 	t.rebuild.Lock()
 	defer t.rebuild.Unlock()
 	t.mu.Lock()
-	prev := t.state.transfers
+	prev, prevDetails := t.state.transfers, t.state.details
 	t.state.transfers = label
+	t.state.details = details
 	t.mu.Unlock()
 	switch {
-	case label == prev:
-	case (label == "") != (prev == ""):
+	case label == prev && details.Summary == prevDetails.Summary && slices.Equal(details.Files, prevDetails.Files) && details.More == prevDetails.More:
+	case (label == "") != (prev == "") || (details.Summary == "") != (prevDetails.Summary == ""):
 		// A rebuild reads the state when it runs, so the last one shows the latest label.
 		go t.setMenu()
 		go t.applyIcon()
 	case t.curHistory != nil:
 		item := t.curHistory
-		application.InvokeAsync(func() { item.SetLabel(escapeMnemonics(label, runtime.GOOS)) })
+		rows := append([]*application.MenuItem(nil), t.curDetails...)
+		application.InvokeAsync(func() {
+			item.SetLabel(escapeMnemonics(label, runtime.GOOS))
+			for i, row := range detailItems(details, nil) {
+				if i >= len(rows) {
+					break
+				}
+				rows[i].SetLabel(escapeMnemonics(row.Label, runtime.GOOS)).SetTooltip(row.Tooltip).SetHidden(row.Hidden)
+			}
+		})
 	}
 }
 
@@ -324,19 +345,27 @@ func mustIcon(name string) []byte {
 
 // menu builds the menu from the latest state, and returns it along with its History item (nil
 // when it has none).
-func (t *Tray) menu() (*application.Menu, *application.MenuItem) {
+func (t *Tray) menu() (*application.Menu, *application.MenuItem, []*application.MenuItem) {
 	t.mu.Lock()
 	s := t.state
 	t.mu.Unlock()
 	items, history := layout(s, t.actions)
 	m := application.NewMenu()
 	var historyItem *application.MenuItem
+	var detailRows []*application.MenuItem
 	for i, it := range items {
+		if it.detailSlots {
+			sub := m.AddSubmenu(it.Label)
+			for _, child := range it.Children {
+				detailRows = append(detailRows, addItem(sub, child))
+			}
+			continue
+		}
 		if added := addItem(m, it); i == history {
 			historyItem = added
 		}
 	}
-	return m, historyItem
+	return m, historyItem, detailRows
 }
 
 // addItem adds an item to a menu. It returns the added item, or nil for a separator or a submenu.
@@ -352,7 +381,7 @@ func addItem(m *application.Menu, it Item) *application.MenuItem {
 		}
 	default:
 		click := it.OnClick
-		return m.Add(label).SetEnabled(!it.Disabled).OnClick(func(*application.Context) {
+		return m.Add(label).SetEnabled(!it.Disabled).SetHidden(it.Hidden).SetTooltip(it.Tooltip).OnClick(func(*application.Context) {
 			if click != nil {
 				click()
 			}

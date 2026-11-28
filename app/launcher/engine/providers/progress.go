@@ -77,3 +77,6 @@ func ago(t, now time.Time) string {
 		return i18n.N("%d h ago", "%d h ago", h, h)
 	}
 }
+
+// ProgressLine formats known percentage, speed and remaining time for native status surfaces.
+func ProgressLine(p corestate.Sum) string { return progressLine(p) }

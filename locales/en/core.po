@@ -1538,6 +1538,7 @@ msgid "Hide Others"
 msgstr ""
 
 #: app/launcher/engine/providers/navigation.go
+#: app/tray/details.go
 #: app/windows/titles.go
 msgid "History"
 msgstr ""
@@ -3238,6 +3239,8 @@ msgid "Transfer started"
 msgstr ""
 
 #. A group of notification events, in the Notifications window.
+#: app/tray/tray.go
+#: app/traydetails.go
 #: core/notifications/catalog.go
 msgid "Transfers"
 msgstr ""
